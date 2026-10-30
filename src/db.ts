@@ -6,6 +6,7 @@ export type Profile = { user_id: string; solo_xp: number; intro: string; theme_i
 export type DogamEntry = {
   user_id: string;
   display_name: string;
+  joined_at: string | null;
   active: number;
   is_newbie: number;
   owned: number;
@@ -52,7 +53,7 @@ export async function saveProfile(db: D1Database, id: string, intro: string, the
     .run();
 }
 
-const DOGAM_SELECT = `SELECT m.user_id, m.display_name, m.active, m.is_newbie,
+const DOGAM_SELECT = `SELECT m.user_id, m.display_name, m.joined_at, m.active, m.is_newbie,
               (c.owner_id IS NOT NULL) AS owned,
               COALESCE(c.xp, 0) AS xp, COALESCE(c.voice_seconds, 0) AS voice_seconds,
               COALESCE(c.scrims, 0) AS scrims, c.first_met,

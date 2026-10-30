@@ -5,6 +5,12 @@ import { THEMES, UNLOCKED_THEMES } from '../themes';
 import { Card, formatHours } from './card';
 import { Layout } from './layout';
 
+const SAMPLE_STATS: [string, string][] = [
+  ['레벨', '20'],
+  ['통화', '100시간'],
+  ['내전', '12회'],
+];
+
 const TIER_LABEL = { plain: '기본', silver: '은테', gold: '금테', sparkle: '반짝이', holo: '홀로그램', legend: '전설' } as const;
 const TIER_STEPS = [
   [5, '은테'],
@@ -30,11 +36,11 @@ export function LandingPage(props: { error?: string; devLogin: boolean }) {
     <Layout title="환영해요">
       <section class="hero">
         <div class="hero-text">
-          <p class="eyebrow">하리보 디스코드 전용</p>
+          <p class="eyebrow">하리보 디스코드 멤버 전용</p>
           <h1>
-            함께 놀수록
+            같이 놀수록
             <br />
-            <span class="grad">카드가 자라는</span> 도감
+            <mark>카드가 자라는</mark> 도감
           </h1>
           <p class="lead">통화방에서, 내전에서 함께한 시간만큼 서로의 카드가 반짝반짝 빛나요. 친구 카드를 모아 나만의 도감을 채워 보세요.</p>
           {props.error && <p class="notice error">{props.error}</p>}
@@ -51,9 +57,9 @@ export function LandingPage(props: { error?: string; devLogin: boolean }) {
           )}
         </div>
         <div class="fan" aria-hidden="true">
-          <img src="/frames/ice.webp" alt="" />
-          <img src="/frames/rose.webp" alt="" />
-          <img src="/frames/basic.webp" alt="" />
+          <Card id="210987654321098765" kind="pair" name="얼음공주" theme="ice" intro="새벽 롤 같이 해요" xp={3000} no="027" stats={SAMPLE_STATS} />
+          <Card id="345678901234567890" kind="pair" name="장미단" theme="rose" intro="내전 MVP 노려요" xp={11000} no="104" stats={SAMPLE_STATS} />
+          <Card id="123456789012345678" kind="pair" name="하리보" theme="basic" intro="반가워요!" xp={26000} no="001" stats={SAMPLE_STATS} />
         </div>
       </section>
       <section class="steps">
@@ -114,6 +120,7 @@ export function MePage(props: { viewer: Member; profile: Profile; owned: number;
       <div class="split">
         <div class="stage-wrap">
           <Card
+            id={viewer.user_id}
             kind="own"
             size="large"
             name={viewer.display_name}
@@ -155,9 +162,18 @@ export function MePage(props: { viewer: Member; profile: Profile; owned: number;
                     return (
                       <label class={locked ? 'theme locked' : 'theme'}>
                         <input type="radio" name="theme" value={t.id} checked={profile.theme_id === t.id} disabled={locked} />
-                        <span class="theme-img">
-                          <img src={`/frames/${t.id}.webp`} alt="" loading="lazy" />
-                          {locked && <span class="lock" aria-hidden="true">🔒</span>}
+                        <span class={`theme-img swatch theme-${t.id}`}>
+                          <span class="swatch-inner"></span>
+                          {locked && (
+                            <span class="lock" aria-hidden="true">
+                              <svg viewBox="0 0 24 24">
+                                <path
+                                  fill="currentColor"
+                                  d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 0 1 6 0v3H9Z"
+                                />
+                              </svg>
+                            </span>
+                          )}
                         </span>
                         <span class="theme-name">{t.name}</span>
                       </label>
@@ -186,6 +202,11 @@ export function DogamPage(props: {
   const pct = props.total ? Math.round((props.owned / props.total) * 100) : 0;
   const left = props.entries.filter((e) => !e.active).length;
   const title = mine ? '내 도감' : `${props.owner.display_name}님의 도감`;
+  // 도감 번호: 서버에 들어온 순서
+  const order = [...props.entries].sort(
+    (a, b) => (a.joined_at ?? '9999').localeCompare(b.joined_at ?? '9999') || a.user_id.localeCompare(b.user_id),
+  );
+  const dexNo = new Map(order.map((e, i) => [e.user_id, String(i + 1).padStart(3, '0')]));
   const filter = (id: string, label: string, n: number, checked = false) => (
     <label class="filter">
       <input type="radio" name="f" id={id} checked={checked} />
@@ -223,6 +244,8 @@ export function DogamPage(props: {
             return (
               <div class={`grid-item is-${state}`}>
                 <Card
+                  id={e.user_id}
+                  no={dexNo.get(e.user_id)}
                   kind={e.owned ? 'pair' : 'unknown'}
                   faded={!e.active}
                   name={e.display_name}
@@ -245,17 +268,7 @@ export function DogamPage(props: {
                         ]
                   }
                 />
-                <div class="caption">
-                  <span class="caption-name">{e.display_name}</span>
-                  {e.owned ? (
-                    <span class="chip small">
-                      {levelName(lv)} · Lv.{lv}
-                    </span>
-                  ) : (
-                    <span class="chip small ghost">아직 못 만남</span>
-                  )}
-                  {e.is_newbie && e.active ? <span class="chip small sprout">새싹</span> : null}
-                </div>
+                {e.is_newbie && e.active ? <span class="chip small sprout">새싹</span> : null}
                 {mine && e.active ? (
                   <a class="peek" href={`/dogam/${e.user_id}`}>
                     도감 구경하기 →
@@ -287,6 +300,7 @@ export function CardPage(props: { viewer: Member; owner: Member; target: Member;
       <div class="split">
         <div class="stage-wrap">
           <Card
+            id={target.user_id}
             kind="pair"
             size="large"
             faded={!target.active}

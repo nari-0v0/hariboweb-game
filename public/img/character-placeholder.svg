@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300">
-  <g fill="#000" fill-opacity=".18">
-    <circle cx="100" cy="62" r="42"/>
-    <path d="M52 132q48-26 96 0l10 92h-36l-4 68h-36l-4-68H42z"/>
-  </g>
-  <text x="100" y="74" text-anchor="middle" font-family="sans-serif" font-size="40" fill="#fff" fill-opacity=".8">?</text>
-</svg>

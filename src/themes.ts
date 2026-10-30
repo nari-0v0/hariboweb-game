@@ -1,16 +1,16 @@
-// 카드 틀. basic은 기본, 나머지는 나중에 젤리 상점에서 사는 테마예요.
+// 카드 테마. 그림 파일 없이 색과 무늬만으로 그려요. basic은 기본, 나머지는 나중에 젤리 상점에서 사요.
 export const THEMES = [
-  { id: 'basic', name: '기본' },
-  { id: 'ice', name: '얼음' },
-  { id: 'teaparty', name: '티파티' },
-  { id: 'mermaid', name: '인어' },
+  { id: 'basic', name: '하리보' },
   { id: 'moonnight', name: '달밤' },
   { id: 'rose', name: '장미' },
-  { id: 'blackgold', name: '블랙골드' },
-  { id: 'cyber', name: '사이버' },
-  { id: 'racing', name: '레이싱' },
-  { id: 'space', name: '우주' },
+  { id: 'teaparty', name: '티파티' },
+  { id: 'ice', name: '얼음' },
+  { id: 'mermaid', name: '바다' },
   { id: 'forest', name: '숲' },
+  { id: 'space', name: '우주' },
+  { id: 'blackgold', name: '블랙골드' },
+  { id: 'cyber', name: '네온' },
+  { id: 'racing', name: '레이싱' },
 ] as const;
 
 export type ThemeId = (typeof THEMES)[number]['id'];

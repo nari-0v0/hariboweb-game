@@ -13,27 +13,20 @@ export function Layout(props: { title: string; viewer?: Member | null; active?: 
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>{props.title} · 하리보 멤버 도감</title>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&display=swap"
-        />
+        <link rel="preload" href="/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin="" />
         <link rel="stylesheet" href="/styles.css" />
         <script src="/app.js" defer></script>
       </head>
       <body>
         <div class="sky" aria-hidden="true">
-          <span class="blob b1"></span>
-          <span class="blob b2"></span>
-          <span class="blob b3"></span>
+          <i class="cloud c1" />
+          <i class="cloud c2" />
+          <i class="cloud c3" />
         </div>
         <header class="topbar">
           <a class="brand" href="/">
             <span class="brand-mark" aria-hidden="true"></span>
-            <span class="brand-text">
-              <b>하리보</b> 멤버 도감
-            </span>
+            <span class="brand-text">하리보 멤버 도감</span>
           </a>
           {props.viewer && (
             <nav class="nav">
@@ -46,6 +39,9 @@ export function Layout(props: { title: string; viewer?: Member | null; active?: 
           )}
         </header>
         <main>{props.children}</main>
+        <footer class="foot">
+          글꼴: 갈무리(Galmuri, OFL) · 캐릭터와 카드는 하리보 도감에서 직접 그렸어요
+        </footer>
       </body>
     </html>
   );
