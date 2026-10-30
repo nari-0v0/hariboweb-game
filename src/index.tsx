@@ -3,7 +3,7 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import type { AppEnv, Member } from './env';
 import { randomToken, safeEqual, signSession, verifySession } from './crypto';
 import { authorizeUrl, exchangeCode, fetchGuildProfile, type LoginProfile } from './discord';
-import { completion, getMember, getOwnedCard, getProfile, listDogam, saveProfile, upsertLoginMember } from './db';
+import { assignCharacters, completion, getMember, getOwnedCard, getProfile, listDogam, saveProfile, upsertLoginMember } from './db';
 import { applySync, parseSync } from './sync';
 import { UNLOCKED_THEMES } from './themes';
 import { CardPage, DogamPage, LandingPage, MePage, MessagePage } from './views/pages';
@@ -99,6 +99,7 @@ app.post('/api/bot/sync', async (c) => {
   const parsed = parseSync(raw);
   if (!parsed.ok) return c.json({ error: parsed.error }, 400);
   const result = await applySync(c.env.DB, parsed.value);
+  if (result === 'applied') await assignCharacters(c.env.DB, parsed.value.members.map((m) => m.id));
   return c.json({ ok: true, result });
 });
 

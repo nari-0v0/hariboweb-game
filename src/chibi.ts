@@ -521,3 +521,27 @@ export function chibiSvg(seed: string): string {
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" shape-rendering="crispEdges">${rects}</svg>`;
 }
+
+// 그림 지문: 같은 그림이면 같은 값
+export function chibiSig(seed: string): string {
+  const { pixels } = makeChibi(seed);
+  let h1 = 2166136261;
+  let h2 = 5381;
+  for (const p of pixels) {
+    const s = p ?? '-';
+    for (let i = 0; i < s.length; i++) {
+      h1 = Math.imul(h1 ^ s.charCodeAt(i), 16777619);
+      h2 = (Math.imul(h2, 33) + s.charCodeAt(i)) | 0;
+    }
+  }
+  return (h1 >>> 0).toString(16).padStart(8, '0') + (h2 >>> 0).toString(16).padStart(8, '0');
+}
+
+// 이미 서버에 있는 그림과 겹치면 씨앗을 바꿔 가며 다시 그려요. 그래서 몇 명이 되든 모두 달라요.
+export function pickUniqueCharacter(userId: string, taken: Set<string>): { seed: string; sig: string } {
+  for (let k = 0; ; k++) {
+    const seed = k === 0 ? userId : `${userId}#${k}`;
+    const sig = chibiSig(seed);
+    if (!taken.has(sig)) return { seed, sig };
+  }
+}

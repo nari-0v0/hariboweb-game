@@ -1,5 +1,6 @@
 import type { Member } from './env';
 import type { LoginProfile } from './discord';
+import { pickUniqueCharacter } from './chibi';
 
 export type Profile = { user_id: string; solo_xp: number; intro: string; theme_id: string; character_id: string | null };
 
@@ -36,6 +37,7 @@ export async function upsertLoginMember(db: D1Database, p: LoginProfile) {
     )
     .bind(p.id, p.name, p.avatar_url, p.joined_at, now())
     .run();
+  await assignCharacters(db, [p.id]);
 }
 
 export async function getProfile(db: D1Database, id: string): Promise<Profile> {
@@ -86,4 +88,32 @@ export function getOwnedCard(db: D1Database, ownerId: string, targetId: string) 
 export function completion(entries: DogamEntry[]) {
   const current = entries.filter((e) => e.active);
   return { owned: current.filter((e) => e.owned).length, total: current.length };
+}
+
+// 캐릭터가 아직 없는 멤버에게 서버 안에서 겹치지 않는 캐릭터를 정해 줘요.
+export async function assignCharacters(db: D1Database, userIds: string[]) {
+  if (userIds.length === 0) return;
+  const { results: rows } = await db
+    .prepare('SELECT user_id, character_id, character_sig FROM profiles WHERE character_sig IS NOT NULL OR user_id IN (SELECT value FROM json_each(?))')
+    .bind(JSON.stringify(userIds))
+    .all<{ user_id: string; character_id: string | null; character_sig: string | null }>();
+  const taken = new Set(rows.flatMap((r) => (r.character_sig ? [r.character_sig] : [])));
+  const done = new Set(rows.filter((r) => r.character_id).map((r) => r.user_id));
+  const stmts: D1PreparedStatement[] = [];
+  const t = now();
+  for (const id of new Set(userIds)) {
+    if (done.has(id)) continue;
+    const { seed, sig } = pickUniqueCharacter(id, taken);
+    taken.add(sig);
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO profiles (user_id, character_id, character_sig, updated_at) VALUES (?1, ?2, ?3, ?4)
+           ON CONFLICT (user_id) DO UPDATE SET character_id = ?2, character_sig = ?3, updated_at = ?4
+           WHERE profiles.character_id IS NULL`,
+        )
+        .bind(id, seed, sig, t),
+    );
+  }
+  if (stmts.length) await db.batch(stmts);
 }

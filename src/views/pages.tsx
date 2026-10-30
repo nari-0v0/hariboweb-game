@@ -120,7 +120,7 @@ export function MePage(props: { viewer: Member; profile: Profile; owned: number;
       <div class="split">
         <div class="stage-wrap">
           <Card
-            id={viewer.user_id}
+            id={profile.character_id ?? viewer.user_id}
             kind="own"
             size="large"
             name={viewer.display_name}
@@ -244,7 +244,7 @@ export function DogamPage(props: {
             return (
               <div class={`grid-item is-${state}`}>
                 <Card
-                  id={e.user_id}
+                  id={e.character_id ?? e.user_id}
                   no={dexNo.get(e.user_id)}
                   kind={e.owned ? 'pair' : 'unknown'}
                   faded={!e.active}
@@ -300,7 +300,7 @@ export function CardPage(props: { viewer: Member; owner: Member; target: Member;
       <div class="split">
         <div class="stage-wrap">
           <Card
-            id={target.user_id}
+            id={entry.character_id ?? target.user_id}
             kind="pair"
             size="large"
             faded={!target.active}
