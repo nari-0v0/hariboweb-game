@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHARACTER_TOTAL, characterUrl, fallbackCharacter, isCharacterId, pickCharacter } from '../src/character';
+import { CHARACTER_TOTAL, characterUrl, fallbackCharacter, isCharacterId, pickCharacter, shouldRepick } from '../src/character';
 import { CHARACTERS } from '../src/characters';
 
 const ids = (n: number) => Array.from({ length: n }, (_, i) => String(700000000000000000n + BigInt(i) * 987654321n));
@@ -28,5 +28,15 @@ describe('member characters', () => {
     expect(fallbackCharacter('123')).toBe(fallbackCharacter('123'));
     expect(characterUrl('nope-99', '123')).toBe(`/char/${fallbackCharacter('123')}.png`);
     expect(characterUrl('frog-3', '123')).toBe('/char/frog-3.png');
+    expect(characterUrl('basic-boy-0', '123')).toBe(`/char/${fallbackCharacter('123')}.png`);
+  });
+
+  it('moves members off spare colors once a new design is free', () => {
+    const allBase = new Set(CHARACTERS.map((c) => `${c.id}-0`));
+    expect(shouldRepick('frog-0', new Set())).toBe(false);
+    expect(shouldRepick('frog-2', new Set(['frog-2']))).toBe(true);
+    expect(shouldRepick('frog-2', allBase)).toBe(false);
+    expect(shouldRepick('basic-boy-0', allBase)).toBe(true);
+    expect(shouldRepick(null, allBase)).toBe(true);
   });
 });

@@ -1,0 +1,25 @@
+{
+  "_설명": "캐릭터 그림 목록이에요. 새 그림을 넣으려면 png를 이 폴더에 두고 아래에 한 줄 더 쓴 다음 python3 scripts/build_characters.py 를 실행하세요. 이름은 왼쪽 위부터 줄마다 순서대로예요. 이미 있는 id는 바꾸지 마세요(멤버에게 정해진 캐릭터가 달라져요).",
+  "sheets": [
+    {
+      "file": "sheet-1.png",
+      "columns": 5,
+      "characters": [
+        ["hoodie", "파란 후디"], ["pink-knit", "분홍 니트"], ["student", "학생"], ["sailor", "세일러복"], ["office", "직장인"],
+        ["office-lady", "커리어우먼"], ["glasses", "동글 안경"], ["soccer", "축구"], ["basketball", "농구"], ["bear", "곰 후드"],
+        ["rabbit", "토끼 후드"], ["cat-hood", "고양이 후드"], ["frog", "개구리 후드"], ["wolf", "늑대 후드"], ["wizard", "마법사"],
+        ["knight", "기사"], ["astronaut", "우주인"], ["penguin", "펭귄"], ["panda", "판다"], ["firefighter", "소방관"]
+      ]
+    },
+    {
+      "file": "sheet-2.png",
+      "columns": 5,
+      "characters": [
+        ["headphone", "헤드폰"], ["bunny-bag", "토끼 가방"], ["silver-hoodie", "은발 후디"], ["maid", "메이드"], ["white-cat", "흰 고양이 후드"],
+        ["red-ribbon", "빨간 리본"], ["cap", "캡모자"], ["alice", "앨리스"], ["cardigan", "가디건 안경"], ["black-bunny", "검은 토끼 후드"],
+        ["dino", "공룡 후드"], ["beret", "베레모"], ["shark", "상어 후드"], ["purple-cat", "보라 고양이"], ["red-headphone", "빨간 머리"],
+        ["witch", "마녀"], ["captain", "선장"], ["sheep", "양 후드"], ["wolf-boy", "늑대 소년"], ["snow", "눈꽃"]
+      ]
+    }
+  ]
+}

@@ -10,7 +10,7 @@ Cloudflare Workers + D1로 돌아가요.
 - 도감: 같이 논 멤버 카드, 아직 못 만난 멤버는 실루엣, 떠난 멤버는 흐리게
 - 친구 도감 구경, 카드 상세 (처음 만난 날, 함께한 시간, 내전 횟수)
 - 레벨 꾸미기: Lv.5 은테, Lv.10 금테, Lv.20 반짝이, Lv.30 홀로그램, Lv.50 무지개 테두리
-- 멤버 캐릭터: 나리님이 준 캐릭터 목록 그림(`assets/characters-source.png`)에서 21종을 잘라 색 12가지로 만든 252가지(`public/char/`). 서버 안에서 겹치지 않게 정해 주고, 처음 21명은 서로 다른 캐릭터를 받아요. 그림을 바꾸면 `python3 scripts/build_characters.py`로 다시 만들어요(numpy, scipy, Pillow 필요).
+- 멤버 캐릭터: 나리님이 준 캐릭터 그림(`assets/characters/`, 목록은 `sheets.json`)에서 한 명씩 잘라낸 디자인(지금 40종, `public/char/`). 서버 안에서 겹치지 않게 정해 줘요. 멤버가 디자인 수보다 많으면 옷 색만 바꾼 여분을 잠깐 주고, 새 그림을 넣으면 그 멤버들이 새 디자인으로 옮겨 가요. 그림을 넣는 법: png를 `assets/characters/`에 두고 `sheets.json`에 이름을 적은 뒤 `python3 scripts/build_characters.py`(numpy, scipy, Pillow 필요).
 - 글꼴: 갈무리(Galmuri, SIL OFL 1.1) `public/fonts/`
 - 봇이 경험치를 보내는 통로: [docs/bot-sync.md](docs/bot-sync.md)
 

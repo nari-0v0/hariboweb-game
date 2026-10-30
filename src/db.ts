@@ -1,6 +1,6 @@
 import type { Member } from './env';
 import type { LoginProfile } from './discord';
-import { pickCharacter } from './character';
+import { pickCharacter, shouldRepick } from './character';
 
 export type Profile = { user_id: string; solo_xp: number; intro: string; theme_id: string; character_id: string | null };
 
@@ -91,6 +91,7 @@ export function completion(entries: DogamEntry[]) {
 }
 
 // 캐릭터가 아직 없는 멤버에게 서버 안에서 겹치지 않는 캐릭터를 정해 줘요.
+// 여분 색을 받았던 멤버는 새 디자인이 생기면 그쪽으로 옮겨 줘요.
 export async function assignCharacters(db: D1Database, userIds: string[]) {
   if (userIds.length === 0) return;
   const { results: rows } = await db
@@ -98,21 +99,24 @@ export async function assignCharacters(db: D1Database, userIds: string[]) {
     .bind(JSON.stringify(userIds))
     .all<{ user_id: string; character_id: string | null; character_sig: string | null }>();
   const taken = new Set(rows.flatMap((r) => (r.character_sig ? [r.character_sig] : [])));
-  const done = new Set(rows.filter((r) => r.character_id).map((r) => r.user_id));
+  const current = new Map(rows.map((r) => [r.user_id, r.character_id]));
   const stmts: D1PreparedStatement[] = [];
   const t = now();
   for (const id of new Set(userIds)) {
-    if (done.has(id)) continue;
+    const before = current.get(id) ?? null;
+    if (before && !shouldRepick(before, taken)) continue;
     const character = pickCharacter(id, taken);
+    // 전부 차서 겹치는 캐릭터를 받으면 겹침 검사(sig)는 비워 둬요
+    const sig = taken.has(character) ? null : character;
     taken.add(character);
     stmts.push(
       db
         .prepare(
           `INSERT INTO profiles (user_id, character_id, character_sig, updated_at) VALUES (?1, ?2, ?3, ?4)
            ON CONFLICT (user_id) DO UPDATE SET character_id = ?2, character_sig = ?3, updated_at = ?4
-           WHERE profiles.character_id IS NULL`,
+           WHERE profiles.character_id IS ?5`,
         )
-        .bind(id, character, character, t),
+        .bind(id, character, sig, t, before),
     );
   }
   if (stmts.length) await db.batch(stmts);

@@ -1,8 +1,9 @@
-"""나리님이 준 캐릭터 목록 그림(assets/characters-source.png)에서 캐릭터를 잘라
+"""나리님이 준 캐릭터 그림(assets/characters/*.png)에서 캐릭터를 하나씩 잘라
 public/char/<이름>-<색>.png 로 저장하고, src/characters.ts 목록을 만들어요.
+그림 목록과 이름은 assets/characters/sheets.json 에 있어요.
 
-색 0은 원래 색이고, 1~11은 대표 옷 색(후드, 로브 등)을 색상환에서 30도씩 돌린 버전이에요.
-흰 옷은 연한 파스텔로 물들이고, 얼굴과 검은 테두리는 그대로 둬요. 그래서 캐릭터 21종 × 12색 = 252가지가 나와요.
+캐릭터는 모두 다른 디자인이에요. 색 0이 원래 그림이고, 1~3은 멤버 수가 디자인 수보다 많을 때만 쓰는
+여분이에요(대표 옷 색만 돌린 버전). 새 그림을 넣으면 여분을 쓰던 멤버가 새 디자인으로 옮겨 가요.
 
 사용법: python3 scripts/build_characters.py
 """
@@ -15,56 +16,77 @@ from PIL import Image
 from scipy import ndimage
 
 ROOT = Path(__file__).resolve().parent.parent
-SRC = ROOT / "assets" / "characters-source.png"
+SRC = ROOT / "assets" / "characters"
 OUT = ROOT / "public" / "char"
-VARIANTS = 12
+VARIANTS = 4
 # 몸 전체가 살구색 털이라 피부 보호를 끄는 캐릭터
-FUR_SKIN = {"puppy", "kitty"}
-
-# 그림 속 순서대로 (왼쪽 위부터)
-NAMES = [
-    ("basic-boy", "기본 캐릭터 1"), ("basic-girl", "기본 캐릭터 2"), ("student", "학생"), ("student-girl", "학생(여)"),
-    ("frog", "개구리 후드"), ("cat-hood", "고양이 후드"), ("rabbit", "토끼 후드"), ("bear", "곰 후드"), ("dino", "공룡 후드"),
-    ("wolf", "늑대 후드"), ("wizard", "마법사"), ("knight", "기사"), ("astronaut", "우주인"), ("penguin", "펭귄"),
-    ("panda", "판다"), ("puppy", "강아지"), ("kitty", "고양이"), ("soccer", "스포츠(축구)"), ("basketball", "스포츠(농구)"),
-    ("hiphop", "힙합"), ("glasses", "안경 캐릭터"),
-]
+FUR_SKIN = {"sheep", "bear"}
 
 
-def cut_characters():
-    img = np.array(Image.open(SRC).convert("RGBA"))
-    rgb = img[..., :3].astype(int)
-    mx, mn = rgb.max(-1), rgb.min(-1)
-    # 밝은 회색 배경을 가장자리부터 채워서, 닿지 않는 덩어리를 캐릭터로 봐요
-    bgish = (mn > 185) & (mx - mn < 22)
-    lab, _ = ndimage.label(bgish)
-    border = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
-    fg = ndimage.binary_opening(~np.isin(lab, list(border)), iterations=1)
-    cl, _ = ndimage.label(fg)
-    boxes = []
-    for i, s in enumerate(ndimage.find_objects(cl)):
-        h, w = s[0].stop - s[0].start, s[1].stop - s[1].start
-        if h > 35 and w > 25:  # 글자는 작아서 빠져요
-            boxes.append((s[0].start, s[1].start, i + 1))
-    boxes.sort(key=lambda b: (b[0] // 60, b[1]))
-    assert len(boxes) == len(NAMES), f"캐릭터 {len(boxes)}개를 찾았어요 (예상 {len(NAMES)})"
+def foreground(img):
+    """배경이 아닌 곳. 투명 배경이면 알파로, 아니면 가장자리에서 이어진 검은 배경을 빼요."""
+    alpha = img[..., 3]
+    if (alpha < 16).mean() > 0.1:
+        return alpha > 128, alpha > 200
+    mx = img[..., :3].astype(int).max(-1)
+
+    def outside(t):
+        lab, _ = ndimage.label(mx <= t)
+        border = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
+        return np.isin(lab, list(border))
+
+    # 느슨한 기준(6)은 테두리까지 살리고, 빡빡한 기준(20)은 붙어 있는 캐릭터를 떼어 놓아요
+    return ~outside(6), ~outside(20)
+
+
+def cut_sheet(path, count, columns):
+    img = np.array(Image.open(path).convert("RGBA"))
+    fg, strict = foreground(img)
+    fg = ndimage.binary_opening(fg, iterations=1)
+    seeds, n = ndimage.label(ndimage.binary_opening(strict, iterations=2))
+    sizes = ndimage.sum(np.ones_like(seeds), seeds, range(1, n + 1))
+    big = [i + 1 for i in np.argsort(sizes)[::-1][:count]]
+    assert sizes[big[-1] - 1] > 5000 and (n <= count or sorted(sizes)[-count - 1] < 2000), f"{path.name}: 캐릭터 {count}명을 못 찾았어요"
+    # 캐릭터 순서: 위에서부터 한 줄(columns명)씩, 줄 안에서는 왼쪽부터
+    cents = {i: ndimage.center_of_mass(seeds == i) for i in big}
+    by_y = sorted(big, key=lambda i: cents[i][0])
+    order = [i for r in range(0, count, columns) for i in sorted(by_y[r:r + columns], key=lambda i: cents[i][1])]
+    # 느슨한 테두리 픽셀은 가장 가까운 캐릭터에 붙여요
+    seed_map = np.where(np.isin(seeds, big), seeds, 0)
+    dist, (iy, ix) = ndimage.distance_transform_edt(seed_map == 0, return_indices=True)
+    owner = np.where(fg & (dist <= 12), seed_map[iy, ix], 0)
     out = []
-    for (_, _, i) in boxes:
-        m = ndimage.binary_fill_holes(cl == i)
+    for i in order:
+        m = ndimage.binary_fill_holes(owner == i)
+        lab, k = ndimage.label(m)
+        if k > 1:  # 떨어진 부스러기는 버리고 큰 조각만 남겨요
+            sz = ndimage.sum(m, lab, range(1, k + 1))
+            m = np.isin(lab, [j + 1 for j, v in enumerate(sz) if v >= 60])
         ys, xs = np.where(m)
         y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
         a = img[y0:y1, x0:x1].copy()
         alpha = m[y0:y1, x0:x1]
+        # 가장자리에 남은 어두운 배경, 붉은 번짐을 한 겹 정리해요
         c = a[..., :3].astype(int)
-        cmx, cmn = c.max(-1), c.min(-1)
-        # 가장자리의 밝은 번짐과 발밑 회색 그림자를 지워요
         edge = alpha & ~ndimage.binary_erosion(alpha)
-        alpha &= ~(edge & (cmn > 170) & (cmx - cmn < 30))
-        ys2 = np.arange(alpha.shape[0])[:, None]
-        alpha &= ~((ys2 > alpha.shape[0] * 0.86) & (cmx - cmn < 18) & (cmn > 110))
+        alpha &= ~(edge & ((c.max(-1) < 12) | (a[..., 3] < 160)))
         a[..., 3] = np.where(alpha, 255, 0)
+        a[..., :3][~alpha] = 0
         out.append(a)
     return out
+
+
+def cut_characters():
+    spec = json.loads((SRC / "sheets.json").read_text())
+    names, sprites, seen = [], [], set()
+    for sheet in spec["sheets"]:
+        chars = sheet["characters"]
+        for key, _ in chars:
+            assert key not in seen, f"이름이 겹쳐요: {key}"
+            seen.add(key)
+        sprites += cut_sheet(SRC / sheet["file"], len(chars), sheet["columns"])
+        names += [tuple(c) for c in chars]
+    return names, sprites
 
 
 def to_hsv(a):
@@ -122,14 +144,16 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     for f in OUT.glob("*.png"):
         f.unlink()
-    sprites = cut_characters()
+    names, sprites = cut_characters()
     sizes = {}
-    for (key, _), a in zip(NAMES, sprites):
+    for (key, _), a in zip(names, sprites):
         sizes[key] = [int(a.shape[1]), int(a.shape[0])]
         hue = main_color(a)
         for v in range(VARIANTS):
-            Image.fromarray(recolor(a, v * 360 // VARIANTS, hue, key not in FUR_SKIN)).save(OUT / f"{key}-{v}.png", optimize=True)
-    entries = ",\n".join(f"  {{ id: '{k}', name: '{n}', w: {sizes[k][0]}, h: {sizes[k][1]} }}" for k, n in NAMES)
+            b = recolor(a, v * 360 // VARIANTS, hue, key not in FUR_SKIN)
+            # 색 128개 팔레트로 줄여서 파일을 가볍게 (도감에 100장 넘게 뜨니까요)
+            Image.fromarray(b).quantize(128, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE).save(OUT / f"{key}-{v}.png", optimize=True)
+    entries = ",\n".join(f"  {{ id: '{k}', name: '{n}', w: {sizes[k][0]}, h: {sizes[k][1]} }}" for k, n in names)
     (ROOT / "src" / "characters.ts").write_text(
         "// scripts/build_characters.py가 만든 파일이에요. 직접 고치지 마세요.\n"
         f"export const CHARACTER_VARIANTS = {VARIANTS};\n\n"

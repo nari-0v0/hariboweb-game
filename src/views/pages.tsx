@@ -57,9 +57,9 @@ export function LandingPage(props: { error?: string; devLogin: boolean }) {
           )}
         </div>
         <div class="fan" aria-hidden="true">
-          <Card id="210987654321098765" character="rabbit-0" kind="pair" name="얼음공주" theme="ice" intro="새벽 롤 같이 해요" xp={3000} no="027" stats={SAMPLE_STATS} />
-          <Card id="345678901234567890" character="wizard-0" kind="pair" name="장미단" theme="rose" intro="내전 MVP 노려요" xp={11000} no="104" stats={SAMPLE_STATS} />
-          <Card id="123456789012345678" character="frog-0" kind="pair" name="하리보" theme="basic" intro="반가워요!" xp={26000} no="001" stats={SAMPLE_STATS} />
+          <Card id="210987654321098765" character="snow-0" kind="pair" name="얼음공주" theme="ice" intro="새벽 롤 같이 해요" xp={3000} no="027" stats={SAMPLE_STATS} />
+          <Card id="345678901234567890" character="witch-0" kind="pair" name="장미단" theme="rose" intro="내전 MVP 노려요" xp={11000} no="104" stats={SAMPLE_STATS} />
+          <Card id="123456789012345678" character="shark-0" kind="pair" name="하리보" theme="basic" intro="반가워요!" xp={26000} no="001" stats={SAMPLE_STATS} />
         </div>
       </section>
       <section class="steps">
