@@ -57,9 +57,9 @@ export function LandingPage(props: { error?: string; devLogin: boolean }) {
           )}
         </div>
         <div class="fan" aria-hidden="true">
-          <Card id="210987654321098765" kind="pair" name="얼음공주" theme="ice" intro="새벽 롤 같이 해요" xp={3000} no="027" stats={SAMPLE_STATS} />
-          <Card id="345678901234567890" kind="pair" name="장미단" theme="rose" intro="내전 MVP 노려요" xp={11000} no="104" stats={SAMPLE_STATS} />
-          <Card id="123456789012345678" kind="pair" name="하리보" theme="basic" intro="반가워요!" xp={26000} no="001" stats={SAMPLE_STATS} />
+          <Card id="210987654321098765" character="rabbit-0" kind="pair" name="얼음공주" theme="ice" intro="새벽 롤 같이 해요" xp={3000} no="027" stats={SAMPLE_STATS} />
+          <Card id="345678901234567890" character="wizard-0" kind="pair" name="장미단" theme="rose" intro="내전 MVP 노려요" xp={11000} no="104" stats={SAMPLE_STATS} />
+          <Card id="123456789012345678" character="frog-0" kind="pair" name="하리보" theme="basic" intro="반가워요!" xp={26000} no="001" stats={SAMPLE_STATS} />
         </div>
       </section>
       <section class="steps">
@@ -120,7 +120,8 @@ export function MePage(props: { viewer: Member; profile: Profile; owned: number;
       <div class="split">
         <div class="stage-wrap">
           <Card
-            id={profile.character_id ?? viewer.user_id}
+            id={viewer.user_id}
+            character={profile.character_id}
             kind="own"
             size="large"
             name={viewer.display_name}
@@ -244,7 +245,8 @@ export function DogamPage(props: {
             return (
               <div class={`grid-item is-${state}`}>
                 <Card
-                  id={e.character_id ?? e.user_id}
+                  id={e.user_id}
+                  character={e.character_id}
                   no={dexNo.get(e.user_id)}
                   kind={e.owned ? 'pair' : 'unknown'}
                   faded={!e.active}
@@ -300,7 +302,8 @@ export function CardPage(props: { viewer: Member; owner: Member; target: Member;
       <div class="split">
         <div class="stage-wrap">
           <Card
-            id={entry.character_id ?? target.user_id}
+            id={target.user_id}
+            character={entry.character_id}
             kind="pair"
             size="large"
             faded={!target.active}

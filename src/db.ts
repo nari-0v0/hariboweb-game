@@ -1,6 +1,6 @@
 import type { Member } from './env';
 import type { LoginProfile } from './discord';
-import { pickUniqueCharacter } from './chibi';
+import { pickCharacter } from './character';
 
 export type Profile = { user_id: string; solo_xp: number; intro: string; theme_id: string; character_id: string | null };
 
@@ -103,8 +103,8 @@ export async function assignCharacters(db: D1Database, userIds: string[]) {
   const t = now();
   for (const id of new Set(userIds)) {
     if (done.has(id)) continue;
-    const { seed, sig } = pickUniqueCharacter(id, taken);
-    taken.add(sig);
+    const character = pickCharacter(id, taken);
+    taken.add(character);
     stmts.push(
       db
         .prepare(
@@ -112,7 +112,7 @@ export async function assignCharacters(db: D1Database, userIds: string[]) {
            ON CONFLICT (user_id) DO UPDATE SET character_id = ?2, character_sig = ?3, updated_at = ?4
            WHERE profiles.character_id IS NULL`,
         )
-        .bind(id, seed, sig, t),
+        .bind(id, character, character, t),
     );
   }
   if (stmts.length) await db.batch(stmts);

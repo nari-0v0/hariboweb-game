@@ -40,7 +40,7 @@ export function Layout(props: { title: string; viewer?: Member | null; active?: 
         </header>
         <main>{props.children}</main>
         <footer class="foot">
-          글꼴: 갈무리(Galmuri, OFL) · 캐릭터와 카드는 하리보 도감에서 직접 그렸어요
+          글꼴: 갈무리(Galmuri, OFL)
         </footer>
       </body>
     </html>

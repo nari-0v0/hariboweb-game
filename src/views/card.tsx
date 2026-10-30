@@ -1,10 +1,11 @@
-import { raw } from 'hono/html';
-import { chibiSvg } from '../chibi';
+import { characterUrl } from '../character';
 import { levelName, progress, tierFor } from '../levels';
 import { themeOrBasic } from '../themes';
 
 export type CardProps = {
+  // 디스코드 ID와 정해진 캐릭터
   id: string;
+  character?: string | null;
   name: string;
   theme: string | null;
   intro: string | null;
@@ -44,7 +45,7 @@ export function Card(p: CardProps) {
           <div class="c-art">
             <span class="c-label">{label}</span>
             <div class="c-ground" />
-            <div class="c-avatar">{raw(chibiSvg(p.id))}</div>
+            <img class="c-avatar" src={characterUrl(p.character, p.id)} alt="" loading="lazy" />
           </div>
           <div class="c-name">{p.name}</div>
           <div class="c-intro">{unknown ? '같이 놀면 카드가 열려요' : p.intro || '...'}</div>

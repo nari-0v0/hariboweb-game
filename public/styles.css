@@ -287,8 +287,7 @@ input:not([type=radio]):focus { background: #fff6fa; border-color: var(--pink); 
 }
 .c-ground { position: absolute; left: 0; right: 0; bottom: 0; height: 20%; background: var(--t-ground); border-top: 1cqw solid rgba(0, 0, 0, .12); }
 .c-ground::before { content: ''; position: absolute; left: 50%; top: 18%; width: 46%; height: 26%; translate: -50% 0; background: rgba(0, 0, 0, .18); border-radius: 50%; }
-.c-avatar { position: absolute; left: 50%; bottom: 7%; width: 58%; translate: -50% 0; }
-.c-avatar svg { display: block; width: 100%; height: auto; }
+.c-avatar { position: absolute; left: 50%; bottom: 7%; height: 76%; width: auto; max-width: 92%; translate: -50% 0; object-fit: contain; object-position: bottom; image-rendering: pixelated; }
 .c-name {
   text-align: center; font-size: 7cqw; font-weight: 700; line-height: 1.2; padding: 1.6cqw 2cqw;
   background: var(--t-paper); border: 1.2cqw solid var(--t-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -341,7 +340,7 @@ input:not([type=radio]):focus { background: #fff6fa; border-color: var(--pink); 
   .tier-legend { animation: rainbow 3s steps(12) infinite; }
 }
 @keyframes blink { 50% { opacity: .25; } }
-@keyframes bob { 50% { translate: -50% -1.6cqw; } }
+@keyframes bob { 50% { translate: -50% -1.2cqw; } }
 .tier-holo .shine, .tier-legend .shine {
   opacity: .35; mix-blend-mode: soft-light;
   background: linear-gradient(115deg, transparent 20%, #ff9ad5 35%, #9ae6ff 50%, #c5ff9a 65%, transparent 80%);
