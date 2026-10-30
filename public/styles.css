@@ -1,0 +1,180 @@
+:root {
+  --bg: #fff7ef;
+  --surface: #ffffff;
+  --text: #3b2a24;
+  --muted: #8a776e;
+  --accent: #e8484f;
+  --accent-soft: #ffe1dc;
+  --line: #f0dfd3;
+  --ok: #2f8f5b;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1d1714;
+    --surface: #2a221e;
+    --text: #f5e9e1;
+    --muted: #b8a59a;
+    --accent: #ff6b70;
+    --accent-soft: #4a2a2a;
+    --line: #3d322c;
+    --ok: #6fd39b;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Gowun Dodum', system-ui, sans-serif;
+  line-height: 1.55;
+}
+a { color: inherit; }
+h1, h2, h3, .brand, .button, .big { font-family: 'Jua', 'Gowun Dodum', sans-serif; font-weight: 400; }
+main { max-width: 1080px; margin: 0 auto; padding: 16px; }
+
+.topbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.brand { font-size: 1.3rem; color: var(--accent); text-decoration: none; }
+.topbar nav { display: flex; gap: 14px; align-items: center; }
+.topbar nav a { text-decoration: none; }
+.topbar form { margin: 0; }
+button.link { background: none; border: 0; padding: 0; font: inherit; color: var(--muted); cursor: pointer; }
+
+.button {
+  display: inline-block; border: 0; border-radius: 999px; padding: 10px 22px;
+  background: var(--accent); color: #fff; font-size: 1.05rem; text-decoration: none; cursor: pointer;
+}
+.hint { color: var(--muted); font-size: .9rem; }
+.error { color: var(--accent); }
+.ok { color: var(--ok); }
+.center { text-align: center; }
+.big { font-size: 2rem; margin: 0; color: var(--accent); }
+
+.hero { text-align: center; padding: 48px 0; }
+.hero h1 { font-size: 2.4rem; margin: 0 0 8px; }
+.dev { margin-top: 24px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 20px; }
+.panel h1, .panel h2 { margin-top: 0; }
+.panel.wide { margin-bottom: 16px; }
+.split { display: grid; gap: 20px; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); align-items: start; }
+@media (max-width: 720px) { .split { grid-template-columns: minmax(0, 1fr); } .split > .card { max-width: 380px; margin: 0 auto; } }
+
+.stack { display: grid; gap: 14px; }
+input:not([type=radio]) {
+  width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--text); font: inherit;
+}
+.dev input { width: auto; }
+.themes { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px; }
+.themes legend { margin-bottom: 8px; }
+.theme { display: grid; gap: 4px; text-align: center; font-size: .8rem; cursor: pointer; }
+.theme input { position: absolute; opacity: 0; }
+.theme img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 8px; border: 3px solid transparent; }
+.theme input:checked + img { border-color: var(--accent); }
+.theme input:focus-visible + img { outline: 2px solid var(--accent); outline-offset: 2px; }
+.theme small { font-size: .7rem; margin-top: -4px; }
+.theme.locked { cursor: not-allowed; color: var(--muted); }
+.theme.locked img { filter: grayscale(.7) brightness(.85); }
+
+.xpbar { position: relative; height: 28px; border-radius: 999px; background: var(--accent-soft); overflow: hidden; margin: 12px 0; }
+.xpbar-fill { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 999px; }
+.xpbar span { position: relative; display: block; text-align: center; line-height: 28px; font-size: .9rem; color: var(--text); mix-blend-mode: normal; }
+
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; }
+.sub { display: inline-block; margin-top: 6px; font-size: .9rem; color: var(--muted); }
+
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.grid-item { text-align: center; }
+.card-link { display: block; text-decoration: none; color: inherit; transition: transform .15s; }
+.card-link:hover { transform: translateY(-4px); }
+
+/* ---------- 카드 ----------
+   카드 틀(1024×1536)의 칸 위치를 %로 맞췄어요. 디스코드에 보낼 이미지도 같은 위치를 써요. */
+.card {
+  position: relative; width: 100%; aspect-ratio: 2 / 3; container-type: inline-size;
+  border-radius: 4.5cqw; color: #3b2a24; isolation: isolate;
+}
+.card .frame { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; z-index: 0; }
+.card .slot { position: absolute; display: flex; align-items: center; justify-content: center; text-align: center; z-index: 2; overflow: hidden; }
+.card .top { left: 33.2%; top: 3.6%; width: 33.7%; height: 4.2%; font-size: 4cqw; font-family: 'Jua', sans-serif; }
+.card .name {
+  left: 7.8%; top: 9.1%; width: 84.8%; height: 8.5%; font-size: 7.4cqw; font-family: 'Jua', sans-serif;
+  white-space: nowrap; text-overflow: ellipsis; padding: 0 4%;
+}
+.card .stage { left: 8.6%; top: 19.7%; width: 83.2%; height: 50.3%; align-items: flex-end; z-index: 1; }
+.card .char { height: 84%; margin-bottom: 14%; }
+.card .intro { left: 7.3%; top: 71.6%; width: 85.3%; height: 9.1%; font-size: 4.4cqw; padding: 0 5%; }
+.card .stat { top: 82.2%; height: 8.5%; flex-direction: column; gap: 0; line-height: 1.15; }
+.card .stat .label { font-size: 3.3cqw; opacity: .7; }
+.card .stat .value { font-size: 5.2cqw; font-family: 'Jua', sans-serif; }
+.card .s1 { left: 7.6%; width: 26.6%; }
+.card .s2 { left: 36.8%; width: 26.2%; }
+.card .s3 { left: 65.4%; width: 27.1%; }
+.card .fx { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 3; }
+.card .badge-left {
+  position: absolute; z-index: 4; left: 50%; top: 45%; transform: translate(-50%, -50%) rotate(-8deg);
+  background: #3b2a24; color: #fff; padding: 1.5cqw 4cqw; border-radius: 2cqw; font-family: 'Jua', sans-serif; font-size: 5.5cqw;
+}
+
+.card.unknown .char { filter: brightness(0); opacity: .5; }
+.card.unknown .name, .card.unknown .stat { opacity: .55; }
+.card.faded { filter: grayscale(1) opacity(.55); }
+
+/* 레벨이 오를수록 화려해져요. 어느 테마 위에든 겹쳐서 보여요. */
+.card.tier-silver .fx { box-shadow: inset 0 0 0 1.6cqw #c9d1da, inset 0 0 0 2.2cqw #fff; }
+.card.tier-gold .fx,
+.card.tier-sparkle .fx,
+.card.tier-holo .fx,
+.card.tier-legend .fx { box-shadow: inset 0 0 0 1.8cqw #e2b53e, inset 0 0 0 2.4cqw #fff3c4; }
+.card.tier-gold .name,
+.card.tier-sparkle .name,
+.card.tier-holo .name,
+.card.tier-legend .name {
+  background: linear-gradient(180deg, #fff3c4, #f0c75a); border-radius: 3cqw; color: #5a3b00;
+  box-shadow: 0 .6cqw 0 #c8952a;
+}
+
+.card.tier-sparkle .fx::before,
+.card.tier-holo .fx::before,
+.card.tier-legend .fx::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit;
+  background:
+    radial-gradient(circle at 18% 22%, #fff 0 .8cqw, transparent 1.4cqw),
+    radial-gradient(circle at 82% 30%, #fff 0 .6cqw, transparent 1.2cqw),
+    radial-gradient(circle at 28% 64%, #fff 0 .7cqw, transparent 1.3cqw),
+    radial-gradient(circle at 76% 58%, #fff 0 .9cqw, transparent 1.5cqw),
+    radial-gradient(circle at 50% 40%, #fff 0 .5cqw, transparent 1cqw);
+  animation: twinkle 2.4s ease-in-out infinite;
+}
+@keyframes twinkle { 0%, 100% { opacity: .2; } 50% { opacity: 1; } }
+
+.card.tier-holo .fx::after,
+.card.tier-legend .fx::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; mix-blend-mode: color-dodge; opacity: .35;
+  background: linear-gradient(115deg, transparent 20%, #ff9ad5 35%, #9ae6ff 50%, #c5ff9a 65%, transparent 80%);
+  background-size: 250% 250%;
+  animation: holo 5s linear infinite;
+}
+@keyframes holo { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+
+.card.tier-legend::before {
+  content: ''; position: absolute; inset: -2.5cqw; z-index: -1; border-radius: 7cqw;
+  background: conic-gradient(from var(--spin, 0deg), #ff6b70, #ffd166, #6fffb0, #6fc8ff, #c58bff, #ff6b70);
+  filter: blur(2.5cqw); opacity: .85;
+  animation: spin 6s linear infinite;
+}
+@property --spin { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@keyframes spin { to { --spin: 360deg; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .card .fx::before, .card .fx::after, .card::before { animation: none !important; }
+  .card-link { transition: none; }
+}
