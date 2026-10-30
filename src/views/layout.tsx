@@ -1,7 +1,12 @@
 import type { Child } from 'hono/jsx';
 import type { Member } from '../env';
 
-export function Layout(props: { title: string; viewer?: Member | null; children?: Child }) {
+export function Layout(props: { title: string; viewer?: Member | null; active?: 'me' | 'dogam'; children?: Child }) {
+  const nav = (key: 'me' | 'dogam', href: string, label: string) => (
+    <a href={href} class={props.active === key ? 'on' : undefined} aria-current={props.active === key ? 'page' : undefined}>
+      {label}
+    </a>
+  );
   return (
     <html lang="ko">
       <head>
@@ -15,16 +20,27 @@ export function Layout(props: { title: string; viewer?: Member | null; children?
           href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&display=swap"
         />
         <link rel="stylesheet" href="/styles.css" />
+        <script src="/app.js" defer></script>
       </head>
       <body>
+        <div class="sky" aria-hidden="true">
+          <span class="blob b1"></span>
+          <span class="blob b2"></span>
+          <span class="blob b3"></span>
+        </div>
         <header class="topbar">
-          <a class="brand" href="/">하리보 멤버 도감</a>
+          <a class="brand" href="/">
+            <span class="brand-mark" aria-hidden="true"></span>
+            <span class="brand-text">
+              <b>하리보</b> 멤버 도감
+            </span>
+          </a>
           {props.viewer && (
-            <nav>
-              <a href="/me">내 카드</a>
-              <a href="/dogam">도감</a>
+            <nav class="nav">
+              {nav('me', '/me', '내 카드')}
+              {nav('dogam', '/dogam', '도감')}
               <form method="post" action="/auth/logout">
-                <button class="link" type="submit">로그아웃</button>
+                <button class="nav-out" type="submit">로그아웃</button>
               </form>
             </nav>
           )}
