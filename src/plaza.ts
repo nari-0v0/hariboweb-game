@@ -3,12 +3,14 @@
 
 const ID = /^\d{17,20}$/;
 
-export const ROOM_W = 340;
-export const ROOM_H = 220;
-const GAP = 60;
-const MARGIN = 60;
-const COLS = 3;
-const PARK_H = 380;
+// 방 상자는 작게, 한 줄에 다섯 개씩. 카테고리(일반통화방, 내전통화방)마다 이름표를 달고 구역을 나눠요.
+export const ROOM_W = 190;
+export const ROOM_H = 110;
+const GAP = 16;
+const MARGIN = 24;
+const COLS = 5;
+const GROUP_HEAD = 46;
+const PARK_H = 170;
 export const WORLD_W = MARGIN * 2 + COLS * ROOM_W + (COLS - 1) * GAP;
 
 export const MAX_CHANNELS = 30;
@@ -17,25 +19,43 @@ export const CHAT_MAX = 60;
 
 export type Rect = { x: number; y: number; w: number; h: number };
 export type VoiceMember = { id: string; name: string };
-export type VoiceChannel = { id: string; name: string; limit: number; members: VoiceMember[] };
+export type VoiceChannel = { id: string; name: string; limit: number; members: VoiceMember[]; group?: string };
 export type VoiceSnapshot = { channels: VoiceChannel[]; elsewhere: string[] };
 export type Room = VoiceChannel & Rect & { members: (VoiceMember & { char: string })[] };
-export type Layout = { w: number; h: number; park: Rect; rooms: Room[] };
+export type Group = { name: string; x: number; y: number };
+export type Layout = { w: number; h: number; park: Rect; rooms: Room[]; groups: Group[] };
 
-// 방은 위쪽에 세 줄씩, 그 아래는 처음 나타나는 공원이에요.
+// 위쪽은 카테고리별 방 구역(봇이 보낸 순서대로, 같은 카테고리는 붙어 있어요), 그 아래는 처음 나타나는 공원이에요.
 export function layoutRooms(channels: VoiceChannel[], charOf: (id: string) => string): Layout {
-  const rows = Math.ceil(channels.length / COLS);
-  const rooms: Room[] = channels.map((ch, i) => ({
-    ...ch,
-    members: ch.members.map((m) => ({ ...m, char: charOf(m.id) })),
-    x: MARGIN + (i % COLS) * (ROOM_W + GAP),
-    y: MARGIN + Math.floor(i / COLS) * (ROOM_H + GAP),
-    w: ROOM_W,
-    h: ROOM_H,
-  }));
-  const parkY = MARGIN + rows * (ROOM_H + GAP);
-  const park = { x: MARGIN, y: parkY, w: WORLD_W - MARGIN * 2, h: PARK_H };
-  return { w: WORLD_W, h: parkY + PARK_H + MARGIN, park, rooms };
+  const sections: { name: string; channels: VoiceChannel[] }[] = [];
+  for (const ch of channels) {
+    const name = ch.group ?? '';
+    const last = sections[sections.length - 1];
+    if (last && last.name === name) last.channels.push(ch);
+    else sections.push({ name, channels: [ch] });
+  }
+  const rooms: Room[] = [];
+  const groups: Group[] = [];
+  let y = MARGIN;
+  for (const sec of sections) {
+    if (sec.name) {
+      groups.push({ name: sec.name, x: MARGIN, y });
+      y += GROUP_HEAD;
+    }
+    sec.channels.forEach((ch, i) => {
+      rooms.push({
+        ...ch,
+        members: ch.members.map((m) => ({ ...m, char: charOf(m.id) })),
+        x: MARGIN + (i % COLS) * (ROOM_W + GAP),
+        y: y + Math.floor(i / COLS) * (ROOM_H + GAP),
+        w: ROOM_W,
+        h: ROOM_H,
+      });
+    });
+    y += Math.ceil(sec.channels.length / COLS) * (ROOM_H + GAP) + GAP;
+  }
+  const park = { x: MARGIN, y, w: WORLD_W - MARGIN * 2, h: PARK_H };
+  return { w: WORLD_W, h: y + PARK_H + MARGIN, park, rooms, groups };
 }
 
 export const inside = (r: Rect, x: number, y: number) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
@@ -119,7 +139,8 @@ export function parseBotMessage(raw: string): BotMessage | null {
         if (!isObj(m) || typeof m.id !== 'string' || !ID.test(m.id) || !isName(m.name)) return null;
         members.push({ id: m.id, name: m.name });
       }
-      channels.push({ id: c.id, name: c.name, limit: limit as number, members });
+      if (c.group !== undefined && !isName(c.group)) return null;
+      channels.push({ id: c.id, name: c.name, limit: limit as number, members, ...(c.group ? { group: c.group as string } : {}) });
     }
     const rawElse = v.elsewhere ?? [];
     if (!Array.isArray(rawElse) || rawElse.length > 5000 || !rawElse.every((id) => typeof id === 'string' && ID.test(id)))

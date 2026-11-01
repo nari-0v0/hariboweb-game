@@ -82,12 +82,12 @@ Authorization: Bearer {BOT_SYNC_SECRET}
 ### 봇 → 웹
 
 ```json
-{ "t": "voice", "channels": [ { "id": "통화방ID", "name": "수다방", "limit": 0, "members": [ { "id": "ID", "name": "닉네임" } ] } ], "elsewhere": ["광장에 안 보이는 방에 있는 사람 ID"] }
+{ "t": "voice", "channels": [ { "id": "통화방ID", "name": "수다방", "limit": 0, "group": "일반통화방", "members": [ { "id": "ID", "name": "닉네임" } ] } ], "elsewhere": ["광장에 안 보이는 방에 있는 사람 ID"] }
 { "t": "chat", "user": "ID", "ch": "통화방ID", "text": "통화방 채팅 한 줄" }
 { "t": "moved", "user": "ID", "ch": "통화방ID", "ok": true, "reason": null }
 ```
 
-- `voice`: 지금 통화방 전체 모습. 바뀔 때마다 통째로 보내요. 멤버 누구나 볼 수 있는 방만 넣고(최대 30개, 방마다 99명), 운영진 방처럼 숨은 방에 있는 사람은 `elsewhere`에 ID만 넣어요(통화 중인지만 알 수 있게). `limit` 0은 인원 제한 없음.
+- `voice`: 지금 통화방 전체 모습. 바뀔 때마다 통째로 보내요. 멤버 누구나 볼 수 있는 방만 넣고(최대 30개, 방마다 99명), 운영진 방처럼 숨은 방에 있는 사람은 `elsewhere`에 ID만 넣어요(통화 중인지만 알 수 있게). `limit` 0은 인원 제한 없음. `group`(선택)은 통화방 카테고리 이름이에요. 같은 카테고리 방은 붙여서 보내 주면 광장에서 이름표를 단 구역으로 묶어 보여 줘요. 봇은 `.env` `DOGAM_PLAZA_CATEGORIES`에 적힌 카테고리의 방만 보내요.
 - `chat`: 통화방에 딸린 채팅. 웹이 60자로 자르고 줄바꿈을 없애요. 저장하지 않고 말풍선으로만 보여 줘요.
 - `moved`: 아래 `move` 요청의 결과. `reason`은 `not_in_voice`, `full`, `no_permission`, `no_room`, `busy`, `bot_no_permission`, `error` 중 하나.
 

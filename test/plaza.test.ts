@@ -22,7 +22,7 @@ const channels = (n: number) =>
   Array.from({ length: n }, (_, i) => ({ id: `90000000000000000${i}`, name: `방${i}`, limit: 0, members: [] }));
 
 describe('layoutRooms', () => {
-  it('places rooms in rows of three above the park without overlap', () => {
+  it('places rooms in rows above the park without overlap', () => {
     const l = layoutRooms(channels(7), () => '');
     expect(l.w).toBe(WORLD_W);
     expect(l.rooms).toHaveLength(7);
@@ -33,6 +33,27 @@ describe('layoutRooms', () => {
     expect(l.park.y).toBeGreaterThan(bottom);
     expect(l.h).toBeGreaterThan(l.park.y + l.park.h);
     for (const r of l.rooms) expect(r.x + r.w).toBeLessThanOrEqual(l.w);
+  });
+
+  it('puts each category in its own labelled section', () => {
+    const chs = [
+      ...channels(6).map((c) => ({ ...c, group: '일반통화방' })),
+      ...channels(2).map((c, i) => ({ ...c, id: `91000000000000000${i}`, group: '내전통화방' })),
+    ];
+    const l = layoutRooms(chs, () => '');
+    expect(l.groups.map((g) => g.name)).toEqual(['일반통화방', '내전통화방']);
+    const normal = l.rooms.filter((r) => r.group === '일반통화방');
+    const scrim = l.rooms.filter((r) => r.group === '내전통화방');
+    const normalBottom = Math.max(...normal.map((r) => r.y + r.h));
+    expect(l.groups[1]!.y).toBeGreaterThanOrEqual(normalBottom);
+    for (const r of scrim) expect(r.y).toBeGreaterThan(l.groups[1]!.y);
+    expect(l.park.y).toBeGreaterThan(Math.max(...scrim.map((r) => r.y + r.h)));
+  });
+
+  it('rejects a bad group name from the bot', () => {
+    const ok = parseBotMessage(JSON.stringify({ t: 'voice', channels: [{ id: CH1, name: '수다방', limit: 0, members: [], group: '일반통화방' }] }));
+    expect(ok && ok.t === 'voice' && ok.channels[0]!.group).toBe('일반통화방');
+    expect(parseBotMessage(JSON.stringify({ t: 'voice', channels: [{ id: CH1, name: '수다방', limit: 0, members: [], group: 5 }] }))).toBeNull();
   });
 
   it('works with no rooms and attaches characters to members', () => {
