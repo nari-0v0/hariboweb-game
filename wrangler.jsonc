@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hariboweb-game",
+  "main": "src/index.tsx",
+  "compatibility_date": "2026-10-01",
+  "assets": { "directory": "./public" },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "haribo-dogam",
+      // 처음 배포할 때 `npx wrangler d1 create haribo-dogam`으로 만든 뒤 나온 id로 바꿔요.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    // 디스코드 개발자 포털의 봇 애플리케이션 ID
+    "DISCORD_CLIENT_ID": "",
+    // 하리보 서버 ID
+    "GUILD_ID": "",
+    // 배포된 주소 (예: https://hariboweb-game.<계정>.workers.dev)
+    "PUBLIC_URL": ""
+  }
+  // 비밀 값은 `npx wrangler secret put 이름`으로 넣어요:
+  //   DISCORD_CLIENT_SECRET, SESSION_SECRET, BOT_SYNC_SECRET
+}
