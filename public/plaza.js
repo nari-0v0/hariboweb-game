@@ -186,14 +186,13 @@
   const box = (r) => ({ left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
 
   // 광장에 직접 나와 있지 않은 통화방 사람은 방 안에 앉아 있는 모습으로 보여 줘요
-  const SEAT_MAX = 2; // 작은 방 상자에 한 줄로 들어가는 만큼, 나머지는 +N
   function updateSeats() {
     for (const { seats, room, seatById } of roomNodes.values()) {
       seats.replaceChildren();
       seatById.clear();
       const sitting = room.members.filter((m) => !players.has(m.id));
-      const shown = Math.min(sitting.length, SEAT_MAX);
-      for (const m of sitting.slice(0, shown)) {
+      // 방 상자가 인원수에 맞춰 커지니까 앉은 사람을 모두 보여 줘요
+      for (const m of sitting) {
         const seat = el('div', 'plaza-seat');
         const bubble = el('div', 'plaza-bubble');
         const img = el('img');
@@ -204,7 +203,6 @@
         seats.append(seat);
         seatById.set(m.id, { bubble, bubbleTimer: 0 });
       }
-      if (sitting.length > shown) seats.append(el('span', 'plaza-more', `+${sitting.length - shown}`));
     }
   }
 
