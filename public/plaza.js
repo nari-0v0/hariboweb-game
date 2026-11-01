@@ -115,6 +115,12 @@
 
     for (const n of roomNodes.values()) n.node.remove();
     roomNodes.clear();
+    for (const g of world.querySelectorAll('.plaza-group')) g.remove();
+    for (const g of layout.groups || []) {
+      const label = el('div', 'plaza-group', g.name);
+      Object.assign(label.style, { left: `${g.x}px`, top: `${g.y}px` });
+      world.append(label);
+    }
     let park = world.querySelector('.plaza-park');
     if (!park) {
       park = el('div', 'plaza-park');
@@ -180,13 +186,14 @@
   const box = (r) => ({ left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
 
   // 광장에 직접 나와 있지 않은 통화방 사람은 방 안에 앉아 있는 모습으로 보여 줘요
-  const SEAT_MAX = 8;
+  const SEAT_MAX = 3; // 작은 방 상자에 한 줄로 들어가는 만큼, 나머지는 +N
   function updateSeats() {
     for (const { seats, room, seatById } of roomNodes.values()) {
       seats.replaceChildren();
       seatById.clear();
       const sitting = room.members.filter((m) => !players.has(m.id));
-      for (const m of sitting.slice(0, SEAT_MAX)) {
+      const shown = sitting.length > SEAT_MAX ? SEAT_MAX - 1 : SEAT_MAX;
+      for (const m of sitting.slice(0, shown)) {
         const seat = el('div', 'plaza-seat');
         const bubble = el('div', 'plaza-bubble');
         const img = el('img');
@@ -197,7 +204,7 @@
         seats.append(seat);
         seatById.set(m.id, { bubble, bubbleTimer: 0 });
       }
-      if (sitting.length > SEAT_MAX) seats.append(el('span', 'plaza-more', `+${sitting.length - SEAT_MAX}`));
+      if (sitting.length > shown) seats.append(el('span', 'plaza-more', `+${sitting.length - shown}`));
     }
   }
 
@@ -422,13 +429,15 @@
     requestAnimationFrame(frame);
   }
 
-  // 지도 전체가 한 화면에 들어오게 줄여요(걷지 않아도 모든 통화방이 보여요)
+  // 화면이 내 캐릭터를 따라가요
   function follow() {
     const vw = root.clientWidth;
     const vh = root.clientHeight;
-    const s = Math.min(1, vw / layout.w, vh / layout.h);
-    const x = (vw - layout.w * s) / 2;
-    const y = (vh - layout.h * s) / 2;
+    const s = vw < 700 ? 0.62 : 1;
+    const ww = layout.w * s;
+    const wh = layout.h * s;
+    const x = ww <= vw ? (vw - ww) / 2 : Math.min(0, Math.max(vw - ww, vw / 2 - me.x * s));
+    const y = wh <= vh ? (vh - wh) / 2 : Math.min(0, Math.max(vh - wh, vh / 2 - me.y * s));
     if (x !== cam.x || y !== cam.y || s !== cam.s) {
       cam = { x, y, s };
       world.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
