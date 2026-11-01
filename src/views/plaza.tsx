@@ -21,7 +21,9 @@ export function PlazaPage(props: { viewer: Member; guildId: string }) {
       <div class="plaza" id="plaza" data-guild={props.guildId} tabindex={0} aria-label="광장 지도. 누르거나 방향키로 움직여요.">
         <div class="plaza-world" id="plaza-world"></div>
       </div>
-      <h2 class="plaza-list-title">통화방</h2>
+      <h2 class="plaza-list-title">
+        통화방 <span class="plaza-list-tip">목록을 누르면 그 방으로 들어가요</span>
+      </h2>
       <div class="plaza-rooms" id="plaza-rooms"></div>
       <p class="hint plaza-help">컴퓨터: 방향키나 WASD, 또는 가고 싶은 곳 클릭 · 휴대폰: 가고 싶은 곳을 톡 · 통화방 목록을 눌러도 그 방으로 걸어가요</p>
       <div class="plaza-toast" id="plaza-toast" role="alert" hidden>

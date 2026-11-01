@@ -497,6 +497,7 @@ main.wide { max-width: 1320px; }
   .plaza { height: min(64dvh, 560px); min-height: 340px; }
 }
 .plaza-list-title { margin: 16px 0 8px; font-size: 1rem; }
+.plaza-list-tip { margin-left: 6px; font-size: .8rem; font-weight: 400; color: var(--ink-soft); }
 .plaza-rooms { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
 .plaza-room-item {
   display: grid; grid-template-columns: 1fr auto; gap: 0 8px; text-align: left; cursor: pointer;
