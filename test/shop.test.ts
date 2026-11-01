@@ -56,6 +56,7 @@ describe('shop popup text', async () => {
   it('says done, not enough jelly, or ask the owner', () => {
     expect(resultLines({ status: 'done', reason: null }, '달밤')[0]!.text).toBe('달밤 구매가 완료되었습니다.');
     expect(resultLines({ status: 'failed', reason: 'not_enough_jelly' }, '요리사')[0]!.text).toContain('요리사를 구매하지 못했습니다');
+    expect(resultLines({ status: 'failed', reason: 'shop_changed' }, '달밤')[0]!.text).toContain('도감 젤리로 바뀌어서 달밤 구매가 취소되었습니다');
     const err = resultLines({ status: 'failed', reason: 'error' }, '장미').map((l) => l.text);
     expect(err).toEqual(['장미 구매 중 오류가 발생하였습니다.', '방장에게 문의해주세요.']);
     expect(resultLines({ status: 'failed', reason: 'error' }, '장미').some((l) => l.contact)).toBe(true);

@@ -9,7 +9,7 @@ export type Profile = {
   theme_id: string;
   character_id: string | null;
   deco_id: string | null;
-  jelly: number | null;
+  dogam_jelly: number;
 };
 
 export type DogamEntry = {
@@ -47,11 +47,12 @@ export async function upsertLoginMember(db: D1Database, p: LoginProfile) {
     .bind(p.id, p.name, p.avatar_url, p.joined_at, now())
     .run();
   await assignCharacters(db, [p.id]);
+  await giveStarterJelly(db, [p.id]);
 }
 
 export async function getProfile(db: D1Database, id: string): Promise<Profile> {
   const row = await db.prepare('SELECT * FROM profiles WHERE user_id = ?').bind(id).first<Profile>();
-  return row ?? { user_id: id, solo_xp: 0, intro: '', theme_id: 'basic', character_id: null, deco_id: null, jelly: null };
+  return row ?? { user_id: id, solo_xp: 0, intro: '', theme_id: 'basic', character_id: null, deco_id: null, dogam_jelly: 0 };
 }
 
 export async function saveProfile(db: D1Database, id: string, intro: string, theme: string) {
@@ -173,40 +174,91 @@ export async function getOwnedItems(db: D1Database, userId: string): Promise<Set
   return new Set(results.map((r) => r.item_id));
 }
 
-// 상점 화면에 필요한 결제: 아직 결제 중인 것 전부 + 결과를 아직 안 본 것 전부
-export async function listMyPurchases(db: D1Database, userId: string): Promise<Purchase[]> {
+// 아직 결과 팝업을 안 본 결제(최근 3개)
+export async function listUnseenPurchases(db: D1Database, userId: string): Promise<Purchase[]> {
   const { results } = await db
     .prepare(
-      `SELECT * FROM purchases WHERE user_id = ? AND (status = 'pending' OR seen_at IS NULL)
-       ORDER BY created_at DESC`,
+      `SELECT * FROM purchases WHERE user_id = ? AND status != 'pending' AND seen_at IS NULL
+       ORDER BY created_at DESC LIMIT 3`,
     )
     .bind(userId)
     .all<Purchase>();
   return results;
 }
 
-// 결제 요청을 남겨요. 이미 가진 물건이면 'owned', 같은 물건을 기다리는 중이면 'pending'.
-// 가졌는지 확인과 요청 저장을 한 문장으로 해서, 그 사이에 결제가 끝나도 두 번 결제되지 않아요.
-export async function requestPurchase(
+// 예전에 겜블 젤리로 산 결제 중 아직 겜블 젤리를 돌려주지 않은 것(봇이 가져가서 돌려줘요)
+export type Refund = { id: string; user_id: string; item_id: string; price: number };
+
+export async function listPendingRefunds(db: D1Database, limit = 50): Promise<Refund[]> {
+  const { results } = await db
+    .prepare(`SELECT id, user_id, item_id, price FROM purchases WHERE refund = 'pending' ORDER BY created_at LIMIT ?`)
+    .bind(limit)
+    .all<Refund>();
+  return results;
+}
+
+// 봇이 겜블 젤리를 돌려준 뒤 부르면 다시 돌려주지 않게 표시해요. 이미 표시된 건은 그대로예요.
+export async function markRefunded(db: D1Database, id: string): Promise<boolean> {
+  const r = await db.prepare(`UPDATE purchases SET refund = 'done' WHERE id = ? AND refund = 'pending'`).bind(id).run();
+  return (r.meta.changes ?? 0) > 0;
+}
+
+// 도감 젤리로 바로 사요. 잔액 확인, 젤리 빼기, 물건 주기를 한 번에(트랜잭션) 해서
+// 동시에 여러 번 눌러도 잔액보다 많이 쓰거나 같은 물건을 두 번 사지 않아요.
+export async function buyWithJelly(
   db: D1Database,
   userId: string,
   itemId: string,
   price: number,
-): Promise<'requested' | 'owned' | 'pending'> {
-  try {
-    const res = await db
+): Promise<'done' | 'owned' | 'not_enough_jelly'> {
+  const id = crypto.randomUUID();
+  const t = now();
+  const won = 'EXISTS (SELECT 1 FROM purchases WHERE id = ?1)';
+  await db.batch([
+    db
       .prepare(
-        `INSERT INTO purchases (id, user_id, item_id, price, status, created_at)
-         SELECT ?1, ?2, ?3, ?4, 'pending', ?5
-         WHERE NOT EXISTS (SELECT 1 FROM owned_items WHERE user_id = ?2 AND item_id = ?3)`,
+        `INSERT INTO purchases (id, user_id, item_id, price, status, created_at, settled_at)
+         SELECT ?1, ?2, ?3, ?4, 'done', ?5, ?5
+         WHERE EXISTS (SELECT 1 FROM profiles WHERE user_id = ?2 AND dogam_jelly >= ?4)
+           AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)
+           AND NOT EXISTS (SELECT 1 FROM owned_items WHERE user_id = ?2 AND item_id = ?3)`,
       )
-      .bind(crypto.randomUUID(), userId, itemId, price, now())
-      .run();
-    return res.meta.changes === 1 ? 'requested' : 'owned';
-  } catch (e) {
-    if (String(e).includes('UNIQUE')) return 'pending';
-    throw e;
+      .bind(id, userId, itemId, price, t),
+    db
+      .prepare(`UPDATE profiles SET dogam_jelly = dogam_jelly - ?3, updated_at = ?4 WHERE user_id = ?2 AND ${won}`)
+      .bind(id, userId, price, t),
+    db
+      .prepare(
+        `INSERT INTO owned_items (user_id, item_id, acquired_at) SELECT ?2, ?3, ?4 WHERE ${won}
+         ON CONFLICT DO NOTHING`,
+      )
+      .bind(id, userId, itemId, t),
+  ]);
+  if (await db.prepare('SELECT 1 FROM purchases WHERE id = ?').bind(id).first()) return 'done';
+  const owned = await db.prepare('SELECT 1 FROM owned_items WHERE user_id = ? AND item_id = ?').bind(userId, itemId).first();
+  return owned ? 'owned' : 'not_enough_jelly';
+}
+
+// 처음 젤리 선물(계정당 한 번). 이번 호출이 표시를 직접 남겼을 때만 젤리를 더해요.
+export const STARTER_JELLY = 5;
+export async function giveStarterJelly(db: D1Database, userIds: string[]) {
+  const stmts: D1PreparedStatement[] = [];
+  for (const userId of userIds) {
+    const mark = `${now()}#${crypto.randomUUID()}`;
+    stmts.push(
+      db
+        .prepare('UPDATE members SET starter_jelly_at = ?2 WHERE user_id = ?1 AND active = 1 AND starter_jelly_at IS NULL')
+        .bind(userId, mark),
+      db
+        .prepare(
+          `INSERT INTO profiles (user_id, dogam_jelly, updated_at)
+           SELECT ?1, ?3, ?4 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND starter_jelly_at = ?2)
+           ON CONFLICT (user_id) DO UPDATE SET dogam_jelly = dogam_jelly + excluded.dogam_jelly, updated_at = excluded.updated_at`,
+        )
+        .bind(userId, mark, STARTER_JELLY, now()),
+    );
   }
+  for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100));
 }
 
 // 결과 팝업을 한 번 보여 줬으면 다시 띄우지 않아요
@@ -216,60 +268,6 @@ export async function markPurchasesSeen(db: D1Database, userId: string, ids: str
   await db.batch(
     ids.map((id) => db.prepare('UPDATE purchases SET seen_at = ? WHERE id = ? AND user_id = ? AND seen_at IS NULL').bind(t, id, userId)),
   );
-}
-
-export async function listPendingPurchases(db: D1Database, limit = 50): Promise<Purchase[]> {
-  const { results } = await db
-    .prepare("SELECT * FROM purchases WHERE status = 'pending' ORDER BY created_at LIMIT ?")
-    .bind(limit)
-    .all<Purchase>();
-  return results;
-}
-
-// 봇이 결제 결과를 알려 줘요. 이미 처리된 요청이면 그대로 두고 지금 상태를 돌려줘요.
-export async function settlePurchase(
-  db: D1Database,
-  id: string,
-  ok: boolean,
-  reason: string | null,
-  balance: number | null,
-): Promise<Purchase | null> {
-  const t = now();
-  const current = await db.prepare('SELECT * FROM purchases WHERE id = ?').bind(id).first<Purchase>();
-  if (!current) return null;
-  if (current.status !== 'pending') return current;
-  const status = ok ? 'done' : 'failed';
-  // 아래 두 문장은 이번 요청이 "결제 중 → 결과"로 직접 바꿨을 때만 반영돼요.
-  // (그 사이 멤버가 나가서 취소됐으면 물건도 잔액도 되살리지 않아요)
-  const won = "EXISTS (SELECT 1 FROM purchases WHERE id = ?1 AND status = ?2 AND settled_at = ?3)";
-  const stmts = [
-    db
-      .prepare("UPDATE purchases SET status = ?, reason = ?, settled_at = ? WHERE id = ? AND status = 'pending'")
-      .bind(status, reason, t, id),
-  ];
-  if (ok)
-    stmts.push(
-      db
-        .prepare(
-          `INSERT INTO owned_items (user_id, item_id, acquired_at)
-           SELECT ?4, ?5, ?3 WHERE ${won}
-           ON CONFLICT DO NOTHING`,
-        )
-        .bind(id, status, t, current.user_id, current.item_id),
-    );
-  if (balance !== null)
-    stmts.push(
-      db
-        .prepare(
-          `INSERT INTO profiles (user_id, jelly, updated_at)
-           SELECT ?4, ?5, ?3 WHERE ${won}
-             AND EXISTS (SELECT 1 FROM members WHERE user_id = ?4 AND active = 1)
-           ON CONFLICT (user_id) DO UPDATE SET jelly = excluded.jelly, updated_at = excluded.updated_at`,
-        )
-        .bind(id, status, t, current.user_id, balance),
-    );
-  await db.batch(stmts);
-  return db.prepare('SELECT * FROM purchases WHERE id = ?').bind(id).first<Purchase>();
 }
 
 export async function setTheme(db: D1Database, userId: string, theme: string) {

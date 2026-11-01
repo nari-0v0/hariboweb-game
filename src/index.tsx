@@ -13,14 +13,15 @@ import {
   getOwnedItems,
   getProfile,
   listDogam,
-  listMyPurchases,
-  listPendingPurchases,
+  buyWithJelly,
+  giveStarterJelly,
+  listPendingRefunds,
+  listUnseenPurchases,
+  markRefunded,
   markPurchasesSeen,
-  requestPurchase,
   saveProfile,
   setDeco,
   setTheme,
-  settlePurchase,
   upsertLoginMember,
 } from './db';
 import { canUse, canUseTheme, decoItemId, shopItem } from './shop';
@@ -128,35 +129,31 @@ app.post('/api/bot/sync', async (c) => {
   const parsed = parseSync(raw);
   if (!parsed.ok) return c.json({ error: parsed.error }, 400);
   const result = await applySync(c.env.DB, parsed.value);
-  if (result === 'applied') await assignCharacters(c.env.DB, parsed.value.members.map((m) => m.id));
+  if (result === 'applied') {
+    const ids = parsed.value.members.map((m) => m.id);
+    await assignCharacters(c.env.DB, ids);
+    await giveStarterJelly(c.env.DB, ids);
+  }
   return c.json({ ok: true, result });
 });
 
-// 봇이 몇 초마다 가져가는 결제 요청
+// 예전 봇은 겜블 지갑 결제를 하려고 이 주소를 물어봐요. 이제 상점은 도감 젤리로 웹에서 바로 결제해서 줄 게 없어요.
 app.get('/api/bot/purchases', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
-  const pending = await listPendingPurchases(c.env.DB);
-  return c.json({
-    purchases: pending.map((p) => ({ id: p.id, user_id: p.user_id, item_id: p.item_id, price: p.price, created_at: p.created_at })),
-  });
+  return c.json({ purchases: [] });
 });
 
-// 봇이 젤리를 뺀(또는 못 뺀) 결과. 같은 요청에 두 번 와도 한 번만 반영돼요.
-app.post('/api/bot/purchases/:id', async (c) => {
+// 예전에 겜블 젤리로 산 것을 봇이 겜블 지갑에 돌려줘요. 봇이 목록을 가져가 돌려주고, 한 건씩 끝났다고 알려요.
+app.get('/api/bot/refunds', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
-  let body: Record<string, unknown>;
-  try {
-    body = await c.req.json();
-  } catch {
-    return c.json({ error: 'JSON이 아니에요' }, 400);
-  }
-  const balance = body.balance ?? null;
-  if (typeof body.ok !== 'boolean' || (balance !== null && !(Number.isInteger(balance) && (balance as number) >= 0)))
-    return c.json({ error: 'ok(true/false)와 balance(0 이상 정수)가 필요해요' }, 400);
-  const reason = typeof body.reason === 'string' ? body.reason.slice(0, 100) : null;
-  const result = await settlePurchase(c.env.DB, c.req.param('id'), body.ok, reason, balance as number | null);
-  if (!result) return c.json({ error: 'not found' }, 404);
-  return c.json({ ok: true, status: result.status });
+  const rows = await listPendingRefunds(c.env.DB);
+  return c.json({ refunds: rows.map((r) => ({ id: r.id, user: r.user_id, item: r.item_id, price: r.price })) });
+});
+
+app.post('/api/bot/refunds/:id', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  const changed = await markRefunded(c.env.DB, c.req.param('id'));
+  return c.json({ ok: true, changed });
 });
 
 // 광장 실시간 연결(봇). 통화방 모습과 통화방 채팅을 보내고, 방 옮기기 요청을 받아요.
@@ -225,18 +222,17 @@ const sameOrigin = (c: Context<AppEnv>) => {
 
 members.get('/shop', async (c) => {
   const viewer = c.get('viewer');
-  const [profile, owned, cards, purchases] = await Promise.all([
+  const [profile, owned, cards, results] = await Promise.all([
     getProfile(c.env.DB, viewer.user_id),
     getOwnedItems(c.env.DB, viewer.user_id),
     countOwnedCards(c.env.DB, viewer.user_id),
-    listMyPurchases(c.env.DB, viewer.user_id),
+    listUnseenPurchases(c.env.DB, viewer.user_id),
   ]);
-  // 끝난 결제 중 아직 결과를 안 본 것은 이번에 팝업으로 보여 주고 본 것으로 표시해요
-  const results = purchases.filter((p) => p.status !== 'pending' && !p.seen_at).slice(0, 3);
+  // 아직 결과를 안 본 결제는 이번에 팝업으로 보여 주고 본 것으로 표시해요
   await markPurchasesSeen(c.env.DB, viewer.user_id, results.map((p) => p.id));
   return page(
     c,
-    <ShopPage viewer={viewer} profile={profile} owned={owned} cards={cards} purchases={purchases} results={results} notice={c.req.query('n')} />,
+    <ShopPage viewer={viewer} profile={profile} owned={owned} cards={cards} results={results} notice={c.req.query('n')} />,
   );
 });
 
@@ -247,8 +243,15 @@ members.post('/api/shop/buy', async (c) => {
   if (!item || item.price === null) return c.redirect('/shop?n=not_for_sale');
   const owned = await getOwnedItems(c.env.DB, viewer.user_id);
   if (owned.has(item.id)) return c.redirect('/shop?n=owned');
-  const result = await requestPurchase(c.env.DB, viewer.user_id, item.id, item.price);
-  return c.redirect(`/shop?n=${result === 'pending' ? 'already_pending' : result}`);
+  let result: Awaited<ReturnType<typeof buyWithJelly>>;
+  try {
+    result = await buyWithJelly(c.env.DB, viewer.user_id, item.id, item.price);
+  } catch (e) {
+    console.error('도감 젤리 결제 실패', e);
+    return c.redirect('/shop?n=error');
+  }
+  // 산 물건은 결과 팝업("구매가 완료되었습니다")으로, 못 산 이유는 안내 팝업으로 보여 줘요
+  return c.redirect(result === 'done' ? '/shop' : `/shop?n=${result}`);
 });
 
 members.post('/api/me/deco', async (c) => {

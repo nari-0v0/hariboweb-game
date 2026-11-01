@@ -12,11 +12,15 @@ const NOTICES: Record<string, PopupLine[]> = {
   owned: [{ title: '알림', text: '이미 가지고 있는 물건입니다.' }],
   not_for_sale: [{ title: '알림', text: '젤리로 살 수 없는 물건입니다.' }],
   locked: [{ title: '알림', text: '아직 사용할 수 없는 물건입니다.' }],
+  not_enough_jelly: [{ title: '구매 실패', text: '도감 젤리가 부족해서 구매하지 못했습니다.', bad: true }],
   error: [
     { title: '오류', text: '오류가 발생하였습니다.', bad: true },
     { title: '오류', text: '방장에게 문의해주세요.', bad: true, contact: true },
   ],
 };
+
+// 도감 젤리 모으는 법(나리가 정한 규칙이 바뀌면 같이 바꿔요)
+export const JELLY_HOWTO = '처음 한 번 5개, 출석 1개, 하루 통화 3시간 3개, 도감 카드 레벨이 오를 때마다 1개';
 
 // 오류가 났을 때 방장에게 문의하는 카카오톡 오픈채팅
 export const OWNER_CONTACT_URL = 'https://open.kakao.com/o/sznz9sHg';
@@ -30,19 +34,21 @@ export function objectParticle(word: string): string {
   return code % 28 ? '을' : '를';
 }
 
-// 봇이 알려 준 결제 결과 문구
+// 결제 결과 문구
 export function resultLines(p: Pick<Purchase, 'status' | 'reason'>, name: string): PopupLine[] {
   if (p.status === 'done') return [{ title: '구매 완료', text: `${name} 구매가 완료되었습니다.` }];
   if (p.reason === 'not_enough_jelly')
     return [{ title: '구매 실패', text: `젤리가 부족해서 ${name}${objectParticle(name)} 구매하지 못했습니다.`, bad: true }];
   if (p.reason === 'left') return [{ title: '구매 취소', text: `서버를 나가서 ${name} 구매가 취소되었습니다.`, bad: true }];
+  if (p.reason === 'shop_changed')
+    return [{ title: '구매 취소', text: `상점이 도감 젤리로 바뀌어서 ${name} 구매가 취소되었습니다. 젤리는 빠지지 않았습니다.` }];
   return [
     { title: '구매 실패', text: `${name} 구매 중 오류가 발생하였습니다.`, bad: true },
     { title: '구매 실패', text: '방장에게 문의해주세요.', bad: true, contact: true },
   ];
 }
 
-function Popup(props: { lines: PopupLine[]; resume: boolean }) {
+function Popup(props: { lines: PopupLine[] }) {
   if (!props.lines.length) return null;
   const bad = props.lines.some((l) => l.bad);
   return (
@@ -60,16 +66,9 @@ function Popup(props: { lines: PopupLine[]; resume: boolean }) {
                 방장에게 문의하기
               </a>
             )}
-            {props.resume ? (
-              // 아직 결제 중인 물건이 있으면 확인을 누를 때 새로고침해서 계속 기다려요
-              <a href="/shop" class="btn btn-primary">
-                확인
-              </a>
-            ) : (
-              <label for="popup-close" class="btn btn-primary" tabindex={0}>
-                확인
-              </label>
-            )}
+            <label for="popup-close" class="btn btn-primary" tabindex={0}>
+              확인
+            </label>
           </div>
         </div>
       </div>
@@ -77,20 +76,18 @@ function Popup(props: { lines: PopupLine[]; resume: boolean }) {
   );
 }
 
-type State = 'using' | 'usable' | 'pending' | 'buy' | 'reward';
+type State = 'using' | 'usable' | 'buy' | 'reward';
 
-function stateOf(item: ShopItem, p: { profile: Profile; owned: Set<string>; cards: number; pending: Set<string> }): State {
+function stateOf(item: ShopItem, p: { profile: Profile; owned: Set<string>; cards: number }): State {
   const usingNow = item.kind === 'theme' ? p.profile.theme_id === item.key : p.profile.deco_id === item.key;
   if (usingNow) return 'using';
   if (canUse(item, p.owned, p.cards)) return 'usable';
-  if (p.pending.has(item.id)) return 'pending';
   return item.price === null ? 'reward' : 'buy';
 }
 
 function Action(props: { item: ShopItem; state: State; cards: number }) {
   const { item, state } = props;
   if (state === 'using') return <span class="tag on">사용 중</span>;
-  if (state === 'pending') return <span class="tag wait">결제 중…</span>;
   if (state === 'reward')
     return (
       <span class="tag reward">
@@ -106,7 +103,7 @@ function Action(props: { item: ShopItem; state: State; cards: number }) {
         </button>
       </form>
     );
-  // 화면의 잔액은 잠깐 늦을 수 있어서 버튼은 막지 않아요. 살 수 있는지는 봇이 지갑을 보고 정해요.
+  // 잔액이 모자라도 버튼은 막지 않아요. 누르면 "젤리가 부족해요" 안내가 떠요.
   return (
     <form method="post" action="/api/shop/buy">
       <input type="hidden" name="item" value={item.id} />
@@ -122,32 +119,22 @@ export function ShopPage(props: {
   profile: Profile;
   owned: Set<string>;
   cards: number;
-  purchases: Purchase[];
   results: Purchase[];
   notice?: string;
 }) {
-  const { viewer, profile, owned, cards, purchases } = props;
-  const pending = new Set(purchases.filter((x) => x.status === 'pending').map((x) => x.item_id));
-  const ctx = { profile, owned, cards, pending };
+  const { viewer, profile, owned, cards } = props;
+  const ctx = { profile, owned, cards };
   const themes = SHOP_ITEMS.filter((i) => i.kind === 'theme');
   const decoBuy = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price !== null);
   const decoReward = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price === null);
-  // "결제 요청" 안내는 결제 중일 때 화면 안에 보여 주고, 나머지는 팝업으로 보여 줘요
-  const waiting = pending.size > 0;
   const nameOf = (id: string) => SHOP_ITEMS.find((i) => i.id === id)?.name ?? id;
   const popup = props.results.flatMap((p) => resultLines(p, nameOf(p.item_id)));
   const notice = props.notice ? NOTICES[props.notice] : undefined;
   if (notice && !popup.length) popup.push(...notice);
 
   return (
-    <Layout
-      title="젤리 상점"
-      viewer={viewer}
-      active="shop"
-      // 팝업을 보는 동안에는 자동 새로고침을 멈춰요 (결과가 사라지지 않게)
-      refresh={pending.size && !popup.length ? { seconds: 4, url: '/shop' } : undefined}
-    >
-      <Popup lines={popup} resume={pending.size > 0} />
+    <Layout title="젤리 상점" viewer={viewer} active="shop">
+      <Popup lines={popup} />
       <div class="split">
         <div class="stage-wrap shop-preview">
           <Card
@@ -176,16 +163,14 @@ export function ShopPage(props: {
           <section class="panel">
             <div class="panel-head">
               <h1>젤리 상점</h1>
-              <span class="jelly" aria-label="내 젤리">
-                🍬 {profile.jelly ?? '-'}
+              <span class="jelly" aria-label="내 도감 젤리">
+                🍬 {profile.dogam_jelly}
               </span>
             </div>
-            {waiting && (
-              <p class="notice">
-                결제 중: {[...pending].map(nameOf).join(', ')}. 하리보봇이 젤리를 빼면 바로 알려 드려요.
-              </p>
-            )}
-            {profile.jelly === null && <p class="muted">젤리는 하리보봇 통장에서 빠져나가요. 잔액은 봇이 알려 주면 여기에 보여요.</p>}
+            <p class="muted">
+              도감 젤리는 이 도감에서만 쓰는 젤리예요. 겜블 젤리와는 따로라서 겜블 지갑에서는 빠지지 않아요.
+            </p>
+            <p class="hint">모으는 법: {JELLY_HOWTO}</p>
           </section>
 
           <section class="panel">

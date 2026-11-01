@@ -17,17 +17,21 @@ describe('parseSync', () => {
     if (!r.ok) return;
     expect(r.value.pair_xp[0]).toMatchObject({ scrims: 0, at: '2026-10-30T09:00:00.000Z' });
     expect(r.value.members[0]!.is_newbie).toBe(true);
-    expect(r.value.members[0]!.jelly).toBeNull();
   });
 
-  it('reads the jelly balance the bot sends', () => {
-    const r = parseSync({ batch_id: 'x', members: [{ id: A, name: 'a', jelly: 42 }] });
-    expect(r.ok && r.value.members[0]!.jelly).toBe(42);
+  it('ignores the old gamble jelly balance and reads dogam jelly earned', () => {
+    const r = parseSync({ batch_id: 'x', members: [{ id: A, name: 'a', jelly: 42 }], jelly_earned: [{ id: A, amount: 3 }] });
+    expect(r.ok && r.value.members[0]).toEqual({ id: A, name: 'a', avatar_url: null, joined_at: null, is_newbie: false });
+    expect(r.ok && r.value.jelly_earned).toEqual([{ id: A, amount: 3 }]);
+  });
+
+  it.each([0, -1, 101, 1.5])('rejects jelly_earned amount %s', (amount) => {
+    expect(parseSync({ batch_id: 'x', jelly_earned: [{ id: A, amount }] }).ok).toBe(false);
   });
 
   it('allows missing lists', () => {
     const r = parseSync({ batch_id: 'x' });
-    expect(r.ok && r.value).toEqual({ batch_id: 'x', members: [], removed: [], pair_xp: [], solo_xp: [] });
+    expect(r.ok && r.value).toEqual({ batch_id: 'x', members: [], removed: [], pair_xp: [], solo_xp: [], jelly_earned: [] });
   });
 
   it.each([
@@ -39,8 +43,6 @@ describe('parseSync', () => {
     ['bad time', { batch_id: 'x', pair_xp: [{ a: A, b: B, xp: 1, at: 'yesterday' }] }],
     ['http avatar', { batch_id: 'x', members: [{ id: A, name: 'a', avatar_url: 'http://x' }] }],
     ['not a list', { batch_id: 'x', members: {} }],
-    ['negative jelly', { batch_id: 'x', members: [{ id: A, name: 'a', jelly: -1 }] }],
-    ['text jelly', { batch_id: 'x', members: [{ id: A, name: 'a', jelly: '5' }] }],
   ])('rejects %s', (_, payload) => {
     expect(parseSync(payload).ok).toBe(false);
   });
