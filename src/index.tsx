@@ -3,7 +3,8 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import type { AppEnv, Member } from './env';
 import { randomToken, safeEqual, signSession, verifySession } from './crypto';
 import { authorizeUrl, exchangeCode, fetchGuildProfile, type LoginProfile } from './discord';
-import { assignCharacters, completion, getMember, getOwnedCard, getProfile, listDogam, saveProfile, upsertLoginMember } from './db';
+import { assignCharacters, chooseCharacterPool, completion, getMember, getOwnedCard, getProfile, listDogam, saveProfile, upsertLoginMember } from './db';
+import { isCharacterPool } from './character';
 import { applySync, parseSync } from './sync';
 import { UNLOCKED_THEMES } from './themes';
 import { CardPage, DogamPage, LandingPage, MePage, MessagePage } from './views/pages';
@@ -136,6 +137,15 @@ members.post('/api/me/profile', async (c) => {
   if ([...intro].length > 30) return c.text('소개는 30자까지예요', 400);
   if (!UNLOCKED_THEMES.includes(theme)) return c.text('아직 쓸 수 없는 테마예요', 400);
   await saveProfile(c.env.DB, viewer.user_id, intro, theme);
+  return c.redirect('/me?saved=1');
+});
+
+members.post('/api/me/character', async (c) => {
+  const origin = c.req.header('Origin');
+  if (origin && origin !== new URL(c.req.url).origin) return c.text('잘못된 요청이에요', 403);
+  const pool = (await c.req.parseBody()).pool;
+  if (!isCharacterPool(pool)) return c.text('소녀나 소년 중에 골라 주세요', 400);
+  await chooseCharacterPool(c.env.DB, c.get('viewer').user_id, pool);
   return c.redirect('/me?saved=1');
 });
 

@@ -1,6 +1,7 @@
 import type { Member } from '../env';
 import type { DogamEntry, Profile } from '../db';
 import { levelName, progress, tierFor } from '../levels';
+import { poolOf } from '../character';
 import { DECO_CHARACTERS } from '../characters';
 import { THEMES, UNLOCKED_THEMES } from '../themes';
 import { Card, formatHours } from './card';
@@ -150,6 +151,21 @@ export function MePage(props: { viewer: Member; profile: Profile; owned: number;
           <section class="panel">
             <h2>카드 꾸미기</h2>
             {props.saved && <p class="notice ok">저장했어요!</p>}
+            <form method="post" action="/api/me/character" class="pool-pick">
+              <span class="pool-label">내 캐릭터</span>
+              {(['girl', 'boy'] as const).map((pool) => (
+                <button
+                  type="submit"
+                  name="pool"
+                  value={pool}
+                  class={poolOf(profile.character_id) === pool ? 'btn pool on' : 'btn pool'}
+                  aria-pressed={poolOf(profile.character_id) === pool ? 'true' : 'false'}
+                >
+                  {pool === 'girl' ? '여자' : '남자'}
+                </button>
+              ))}
+              <small class="hint">바꾸면 그 쪽에서 아직 아무도 안 쓰는 캐릭터가 새로 정해져요.</small>
+            </form>
             <form method="post" action="/api/me/profile" class="stack">
               <label class="field">
                 <span>한 줄 소개</span>
