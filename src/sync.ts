@@ -5,7 +5,7 @@ const MAX_XP = 100_000;
 
 export type SyncPayload = {
   batch_id: string;
-  members: { id: string; name: string; avatar_url: string | null; joined_at: string | null; is_newbie: boolean }[];
+  members: { id: string; name: string; avatar_url: string | null; joined_at: string | null; is_newbie: boolean; jelly: number | null }[];
   removed: string[];
   pair_xp: { a: string; b: string; xp: number; voice_seconds: number; scrims: number; at: string }[];
   solo_xp: { id: string; xp: number }[];
@@ -45,7 +45,9 @@ export function parseSync(raw: unknown): Result {
       return { ok: false, error: `members.avatar_url이 잘못됐어요 (${m.id})` };
     const joined = m.joined_at ?? null;
     if (joined !== null && !isTime(joined)) return { ok: false, error: `members.joined_at이 잘못됐어요 (${m.id})` };
-    members.push({ id: m.id, name: m.name, avatar_url: avatar, joined_at: joined, is_newbie: m.is_newbie === true });
+    const jelly = m.jelly ?? null;
+    if (jelly !== null && !isCount(jelly, 1_000_000_000)) return { ok: false, error: `members.jelly가 잘못됐어요 (${m.id})` };
+    members.push({ id: m.id, name: m.name, avatar_url: avatar, joined_at: joined, is_newbie: m.is_newbie === true, jelly });
   }
 
   const removed: string[] = [];
@@ -95,6 +97,12 @@ export async function applySync(db: D1Database, p: SyncPayload): Promise<'applie
        joined_at = COALESCE(?4, joined_at), is_newbie = ?5, active = 1, updated_at = ?6`,
   );
   for (const m of p.members) stmts.push(upsertMember.bind(m.id, m.name, m.avatar_url, m.joined_at, m.is_newbie ? 1 : 0, t));
+  // 젤리 잔액은 봇 통장 값을 보여 주기용으로만 받아 둬요
+  const setJelly = db.prepare(
+    `INSERT INTO profiles (user_id, jelly, updated_at) VALUES (?1, ?2, ?3)
+     ON CONFLICT (user_id) DO UPDATE SET jelly = ?2, updated_at = ?3`,
+  );
+  for (const m of p.members) if (m.jelly !== null) stmts.push(setJelly.bind(m.id, m.jelly, t));
 
   const addPair = db.prepare(
     `INSERT INTO cards (owner_id, target_id, xp, voice_seconds, scrims, first_met, updated_at)
@@ -119,6 +127,8 @@ export async function applySync(db: D1Database, p: SyncPayload): Promise<'applie
     stmts.push(db.prepare('UPDATE members SET active = 0, updated_at = ? WHERE user_id = ?').bind(t, id));
     stmts.push(db.prepare('DELETE FROM profiles WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM cards WHERE owner_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM owned_items WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare("UPDATE purchases SET status = 'failed', reason = 'left' WHERE user_id = ? AND status = 'pending'").bind(id));
   }
 
   try {

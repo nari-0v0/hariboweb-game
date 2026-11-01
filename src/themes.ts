@@ -15,9 +15,6 @@ export const THEMES = [
 
 export type ThemeId = (typeof THEMES)[number]['id'];
 
-// 상점이 생기기 전까지는 기본 테마만 고를 수 있어요.
-export const UNLOCKED_THEMES: readonly string[] = ['basic'];
-
 export function themeOrBasic(id: string | null | undefined): ThemeId {
   return THEMES.some((t) => t.id === id) ? (id as ThemeId) : 'basic';
 }

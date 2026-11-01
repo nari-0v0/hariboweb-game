@@ -6,6 +6,7 @@ export type CardProps = {
   // 디스코드 ID와 정해진 캐릭터
   id: string;
   character?: string | null;
+  deco?: string | null;
   name: string;
   theme: string | null;
   intro: string | null;
@@ -45,7 +46,7 @@ export function Card(p: CardProps) {
           <div class="c-art">
             <span class="c-label">{label}</span>
             <div class="c-ground" />
-            <img class="c-avatar" src={characterUrl(p.character, p.id)} alt="" loading="lazy" />
+            <img class="c-avatar" src={characterUrl(p.character, p.id, unknown ? null : p.deco)} alt="" loading="lazy" />
           </div>
           <div class="c-name">{p.name}</div>
           <div class="c-intro">{unknown ? '같이 놀면 카드가 열려요' : p.intro || '...'}</div>

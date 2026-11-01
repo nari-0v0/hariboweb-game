@@ -206,11 +206,25 @@ input:not([type=radio]):focus { background: #fff6fa; border-color: var(--pink); 
 .pool-label { font-weight: 700; margin-right: 4px; }
 .pool-pick .hint { flex-basis: 100%; }
 .btn.pool.on { background: var(--pink); color: #fff; }
-.deco summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
-.deco-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 10px 6px; margin: 8px 0; max-height: 360px; overflow-y: auto; padding-right: 4px; }
-.deco-item { margin: 0; display: grid; gap: 2px; justify-items: center; }
-.deco-item img { width: 100%; height: 72px; object-fit: contain; image-rendering: pixelated; filter: saturate(.6); }
-.deco-item figcaption { font-size: .66rem; color: var(--ink-soft); text-align: center; }
+.btn-small { padding: 4px 10px; font-size: .78rem; gap: 4px; border-width: 3px; background: var(--paper); color: var(--ink); }
+.btn-buy { background: var(--yellow); }
+.btn:disabled { cursor: not-allowed; opacity: .55; translate: none; }
+.jelly { margin-left: auto; padding: 2px 12px; background: var(--pink-soft); border: 3px solid var(--ink); font-weight: 700; clip-path: var(--notch); white-space: nowrap; }
+.center { text-align: center; margin-top: 12px; }
+.shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 14px 10px; }
+.shop-grid.deco { max-height: 520px; overflow-y: auto; padding-right: 4px; }
+.shop-item { display: grid; gap: 4px; justify-items: center; align-content: start; text-align: center; min-width: 0; }
+.shop-item form { margin: 0; }
+.shop-item .theme-img { width: 72px; }
+.shop-item img { width: 100%; height: 84px; object-fit: contain; image-rendering: pixelated; }
+.shop-item.buy img, .shop-item.reward img, .shop-item.buy .theme-img, .shop-item.reward .theme-img { filter: saturate(.45); }
+.shop-item.using img, .shop-item.using .theme-img { outline: 3px solid var(--pink); outline-offset: 2px; }
+.shop-name { font-size: .72rem; line-height: 1.3; overflow-wrap: anywhere; }
+.tag { display: inline-block; padding: 0 8px; font-size: .72rem; border: 2px solid var(--ink); white-space: nowrap; }
+.tag.on { background: var(--pink); color: #fff; }
+.tag.wait { background: var(--sky); }
+@media (max-width: 760px) { .stage-wrap.shop-preview { max-width: 210px; } }
+.tag.reward { background: #eee6ea; color: var(--ink-soft); }
 .swatch { background: var(--t-frame); padding: 14%; }
 .swatch-inner { display: block; height: 70%; background: var(--t-sky); border: 2px solid var(--ink); }
 

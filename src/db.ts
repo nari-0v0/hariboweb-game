@@ -2,7 +2,15 @@ import type { Member } from './env';
 import type { LoginProfile } from './discord';
 import { type CharacterPool, pickCharacter, poolOf, shouldRepick } from './character';
 
-export type Profile = { user_id: string; solo_xp: number; intro: string; theme_id: string; character_id: string | null };
+export type Profile = {
+  user_id: string;
+  solo_xp: number;
+  intro: string;
+  theme_id: string;
+  character_id: string | null;
+  deco_id: string | null;
+  jelly: number | null;
+};
 
 export type DogamEntry = {
   user_id: string;
@@ -18,6 +26,7 @@ export type DogamEntry = {
   theme_id: string | null;
   intro: string | null;
   character_id: string | null;
+  deco_id: string | null;
 };
 
 const now = () => new Date().toISOString();
@@ -42,7 +51,7 @@ export async function upsertLoginMember(db: D1Database, p: LoginProfile) {
 
 export async function getProfile(db: D1Database, id: string): Promise<Profile> {
   const row = await db.prepare('SELECT * FROM profiles WHERE user_id = ?').bind(id).first<Profile>();
-  return row ?? { user_id: id, solo_xp: 0, intro: '', theme_id: 'basic', character_id: null };
+  return row ?? { user_id: id, solo_xp: 0, intro: '', theme_id: 'basic', character_id: null, deco_id: null, jelly: null };
 }
 
 export async function saveProfile(db: D1Database, id: string, intro: string, theme: string) {
@@ -59,7 +68,7 @@ const DOGAM_SELECT = `SELECT m.user_id, m.display_name, m.joined_at, m.active, m
               (c.owner_id IS NOT NULL) AS owned,
               COALESCE(c.xp, 0) AS xp, COALESCE(c.voice_seconds, 0) AS voice_seconds,
               COALESCE(c.scrims, 0) AS scrims, c.first_met,
-              p.theme_id, p.intro, p.character_id
+              p.theme_id, p.intro, p.character_id, p.deco_id
        FROM members m
        LEFT JOIN cards c ON c.owner_id = ?1 AND c.target_id = m.user_id
        LEFT JOIN profiles p ON p.user_id = m.user_id`;
@@ -143,4 +152,120 @@ export async function chooseCharacterPool(db: D1Database, userId: string, pool: 
     .bind(userId, character, sig, now(), before)
     .run();
   return res.meta.changes ? character : before;
+}
+
+// ── 젤리 상점 ─────────────────────────────────────────────
+
+export type Purchase = {
+  id: string;
+  user_id: string;
+  item_id: string;
+  price: number;
+  status: 'pending' | 'done' | 'failed';
+  reason: string | null;
+  created_at: string;
+  settled_at: string | null;
+};
+
+export async function getOwnedItems(db: D1Database, userId: string): Promise<Set<string>> {
+  const { results } = await db.prepare('SELECT item_id FROM owned_items WHERE user_id = ?').bind(userId).all<{ item_id: string }>();
+  return new Set(results.map((r) => r.item_id));
+}
+
+export async function listMyPurchases(db: D1Database, userId: string, limit = 10): Promise<Purchase[]> {
+  const { results } = await db
+    .prepare('SELECT * FROM purchases WHERE user_id = ? ORDER BY created_at DESC LIMIT ?')
+    .bind(userId, limit)
+    .all<Purchase>();
+  return results;
+}
+
+// 결제 요청을 남겨요. 같은 물건을 이미 기다리는 중이면 false.
+export async function requestPurchase(db: D1Database, userId: string, itemId: string, price: number): Promise<boolean> {
+  try {
+    await db
+      .prepare('INSERT INTO purchases (id, user_id, item_id, price, status, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(crypto.randomUUID(), userId, itemId, price, 'pending', now())
+      .run();
+    return true;
+  } catch (e) {
+    if (String(e).includes('UNIQUE')) return false;
+    throw e;
+  }
+}
+
+export async function listPendingPurchases(db: D1Database, limit = 50): Promise<Purchase[]> {
+  const { results } = await db
+    .prepare("SELECT * FROM purchases WHERE status = 'pending' ORDER BY created_at LIMIT ?")
+    .bind(limit)
+    .all<Purchase>();
+  return results;
+}
+
+// 봇이 결제 결과를 알려 줘요. 이미 처리된 요청이면 그대로 두고 지금 상태를 돌려줘요.
+export async function settlePurchase(
+  db: D1Database,
+  id: string,
+  ok: boolean,
+  reason: string | null,
+  balance: number | null,
+): Promise<Purchase | null> {
+  const t = now();
+  const current = await db.prepare('SELECT * FROM purchases WHERE id = ?').bind(id).first<Purchase>();
+  if (!current) return null;
+  if (current.status !== 'pending') return current;
+  const stmts = [
+    db
+      .prepare("UPDATE purchases SET status = ?, reason = ?, settled_at = ? WHERE id = ? AND status = 'pending'")
+      .bind(ok ? 'done' : 'failed', reason, t, id),
+  ];
+  if (ok)
+    stmts.push(
+      db
+        .prepare('INSERT INTO owned_items (user_id, item_id, acquired_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING')
+        .bind(current.user_id, current.item_id, t),
+    );
+  if (balance !== null) stmts.push(setJellyStmt(db, current.user_id, balance, t));
+  await db.batch(stmts);
+  return { ...current, status: ok ? 'done' : 'failed', reason, settled_at: t };
+}
+
+function setJellyStmt(db: D1Database, userId: string, jelly: number, t: string) {
+  return db
+    .prepare(
+      `INSERT INTO profiles (user_id, jelly, updated_at) VALUES (?1, ?2, ?3)
+       ON CONFLICT (user_id) DO UPDATE SET jelly = ?2, updated_at = ?3`,
+    )
+    .bind(userId, jelly, t);
+}
+
+export async function setTheme(db: D1Database, userId: string, theme: string) {
+  await db
+    .prepare(
+      `INSERT INTO profiles (user_id, theme_id, updated_at) VALUES (?1, ?2, ?3)
+       ON CONFLICT (user_id) DO UPDATE SET theme_id = ?2, updated_at = ?3`,
+    )
+    .bind(userId, theme, now())
+    .run();
+}
+
+export async function setDeco(db: D1Database, userId: string, decoId: string | null) {
+  await db
+    .prepare(
+      `INSERT INTO profiles (user_id, deco_id, updated_at) VALUES (?1, ?2, ?3)
+       ON CONFLICT (user_id) DO UPDATE SET deco_id = ?2, updated_at = ?3`,
+    )
+    .bind(userId, decoId, now())
+    .run();
+}
+
+export async function countOwnedCards(db: D1Database, userId: string): Promise<number> {
+  const row = await db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM cards c JOIN members m ON m.user_id = c.target_id
+       WHERE c.owner_id = ? AND m.active = 1`,
+    )
+    .bind(userId)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
 }

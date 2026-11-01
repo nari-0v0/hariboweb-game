@@ -1,4 +1,4 @@
-import { CHARACTERS, CHARACTER_VARIANTS } from './characters';
+import { CHARACTERS, CHARACTER_VARIANTS, DECO_CHARACTERS } from './characters';
 
 // 멤버 캐릭터: 나리님이 준 그림 속 캐릭터들(public/char/). 서버 안에서 겹치지 않게 골라요.
 // 디자인이 모두 다른 원래 그림(-0)을 먼저 나눠 주고, 멤버가 디자인 수보다 많을 때만
@@ -63,6 +63,10 @@ export function fallbackCharacter(userId: string): string {
   return key(h % CHARACTERS.length, Math.floor(h / CHARACTERS.length) % CHARACTER_VARIANTS);
 }
 
-export function characterUrl(characterId: string | null | undefined, userId: string): string {
+export const isDecoId = (id: string | null | undefined): id is string => !!id && DECO_CHARACTERS.some((d) => d.id === id);
+
+// 꾸밈 캐릭터를 장착했으면 그 그림, 아니면 기본 캐릭터
+export function characterUrl(characterId: string | null | undefined, userId: string, decoId?: string | null): string {
+  if (isDecoId(decoId)) return `/char/deco/${decoId}.png`;
   return `/char/${isCharacterId(characterId) ? characterId : fallbackCharacter(userId)}.png`;
 }

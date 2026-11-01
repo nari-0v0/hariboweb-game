@@ -17,6 +17,12 @@ describe('parseSync', () => {
     if (!r.ok) return;
     expect(r.value.pair_xp[0]).toMatchObject({ scrims: 0, at: '2026-10-30T09:00:00.000Z' });
     expect(r.value.members[0]!.is_newbie).toBe(true);
+    expect(r.value.members[0]!.jelly).toBeNull();
+  });
+
+  it('reads the jelly balance the bot sends', () => {
+    const r = parseSync({ batch_id: 'x', members: [{ id: A, name: 'a', jelly: 42 }] });
+    expect(r.ok && r.value.members[0]!.jelly).toBe(42);
   });
 
   it('allows missing lists', () => {
@@ -33,6 +39,8 @@ describe('parseSync', () => {
     ['bad time', { batch_id: 'x', pair_xp: [{ a: A, b: B, xp: 1, at: 'yesterday' }] }],
     ['http avatar', { batch_id: 'x', members: [{ id: A, name: 'a', avatar_url: 'http://x' }] }],
     ['not a list', { batch_id: 'x', members: {} }],
+    ['negative jelly', { batch_id: 'x', members: [{ id: A, name: 'a', jelly: -1 }] }],
+    ['text jelly', { batch_id: 'x', members: [{ id: A, name: 'a', jelly: '5' }] }],
   ])('rejects %s', (_, payload) => {
     expect(parseSync(payload).ok).toBe(false);
   });

@@ -14,7 +14,7 @@ Content-Type: application/json
 {
   "batch_id": "2026-10-30T10:10:00Z-1",
   "members": [
-    { "id": "디스코드ID", "name": "서버 닉네임", "avatar_url": "https://cdn.discordapp.com/...", "joined_at": "2026-01-01T00:00:00Z", "is_newbie": false }
+    { "id": "디스코드ID", "name": "서버 닉네임", "avatar_url": "https://cdn.discordapp.com/...", "joined_at": "2026-01-01T00:00:00Z", "is_newbie": false, "jelly": 42 }
   ],
   "removed": ["서버를 나간 사람 ID"],
   "pair_xp": [
@@ -26,6 +26,7 @@ Content-Type: application/json
 
 - `batch_id`: 묶음마다 새 값. 같은 값을 다시 보내면 `"result": "duplicate"`로 무시돼요. 실패해서 다시 보낼 때는 같은 값을 쓰면 두 번 쌓이지 않아요.
 - `members`: 이번 묶음의 `pair_xp`, `solo_xp`에 나오는 사람은 꼭 여기에도 넣어요. 웹에 없는 사람이나 떠난 사람의 경험치는 버려져요. 하루 한 번은 서버 전체 멤버를 보내면 이름과 프로필이 맞춰져요. 처음 보는 멤버는 이때 캐릭터가 정해져요.
+- `members[].jelly`: (선택) 봇 지갑의 지금 젤리 잔액. 상점에 보여 주기만 하고, 실제 결제는 봇이 해요. 모르면 빼거나 `null`.
 - `removed`: 서버를 나간 사람. 본인 카드와 도감은 지워지고, 다른 사람이 가진 그 사람 카드는 "떠난 멤버"로 흐리게 남아요. 다시 들어오면 `members`에 넣기만 하면 돼요. 본인 기록은 처음부터, 다른 사람 도감 속 카드는 다시 살아나요.
 - `pair_xp`: 두 사람이 함께한 활동. 양쪽 카드에 똑같이 더해져요. `at`은 함께한 시각이고, 처음 만난 날은 가장 이른 값으로 남아요.
 - `solo_xp`: 혼자 한 활동(출석, 서바이벌, 빙고)으로 내 카드에 더할 경험치.
@@ -36,6 +37,21 @@ Content-Type: application/json
 - `200 {"ok":true,"result":"applied"}` 또는 `"duplicate"`
 - `400 {"error":"..."}` 형식이 틀림 (아무것도 반영되지 않음)
 - `401` 비밀 값이 틀림
+
+## 젤리 상점 결제
+
+젤리 지갑은 봇(Oracle DB)에 있어요. 웹은 결제 요청만 남기고, 봇이 젤리를 뺀 뒤 결과를 알려 주면 물건이 열려요. 같은 `Authorization: Bearer <BOT_SYNC_SECRET>`을 써요.
+
+1. 봇이 몇 초마다 `GET /api/bot/purchases`로 기다리는 결제를 가져가요.
+   `{"purchases":[{"id":"결제번호","user_id":"ID","item_id":"theme:rose","price":30,"created_at":"..."}]}` (오래된 순, 최대 50개)
+2. 봇이 그 사람 젤리에서 `price`만큼 빼요. 결제번호를 중복 방지 키로 써서 같은 결제를 두 번 빼지 않아요.
+3. 봇이 `POST /api/bot/purchases/<결제번호>`로 결과를 보내요.
+   - 성공: `{"ok": true, "balance": 12}` → 물건이 열리고 잔액이 바뀌어요.
+   - 실패: `{"ok": false, "reason": "not_enough_jelly", "balance": 3}` → 멤버 화면에 "젤리가 부족해요"로 보여요.
+   - `balance`는 선택이에요(0 이상 정수). 응답은 `200 {"ok":true,"status":"done|failed"}`, 없는 번호는 `404`, 형식이 틀리면 `400`.
+   - 이미 처리된 결제에 다시 보내도 처음 결과 그대로예요. 그러니 응답을 못 받았으면 같은 결과를 다시 보내면 돼요.
+
+물건 번호는 `theme:<테마>`, `deco:<꾸밈 캐릭터>`이고 값은 웹 `src/shop.ts`에 있어요. 판타지 꾸밈 캐릭터는 젤리로 못 사고 도감 카드 3장마다 하나씩 열려요(결제가 생기지 않아요).
 
 ## 경험치 기준 (제안, 봇에서 정해요)
 
