@@ -12,6 +12,11 @@
       "migrations_dir": "migrations"
     }
   ],
+  // 광장(같이 돌아다니는 지도) 실시간 연결. 무료 요금제는 SQLite 방식만 쓸 수 있어요.
+  "durable_objects": {
+    "bindings": [{ "name": "PLAZA", "class_name": "PlazaRoom" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PlazaRoom"] }],
   "vars": {
     // 디스코드 개발자 포털의 봇 애플리케이션 ID
     "DISCORD_CLIENT_ID": "1420027662830669925",

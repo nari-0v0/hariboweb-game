@@ -24,14 +24,19 @@ import {
   upsertLoginMember,
 } from './db';
 import { canUse, canUseTheme, decoItemId, shopItem } from './shop';
-import { isCharacterPool } from './character';
+import { characterUrl, isCharacterPool } from './character';
 import { applySync, parseSync } from './sync';
 import { CardPage, DogamPage, LandingPage, MePage, MessagePage } from './views/pages';
 import { ShopPage } from './views/shop';
+import { PlazaPage } from './views/plaza';
+
+export { PlazaRoom } from './plaza-room';
 
 const SESSION_COOKIE = 'hs';
 const STATE_COOKIE = 'hs_state';
 const SESSION_DAYS = 30;
+
+const plazaStub = (c: Context<AppEnv>) => c.env.PLAZA.get(c.env.PLAZA.idFromName('main'));
 
 const app = new Hono<AppEnv>();
 
@@ -152,6 +157,16 @@ app.post('/api/bot/purchases/:id', async (c) => {
   const result = await settlePurchase(c.env.DB, c.req.param('id'), body.ok, reason, balance as number | null);
   if (!result) return c.json({ error: 'not found' }, 404);
   return c.json({ ok: true, status: result.status });
+});
+
+// 광장 실시간 연결(봇). 통화방 모습과 통화방 채팅을 보내고, 방 옮기기 요청을 받아요.
+app.get('/api/bot/plaza', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  if (c.req.header('Upgrade') !== 'websocket') return c.text('websocket only', 426);
+  const req = new Request(c.req.raw);
+  req.headers.delete('X-Plaza-User');
+  req.headers.set('X-Plaza-Role', 'bot');
+  return plazaStub(c).fetch(req);
 });
 
 // 여기부터는 로그인한 하리보 멤버만
@@ -289,6 +304,25 @@ members.get('/card/:userId', async (c) => {
   const [entry, target] = await Promise.all([getOwnedCard(c.env.DB, owner.user_id, targetId), getMember(c.env.DB, targetId)]);
   if (!entry || !target) return notFound();
   return page(c, <CardPage viewer={viewer} owner={owner} target={target} entry={entry} />);
+});
+
+members.get('/plaza', (c) => page(c, <PlazaPage viewer={c.get('viewer')} guildId={c.env.GUILD_ID} />));
+
+// 광장 실시간 연결(브라우저). 다른 사이트에서 몰래 연결하지 못하게 주소를 확인해요.
+members.get('/plaza/ws', async (c) => {
+  if (c.req.header('Upgrade') !== 'websocket') return c.text('websocket only', 426);
+  if (c.req.header('Origin') !== new URL(c.req.url).origin) return c.text('잘못된 요청이에요', 403);
+  const viewer = c.get('viewer');
+  const profile = await getProfile(c.env.DB, viewer.user_id);
+  const who = {
+    id: viewer.user_id,
+    name: viewer.display_name,
+    char: characterUrl(profile.character_id, viewer.user_id, profile.deco_id),
+  };
+  const req = new Request(c.req.raw);
+  req.headers.set('X-Plaza-Role', 'user');
+  req.headers.set('X-Plaza-User', encodeURIComponent(JSON.stringify(who)));
+  return plazaStub(c).fetch(req);
 });
 
 app.route('/', members);

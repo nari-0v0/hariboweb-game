@@ -6,6 +6,7 @@ export type Env = {
   PUBLIC_URL: string;
   SESSION_SECRET: string;
   BOT_SYNC_SECRET: string;
+  PLAZA: DurableObjectNamespace;
   DEV_LOGIN?: string;
 };
 
