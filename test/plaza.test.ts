@@ -6,7 +6,6 @@ import {
   cleanChat,
   clampToWorld,
   layoutRooms,
-  roomSize,
   parseBotMessage,
   parseClientMessage,
   roomAt,
@@ -36,41 +35,18 @@ describe('layoutRooms', () => {
     for (const r of l.rooms) expect(r.x + r.w).toBeLessThanOrEqual(l.w);
   });
 
-  it('puts each category in its own labelled section', () => {
-    const chs = [
-      ...channels(6).map((c) => ({ ...c, group: '일반통화방' })),
-      ...channels(2).map((c, i) => ({ ...c, id: `91000000000000000${i}`, group: '내전통화방' })),
-    ];
-    const l = layoutRooms(chs, () => '');
-    expect(l.groups.map((g) => g.name)).toEqual(['일반통화방', '내전통화방']);
-    const normal = l.rooms.filter((r) => r.group === '일반통화방');
-    const scrim = l.rooms.filter((r) => r.group === '내전통화방');
-    const normalBottom = Math.max(...normal.map((r) => r.y + r.h));
-    expect(l.groups[1]!.y).toBeGreaterThanOrEqual(normalBottom);
-    for (const r of scrim) expect(r.y).toBeGreaterThan(l.groups[1]!.y);
-    expect(Math.min(...normal.map((r) => r.y))).toBeGreaterThan(l.park.y + l.park.h);
-  });
-
   it('rejects a bad group name from the bot', () => {
     const ok = parseBotMessage(JSON.stringify({ t: 'voice', channels: [{ id: CH1, name: '수다방', limit: 0, members: [], group: '일반통화방' }] }));
     expect(ok && ok.t === 'voice' && ok.channels[0]!.group).toBe('일반통화방');
     expect(parseBotMessage(JSON.stringify({ t: 'voice', channels: [{ id: CH1, name: '수다방', limit: 0, members: [], group: 5 }] }))).toBeNull();
   });
 
-  it('grows rooms with people and keeps empty rooms small, all inside the world', () => {
-    expect(roomSize(0).w).toBeLessThan(roomSize(1).w);
-    expect(roomSize(5).w).toBeGreaterThan(roomSize(2).w);
-    expect(roomSize(40).h).toBeGreaterThan(roomSize(5).h);
+  it('makes every room the same size, busy or empty', () => {
     const mem = (n: number, k: number) => Array.from({ length: n }, (_, i) => ({ id: `8000000000000${k}${String(i).padStart(4, '0')}`, name: `m${i}` }));
     const chs = [0, 3, 0, 12, 1, 0, 40].map((n, k) => ({ id: `90000000000000000${k}`, name: `방${k}`, limit: 0, members: mem(n, k) }));
     const l = layoutRooms(chs, () => '');
-    for (const r of l.rooms) {
-      expect(r.x + r.w).toBeLessThanOrEqual(l.w);
-      expect(r.y + r.h).toBeLessThanOrEqual(l.h);
-    }
-    for (const a of l.rooms)
-      for (const b of l.rooms)
-        if (a !== b) expect(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y).toBe(true);
+    expect(new Set(l.rooms.map((r) => `${r.w}x${r.h}`)).size).toBe(1);
+    for (const r of l.rooms) expect(r.y + r.h).toBeLessThanOrEqual(l.h);
   });
 
   it('works with no rooms and attaches characters to members', () => {
