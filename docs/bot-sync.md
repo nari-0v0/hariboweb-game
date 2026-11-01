@@ -50,6 +50,14 @@ Content-Type: application/json
   - 도감 카드 레벨이 오를 때마다 1개 (웹이 줘요)
 - 예전 봇이 쓰던 `GET /api/bot/purchases`는 늘 빈 목록 `{"purchases":[]}`을 돌려줘요. 결과를 보내던 `POST /api/bot/purchases/<번호>`는 없어졌어요.
 
+### 예전 겜블 젤리 결제 돌려주기 (한 번만)
+
+도감 젤리로 바뀌기 전(2026-11-01)에 겜블 젤리로 이미 산 것은 겜블 젤리를 돌려줘요. 산 물건은 그대로 가져요.
+
+- `GET /api/bot/refunds` → `{"refunds":[{"id":"<결제번호>","user":"<디스코드 ID>","item":"theme:mint","price":30}]}` (한 번에 50개까지)
+- 봇이 겜블 지갑에 젤리를 넣은 뒤 `POST /api/bot/refunds/<결제번호>` → `{"ok":true,"changed":true}`. 두 번 불러도 괜찮아요.
+- 봇은 거래번호 `dogam-web-refund:<결제번호>`로 한 번만 넣고, 목록이 비면 멈춰요. 알림(DM·채팅·관리자 로그)은 보내지 않아요.
+
 물건 번호는 `theme:<테마>`, `deco:<꾸밈 캐릭터>`이고 값은 웹 `src/shop.ts`에 있어요. 판타지 꾸밈 캐릭터는 젤리로 못 사고 도감 카드 3장마다 하나씩 열려요.
 
 ## 경험치 기준 (제안, 봇에서 정해요)

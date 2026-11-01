@@ -15,7 +15,9 @@ import {
   listDogam,
   buyWithJelly,
   giveStarterJelly,
+  listPendingRefunds,
   listUnseenPurchases,
+  markRefunded,
   markPurchasesSeen,
   saveProfile,
   setDeco,
@@ -139,6 +141,19 @@ app.post('/api/bot/sync', async (c) => {
 app.get('/api/bot/purchases', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
   return c.json({ purchases: [] });
+});
+
+// 예전에 겜블 젤리로 산 것을 봇이 겜블 지갑에 돌려줘요. 봇이 목록을 가져가 돌려주고, 한 건씩 끝났다고 알려요.
+app.get('/api/bot/refunds', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  const rows = await listPendingRefunds(c.env.DB);
+  return c.json({ refunds: rows.map((r) => ({ id: r.id, user: r.user_id, item: r.item_id, price: r.price })) });
+});
+
+app.post('/api/bot/refunds/:id', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  const changed = await markRefunded(c.env.DB, c.req.param('id'));
+  return c.json({ ok: true, changed });
 });
 
 // 광장 실시간 연결(봇). 통화방 모습과 통화방 채팅을 보내고, 방 옮기기 요청을 받아요.

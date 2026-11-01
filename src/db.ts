@@ -186,6 +186,23 @@ export async function listUnseenPurchases(db: D1Database, userId: string): Promi
   return results;
 }
 
+// 예전에 겜블 젤리로 산 결제 중 아직 겜블 젤리를 돌려주지 않은 것(봇이 가져가서 돌려줘요)
+export type Refund = { id: string; user_id: string; item_id: string; price: number };
+
+export async function listPendingRefunds(db: D1Database, limit = 50): Promise<Refund[]> {
+  const { results } = await db
+    .prepare(`SELECT id, user_id, item_id, price FROM purchases WHERE refund = 'pending' ORDER BY created_at LIMIT ?`)
+    .bind(limit)
+    .all<Refund>();
+  return results;
+}
+
+// 봇이 겜블 젤리를 돌려준 뒤 부르면 다시 돌려주지 않게 표시해요. 이미 표시된 건은 그대로예요.
+export async function markRefunded(db: D1Database, id: string): Promise<boolean> {
+  const r = await db.prepare(`UPDATE purchases SET refund = 'done' WHERE id = ? AND refund = 'pending'`).bind(id).run();
+  return (r.meta.changes ?? 0) > 0;
+}
+
 // 도감 젤리로 바로 사요. 잔액 확인, 젤리 빼기, 물건 주기를 한 번에(트랜잭션) 해서
 // 동시에 여러 번 눌러도 잔액보다 많이 쓰거나 같은 물건을 두 번 사지 않아요.
 export async function buyWithJelly(

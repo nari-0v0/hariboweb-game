@@ -12,3 +12,8 @@ UPDATE profiles SET jelly = NULL;
 -- 겜블 젤리로 결제를 기다리던 요청은 취소해요(젤리는 빠지지 않았어요)
 UPDATE purchases SET status = 'failed', reason = 'shop_changed', settled_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE status = 'pending';
+
+-- 예전에 겜블 젤리로 이미 산 것은 겜블 젤리를 돌려줘요(산 물건은 그대로 가져요).
+-- 봇이 한 건씩 돌려주고 'done'으로 바꿔요. 위에서 취소한 건은 빼고, 결제가 끝난 것만 골라요.
+ALTER TABLE purchases ADD COLUMN refund TEXT;
+UPDATE purchases SET refund = 'pending' WHERE status = 'done';
