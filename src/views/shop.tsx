@@ -14,11 +14,14 @@ const NOTICES: Record<string, PopupLine[]> = {
   locked: [{ title: '알림', text: '아직 사용할 수 없는 물건입니다.' }],
   error: [
     { title: '오류', text: '오류가 발생하였습니다.', bad: true },
-    { title: '오류', text: '방장에게 문의해주세요.', bad: true },
+    { title: '오류', text: '방장에게 문의해주세요.', bad: true, contact: true },
   ],
 };
 
-type PopupLine = { title: string; text: string; bad?: boolean };
+// 오류가 났을 때 방장에게 문의하는 카카오톡 오픈채팅
+export const OWNER_CONTACT_URL = 'https://open.kakao.com/o/sznz9sHg';
+
+type PopupLine = { title: string; text: string; bad?: boolean; contact?: boolean };
 
 // 받침이 있으면 "을", 없으면 "를"
 export function objectParticle(word: string): string {
@@ -35,7 +38,7 @@ export function resultLines(p: Pick<Purchase, 'status' | 'reason'>, name: string
   if (p.reason === 'left') return [{ title: '구매 취소', text: `서버를 나가서 ${name} 구매가 취소되었습니다.`, bad: true }];
   return [
     { title: '구매 실패', text: `${name} 구매 중 오류가 발생하였습니다.`, bad: true },
-    { title: '구매 실패', text: '방장에게 문의해주세요.', bad: true },
+    { title: '구매 실패', text: '방장에게 문의해주세요.', bad: true, contact: true },
   ];
 }
 
@@ -51,9 +54,16 @@ function Popup(props: { lines: PopupLine[] }) {
           {props.lines.map((l) => (
             <p>{l.text}</p>
           ))}
-          <label for="popup-close" class="btn btn-primary" tabindex={0}>
-            확인
-          </label>
+          <div class="popup-actions">
+            {props.lines.some((l) => l.contact) && (
+              <a class="btn btn-ghost" href={OWNER_CONTACT_URL} target="_blank" rel="noopener noreferrer">
+                방장에게 문의하기
+              </a>
+            )}
+            <label for="popup-close" class="btn btn-primary" tabindex={0}>
+              확인
+            </label>
+          </div>
         </div>
       </div>
     </>

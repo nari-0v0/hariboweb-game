@@ -46,7 +46,7 @@ describe('jelly shop items', () => {
 });
 
 describe('shop popup text', async () => {
-  const { objectParticle, resultLines } = await import('../src/views/shop');
+  const { objectParticle, resultLines, OWNER_CONTACT_URL } = await import('../src/views/shop');
   it('picks 을/를 by the last letter', () => {
     expect(objectParticle('요리사')).toBe('를');
     expect(objectParticle('장미 테마')).toBe('를');
@@ -58,5 +58,8 @@ describe('shop popup text', async () => {
     expect(resultLines({ status: 'failed', reason: 'not_enough_jelly' }, '요리사')[0]!.text).toContain('요리사를 구매하지 못했습니다');
     const err = resultLines({ status: 'failed', reason: 'error' }, '장미').map((l) => l.text);
     expect(err).toEqual(['장미 구매 중 오류가 발생하였습니다.', '방장에게 문의해주세요.']);
+    expect(resultLines({ status: 'failed', reason: 'error' }, '장미').some((l) => l.contact)).toBe(true);
+    expect(resultLines({ status: 'failed', reason: 'not_enough_jelly' }, '장미').some((l) => l.contact)).toBe(false);
+    expect(OWNER_CONTACT_URL).toBe('https://open.kakao.com/o/sznz9sHg');
   });
 });

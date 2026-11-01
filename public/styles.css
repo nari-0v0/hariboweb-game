@@ -407,3 +407,5 @@ input:not([type=radio]):focus { background: #fff6fa; border-color: var(--pink); 
 .popup.bad h2 { color: #d0384f; }
 .popup p { margin: 0; overflow-wrap: anywhere; word-break: keep-all; }
 .popup .btn { margin-top: 6px; min-width: 120px; }
+.popup-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 6px; }
+.popup-actions .btn { margin-top: 0; }
