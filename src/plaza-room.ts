@@ -153,8 +153,9 @@ export class PlazaRoom extends DurableObject<Env> {
     // 통화방 옮기기 요청
     const ok = allow(tag.join, now, 3000, 1);
     ws.serializeAttachment(tag);
-    if (!ok) return;
     const reply = (reason: string) => ws.send(JSON.stringify({ t: 'joined', ch: msg.ch, ok: false, reason }));
+    // 너무 빨리 또 옮기면 'busy'로 알려 주고, 화면이 잠시 뒤에 다시 요청해요
+    if (!ok) return reply('busy');
     const room = voice.layout.rooms.find((r) => r.id === msg.ch);
     if (!room) return reply('no_room');
     const near = { x: room.x - NEAR, y: room.y - NEAR, w: room.w + NEAR * 2, h: room.h + NEAR * 2 };

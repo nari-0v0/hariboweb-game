@@ -224,6 +224,17 @@
     send({ t: 'join', ch: room.id });
   }
 
+  // 방을 연달아 옮겨서 잠깐 막혔으면, 아직 그 방에 서 있을 때 3초 뒤에 다시 요청해요
+  let retryTimer = 0;
+  function retryJoin(ch) {
+    clearTimeout(retryTimer);
+    retryTimer = setTimeout(() => {
+      if (!me || roomAt(me.x, me.y)?.id !== ch || voiceOf.get(me.id) === ch) return;
+      lastAsked = null;
+      checkRoom();
+    }, 3100);
+  }
+
   const REASONS = {
     not_in_voice: '먼저 디스코드에서 아무 통화방에 들어와 주세요. 그다음 여기서 방을 옮길 수 있어요.',
     full: '방이 꽉 차서 옮기지 못했어요.',
@@ -283,6 +294,7 @@
         break;
       case 'joined':
         if (msg.ok) toast(`디스코드에서 ${roomName(msg.ch)}(으)로 옮겼어요.`);
+        else if (msg.reason === 'busy') retryJoin(msg.ch);
         else if (msg.reason === 'not_in_voice') toast(REASONS.not_in_voice, discordLink(msg.ch));
         else toast(REASONS[msg.reason] || '오류가 발생하였습니다. 방장에게 문의해주세요.');
         break;
