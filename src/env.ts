@@ -1,3 +1,5 @@
+import type { PlazaRoom } from './plaza-room';
+
 export type Env = {
   DB: D1Database;
   DISCORD_CLIENT_ID: string;
@@ -6,7 +8,7 @@ export type Env = {
   PUBLIC_URL: string;
   SESSION_SECRET: string;
   BOT_SYNC_SECRET: string;
-  PLAZA: DurableObjectNamespace;
+  PLAZA: DurableObjectNamespace<PlazaRoom>;
   DEV_LOGIN?: string;
 };
 
