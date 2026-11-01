@@ -11,6 +11,9 @@ export function PlazaPage(props: { viewer: Member; guildId: string }) {
           같이 돌아다녀요. 통화방 구역에 들어가서 멈추면 디스코드 통화방도 그 방으로 옮겨 드려요. 통화방 채팅은 말풍선으로
           떠요.
         </p>
+        <p class="muted">
+          움직이기: 가고 싶은 곳을 클릭(휴대폰은 터치)하거나, 키보드 방향키·WASD로 걸어요. 아래 통화방 목록을 누르면 그 방으로 걸어가요.
+        </p>
         <p class="plaza-status" id="plaza-status" role="status">
           연결하는 중…
         </p>
