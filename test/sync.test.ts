@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { levelUpJelly, parseSync } from '../src/sync';
+import { parseSync } from '../src/sync';
 
 const A = '111111111111111111';
 const B = '222222222222222222';
@@ -45,20 +45,5 @@ describe('parseSync', () => {
     ['not a list', { batch_id: 'x', members: {} }],
   ])('rejects %s', (_, payload) => {
     expect(parseSync(payload).ok).toBe(false);
-  });
-});
-
-describe('levelUpJelly', () => {
-  const pair = (xp: number) => ({ a: A, b: B, xp, voice_seconds: 0, scrims: 0, at: '2026-11-01T00:00:00.000Z' });
-  it('gives one jelly per card level gained to each card owner', () => {
-    // 레벨 2 = 30xp, 레벨 3 = 120xp
-    const jelly = levelUpJelly(new Map([[`${A}:${B}`, 20], [`${B}:${A}`, 20]]), [pair(110)]);
-    expect(jelly.get(A)).toBe(2);
-    expect(jelly.get(B)).toBe(2);
-  });
-  it('counts several pairs in one batch in order and gives nothing without a level up', () => {
-    expect(levelUpJelly(new Map(), [pair(10)]).size).toBe(0);
-    const jelly = levelUpJelly(new Map(), [pair(20), pair(20)]);
-    expect(jelly.get(A)).toBe(1);
   });
 });

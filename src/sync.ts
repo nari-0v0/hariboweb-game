@@ -1,4 +1,4 @@
-import { levelFromXp } from './levels';
+import { MAX_LEVEL, xpForLevel } from './levels';
 
 // 봇이 보내는 동기화 묶음을 검사하고 D1에 한 번에 반영해요. 자세한 형식은 docs/bot-sync.md
 const ID = /^\d{17,20}$/;
@@ -90,42 +90,15 @@ export function parseSync(raw: unknown): Result {
   return { ok: true, value: { batch_id, members, removed, pair_xp, solo_xp, jelly_earned } };
 }
 
-// 카드 레벨이 오르면 그 카드 주인에게 도감 젤리 1개씩. 이번 묶음 전 경험치를 보고 몇 레벨 오르는지 세요.
+// 카드 레벨이 오르면 그 카드 주인에게 도감 젤리 1개씩.
+// 카드마다 젤리를 준 레벨(jelly_level)을 적어 두고, 같은 트랜잭션 안에서 경험치를 올린 뒤
+// "지금 레벨 - 준 레벨"만큼 줘요. 그래서 동기화가 겹쳐도 레벨마다 딱 한 번만 받아요.
 export const JELLY_PER_CARD_LEVEL = 1;
-export function levelUpJelly(
-  before: Map<string, number>,
-  pairs: SyncPayload['pair_xp'],
-): Map<string, number> {
-  const xp = new Map(before);
-  const jelly = new Map<string, number>();
-  for (const p of pairs) {
-    for (const [owner, target] of [
-      [p.a, p.b],
-      [p.b, p.a],
-    ] as const) {
-      const key = `${owner}:${target}`;
-      const old = xp.get(key) ?? 0;
-      const next = old + p.xp;
-      xp.set(key, next);
-      const gained = levelFromXp(next) - levelFromXp(old);
-      if (gained > 0) jelly.set(owner, (jelly.get(owner) ?? 0) + gained * JELLY_PER_CARD_LEVEL);
-    }
-  }
-  return jelly;
-}
 
-async function cardXp(db: D1Database, pairs: SyncPayload['pair_xp']): Promise<Map<string, number>> {
-  const keys = [...new Set(pairs.flatMap((p) => [`${p.a}:${p.b}`, `${p.b}:${p.a}`]))];
-  const out = new Map<string, number>();
-  for (let i = 0; i < keys.length; i += 45) {
-    const part = keys.slice(i, i + 45).map((k) => k.split(':') as [string, string]);
-    const { results } = await db
-      .prepare(`SELECT owner_id, target_id, xp FROM cards WHERE ${part.map(() => '(owner_id = ? AND target_id = ?)').join(' OR ')}`)
-      .bind(...part.flat())
-      .all<{ owner_id: string; target_id: string; xp: number }>();
-    for (const r of results) out.set(`${r.owner_id}:${r.target_id}`, r.xp);
-  }
-  return out;
+// SQL 안에서 경험치 → 레벨(levels.ts의 levelFromXp와 같아요)
+export function levelSql(col: string): string {
+  const needs = Array.from({ length: MAX_LEVEL - 1 }, (_, i) => `(${xpForLevel(i + 2)})`).join(',');
+  return `(1 + (SELECT COUNT(*) FROM (VALUES ${needs}) WHERE column1 <= ${col}))`;
 }
 
 // 떠난 멤버(또는 아직 members에 없는 사람)의 경험치는 버려요. 그래서 봇은 경험치에 나오는 사람을 같은 묶음의 members에도 넣어요.
@@ -165,15 +138,29 @@ export async function applySync(db: D1Database, p: SyncPayload): Promise<'applie
   );
   for (const s of p.solo_xp) stmts.push(addSolo.bind(s.id, s.xp, t));
 
-  // 도감 젤리: 봇이 센 것 + 카드 레벨업. 지금 서버에 있는 멤버만 받아요.
-  const earned = levelUpJelly(await cardXp(db, p.pair_xp), p.pair_xp);
-  for (const j of p.jelly_earned) earned.set(j.id, (earned.get(j.id) ?? 0) + j.amount);
+  // 도감 젤리: 봇이 센 것. 지금 서버에 있는 멤버만 받아요.
   const addJelly = db.prepare(
     `INSERT INTO profiles (user_id, dogam_jelly, updated_at)
      SELECT ?1, ?2, ?3 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
      ON CONFLICT (user_id) DO UPDATE SET dogam_jelly = dogam_jelly + ?2, updated_at = ?3`,
   );
+  const earned = new Map<string, number>();
+  for (const j of p.jelly_earned) earned.set(j.id, (earned.get(j.id) ?? 0) + j.amount);
   for (const [id, amount] of earned) stmts.push(addJelly.bind(id, amount, t));
+
+  // 도감 젤리: 카드 레벨업. 경험치를 올린 다음, 아직 젤리를 안 준 레벨만큼 주고 준 레벨을 적어요.
+  const level = levelSql('xp');
+  const levelUp = `(SELECT COALESCE(SUM(${level} - jelly_level), 0) * ${JELLY_PER_CARD_LEVEL} FROM cards WHERE owner_id = ?1 AND ${level} > jelly_level)`;
+  const addLevelJelly = db.prepare(
+    `INSERT INTO profiles (user_id, dogam_jelly, updated_at)
+     SELECT ?1, ${levelUp}, ?2 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1) AND ${levelUp} > 0
+     ON CONFLICT (user_id) DO UPDATE SET dogam_jelly = dogam_jelly + excluded.dogam_jelly, updated_at = ?2`,
+  );
+  const markLevel = db.prepare(`UPDATE cards SET jelly_level = ${level} WHERE owner_id = ?1 AND ${level} > jelly_level`);
+  for (const owner of new Set(p.pair_xp.flatMap((x) => [x.a, x.b]))) {
+    stmts.push(addLevelJelly.bind(owner, t));
+    stmts.push(markLevel.bind(owner));
+  }
 
   // 나간 사람: 본인 카드와 도감은 지우고, 다른 사람이 가진 그 사람 카드는 흐리게 남겨요.
   for (const id of p.removed) {

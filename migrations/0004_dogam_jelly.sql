@@ -5,6 +5,9 @@
 ALTER TABLE profiles ADD COLUMN dogam_jelly INTEGER NOT NULL DEFAULT 0;
 -- 처음 젤리 선물을 받은 때(계정당 한 번만. 나갔다 다시 들어와도 또 받지 않아요)
 ALTER TABLE members ADD COLUMN starter_jelly_at TEXT;
+-- 카드마다 레벨업 젤리를 어느 레벨까지 줬는지. 지금 있는 카드는 지금 레벨까지 준 것으로 쳐요(앞으로 오르는 레벨부터 받아요).
+ALTER TABLE cards ADD COLUMN jelly_level INTEGER NOT NULL DEFAULT 1;
+UPDATE cards SET jelly_level = (1 + (SELECT COUNT(*) FROM (VALUES (30),(120),(270),(480),(750),(1080),(1470),(1920),(2430),(3000),(3630),(4320),(5070),(5880),(6750),(7680),(8670),(9720),(10830),(12000),(13230),(14520),(15870),(17280),(18750),(20280),(21870),(23520),(25230),(27000),(28830),(30720),(32670),(34680),(36750),(38880),(41070),(43320),(45630),(48000),(50430),(52920),(55470),(58080),(60750),(63480),(66270),(69120),(72030)) WHERE column1 <= xp));
 
 -- 예전에 봇이 알려 주던 겜블 젤리 잔액은 더 이상 쓰지 않아요
 UPDATE profiles SET jelly = NULL;
