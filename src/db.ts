@@ -173,24 +173,38 @@ export async function getOwnedItems(db: D1Database, userId: string): Promise<Set
   return new Set(results.map((r) => r.item_id));
 }
 
-export async function listMyPurchases(db: D1Database, userId: string, limit = 10): Promise<Purchase[]> {
+// 상점 화면에 필요한 결제: 아직 결제 중인 것 전부 + 결과를 아직 안 본 것 전부
+export async function listMyPurchases(db: D1Database, userId: string): Promise<Purchase[]> {
   const { results } = await db
-    .prepare('SELECT * FROM purchases WHERE user_id = ? ORDER BY created_at DESC LIMIT ?')
-    .bind(userId, limit)
+    .prepare(
+      `SELECT * FROM purchases WHERE user_id = ? AND (status = 'pending' OR seen_at IS NULL)
+       ORDER BY created_at DESC`,
+    )
+    .bind(userId)
     .all<Purchase>();
   return results;
 }
 
-// 결제 요청을 남겨요. 같은 물건을 이미 기다리는 중이면 false.
-export async function requestPurchase(db: D1Database, userId: string, itemId: string, price: number): Promise<boolean> {
+// 결제 요청을 남겨요. 이미 가진 물건이면 'owned', 같은 물건을 기다리는 중이면 'pending'.
+// 가졌는지 확인과 요청 저장을 한 문장으로 해서, 그 사이에 결제가 끝나도 두 번 결제되지 않아요.
+export async function requestPurchase(
+  db: D1Database,
+  userId: string,
+  itemId: string,
+  price: number,
+): Promise<'requested' | 'owned' | 'pending'> {
   try {
-    await db
-      .prepare('INSERT INTO purchases (id, user_id, item_id, price, status, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .bind(crypto.randomUUID(), userId, itemId, price, 'pending', now())
+    const res = await db
+      .prepare(
+        `INSERT INTO purchases (id, user_id, item_id, price, status, created_at)
+         SELECT ?1, ?2, ?3, ?4, 'pending', ?5
+         WHERE NOT EXISTS (SELECT 1 FROM owned_items WHERE user_id = ?2 AND item_id = ?3)`,
+      )
+      .bind(crypto.randomUUID(), userId, itemId, price, now())
       .run();
-    return true;
+    return res.meta.changes === 1 ? 'requested' : 'owned';
   } catch (e) {
-    if (String(e).includes('UNIQUE')) return false;
+    if (String(e).includes('UNIQUE')) return 'pending';
     throw e;
   }
 }
@@ -224,29 +238,38 @@ export async function settlePurchase(
   const current = await db.prepare('SELECT * FROM purchases WHERE id = ?').bind(id).first<Purchase>();
   if (!current) return null;
   if (current.status !== 'pending') return current;
+  const status = ok ? 'done' : 'failed';
+  // 아래 두 문장은 이번 요청이 "결제 중 → 결과"로 직접 바꿨을 때만 반영돼요.
+  // (그 사이 멤버가 나가서 취소됐으면 물건도 잔액도 되살리지 않아요)
+  const won = "EXISTS (SELECT 1 FROM purchases WHERE id = ?1 AND status = ?2 AND settled_at = ?3)";
   const stmts = [
     db
       .prepare("UPDATE purchases SET status = ?, reason = ?, settled_at = ? WHERE id = ? AND status = 'pending'")
-      .bind(ok ? 'done' : 'failed', reason, t, id),
+      .bind(status, reason, t, id),
   ];
   if (ok)
     stmts.push(
       db
-        .prepare('INSERT INTO owned_items (user_id, item_id, acquired_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING')
-        .bind(current.user_id, current.item_id, t),
+        .prepare(
+          `INSERT INTO owned_items (user_id, item_id, acquired_at)
+           SELECT ?4, ?5, ?3 WHERE ${won}
+           ON CONFLICT DO NOTHING`,
+        )
+        .bind(id, status, t, current.user_id, current.item_id),
     );
-  if (balance !== null) stmts.push(setJellyStmt(db, current.user_id, balance, t));
+  if (balance !== null)
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO profiles (user_id, jelly, updated_at)
+           SELECT ?4, ?5, ?3 WHERE ${won}
+             AND EXISTS (SELECT 1 FROM members WHERE user_id = ?4 AND active = 1)
+           ON CONFLICT (user_id) DO UPDATE SET jelly = excluded.jelly, updated_at = excluded.updated_at`,
+        )
+        .bind(id, status, t, current.user_id, balance),
+    );
   await db.batch(stmts);
-  return { ...current, status: ok ? 'done' : 'failed', reason, settled_at: t };
-}
-
-function setJellyStmt(db: D1Database, userId: string, jelly: number, t: string) {
-  return db
-    .prepare(
-      `INSERT INTO profiles (user_id, jelly, updated_at) VALUES (?1, ?2, ?3)
-       ON CONFLICT (user_id) DO UPDATE SET jelly = ?2, updated_at = ?3`,
-    )
-    .bind(userId, jelly, t);
+  return db.prepare('SELECT * FROM purchases WHERE id = ?').bind(id).first<Purchase>();
 }
 
 export async function setTheme(db: D1Database, userId: string, theme: string) {

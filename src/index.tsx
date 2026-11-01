@@ -232,8 +232,8 @@ members.post('/api/shop/buy', async (c) => {
   if (!item || item.price === null) return c.redirect('/shop?n=not_for_sale');
   const owned = await getOwnedItems(c.env.DB, viewer.user_id);
   if (owned.has(item.id)) return c.redirect('/shop?n=owned');
-  const ok = await requestPurchase(c.env.DB, viewer.user_id, item.id, item.price);
-  return c.redirect(`/shop?n=${ok ? 'requested' : 'already_pending'}`);
+  const result = await requestPurchase(c.env.DB, viewer.user_id, item.id, item.price);
+  return c.redirect(`/shop?n=${result === 'pending' ? 'already_pending' : result}`);
 });
 
 members.post('/api/me/deco', async (c) => {
