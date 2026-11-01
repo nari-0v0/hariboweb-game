@@ -8,8 +8,7 @@
     {
       "binding": "DB",
       "database_name": "haribo-dogam",
-      // 처음 배포할 때 `npx wrangler d1 create haribo-dogam`으로 만든 뒤 나온 id로 바꿔요.
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "607d6192-35d0-435b-90cc-16fdee9abc10",
       "migrations_dir": "migrations"
     }
   ],
@@ -19,7 +18,7 @@
     // 하리보 서버 ID
     "GUILD_ID": "",
     // 배포된 주소 (예: https://hariboweb-game.<계정>.workers.dev)
-    "PUBLIC_URL": ""
+    "PUBLIC_URL": "https://hariboweb-game.haribobot.workers.dev"
   }
   // 비밀 값은 `npx wrangler secret put 이름`으로 넣어요:
   //   DISCORD_CLIENT_SECRET, SESSION_SECRET, BOT_SYNC_SECRET
