@@ -10,6 +10,7 @@
   const listEl = document.getElementById('plaza-rooms');
   const GUILD = root.dataset.guild;
   const SPEED = 240; // 1초에 움직이는 거리
+  const SEAT_MAX = 4; // 방 상자 하나에 앉혀 보여 주는 최대 인원
   const SEND_EVERY = 120; // 방향키로 걸을 때 위치를 보내는 간격(ms)
   const STILL_MS = 700; // 방 안에서 이만큼 멈춰 있으면 통화방을 옮겨요
   const BUBBLE_MS = 6000;
@@ -115,12 +116,6 @@
 
     for (const n of roomNodes.values()) n.node.remove();
     roomNodes.clear();
-    for (const g of world.querySelectorAll('.plaza-group')) g.remove();
-    for (const g of layout.groups || []) {
-      const label = el('div', 'plaza-group', g.name);
-      Object.assign(label.style, { left: `${g.x}px`, top: `${g.y}px` });
-      world.append(label);
-    }
     let park = world.querySelector('.plaza-park');
     if (!park) {
       park = el('div', 'plaza-park');
@@ -191,8 +186,9 @@
       seats.replaceChildren();
       seatById.clear();
       const sitting = room.members.filter((m) => !players.has(m.id));
-      // 방 상자가 인원수에 맞춰 커지니까 앉은 사람을 모두 보여 줘요
-      for (const m of sitting) {
+      // 방 상자는 모두 같은 크기라서 몇 명까지만 앉히고 나머지는 +N으로 보여 줘요
+      const shown = sitting.length > SEAT_MAX ? SEAT_MAX - 1 : sitting.length;
+      for (const m of sitting.slice(0, shown)) {
         const seat = el('div', 'plaza-seat');
         const bubble = el('div', 'plaza-bubble');
         const img = el('img');
@@ -203,6 +199,7 @@
         seats.append(seat);
         seatById.set(m.id, { bubble, bubbleTimer: 0 });
       }
+      if (sitting.length > shown) seats.append(el('span', 'plaza-more', `+${sitting.length - shown}`));
     }
   }
 
@@ -431,7 +428,9 @@
   function follow() {
     const vw = root.clientWidth;
     const vh = root.clientHeight;
-    const s = vw < 700 ? 0.62 : 1;
+    // 컴퓨터는 지도 가로를 광장 틀에 맞춰서 광장과 방이 한 번에 다 보이게 해요.
+    // 휴대폰은 다 넣으면 너무 작아져서 조금만 줄이고 내 캐릭터를 따라가요.
+    const s = vw < 700 ? 0.62 : Math.min(1, vw / layout.w);
     const ww = layout.w * s;
     const wh = layout.h * s;
     // 지도가 작으면 광장 칸도 지도 높이에 맞춰 줄여요(빈 공간 없이)
