@@ -27,15 +27,15 @@ describe('member characters', () => {
   it('falls back to a stable character', () => {
     expect(fallbackCharacter('123')).toBe(fallbackCharacter('123'));
     expect(characterUrl('nope-99', '123')).toBe(`/char/${fallbackCharacter('123')}.png`);
-    expect(characterUrl('frog-3', '123')).toBe('/char/frog-3.png');
+    expect(characterUrl('girl-07-3', '123')).toBe('/char/girl-07-3.png');
     expect(characterUrl('basic-boy-0', '123')).toBe(`/char/${fallbackCharacter('123')}.png`);
   });
 
   it('moves members off spare colors once a new design is free', () => {
     const allBase = new Set(CHARACTERS.map((c) => `${c.id}-0`));
-    expect(shouldRepick('frog-0', new Set())).toBe(false);
-    expect(shouldRepick('frog-2', new Set(['frog-2']))).toBe(true);
-    expect(shouldRepick('frog-2', allBase)).toBe(false);
+    expect(shouldRepick('girl-07-0', new Set())).toBe(false);
+    expect(shouldRepick('girl-07-2', new Set(['girl-07-2']))).toBe(true);
+    expect(shouldRepick('girl-07-2', allBase)).toBe(false);
     expect(shouldRepick('basic-boy-0', allBase)).toBe(true);
     expect(shouldRepick(null, allBase)).toBe(true);
   });

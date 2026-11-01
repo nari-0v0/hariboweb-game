@@ -202,6 +202,11 @@ input:not([type=radio]):focus { background: #fff6fa; border-color: var(--pink); 
 .theme.locked .theme-name { color: var(--ink-soft); }
 .lock { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; filter: drop-shadow(0 2px 0 var(--ink)); }
 .lock svg { width: 20px; height: 20px; }
+.deco summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
+.deco-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 10px 6px; margin: 8px 0; max-height: 360px; overflow-y: auto; padding-right: 4px; }
+.deco-item { margin: 0; display: grid; gap: 2px; justify-items: center; }
+.deco-item img { width: 100%; height: 72px; object-fit: contain; image-rendering: pixelated; filter: saturate(.6); }
+.deco-item figcaption { font-size: .66rem; color: var(--ink-soft); text-align: center; }
 .swatch { background: var(--t-frame); padding: 14%; }
 .swatch-inner { display: block; height: 70%; background: var(--t-sky); border: 2px solid var(--ink); }
 

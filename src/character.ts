@@ -15,7 +15,7 @@ const key = (base: number, variant: number) => `${CHARACTERS[base]!.id}-${varian
 
 export function isCharacterId(id: string | null | undefined): id is string {
   if (!id) return false;
-  const m = /^([a-z-]+)-(\d+)$/.exec(id);
+  const m = /^([a-z0-9-]+)-(\d+)$/.exec(id);
   return !!m && CHARACTERS.some((c) => c.id === m[1]) && Number(m[2]) < CHARACTER_VARIANTS;
 }
 

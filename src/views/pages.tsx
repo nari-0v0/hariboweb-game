@@ -1,6 +1,7 @@
 import type { Member } from '../env';
 import type { DogamEntry, Profile } from '../db';
 import { levelName, progress, tierFor } from '../levels';
+import { DECO_CHARACTERS } from '../characters';
 import { THEMES, UNLOCKED_THEMES } from '../themes';
 import { Card, formatHours } from './card';
 import { Layout } from './layout';
@@ -57,9 +58,9 @@ export function LandingPage(props: { error?: string; devLogin: boolean }) {
           )}
         </div>
         <div class="fan" aria-hidden="true">
-          <Card id="210987654321098765" character="snow-0" kind="pair" name="얼음공주" theme="ice" intro="새벽 롤 같이 해요" xp={3000} no="027" stats={SAMPLE_STATS} />
-          <Card id="345678901234567890" character="witch-0" kind="pair" name="장미단" theme="rose" intro="내전 MVP 노려요" xp={11000} no="104" stats={SAMPLE_STATS} />
-          <Card id="123456789012345678" character="shark-0" kind="pair" name="하리보" theme="basic" intro="반가워요!" xp={26000} no="001" stats={SAMPLE_STATS} />
+          <Card id="210987654321098765" character="girl-14-0" kind="pair" name="얼음공주" theme="ice" intro="새벽 롤 같이 해요" xp={3000} no="027" stats={SAMPLE_STATS} />
+          <Card id="345678901234567890" character="girl-31-0" kind="pair" name="장미단" theme="rose" intro="내전 MVP 노려요" xp={11000} no="104" stats={SAMPLE_STATS} />
+          <Card id="123456789012345678" character="boy-03-0" kind="pair" name="하리보" theme="basic" intro="반가워요!" xp={26000} no="001" stats={SAMPLE_STATS} />
         </div>
       </section>
       <section class="steps">
@@ -183,6 +184,18 @@ export function MePage(props: { viewer: Member; profile: Profile; owned: number;
                 </div>
                 <small class="hint">잠긴 테마는 젤리 상점이 열리면 살 수 있어요.</small>
               </fieldset>
+              <details class="deco">
+                <summary>꾸밈 캐릭터 {DECO_CHARACTERS.length}종 미리 보기</summary>
+                <div class="deco-grid">
+                  {DECO_CHARACTERS.map((d) => (
+                    <figure class="deco-item">
+                      <img src={`/char/deco/${d.id}.png`} alt="" loading="lazy" width={d.w} height={d.h} />
+                      <figcaption>{d.name}</figcaption>
+                    </figure>
+                  ))}
+                </div>
+                <small class="hint">꾸밈 캐릭터는 곧 열려요. 지금은 기본 캐릭터가 카드에 나와요.</small>
+              </details>
               <button class="btn btn-primary" type="submit">저장하기</button>
             </form>
           </section>
