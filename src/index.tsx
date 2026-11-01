@@ -15,6 +15,7 @@ import {
   listDogam,
   listMyPurchases,
   listPendingPurchases,
+  markPurchasesSeen,
   requestPurchase,
   saveProfile,
   setDeco,
@@ -215,7 +216,13 @@ members.get('/shop', async (c) => {
     countOwnedCards(c.env.DB, viewer.user_id),
     listMyPurchases(c.env.DB, viewer.user_id),
   ]);
-  return page(c, <ShopPage viewer={viewer} profile={profile} owned={owned} cards={cards} purchases={purchases} notice={c.req.query('n')} />);
+  // 끝난 결제 중 아직 결과를 안 본 것은 이번에 팝업으로 보여 주고 본 것으로 표시해요
+  const results = purchases.filter((p) => p.status !== 'pending' && !p.seen_at).slice(0, 3);
+  await markPurchasesSeen(c.env.DB, viewer.user_id, results.map((p) => p.id));
+  return page(
+    c,
+    <ShopPage viewer={viewer} profile={profile} owned={owned} cards={cards} purchases={purchases} results={results} notice={c.req.query('n')} />,
+  );
 });
 
 members.post('/api/shop/buy', async (c) => {
@@ -238,9 +245,9 @@ members.post('/api/me/deco', async (c) => {
     return c.redirect('/shop?n=unequipped');
   }
   const item = shopItem(decoItemId(key));
-  if (!item) return c.text('없는 캐릭터예요', 400);
+  if (!item) return c.redirect('/shop?n=error');
   const [owned, cards] = await Promise.all([getOwnedItems(c.env.DB, viewer.user_id), countOwnedCards(c.env.DB, viewer.user_id)]);
-  if (!canUse(item, owned, cards)) return c.text('아직 쓸 수 없는 캐릭터예요', 400);
+  if (!canUse(item, owned, cards)) return c.redirect('/shop?n=locked');
   await setDeco(c.env.DB, viewer.user_id, key);
   return c.redirect('/shop?n=equipped');
 });
@@ -249,7 +256,7 @@ members.post('/api/me/theme', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
   const viewer = c.get('viewer');
   const theme = String((await c.req.parseBody()).theme ?? '');
-  if (!canUseTheme(theme, await getOwnedItems(c.env.DB, viewer.user_id))) return c.text('아직 쓸 수 없는 테마예요', 400);
+  if (!canUseTheme(theme, await getOwnedItems(c.env.DB, viewer.user_id))) return c.redirect('/shop?n=locked');
   await setTheme(c.env.DB, viewer.user_id, theme);
   return c.redirect('/shop?n=theme');
 });

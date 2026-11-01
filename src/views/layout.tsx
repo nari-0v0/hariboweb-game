@@ -3,7 +3,7 @@ import type { Member } from '../env';
 
 type NavKey = 'me' | 'dogam' | 'shop';
 
-export function Layout(props: { title: string; viewer?: Member | null; active?: NavKey; refresh?: number; children?: Child }) {
+export function Layout(props: { title: string; viewer?: Member | null; active?: NavKey; refresh?: { seconds: number; url: string }; children?: Child }) {
   const nav = (key: NavKey, href: string, label: string) => (
     <a href={href} class={props.active === key ? 'on' : undefined} aria-current={props.active === key ? 'page' : undefined}>
       {label}
@@ -14,7 +14,7 @@ export function Layout(props: { title: string; viewer?: Member | null; active?: 
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        {props.refresh && <meta http-equiv="refresh" content={String(props.refresh)} />}
+        {props.refresh && <meta http-equiv="refresh" content={`${props.refresh.seconds}; url=${props.refresh.url}`} />}
         <title>{props.title} · 하리보 멤버 도감</title>
         <link rel="preload" href="/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin="" />
         <link rel="stylesheet" href="/styles.css" />

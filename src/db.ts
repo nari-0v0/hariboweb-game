@@ -165,6 +165,7 @@ export type Purchase = {
   reason: string | null;
   created_at: string;
   settled_at: string | null;
+  seen_at: string | null;
 };
 
 export async function getOwnedItems(db: D1Database, userId: string): Promise<Set<string>> {
@@ -192,6 +193,15 @@ export async function requestPurchase(db: D1Database, userId: string, itemId: st
     if (String(e).includes('UNIQUE')) return false;
     throw e;
   }
+}
+
+// 결과 팝업을 한 번 보여 줬으면 다시 띄우지 않아요
+export async function markPurchasesSeen(db: D1Database, userId: string, ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  const t = now();
+  await db.batch(
+    ids.map((id) => db.prepare('UPDATE purchases SET seen_at = ? WHERE id = ? AND user_id = ? AND seen_at IS NULL').bind(t, id, userId)),
+  );
 }
 
 export async function listPendingPurchases(db: D1Database, limit = 50): Promise<Purchase[]> {

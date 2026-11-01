@@ -44,3 +44,19 @@ describe('jelly shop items', () => {
     expect(canUseTheme('made-up', new Set(['theme:made-up']))).toBe(false);
   });
 });
+
+describe('shop popup text', async () => {
+  const { objectParticle, resultLines } = await import('../src/views/shop');
+  it('picks 을/를 by the last letter', () => {
+    expect(objectParticle('요리사')).toBe('를');
+    expect(objectParticle('장미 테마')).toBe('를');
+    expect(objectParticle('달밤')).toBe('을');
+    expect(objectParticle('ABC')).toBe('을(를)');
+  });
+  it('says done, not enough jelly, or ask the owner', () => {
+    expect(resultLines({ status: 'done', reason: null }, '달밤')[0]!.text).toBe('달밤 구매가 완료되었습니다.');
+    expect(resultLines({ status: 'failed', reason: 'not_enough_jelly' }, '요리사')[0]!.text).toContain('요리사를 구매하지 못했습니다');
+    const err = resultLines({ status: 'failed', reason: 'error' }, '장미').map((l) => l.text);
+    expect(err).toEqual(['장미 구매 중 오류가 발생하였습니다.', '방장에게 문의해주세요.']);
+  });
+});

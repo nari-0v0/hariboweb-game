@@ -47,7 +47,7 @@ Content-Type: application/json
 2. 봇이 그 사람 젤리에서 `price`만큼 빼요. 결제번호를 중복 방지 키로 써서 같은 결제를 두 번 빼지 않아요.
 3. 봇이 `POST /api/bot/purchases/<결제번호>`로 결과를 보내요.
    - 성공: `{"ok": true, "balance": 12}` → 물건이 열리고 잔액이 바뀌어요.
-   - 실패: `{"ok": false, "reason": "not_enough_jelly", "balance": 3}` → 멤버 화면에 "젤리가 부족해요"로 보여요.
+   - 실패: `{"ok": false, "reason": "not_enough_jelly", "balance": 3}` → 멤버에게 "젤리가 부족해서 구매하지 못했습니다" 팝업이 떠요. 다른 사유(`error`, `restricted` 등)는 모두 "오류가 발생하였습니다. 방장에게 문의해주세요." 팝업이에요.
    - `balance`는 선택이에요(0 이상 정수). 응답은 `200 {"ok":true,"status":"done|failed"}`, 없는 번호는 `404`, 형식이 틀리면 `400`.
    - 이미 처리된 결제에 다시 보내도 처음 결과 그대로예요. 그러니 응답을 못 받았으면 같은 결과를 다시 보내면 돼요.
 

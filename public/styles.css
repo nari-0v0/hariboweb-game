@@ -397,3 +397,13 @@ input:not([type=radio]):focus { background: #fff6fa; border-color: var(--pink); 
 @media (prefers-reduced-motion: reduce) {
   .tilt > .card, .card-link:hover .card { transform: none; translate: none; transition: none; }
 }
+
+/* 상점 결과 팝업 (자바스크립트 없이 확인 버튼으로 닫혀요) */
+.popup-close { position: absolute; opacity: 0; pointer-events: none; }
+.popup-wrap { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: rgba(42, 32, 48, .45); }
+.popup-close:checked + .popup-wrap { display: none; }
+.popup { width: min(360px, 100%); text-align: center; display: grid; gap: 10px; justify-items: center; }
+.popup h2 { margin: 0; color: var(--pink); }
+.popup.bad h2 { color: #d0384f; }
+.popup p { margin: 0; overflow-wrap: anywhere; word-break: keep-all; }
+.popup .btn { margin-top: 6px; min-width: 120px; }

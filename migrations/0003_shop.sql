@@ -22,7 +22,8 @@ CREATE TABLE purchases (
   status TEXT NOT NULL DEFAULT 'pending',
   reason TEXT,
   created_at TEXT NOT NULL,
-  settled_at TEXT
+  settled_at TEXT,
+  seen_at TEXT -- 결과 팝업을 본 시각
 );
 
 -- 같은 물건을 동시에 두 번 결제 요청하지 못하게
