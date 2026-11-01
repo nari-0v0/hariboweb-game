@@ -88,6 +88,25 @@ export class PlazaRoom extends DurableObject<Env> {
     }
   }
 
+  // 서버를 나간 멤버의 광장 연결을 끊어요(나간 뒤에도 광장 모습과 채팅을 계속 받지 않게)
+  async kick(userIds: string[]): Promise<number> {
+    let closed = 0;
+    for (const id of new Set(userIds)) {
+      const sockets = this.ctx.getWebSockets(`u:${id}`);
+      if (!sockets.length) continue;
+      for (const ws of sockets) {
+        try {
+          ws.close(4003, 'left server');
+        } catch {
+          // 이미 끊긴 연결
+        }
+        closed++;
+      }
+      this.broadcast({ t: 'leave', id });
+    }
+    return closed;
+  }
+
   async fetch(request: Request): Promise<Response> {
     if (request.headers.get('Upgrade') !== 'websocket') return new Response('websocket only', { status: 426 });
     const pair = new WebSocketPair();

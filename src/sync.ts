@@ -103,13 +103,34 @@ export function levelSql(col: string): string {
 
 // 떠난 멤버(또는 아직 members에 없는 사람)의 경험치는 버려요. 그래서 봇은 경험치에 나오는 사람을 같은 묶음의 members에도 넣어요.
 // 모든 문장을 하나의 트랜잭션으로 실행해요. 같은 batch_id가 또 오면 첫 INSERT에서 막혀 아무것도 반영되지 않아요.
-export async function applySync(db: D1Database, p: SyncPayload): Promise<'applied' | 'duplicate'> {
-  const t = new Date().toISOString();
+// 같은 묶음이 두 번 반영되지 않게 batch_id를 적어 두는데, 끝없이 쌓이지 않게 30일 지난 기록은 지워요.
+// 대신 봇이 만든 지 25일이 넘은 묶음은 받지 않아요(기록이 지워진 뒤 옛 묶음이 다시 와서 두 번 반영되지 않게).
+export const SYNC_BATCH_KEEP_DAYS = 30;
+export const SYNC_BATCH_MAX_AGE_DAYS = 25;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// 봇의 batch_id는 "만든 시각-무작위"예요. 시각을 못 읽으면 null.
+export function batchTime(batchId: string): number | null {
+  const m = /^(\d{4}-\d{2}-\d{2}T[0-9:.]+(?:Z|[+-]\d{2}:\d{2}))/.exec(batchId);
+  if (!m) return null;
+  const ms = Date.parse(m[1]!);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+export function isStaleBatch(batchId: string, nowMs: number): boolean {
+  const ms = batchTime(batchId);
+  return ms !== null && nowMs - ms > SYNC_BATCH_MAX_AGE_DAYS * DAY_MS;
+}
+
+export async function applySync(db: D1Database, p: SyncPayload, nowMs = Date.now()): Promise<'applied' | 'duplicate' | 'stale'> {
+  const t = new Date(nowMs).toISOString();
+  if (isStaleBatch(p.batch_id, nowMs)) return 'stale';
   const seen = await db.prepare('SELECT 1 FROM sync_batches WHERE batch_id = ?').bind(p.batch_id).first();
   if (seen) return 'duplicate';
 
   const stmts: D1PreparedStatement[] = [
     db.prepare('INSERT INTO sync_batches (batch_id, applied_at) VALUES (?, ?)').bind(p.batch_id, t),
+    db.prepare('DELETE FROM sync_batches WHERE applied_at < ?').bind(new Date(nowMs - SYNC_BATCH_KEEP_DAYS * DAY_MS).toISOString()),
   ];
 
   const upsertMember = db.prepare(

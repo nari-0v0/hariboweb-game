@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 import { levelFromXp } from '../src/levels';
-import { applySync, levelSql, parseSync } from '../src/sync';
+import { applySync, batchTime, isStaleBatch, levelSql, parseSync } from '../src/sync';
 
 const A = '111111111111111111';
 const B = '222222222222222222';
@@ -96,5 +96,45 @@ describe('applySync dogam jelly', () => {
     sql.exec(line);
     const row = sql.prepare('SELECT jelly_level FROM cards').get() as { jelly_level: number };
     expect(row.jelly_level).toBe(levelFromXp(500));
+  });
+});
+
+describe('sync batch records stay small', () => {
+  const NOW = Date.parse('2026-11-01T00:00:00Z');
+  it('reads the time in a bot batch id', () => {
+    expect(batchTime('2026-11-01T00:10:00Z-1a2b3c4d')).toBe(Date.parse('2026-11-01T00:10:00Z'));
+    expect(batchTime('x')).toBeNull();
+    expect(isStaleBatch('2026-10-01T00:00:00Z-aa', NOW)).toBe(true);
+    expect(isStaleBatch('2026-10-20T00:00:00Z-aa', NOW)).toBe(false);
+    expect(isStaleBatch('x', NOW)).toBe(false);
+  });
+
+  it('drops records older than 30 days and refuses batches older than 25 days', async () => {
+    const { sql, db } = fakeD1();
+    sql.exec("INSERT INTO sync_batches (batch_id, applied_at) VALUES ('old', '2026-09-01T00:00:00.000Z'), ('recent', '2026-10-25T00:00:00.000Z')");
+    expect(await applySync(db, batch('2026-11-01T00:00:00Z-aa', 10), NOW)).toBe('applied');
+    const ids = (sql.prepare('SELECT batch_id FROM sync_batches ORDER BY batch_id').all() as { batch_id: string }[]).map((r) => r.batch_id);
+    expect(ids).toEqual(['2026-11-01T00:00:00Z-aa', 'recent']);
+    expect(await applySync(db, batch('2026-10-01T00:00:00Z-bb', 10), NOW)).toBe('stale');
+    const xp = sql.prepare('SELECT xp FROM cards WHERE owner_id = ?').get(A) as { xp: number };
+    expect(xp.xp).toBe(10);
+  });
+});
+
+describe('character pick retries after a clash', () => {
+  it('reads again and picks again when someone took the same character at the same time', async () => {
+    const { sql, db } = fakeD1();
+    const realBatch = db.batch.bind(db);
+    let calls = 0;
+    (db as unknown as { batch: typeof db.batch }).batch = (async (list: D1PreparedStatement[]) => {
+      calls++;
+      if (calls === 1) throw new Error('D1_ERROR: UNIQUE constraint failed: profiles.character_sig');
+      return realBatch(list);
+    }) as typeof db.batch;
+    const { assignCharacters } = await import('../src/db');
+    await assignCharacters(db, [A]);
+    expect(calls).toBe(2);
+    const row = sql.prepare('SELECT character_id FROM profiles WHERE user_id = ?').get(A) as { character_id: string };
+    expect(row.character_id).toBeTruthy();
   });
 });
