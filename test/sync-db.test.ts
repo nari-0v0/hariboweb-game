@@ -8,6 +8,7 @@ import { applySync, batchTime, isStaleBatch, levelSql, parseSync } from '../src/
 
 const A = '111111111111111111';
 const B = '222222222222222222';
+const STARTED = new Date().toISOString(); // 테스트 묶음 번호 앞에 붙는 만든 시각
 
 // D1에서 쓰는 만큼만 흉내 내요. batch는 한 트랜잭션이에요.
 function fakeD1() {
@@ -41,7 +42,7 @@ function fakeD1() {
 
 function batch(id: string, xp: number, extra: Record<string, unknown> = {}) {
   const r = parseSync({
-    batch_id: id,
+    batch_id: /^\d/.test(id) ? id : `${STARTED}-${id}`,
     members: [
       { id: A, name: 'a' },
       { id: B, name: 'b' },
@@ -106,7 +107,8 @@ describe('sync batch records stay small', () => {
     expect(batchTime('x')).toBeNull();
     expect(isStaleBatch('2026-10-01T00:00:00Z-aa', NOW)).toBe(true);
     expect(isStaleBatch('2026-10-20T00:00:00Z-aa', NOW)).toBe(false);
-    expect(isStaleBatch('x', NOW)).toBe(false);
+    expect(isStaleBatch('x', NOW)).toBe(true); // 만든 시각이 없으면 받지 않아요
+    expect(isStaleBatch('2026-11-03T00:00:00Z-aa', NOW)).toBe(true); // 하루 넘게 미래
   });
 
   it('drops records older than 30 days and refuses batches older than 25 days', async () => {

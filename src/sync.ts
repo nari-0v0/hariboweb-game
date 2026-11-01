@@ -117,9 +117,12 @@ export function batchTime(batchId: string): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
+// 만든 시각이 없거나, 25일보다 오래됐거나, 하루 넘게 미래인 묶음은 받지 않아요.
+// (기록을 30일 뒤 지우니까, 시각을 모르는 묶음이 나중에 다시 오면 두 번 반영될 수 있어요)
 export function isStaleBatch(batchId: string, nowMs: number): boolean {
   const ms = batchTime(batchId);
-  return ms !== null && nowMs - ms > SYNC_BATCH_MAX_AGE_DAYS * DAY_MS;
+  if (ms === null) return true;
+  return nowMs - ms > SYNC_BATCH_MAX_AGE_DAYS * DAY_MS || ms - nowMs > DAY_MS;
 }
 
 export async function applySync(db: D1Database, p: SyncPayload, nowMs = Date.now()): Promise<'applied' | 'duplicate' | 'stale'> {
