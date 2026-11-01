@@ -39,7 +39,16 @@ export class PlazaRoom extends DurableObject<Env> {
   private async getVoice(): Promise<Voice> {
     if (!this.voice) {
       const saved = await this.ctx.storage.get<Voice>('voice');
-      this.voice = saved ?? { layout: layoutRooms([], () => ''), snapshot: EMPTY };
+      if (saved) {
+        // 배치 규칙이 바뀐 채로 배포돼도 바로 새 배치가 보이게, 저장된 통화방 모습으로 다시 배치해요
+        const chars = new Map(saved.layout.rooms.flatMap((r) => (r.members as { id: string; char: string }[]).map((m) => [m.id, m.char] as const)));
+        this.voice = {
+          layout: layoutRooms(saved.snapshot.channels, (id) => chars.get(id) ?? characterUrl(null, id)),
+          snapshot: saved.snapshot,
+        };
+      } else {
+        this.voice = { layout: layoutRooms([], () => ''), snapshot: EMPTY };
+      }
     }
     return this.voice;
   }
