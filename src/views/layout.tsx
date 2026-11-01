@@ -1,9 +1,17 @@
 import type { Child } from 'hono/jsx';
 import type { Member } from '../env';
 
-type NavKey = 'me' | 'dogam' | 'shop';
+type NavKey = 'me' | 'dogam' | 'shop' | 'plaza';
 
-export function Layout(props: { title: string; viewer?: Member | null; active?: NavKey; refresh?: { seconds: number; url: string }; children?: Child }) {
+export function Layout(props: {
+  title: string;
+  viewer?: Member | null;
+  active?: NavKey;
+  refresh?: { seconds: number; url: string };
+  wide?: boolean;
+  scripts?: string[];
+  children?: Child;
+}) {
   const nav = (key: NavKey, href: string, label: string) => (
     <a href={href} class={props.active === key ? 'on' : undefined} aria-current={props.active === key ? 'page' : undefined}>
       {label}
@@ -19,6 +27,7 @@ export function Layout(props: { title: string; viewer?: Member | null; active?: 
         <link rel="preload" href="/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin="" />
         <link rel="stylesheet" href="/styles.css" />
         <script src="/app.js" defer></script>
+        {props.scripts?.map((src) => <script src={src} defer></script>)}
       </head>
       <body>
         <div class="sky" aria-hidden="true">
@@ -35,6 +44,7 @@ export function Layout(props: { title: string; viewer?: Member | null; active?: 
             <nav class="nav">
               {nav('me', '/me', '내 카드')}
               {nav('dogam', '/dogam', '도감')}
+              {nav('plaza', '/plaza', '광장')}
               {nav('shop', '/shop', '상점')}
               <form method="post" action="/auth/logout">
                 <button class="nav-out" type="submit">로그아웃</button>
@@ -42,7 +52,7 @@ export function Layout(props: { title: string; viewer?: Member | null; active?: 
             </nav>
           )}
         </header>
-        <main>{props.children}</main>
+        <main class={props.wide ? 'wide' : undefined}>{props.children}</main>
         <footer class="foot">
           글꼴: 갈무리(Galmuri, OFL)
         </footer>
