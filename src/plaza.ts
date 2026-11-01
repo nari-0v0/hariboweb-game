@@ -3,16 +3,38 @@
 
 const ID = /^\d{17,20}$/;
 
-// 위에 작은 광장, 그 아래 작은 방 상자를 한 줄에 여섯 개씩. 카테고리마다 이름표를 달고 구역을 나눠요.
-export const ROOM_W = 160;
-export const ROOM_H = 100;
+// 위에 작은 광장, 그 아래 통화방 상자. 사람 있는 방은 앉은 사람이 다 보이게 넓어지고, 빈 방은 작게 줄어요.
+// 카테고리마다 이름표를 달고 구역을 나눠요. 방은 왼쪽부터 채우고 자리가 모자라면 다음 줄로 넘어가요.
+export const WORLD_W = 1080;
 const GAP = 14;
 const MARGIN = 24;
-const COLS = 6;
 const ROW_GAP = 34; // 방 이름표가 위로 튀어나와서 줄 사이는 조금 더 띄워요
 const GROUP_HEAD = 46;
 const PARK_H = 150;
-export const WORLD_W = MARGIN * 2 + COLS * ROOM_W + (COLS - 1) * GAP;
+const EMPTY_W = 120; // 빈 방
+const EMPTY_H = 60;
+const SEAT_W = 54; // 앉은 캐릭터 한 칸(public/styles.css .plaza-seat 52px + 간격 2px)
+const SEAT_H = 68;
+const ROOM_PAD_W = 24; // 테두리 + 안쪽 여백
+const ROOM_PAD_H = 30; // 위 이름표 자리 + 아래 여백
+const MIN_W = 130;
+
+// 방 이름표가 잘리지 않을 만큼의 폭(대충 계산: 한글 14px, 그 밖 8px + 인원수 칸)
+function signWidth(name: string): number {
+  let w = 0;
+  for (const ch of name) w += /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af\u{1F000}-\u{1FFFF}]/u.test(ch) ? 14 : 8;
+  return Math.min(WORLD_W - MARGIN * 2, w + 100);
+}
+
+// 방 크기: 앉을 사람 수에 맞춰요. 한 줄에 다 안 들어가면 여러 줄로 앉아요. 빈 방은 이름표만큼만.
+export function roomSize(people: number, name = ''): { w: number; h: number } {
+  const sign = signWidth(name);
+  if (people <= 0) return { w: Math.max(EMPTY_W, sign), h: EMPTY_H };
+  const perRow = Math.floor((WORLD_W - MARGIN * 2 - ROOM_PAD_W) / SEAT_W);
+  const cols = Math.min(people, perRow);
+  const rows = Math.ceil(people / perRow);
+  return { w: Math.max(MIN_W, sign, ROOM_PAD_W + cols * SEAT_W), h: ROOM_PAD_H + rows * SEAT_H };
+}
 
 export const MAX_CHANNELS = 30;
 export const MAX_ROOM_MEMBERS = 99;
@@ -44,17 +66,20 @@ export function layoutRooms(channels: VoiceChannel[], charOf: (id: string) => st
       groups.push({ name: sec.name, x: MARGIN, y });
       y += GROUP_HEAD;
     }
-    sec.channels.forEach((ch, i) => {
-      rooms.push({
-        ...ch,
-        members: ch.members.map((m) => ({ ...m, char: charOf(m.id) })),
-        x: MARGIN + (i % COLS) * (ROOM_W + GAP),
-        y: y + Math.floor(i / COLS) * (ROOM_H + ROW_GAP),
-        w: ROOM_W,
-        h: ROOM_H,
-      });
-    });
-    y += Math.ceil(sec.channels.length / COLS) * (ROOM_H + ROW_GAP) + GAP;
+    let x = MARGIN;
+    let rowH = 0;
+    for (const ch of sec.channels) {
+      const { w, h } = roomSize(ch.members.length, ch.name);
+      if (x > MARGIN && x + w > WORLD_W - MARGIN) {
+        y += rowH + ROW_GAP;
+        x = MARGIN;
+        rowH = 0;
+      }
+      rooms.push({ ...ch, members: ch.members.map((m) => ({ ...m, char: charOf(m.id) })), x, y, w, h });
+      x += w + GAP;
+      rowH = Math.max(rowH, h);
+    }
+    y += rowH + ROW_GAP + GAP;
   }
   return { w: WORLD_W, h: y - GAP - ROW_GAP + MARGIN, park, rooms, groups };
 }
