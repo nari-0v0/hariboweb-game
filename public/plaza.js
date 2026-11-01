@@ -422,15 +422,13 @@
     requestAnimationFrame(frame);
   }
 
-  // 화면이 내 캐릭터를 따라가요
+  // 지도 전체가 한 화면에 들어오게 줄여요(걷지 않아도 모든 통화방이 보여요)
   function follow() {
     const vw = root.clientWidth;
     const vh = root.clientHeight;
-    const s = vw < 700 ? 0.62 : 1;
-    const ww = layout.w * s;
-    const wh = layout.h * s;
-    const x = ww <= vw ? (vw - ww) / 2 : Math.min(0, Math.max(vw - ww, vw / 2 - me.x * s));
-    const y = wh <= vh ? (vh - wh) / 2 : Math.min(0, Math.max(vh - wh, vh / 2 - me.y * s));
+    const s = Math.min(1, vw / layout.w, vh / layout.h);
+    const x = (vw - layout.w * s) / 2;
+    const y = (vh - layout.h * s) / 2;
     if (x !== cam.x || y !== cam.y || s !== cam.s) {
       cam = { x, y, s };
       world.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
