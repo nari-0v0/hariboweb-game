@@ -2,7 +2,15 @@ import type { Member } from './env';
 import type { LoginProfile } from './discord';
 import { type CharacterPool, pickCharacter, poolOf, shouldRepick } from './character';
 
-export type Profile = { user_id: string; solo_xp: number; intro: string; theme_id: string; character_id: string | null };
+export type Profile = {
+  user_id: string;
+  solo_xp: number;
+  intro: string;
+  theme_id: string;
+  character_id: string | null;
+  deco_id: string | null;
+  jelly: number | null;
+};
 
 export type DogamEntry = {
   user_id: string;
@@ -18,6 +26,7 @@ export type DogamEntry = {
   theme_id: string | null;
   intro: string | null;
   character_id: string | null;
+  deco_id: string | null;
 };
 
 const now = () => new Date().toISOString();
@@ -42,7 +51,7 @@ export async function upsertLoginMember(db: D1Database, p: LoginProfile) {
 
 export async function getProfile(db: D1Database, id: string): Promise<Profile> {
   const row = await db.prepare('SELECT * FROM profiles WHERE user_id = ?').bind(id).first<Profile>();
-  return row ?? { user_id: id, solo_xp: 0, intro: '', theme_id: 'basic', character_id: null };
+  return row ?? { user_id: id, solo_xp: 0, intro: '', theme_id: 'basic', character_id: null, deco_id: null, jelly: null };
 }
 
 export async function saveProfile(db: D1Database, id: string, intro: string, theme: string) {
@@ -59,7 +68,7 @@ const DOGAM_SELECT = `SELECT m.user_id, m.display_name, m.joined_at, m.active, m
               (c.owner_id IS NOT NULL) AS owned,
               COALESCE(c.xp, 0) AS xp, COALESCE(c.voice_seconds, 0) AS voice_seconds,
               COALESCE(c.scrims, 0) AS scrims, c.first_met,
-              p.theme_id, p.intro, p.character_id
+              p.theme_id, p.intro, p.character_id, p.deco_id
        FROM members m
        LEFT JOIN cards c ON c.owner_id = ?1 AND c.target_id = m.user_id
        LEFT JOIN profiles p ON p.user_id = m.user_id`;
@@ -143,4 +152,153 @@ export async function chooseCharacterPool(db: D1Database, userId: string, pool: 
     .bind(userId, character, sig, now(), before)
     .run();
   return res.meta.changes ? character : before;
+}
+
+// ── 젤리 상점 ─────────────────────────────────────────────
+
+export type Purchase = {
+  id: string;
+  user_id: string;
+  item_id: string;
+  price: number;
+  status: 'pending' | 'done' | 'failed';
+  reason: string | null;
+  created_at: string;
+  settled_at: string | null;
+  seen_at: string | null;
+};
+
+export async function getOwnedItems(db: D1Database, userId: string): Promise<Set<string>> {
+  const { results } = await db.prepare('SELECT item_id FROM owned_items WHERE user_id = ?').bind(userId).all<{ item_id: string }>();
+  return new Set(results.map((r) => r.item_id));
+}
+
+// 상점 화면에 필요한 결제: 아직 결제 중인 것 전부 + 결과를 아직 안 본 것 전부
+export async function listMyPurchases(db: D1Database, userId: string): Promise<Purchase[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT * FROM purchases WHERE user_id = ? AND (status = 'pending' OR seen_at IS NULL)
+       ORDER BY created_at DESC`,
+    )
+    .bind(userId)
+    .all<Purchase>();
+  return results;
+}
+
+// 결제 요청을 남겨요. 이미 가진 물건이면 'owned', 같은 물건을 기다리는 중이면 'pending'.
+// 가졌는지 확인과 요청 저장을 한 문장으로 해서, 그 사이에 결제가 끝나도 두 번 결제되지 않아요.
+export async function requestPurchase(
+  db: D1Database,
+  userId: string,
+  itemId: string,
+  price: number,
+): Promise<'requested' | 'owned' | 'pending'> {
+  try {
+    const res = await db
+      .prepare(
+        `INSERT INTO purchases (id, user_id, item_id, price, status, created_at)
+         SELECT ?1, ?2, ?3, ?4, 'pending', ?5
+         WHERE NOT EXISTS (SELECT 1 FROM owned_items WHERE user_id = ?2 AND item_id = ?3)`,
+      )
+      .bind(crypto.randomUUID(), userId, itemId, price, now())
+      .run();
+    return res.meta.changes === 1 ? 'requested' : 'owned';
+  } catch (e) {
+    if (String(e).includes('UNIQUE')) return 'pending';
+    throw e;
+  }
+}
+
+// 결과 팝업을 한 번 보여 줬으면 다시 띄우지 않아요
+export async function markPurchasesSeen(db: D1Database, userId: string, ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  const t = now();
+  await db.batch(
+    ids.map((id) => db.prepare('UPDATE purchases SET seen_at = ? WHERE id = ? AND user_id = ? AND seen_at IS NULL').bind(t, id, userId)),
+  );
+}
+
+export async function listPendingPurchases(db: D1Database, limit = 50): Promise<Purchase[]> {
+  const { results } = await db
+    .prepare("SELECT * FROM purchases WHERE status = 'pending' ORDER BY created_at LIMIT ?")
+    .bind(limit)
+    .all<Purchase>();
+  return results;
+}
+
+// 봇이 결제 결과를 알려 줘요. 이미 처리된 요청이면 그대로 두고 지금 상태를 돌려줘요.
+export async function settlePurchase(
+  db: D1Database,
+  id: string,
+  ok: boolean,
+  reason: string | null,
+  balance: number | null,
+): Promise<Purchase | null> {
+  const t = now();
+  const current = await db.prepare('SELECT * FROM purchases WHERE id = ?').bind(id).first<Purchase>();
+  if (!current) return null;
+  if (current.status !== 'pending') return current;
+  const status = ok ? 'done' : 'failed';
+  // 아래 두 문장은 이번 요청이 "결제 중 → 결과"로 직접 바꿨을 때만 반영돼요.
+  // (그 사이 멤버가 나가서 취소됐으면 물건도 잔액도 되살리지 않아요)
+  const won = "EXISTS (SELECT 1 FROM purchases WHERE id = ?1 AND status = ?2 AND settled_at = ?3)";
+  const stmts = [
+    db
+      .prepare("UPDATE purchases SET status = ?, reason = ?, settled_at = ? WHERE id = ? AND status = 'pending'")
+      .bind(status, reason, t, id),
+  ];
+  if (ok)
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO owned_items (user_id, item_id, acquired_at)
+           SELECT ?4, ?5, ?3 WHERE ${won}
+           ON CONFLICT DO NOTHING`,
+        )
+        .bind(id, status, t, current.user_id, current.item_id),
+    );
+  if (balance !== null)
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO profiles (user_id, jelly, updated_at)
+           SELECT ?4, ?5, ?3 WHERE ${won}
+             AND EXISTS (SELECT 1 FROM members WHERE user_id = ?4 AND active = 1)
+           ON CONFLICT (user_id) DO UPDATE SET jelly = excluded.jelly, updated_at = excluded.updated_at`,
+        )
+        .bind(id, status, t, current.user_id, balance),
+    );
+  await db.batch(stmts);
+  return db.prepare('SELECT * FROM purchases WHERE id = ?').bind(id).first<Purchase>();
+}
+
+export async function setTheme(db: D1Database, userId: string, theme: string) {
+  await db
+    .prepare(
+      `INSERT INTO profiles (user_id, theme_id, updated_at) VALUES (?1, ?2, ?3)
+       ON CONFLICT (user_id) DO UPDATE SET theme_id = ?2, updated_at = ?3`,
+    )
+    .bind(userId, theme, now())
+    .run();
+}
+
+export async function setDeco(db: D1Database, userId: string, decoId: string | null) {
+  await db
+    .prepare(
+      `INSERT INTO profiles (user_id, deco_id, updated_at) VALUES (?1, ?2, ?3)
+       ON CONFLICT (user_id) DO UPDATE SET deco_id = ?2, updated_at = ?3`,
+    )
+    .bind(userId, decoId, now())
+    .run();
+}
+
+export async function countOwnedCards(db: D1Database, userId: string): Promise<number> {
+  const row = await db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM cards c JOIN members m ON m.user_id = c.target_id
+       WHERE c.owner_id = ? AND m.active = 1`,
+    )
+    .bind(userId)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
 }

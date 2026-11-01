@@ -2,8 +2,8 @@ import type { Member } from '../env';
 import type { DogamEntry, Profile } from '../db';
 import { levelName, progress, tierFor } from '../levels';
 import { poolOf } from '../character';
-import { DECO_CHARACTERS } from '../characters';
-import { THEMES, UNLOCKED_THEMES } from '../themes';
+import { canUseTheme } from '../shop';
+import { THEMES } from '../themes';
 import { Card, formatHours } from './card';
 import { Layout } from './layout';
 
@@ -114,7 +114,7 @@ function TierRoad(props: { level: number }) {
   );
 }
 
-export function MePage(props: { viewer: Member; profile: Profile; owned: number; total: number; saved: boolean }) {
+export function MePage(props: { viewer: Member; profile: Profile; items: Set<string>; owned: number; total: number; saved: boolean }) {
   const { viewer, profile } = props;
   const level = progress(profile.solo_xp).level;
   return (
@@ -124,6 +124,7 @@ export function MePage(props: { viewer: Member; profile: Profile; owned: number;
           <Card
             id={viewer.user_id}
             character={profile.character_id}
+            deco={profile.deco_id}
             kind="own"
             size="large"
             name={viewer.display_name}
@@ -176,7 +177,7 @@ export function MePage(props: { viewer: Member; profile: Profile; owned: number;
                 <legend>카드 테마</legend>
                 <div class="theme-grid">
                   {THEMES.map((t) => {
-                    const locked = !UNLOCKED_THEMES.includes(t.id);
+                    const locked = !canUseTheme(t.id, props.items);
                     return (
                       <label class={locked ? 'theme locked' : 'theme'}>
                         <input type="radio" name="theme" value={t.id} checked={profile.theme_id === t.id} disabled={locked} />
@@ -198,20 +199,10 @@ export function MePage(props: { viewer: Member; profile: Profile; owned: number;
                     );
                   })}
                 </div>
-                <small class="hint">잠긴 테마는 젤리 상점이 열리면 살 수 있어요.</small>
+                <small class="hint">
+                  잠긴 테마와 꾸밈 캐릭터는 <a href="/shop">젤리 상점</a>에서 열 수 있어요.
+                </small>
               </fieldset>
-              <details class="deco">
-                <summary>꾸밈 캐릭터 {DECO_CHARACTERS.length}종 미리 보기</summary>
-                <div class="deco-grid">
-                  {DECO_CHARACTERS.map((d) => (
-                    <figure class="deco-item">
-                      <img src={`/char/deco/${d.id}.png`} alt="" loading="lazy" width={d.w} height={d.h} />
-                      <figcaption>{d.name}</figcaption>
-                    </figure>
-                  ))}
-                </div>
-                <small class="hint">꾸밈 캐릭터는 곧 열려요. 지금은 기본 캐릭터가 카드에 나와요.</small>
-              </details>
               <button class="btn btn-primary" type="submit">저장하기</button>
             </form>
           </section>
@@ -276,6 +267,7 @@ export function DogamPage(props: {
                 <Card
                   id={e.user_id}
                   character={e.character_id}
+                  deco={e.deco_id}
                   no={dexNo.get(e.user_id)}
                   kind={e.owned ? 'pair' : 'unknown'}
                   faded={!e.active}
@@ -333,6 +325,7 @@ export function CardPage(props: { viewer: Member; owner: Member; target: Member;
           <Card
             id={target.user_id}
             character={entry.character_id}
+            deco={entry.deco_id}
             kind="pair"
             size="large"
             faded={!target.active}
