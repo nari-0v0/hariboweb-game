@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHARACTER_TOTAL, characterUrl, fallbackCharacter, isCharacterId, pickCharacter, shouldRepick } from '../src/character';
+import { CHARACTER_TOTAL, characterUrl, fallbackCharacter, isCharacterId, pickCharacter, poolOf, shouldRepick } from '../src/character';
 import { CHARACTERS } from '../src/characters';
 
 const ids = (n: number) => Array.from({ length: n }, (_, i) => String(700000000000000000n + BigInt(i) * 987654321n));
@@ -38,5 +38,19 @@ describe('member characters', () => {
     expect(shouldRepick('girl-07-2', allBase)).toBe(false);
     expect(shouldRepick('basic-boy-0', allBase)).toBe(true);
     expect(shouldRepick(null, allBase)).toBe(true);
+  });
+
+  it('picks inside the chosen girl or boy pool', () => {
+    const taken = new Set<string>();
+    for (const id of ids(60)) {
+      const c = pickCharacter(id, taken, 'boy');
+      expect(poolOf(c)).toBe('boy');
+      expect(isCharacterId(c)).toBe(true);
+      taken.add(c);
+    }
+    // 소년 50명이 다 차면 소년 여분 색으로 넘어가요
+    expect([...taken].filter((c) => c.endsWith('-0')).length).toBe(50);
+    expect(shouldRepick('boy-01-2', taken)).toBe(false);
+    expect(shouldRepick('girl-01-2', taken)).toBe(true);
   });
 });

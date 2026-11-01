@@ -1,6 +1,6 @@
 import type { Member } from './env';
 import type { LoginProfile } from './discord';
-import { pickCharacter, shouldRepick } from './character';
+import { type CharacterPool, pickCharacter, poolOf, shouldRepick } from './character';
 
 export type Profile = { user_id: string; solo_xp: number; intro: string; theme_id: string; character_id: string | null };
 
@@ -105,7 +105,8 @@ export async function assignCharacters(db: D1Database, userIds: string[]) {
   for (const id of new Set(userIds)) {
     const before = current.get(id) ?? null;
     if (before && !shouldRepick(before, taken)) continue;
-    const character = pickCharacter(id, taken);
+    // 소녀/소년을 골라 둔 멤버는 그 묶음 안에서만 바꿔요
+    const character = pickCharacter(id, taken, poolOf(before));
     // 전부 차서 겹치는 캐릭터를 받으면 겹침 검사(sig)는 비워 둬요
     const sig = taken.has(character) ? null : character;
     taken.add(character);
@@ -120,4 +121,26 @@ export async function assignCharacters(db: D1Database, userIds: string[]) {
     );
   }
   if (stmts.length) await db.batch(stmts);
+}
+
+// 멤버가 소녀/소년 캐릭터를 골랐을 때: 이미 그 묶음이면 그대로, 아니면 그 묶음에서 안 쓰는 캐릭터로 바꿔요.
+export async function chooseCharacterPool(db: D1Database, userId: string, pool: CharacterPool): Promise<string | null> {
+  const { results: rows } = await db
+    .prepare('SELECT user_id, character_id, character_sig FROM profiles WHERE character_sig IS NOT NULL OR user_id = ?')
+    .bind(userId)
+    .all<{ user_id: string; character_id: string | null; character_sig: string | null }>();
+  const before = rows.find((r) => r.user_id === userId)?.character_id ?? null;
+  if (poolOf(before) === pool) return before;
+  const taken = new Set(rows.flatMap((r) => (r.character_sig ? [r.character_sig] : [])));
+  const character = pickCharacter(userId, taken, pool);
+  const sig = taken.has(character) ? null : character;
+  const res = await db
+    .prepare(
+      `INSERT INTO profiles (user_id, character_id, character_sig, updated_at) VALUES (?1, ?2, ?3, ?4)
+       ON CONFLICT (user_id) DO UPDATE SET character_id = ?2, character_sig = ?3, updated_at = ?4
+       WHERE profiles.character_id IS ?5`,
+    )
+    .bind(userId, character, sig, now(), before)
+    .run();
+  return res.meta.changes ? character : before;
 }
