@@ -42,7 +42,7 @@ export function resultLines(p: Pick<Purchase, 'status' | 'reason'>, name: string
   ];
 }
 
-function Popup(props: { lines: PopupLine[] }) {
+function Popup(props: { lines: PopupLine[]; resume: boolean }) {
   if (!props.lines.length) return null;
   const bad = props.lines.some((l) => l.bad);
   return (
@@ -60,9 +60,16 @@ function Popup(props: { lines: PopupLine[] }) {
                 방장에게 문의하기
               </a>
             )}
-            <label for="popup-close" class="btn btn-primary" tabindex={0}>
-              확인
-            </label>
+            {props.resume ? (
+              // 아직 결제 중인 물건이 있으면 확인을 누를 때 새로고침해서 계속 기다려요
+              <a href="/shop" class="btn btn-primary">
+                확인
+              </a>
+            ) : (
+              <label for="popup-close" class="btn btn-primary" tabindex={0}>
+                확인
+              </label>
+            )}
           </div>
         </div>
       </div>
@@ -133,8 +140,14 @@ export function ShopPage(props: {
   if (notice && !popup.length) popup.push(...notice);
 
   return (
-    <Layout title="젤리 상점" viewer={viewer} active="shop" refresh={pending.size ? { seconds: 4, url: '/shop' } : undefined}>
-      <Popup lines={popup} />
+    <Layout
+      title="젤리 상점"
+      viewer={viewer}
+      active="shop"
+      // 팝업을 보는 동안에는 자동 새로고침을 멈춰요 (결과가 사라지지 않게)
+      refresh={pending.size && !popup.length ? { seconds: 4, url: '/shop' } : undefined}
+    >
+      <Popup lines={popup} resume={pending.size > 0} />
       <div class="split">
         <div class="stage-wrap shop-preview">
           <Card
