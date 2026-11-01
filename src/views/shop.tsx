@@ -80,7 +80,7 @@ function stateOf(item: ShopItem, p: { profile: Profile; owned: Set<string>; card
   return item.price === null ? 'reward' : 'buy';
 }
 
-function Action(props: { item: ShopItem; state: State; jelly: number | null; cards: number }) {
+function Action(props: { item: ShopItem; state: State; cards: number }) {
   const { item, state } = props;
   if (state === 'using') return <span class="tag on">사용 중</span>;
   if (state === 'pending') return <span class="tag wait">결제 중…</span>;
@@ -99,11 +99,11 @@ function Action(props: { item: ShopItem; state: State; jelly: number | null; car
         </button>
       </form>
     );
-  const short = props.jelly !== null && props.jelly < (item.price ?? 0);
+  // 화면의 잔액은 잠깐 늦을 수 있어서 버튼은 막지 않아요. 살 수 있는지는 봇이 지갑을 보고 정해요.
   return (
     <form method="post" action="/api/shop/buy">
       <input type="hidden" name="item" value={item.id} />
-      <button class="btn btn-small btn-buy" type="submit" disabled={short} title={short ? '젤리가 부족해요' : undefined}>
+      <button class="btn btn-small btn-buy" type="submit">
         🍬 {item.price}
       </button>
     </form>
@@ -186,7 +186,7 @@ export function ShopPage(props: {
                       <span class="swatch-inner"></span>
                     </span>
                     <span class="shop-name">{item.name}</span>
-                    <Action item={item} state={state} jelly={profile.jelly} cards={cards} />
+                    <Action item={item} state={state} cards={cards} />
                   </div>
                 );
               })}
@@ -203,7 +203,7 @@ export function ShopPage(props: {
                   <div class={`shop-item ${state}`}>
                     <img src={`/char/deco/${item.key}.png`} alt="" loading="lazy" />
                     <span class="shop-name">{item.name}</span>
-                    <Action item={item} state={state} jelly={profile.jelly} cards={cards} />
+                    <Action item={item} state={state} cards={cards} />
                   </div>
                 );
               })}
@@ -220,7 +220,7 @@ export function ShopPage(props: {
                   <div class={`shop-item ${state}`}>
                     <img src={`/char/deco/${item.key}.png`} alt="" loading="lazy" />
                     <span class="shop-name">{item.name}</span>
-                    <Action item={item} state={state} jelly={profile.jelly} cards={cards} />
+                    <Action item={item} state={state} cards={cards} />
                   </div>
                 );
               })}
