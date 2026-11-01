@@ -3,14 +3,15 @@
 
 const ID = /^\d{17,20}$/;
 
-// 방 상자는 작게, 한 줄에 다섯 개씩. 카테고리(일반통화방, 내전통화방)마다 이름표를 달고 구역을 나눠요.
-export const ROOM_W = 190;
-export const ROOM_H = 110;
-const GAP = 16;
+// 위에 작은 광장, 그 아래 작은 방 상자를 한 줄에 여섯 개씩. 카테고리마다 이름표를 달고 구역을 나눠요.
+export const ROOM_W = 160;
+export const ROOM_H = 100;
+const GAP = 14;
 const MARGIN = 24;
-const COLS = 5;
+const COLS = 6;
+const ROW_GAP = 34; // 방 이름표가 위로 튀어나와서 줄 사이는 조금 더 띄워요
 const GROUP_HEAD = 46;
-const PARK_H = 170;
+const PARK_H = 150;
 export const WORLD_W = MARGIN * 2 + COLS * ROOM_W + (COLS - 1) * GAP;
 
 export const MAX_CHANNELS = 30;
@@ -25,7 +26,7 @@ export type Room = VoiceChannel & Rect & { members: (VoiceMember & { char: strin
 export type Group = { name: string; x: number; y: number };
 export type Layout = { w: number; h: number; park: Rect; rooms: Room[]; groups: Group[] };
 
-// 위쪽은 카테고리별 방 구역(봇이 보낸 순서대로, 같은 카테고리는 붙어 있어요), 그 아래는 처음 나타나는 공원이에요.
+// 위쪽은 처음 나타나는 광장, 그 아래는 카테고리별 방 구역이에요(봇이 보낸 순서대로, 같은 카테고리는 붙어 있어요).
 export function layoutRooms(channels: VoiceChannel[], charOf: (id: string) => string): Layout {
   const sections: { name: string; channels: VoiceChannel[] }[] = [];
   for (const ch of channels) {
@@ -36,7 +37,8 @@ export function layoutRooms(channels: VoiceChannel[], charOf: (id: string) => st
   }
   const rooms: Room[] = [];
   const groups: Group[] = [];
-  let y = MARGIN;
+  const park = { x: MARGIN, y: MARGIN, w: WORLD_W - MARGIN * 2, h: PARK_H };
+  let y = MARGIN + PARK_H + GAP * 2;
   for (const sec of sections) {
     if (sec.name) {
       groups.push({ name: sec.name, x: MARGIN, y });
@@ -47,15 +49,14 @@ export function layoutRooms(channels: VoiceChannel[], charOf: (id: string) => st
         ...ch,
         members: ch.members.map((m) => ({ ...m, char: charOf(m.id) })),
         x: MARGIN + (i % COLS) * (ROOM_W + GAP),
-        y: y + Math.floor(i / COLS) * (ROOM_H + GAP),
+        y: y + Math.floor(i / COLS) * (ROOM_H + ROW_GAP),
         w: ROOM_W,
         h: ROOM_H,
       });
     });
-    y += Math.ceil(sec.channels.length / COLS) * (ROOM_H + GAP) + GAP;
+    y += Math.ceil(sec.channels.length / COLS) * (ROOM_H + ROW_GAP) + GAP;
   }
-  const park = { x: MARGIN, y, w: WORLD_W - MARGIN * 2, h: PARK_H };
-  return { w: WORLD_W, h: y + PARK_H + MARGIN, park, rooms, groups };
+  return { w: WORLD_W, h: y - GAP - ROW_GAP + MARGIN, park, rooms, groups };
 }
 
 export const inside = (r: Rect, x: number, y: number) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
@@ -74,7 +75,8 @@ export function spawnPoint(layout: Layout, seed: string) {
   for (const ch of seed) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
   h >>>= 0;
   const p = layout.park;
-  return { x: Math.round(p.x + 80 + (h % (p.w - 160))), y: Math.round(p.y + 90 + ((h >>> 12) % (p.h - 160))) };
+  // 캐릭터는 발 위치 기준이라 위쪽 70px, 아래쪽 이름표 20px은 비워요
+  return { x: Math.round(p.x + 40 + (h % (p.w - 80))), y: Math.round(p.y + 70 + ((h >>> 12) % Math.max(1, p.h - 90))) };
 }
 
 export function voiceChannelOf(snapshot: VoiceSnapshot | null, userId: string): string | null {

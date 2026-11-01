@@ -186,13 +186,13 @@
   const box = (r) => ({ left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
 
   // 광장에 직접 나와 있지 않은 통화방 사람은 방 안에 앉아 있는 모습으로 보여 줘요
-  const SEAT_MAX = 3; // 작은 방 상자에 한 줄로 들어가는 만큼, 나머지는 +N
+  const SEAT_MAX = 2; // 작은 방 상자에 한 줄로 들어가는 만큼, 나머지는 +N
   function updateSeats() {
     for (const { seats, room, seatById } of roomNodes.values()) {
       seats.replaceChildren();
       seatById.clear();
       const sitting = room.members.filter((m) => !players.has(m.id));
-      const shown = sitting.length > SEAT_MAX ? SEAT_MAX - 1 : SEAT_MAX;
+      const shown = Math.min(sitting.length, SEAT_MAX);
       for (const m of sitting.slice(0, shown)) {
         const seat = el('div', 'plaza-seat');
         const bubble = el('div', 'plaza-bubble');
@@ -436,6 +436,9 @@
     const s = vw < 700 ? 0.62 : 1;
     const ww = layout.w * s;
     const wh = layout.h * s;
+    // 지도가 작으면 광장 칸도 지도 높이에 맞춰 줄여요(빈 공간 없이)
+    const fit = `${Math.ceil(wh) + 8}px`;
+    if (root.style.maxHeight !== fit) root.style.maxHeight = fit;
     const x = ww <= vw ? (vw - ww) / 2 : Math.min(0, Math.max(vw - ww, vw / 2 - me.x * s));
     const y = wh <= vh ? (vh - wh) / 2 : Math.min(0, Math.max(vh - wh, vh / 2 - me.y * s));
     if (x !== cam.x || y !== cam.y || s !== cam.s) {

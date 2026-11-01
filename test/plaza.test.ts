@@ -22,16 +22,16 @@ const channels = (n: number) =>
   Array.from({ length: n }, (_, i) => ({ id: `90000000000000000${i}`, name: `방${i}`, limit: 0, members: [] }));
 
 describe('layoutRooms', () => {
-  it('places rooms in rows above the park without overlap', () => {
+  it('places the park on top and rooms in rows below it without overlap', () => {
     const l = layoutRooms(channels(7), () => '');
     expect(l.w).toBe(WORLD_W);
     expect(l.rooms).toHaveLength(7);
     for (const a of l.rooms)
       for (const b of l.rooms)
         if (a !== b) expect(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y).toBe(true);
-    const bottom = Math.max(...l.rooms.map((r) => r.y + r.h));
-    expect(l.park.y).toBeGreaterThan(bottom);
-    expect(l.h).toBeGreaterThan(l.park.y + l.park.h);
+    const top = Math.min(...l.rooms.map((r) => r.y));
+    expect(top).toBeGreaterThan(l.park.y + l.park.h);
+    expect(l.h).toBeGreaterThan(Math.max(...l.rooms.map((r) => r.y + r.h)));
     for (const r of l.rooms) expect(r.x + r.w).toBeLessThanOrEqual(l.w);
   });
 
@@ -47,7 +47,7 @@ describe('layoutRooms', () => {
     const normalBottom = Math.max(...normal.map((r) => r.y + r.h));
     expect(l.groups[1]!.y).toBeGreaterThanOrEqual(normalBottom);
     for (const r of scrim) expect(r.y).toBeGreaterThan(l.groups[1]!.y);
-    expect(l.park.y).toBeGreaterThan(Math.max(...scrim.map((r) => r.y + r.h)));
+    expect(Math.min(...normal.map((r) => r.y))).toBeGreaterThan(l.park.y + l.park.h);
   });
 
   it('rejects a bad group name from the bot', () => {
