@@ -280,7 +280,10 @@ export async function seasonStatements(db: D1Database, p: SeasonPayload, nowMs: 
 export async function seasonTargets(db: D1Database, p: SeasonPayload): Promise<{ season: Season; join: boolean }[]> {
   const out: { season: Season; join: boolean }[] = [];
   if (p.season && (await db.prepare('SELECT 1 FROM seasons WHERE id = ?').bind(p.season.id).first())) out.push({ season: p.season, join: true });
-  const times = [...p.room_minutes.map((r) => r.at), ...p.scrims.map((s) => s.at)].map((x) => Date.parse(x)).filter(Number.isFinite);
+  // 출석은 날짜(한국 시간)만 오므로 그날 0시로 봐요.
+  const times = [...p.room_minutes.map((r) => r.at), ...p.scrims.map((s) => s.at), ...p.attendance.map((a) => `${a.day}T00:00:00+09:00`)]
+    .map((x) => Date.parse(x))
+    .filter(Number.isFinite);
   if (!times.length) return out;
   const earliest = new Date(Math.min(...times)).toISOString();
   if (p.season && earliest >= p.season.start) return out;
@@ -771,7 +774,7 @@ export async function groupViewFor(db: D1Database, userId: string, nowMs: number
     quests: g.quests.map(({ slot, quest, done_at }) => {
       const p = questProgress(quest, g.ctx);
       const done = !!done_at || p.done;
-      return { slot, name: quest.name, text: quest.text(p.target), cat: quest.cat, diff: quest.diff, reward: QUEST_REWARD[quest.diff], value: done ? p.target : p.value, target: p.target, done };
+      return { slot, name: quest.name, text: quest.text(p.target, g.ctx), cat: quest.cat, diff: quest.diff, reward: QUEST_REWARD[quest.diff], value: done ? p.target : p.value, target: p.target, done };
     }),
     titles: titles.map((r) => r.title),
     ranking: rankGroups(loaded.groups, g.no),

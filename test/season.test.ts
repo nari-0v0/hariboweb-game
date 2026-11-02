@@ -212,6 +212,21 @@ describe('동기화로 시즌 모둠', () => {
     expect(sql.prepare("SELECT done_at FROM season_quests WHERE season_id = '2026-11-03' AND group_no = 0 AND slot = 0").get()).toEqual({ done_at: null });
   });
 
+  it('시즌이 바뀐 뒤 온 출석만 있는 묶음도 앞 시즌 출석으로 넣어요', async () => {
+    const { sql, db } = fakeD1(20);
+    await applySync(db, payload({ members: members(20), full_members: true }), NOW);
+    const endMs = Date.parse(END);
+    const nextEnd = new Date(endMs + 14 * 86_400_000).toISOString();
+    const parsed = parseSync({
+      batch_id: `${new Date(endMs + 60_000).toISOString()}-a`,
+      season: { start: END, end: nextEnd },
+      attendance: [{ id: id(1), day: '2026-11-16' }],
+    });
+    if (!parsed.ok) throw new Error(parsed.error);
+    expect(await applySync(db, parsed.value, endMs + 60_000)).toBe('applied');
+    expect(sql.prepare("SELECT season_id, day FROM gq_attend WHERE user_id = ?").all(id(1))).toEqual([{ season_id: '2026-11-03', day: '2026-11-16' }]);
+  });
+
   it('퀘스트를 채우면 모둠원 모두 젤리를 한 번만 받고, 8개 다 깨면 칭호', async () => {
     const { sql, db } = fakeD1(10);
     await applySync(db, payload({ members: members(10), full_members: true }), NOW);
