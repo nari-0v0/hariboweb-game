@@ -39,10 +39,10 @@ export function getMember(db: D1Database, id: string) {
 export async function upsertLoginMember(db: D1Database, p: LoginProfile) {
   await db
     .prepare(
-      `INSERT INTO members (user_id, display_name, avatar_url, joined_at, is_newbie, active, updated_at)
-       VALUES (?1, ?2, ?3, ?4, 0, 1, ?5)
+      `INSERT INTO members (user_id, display_name, avatar_url, joined_at, is_newbie, active, updated_at, last_login_at)
+       VALUES (?1, ?2, ?3, ?4, 0, 1, ?5, ?5)
        ON CONFLICT (user_id) DO UPDATE SET display_name = ?2, avatar_url = ?3,
-         joined_at = COALESCE(?4, joined_at), active = 1, updated_at = ?5`,
+         joined_at = COALESCE(?4, joined_at), active = 1, updated_at = ?5, last_login_at = ?5`,
     )
     .bind(p.id, p.name, p.avatar_url, p.joined_at, now())
     .run();

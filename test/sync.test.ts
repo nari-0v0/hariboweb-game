@@ -31,7 +31,10 @@ describe('parseSync', () => {
 
   it('allows missing lists', () => {
     const r = parseSync({ batch_id: 'x' });
-    expect(r.ok && r.value).toEqual({ batch_id: 'x', members: [], removed: [], pair_xp: [], solo_xp: [], jelly_earned: [] });
+    expect(r.ok && r.value).toEqual({
+      batch_id: 'x', members: [], removed: [], pair_xp: [], solo_xp: [], jelly_earned: [],
+      room_minutes: [], scrims: [], attendance: [], season: null, full_members: false,
+    });
   });
 
   it.each([

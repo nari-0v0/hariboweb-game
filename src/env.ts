@@ -10,6 +10,8 @@ export type Env = {
   BOT_SYNC_SECRET: string;
   PLAZA: DurableObjectNamespace<PlazaRoom>;
   DEV_LOGIN?: string;
+  // 1이면 시즌 모둠 퀘스트에 내전 퀘스트도 넣어요(내전을 쉬는 동안은 비워 둬요)
+  SCRIM_QUESTS?: string;
 };
 
 export type Member = {
