@@ -255,6 +255,27 @@ describe('동기화로 시즌 모둠', () => {
     expect(sql.prepare(`SELECT left_at IS NOT NULL AS gone FROM season_members WHERE user_id = '${other}'`).get()).toEqual({ gone: 1 });
   });
 
+  it('시즌 정보 없는 묶음으로 나가도 모둠에서 빠지고, 다시 들어오면 원래 모둠으로', async () => {
+    const { sql, db } = fakeD1(20);
+    await applySync(db, payload({ members: members(20), full_members: true }), NOW);
+    const before = sql.prepare(`SELECT group_no FROM season_members WHERE user_id = '${id(3)}'`).get() as { group_no: number };
+    // 시즌 정보가 빠진 묶음(DOGAM_SEASON을 끈 봇 등)
+    const plain = parseSync({ batch_id: `${new Date(NOW).toISOString()}-plain${seq++}`, removed: [id(3)] });
+    if (!plain.ok) throw new Error(plain.error);
+    await applySync(db, plain.value, NOW);
+    expect(sql.prepare(`SELECT left_at IS NOT NULL AS gone FROM season_members WHERE user_id = '${id(3)}'`).get()).toEqual({ gone: 1 });
+    expect(await groupViewFor(db, id(3), NOW)).toBeNull();
+    // 같은 시즌에 다시 들어와서 통화해요
+    await applySync(
+      db,
+      payload({ members: [members(20)[2]!], room_minutes: [{ at: new Date(NOW + 60_000).toISOString(), room: id(999), members: [id(3), id(4)] }] }),
+      NOW,
+    );
+    const after = sql.prepare(`SELECT group_no, left_at FROM season_members WHERE user_id = '${id(3)}'`).get() as { group_no: number; left_at: string | null };
+    expect(after).toEqual({ group_no: before.group_no, left_at: null });
+    expect((await groupViewFor(db, id(3), NOW + 120_000))?.groupNo).toBe(before.group_no);
+  });
+
   it('내전·출석 기록을 받아요(내전 퀘스트는 기본으로 안 뽑아요)', async () => {
     const { sql, db } = fakeD1(10);
     await applySync(db, payload({ members: members(10), full_members: true }), NOW);

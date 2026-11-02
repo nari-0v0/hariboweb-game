@@ -258,6 +258,19 @@ export async function seasonStatements(db: D1Database, p: SeasonPayload, nowMs: 
     stmts.push(addVoiceDay.bind(u, day, n));
   }
 
+  // 나간 사람은 지금 진행 중인 모든 시즌 모둠에서 빼요(이미 쌓은 기록은 남아요).
+  // 시즌 정보가 없는 묶음에도 나간 사람은 올 수 있어서, 시즌 정보와 상관없이 처리해요.
+  const removed = new Set(p.removed);
+  if (removed.size)
+    stmts.push(
+      db
+        .prepare(
+          `UPDATE season_members SET left_at = ?1 WHERE left_at IS NULL AND user_id IN (SELECT value FROM json_each(?2))
+           AND season_id IN (SELECT id FROM seasons WHERE ends_at > ?1)`,
+        )
+        .bind(t, JSON.stringify([...removed])),
+    );
+
   const season = p.season;
   if (!season) return stmts;
   const row = await db.prepare('SELECT 1 FROM seasons WHERE id = ?').bind(season.id).first();
@@ -281,21 +294,14 @@ export async function seasonStatements(db: D1Database, p: SeasonPayload, nowMs: 
   const newbie = new Set<string>();
   const group = new Map<string, number>(); // 지금 모둠원 → 모둠
   const known = new Set<string>();
+  const departed = new Map<string, number>(); // 시즌 중에 나갔던 사람 → 원래 모둠
   for (const r of rows) {
     known.add(r.user_id);
     gamesOf.set(r.user_id, payloadMember.get(r.user_id)?.games ?? parseGames(r.games));
     if (!r.left_at) group.set(r.user_id, r.group_no);
+    else departed.set(r.user_id, r.group_no);
   }
-
-  // 나간 사람은 모둠에서 빼요(이미 쌓은 기록은 남아요)
-  const removed = new Set(p.removed);
   for (const id of removed) group.delete(id);
-  if (removed.size)
-    stmts.push(
-      db
-        .prepare('UPDATE season_members SET left_at = ?1 WHERE season_id = ?2 AND left_at IS NULL AND user_id IN (SELECT value FROM json_each(?3))')
-        .bind(t, season.id, JSON.stringify([...removed])),
-    );
 
   // 기록에 나오는 사람의 신입 여부·게임 역할(이번 묶음 정보가 먼저)
   const seen = new Set<string>();
@@ -325,8 +331,18 @@ export async function seasonStatements(db: D1Database, p: SeasonPayload, nowMs: 
   const addLate = db.prepare(
     'INSERT OR IGNORE INTO season_members (season_id, user_id, group_no, start_member, joined_at) VALUES (?, ?, ?, 0, ?)',
   );
+  const rejoin = db.prepare('UPDATE season_members SET left_at = NULL WHERE season_id = ? AND user_id = ?');
   for (const u of [...seen].sort()) {
-    if (known.has(u) || removed.has(u) || !activeNow.has(u) || !groupNos.size) continue;
+    if (removed.has(u) || !activeNow.has(u)) continue;
+    // 나갔다가 다시 들어온 사람은 원래 모둠으로 돌아가요
+    const back = departed.get(u);
+    if (back !== undefined) {
+      departed.delete(u);
+      group.set(u, back);
+      stmts.push(rejoin.bind(season.id, u));
+      continue;
+    }
+    if (known.has(u) || !groupNos.size) continue;
     const groups = [...groupNos].map((no) => {
       const ids = [...group].filter(([, g]) => g === no).map(([id]) => id);
       return { no, size: ids.length, games: new Set(ids.flatMap((id) => gamesOf.get(id) ?? [])) };
