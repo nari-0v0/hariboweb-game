@@ -1,4 +1,5 @@
 import { MAX_LEVEL, xpForLevel } from './levels';
+import { bingoStatements, grantTouched } from './bingo';
 import { type Attendance, type RoomMinute, type ScrimRecord, type Season, ensureSeason, evaluateSeason, seasonFrom, seasonStatements } from './season';
 
 // 봇이 보내는 동기화 묶음을 검사하고 D1에 한 번에 반영해요. 자세한 형식은 docs/bot-sync.md
@@ -270,6 +271,9 @@ export async function applySync(
 
   // 시즌 모둠 기록(통화방 1분, 내전, 출석)도 같은 트랜잭션에. 묶음이 한 번만 반영되니까 두 번 세지 않아요.
   stmts.push(...(await seasonStatements(db, p, nowMs)));
+  // 주간 빙고 기록(통화방 1분, 출석)도 같은 트랜잭션에
+  const bingo = bingoStatements(db, p.room_minutes, p.attendance);
+  stmts.push(...bingo.stmts);
 
   try {
     await db.batch(stmts);
@@ -284,6 +288,12 @@ export async function applySync(
     } catch (e) {
       console.error('시즌 퀘스트 확인 실패', e);
     }
+  }
+  // 채운 빙고 줄 보상(실패해도 동기화는 끝났어요. 다음에 빙고를 보거나 다음 묶음 때 다시 확인해요)
+  try {
+    await grantTouched(db, bingo.touched, nowMs);
+  } catch (e) {
+    console.error('빙고 보상 확인 실패', e);
   }
   return 'applied';
 }
