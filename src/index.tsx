@@ -40,6 +40,7 @@ import { GroupPage } from './views/group';
 import { groupViewFor } from './season';
 import { currentPeriod, grantBingo, markFlag, myBingo, todayPartners, LINE_JELLY, LINE_XP, FULL_JELLY } from './bingo';
 import { BingoPage } from './views/bingo';
+import { GuidePage } from './views/guide';
 
 export { PlazaRoom } from './plaza-room';
 
@@ -273,6 +274,9 @@ app.get('/api/bot/group/:id', async (c) => {
       titles: view.titles,
       // 모둠별 순위(no는 1부터, mine = 내 모둠)
       ranking: view.ranking.map((r) => ({ no: r.no + 1, rank: r.rank, done: r.done, total: r.total, minutes: r.minutes, size: r.size, mine: r.mine })),
+      // 내가 모둠원과 같이 통화한 분(오늘·시즌), 우리 모둠 오늘의 활약
+      me: view.me,
+      today_top: view.todayTop,
     },
     page_url: baseUrl(c) + '/group',
   });
@@ -437,6 +441,8 @@ members.get('/group', async (c) => {
   const viewer = c.get('viewer');
   return page(c, <GroupPage viewer={viewer} view={await groupViewFor(c.env.DB, viewer.user_id, Date.now())} />);
 });
+
+members.get('/guide', (c) => page(c, <GuidePage viewer={c.get('viewer')} />));
 
 members.get('/bingo', async (c) => {
   const viewer = c.get('viewer');

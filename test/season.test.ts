@@ -206,6 +206,10 @@ describe('동기화로 시즌 모둠', () => {
     expect(view?.titles).toEqual(['11월 3일 시즌 모둠 완주']);
     expect(view?.quests.every((q) => q.done)).toBe(true);
     expect(view?.ranking).toEqual([{ no: 0, rank: 1, done: 8, total: 8, minutes: 60, size: 10, mine: true }]);
+    expect(view?.me).toEqual({ today: 0, season: 0 });
+    const mine = await groupViewFor(db, id(1), NOW + 61 * 60_000);
+    expect(mine?.me.season).toBe(60);
+    expect(mine?.todayTop.map((x) => [x.id, x.minutes])).toEqual([[id(1), 60], [id(2), 60]]);
   });
 
   it('모둠 순위: 깬 퀘스트, 같으면 모둠 통화 시간, 둘 다 같으면 같은 등수', () => {

@@ -647,6 +647,9 @@ export type GroupView = {
   titles: string[];
   // 모둠별 순위: 깬 퀘스트가 많은 순, 같으면 모둠 통화 시간이 긴 순
   ranking: GroupRank[];
+  // 내가 모둠원과 같이 통화한 분(오늘·이번 시즌)과 우리 모둠 오늘의 활약(오늘 모둠 통화가 긴 순 3명)
+  me: { today: number; season: number };
+  todayTop: { id: string; name: string; minutes: number }[];
 };
 
 export type GroupRank = { no: number; rank: number; done: number; total: number; minutes: number; size: number; mine: boolean };
@@ -664,6 +667,25 @@ export function rankGroups(groups: GroupState[], mine: number | null): GroupRank
     if (!prev || prev.done !== r.done || prev.minutes !== r.minutes) rank = i + 1;
     return { ...r, rank };
   });
+}
+
+function activity(g: GroupState, userId: string, today: string): Pick<GroupView, 'me' | 'todayTop'> {
+  const me = { today: 0, season: 0 };
+  const todayBy = new Map<string, number>();
+  for (const r of g.ctx.memberDay) {
+    if (r.user === userId) {
+      me.season += r.minutes;
+      if (r.day === today) me.today += r.minutes;
+    }
+    if (r.day === today) todayBy.set(r.user, (todayBy.get(r.user) ?? 0) + r.minutes);
+  }
+  const names = new Map(g.members.filter((m) => !m.left).map((m) => [m.id, m.name]));
+  const todayTop = [...todayBy]
+    .filter(([id, n]) => names.has(id) && n > 0)
+    .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))
+    .slice(0, 3)
+    .map(([id, minutes]) => ({ id, name: names.get(id)!, minutes }));
+  return { me, todayTop };
 }
 
 // 지금 시즌에서 이 사람의 모둠(없으면 null)
@@ -695,5 +717,6 @@ export async function groupViewFor(db: D1Database, userId: string, nowMs: number
     }),
     titles: titles.map((r) => r.title),
     ranking: rankGroups(loaded.groups, g.no),
+    ...activity(g, userId, kstParts(now).day),
   };
 }
