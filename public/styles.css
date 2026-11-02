@@ -407,7 +407,7 @@ input:not([type=radio]):focus { background: #fff6fa; border-color: var(--pink); 
     linear-gradient(160deg, #3a4290 0%, #1c2160 55%, #4a3a8a 100%);
 }
 .theme-basic.tier-night .c-intro { color: #e8eaff; }
-.theme-basic.tier-ruby { --rim: #5a0a1a; --ring: #ffd35a; --ring-2: #fff3b0; --plate: linear-gradient(180deg, #fff3b0, #ffd35a); }
+.theme-basic.tier-ruby { --rim: #4a0614; --ring: #ffc8d2; --ring-2: #d0304a; --plate: linear-gradient(180deg, #fff0f3, #f4a8b8); }
 .theme-basic.tier-ruby .c-body { background: linear-gradient(160deg, #e0405a 0%, #a0102e 50%, #d0304a 62%, #7a0a22 100%); }
 .theme-basic.tier-ruby .c-intro { color: #ffe8ec; }
 .theme-basic.tier-legend { --ring: #fff8e0; --ring-2: #ffd36b; --plate: linear-gradient(90deg, #ffd0d8, #fff0b8, #d0f8e0, #d8ecff, #ead8ff); }
