@@ -28,9 +28,9 @@ export function levelName(level: number): string {
 // 카드 모습은 10레벨마다 바뀌어요
 export const TIERS = [
   { min: 100, id: 'legend', label: '전설' },
-  { min: 90, id: 'aurora', label: '오로라' },
+  { min: 90, id: 'ruby', label: '루비' },
   { min: 80, id: 'night', label: '밤하늘' },
-  { min: 70, id: 'holo', label: '홀로그램' },
+  { min: 70, id: 'sunset', label: '노을' },
   { min: 60, id: 'rose', label: '장밋빛' },
   { min: 50, id: 'lavender', label: '보랏빛' },
   { min: 40, id: 'sky', label: '하늘' },
