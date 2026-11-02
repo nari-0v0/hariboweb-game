@@ -157,3 +157,43 @@ export function allow(rate: Rate, now: number, windowMs: number, max: number): b
   rate.count += 1;
   return rate.count <= max;
 }
+
+// 광장 입장과 내보내기(kick)가 겹칠 때를 위한 기록이에요.
+// 입장은 시작할 때 번호를 받고, 그 뒤에 내보내진 사람이면 연결을 받지 않아요.
+// 입장 중인 요청이 하나도 없으면 기록을 비워서 메모리가 쌓이지 않아요.
+export class AdmissionGuard {
+  private seq = 0;
+  private inflight = 0;
+  private kicked = new Map<string, number>();
+
+  begin(): number {
+    this.inflight += 1;
+    return this.seq;
+  }
+
+  end() {
+    this.inflight = Math.max(0, this.inflight - 1);
+    if (this.inflight === 0) this.kicked.clear();
+  }
+
+  kick(ids: Iterable<string>) {
+    if (this.inflight === 0) return;
+    this.seq += 1;
+    for (const id of ids) this.kicked.set(id, this.seq);
+  }
+
+  revokedSince(id: string, ticket: number): boolean {
+    return (this.kicked.get(id) ?? -1) > ticket;
+  }
+}
+
+// 늦게 끝난 예전 작업이 새 결과를 덮어쓰지 않게, 가장 최근에 시작한 작업만 결과를 쓰게 해요.
+export class LatestOnly {
+  private seq = 0;
+  start(): number {
+    return ++this.seq;
+  }
+  isLatest(ticket: number): boolean {
+    return ticket === this.seq;
+  }
+}

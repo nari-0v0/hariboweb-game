@@ -10,6 +10,8 @@ import {
   parseClientMessage,
   spawnPoint,
   voiceChannelOf,
+  AdmissionGuard,
+  LatestOnly,
   type Layout,
   type Rate,
   type VoiceSnapshot,
@@ -29,6 +31,8 @@ const NEAR = 30; // 방 테두리 근처도 방 안으로 쳐요
 
 export class PlazaRoom extends DurableObject<Env> {
   private voice: Voice | null = null;
+  private admission = new AdmissionGuard();
+  private voiceUpdates = new LatestOnly();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -91,7 +95,10 @@ export class PlazaRoom extends DurableObject<Env> {
   // 서버를 나간 멤버의 광장 연결을 끊어요(나간 뒤에도 광장 모습과 채팅을 계속 받지 않게)
   async kick(userIds: string[]): Promise<number> {
     let closed = 0;
-    for (const id of new Set(userIds)) {
+    const ids = new Set(userIds);
+    // 지금 입장 중인 연결도 다 붙은 뒤에 받아들이지 않게 표시해 둬요
+    this.admission.kick(ids);
+    for (const id of ids) {
       const sockets = this.ctx.getWebSockets(`u:${id}`);
       if (!sockets.length) continue;
       for (const ws of sockets) {
@@ -126,10 +133,32 @@ export class PlazaRoom extends DurableObject<Env> {
     } catch {
       return new Response('bad user', { status: 400 });
     }
+    const ticket = this.admission.begin();
+    try {
+      return await this.admit(who, ticket, server, client);
+    } finally {
+      this.admission.end();
+    }
+  }
+
+  private async admit(
+    who: { id: string; name: string; char: string },
+    ticket: number,
+    server: WebSocket,
+    client: WebSocket,
+  ): Promise<Response> {
+    const voice = await this.getVoice();
+    // 입장 확인을 마친 뒤에 서버를 나갔을 수 있어서, 연결을 받기 직전에 한 번 더 확인해요.
+    // 확인을 시작한 뒤에 내보내기가 오면 admission 기록으로 막아요.
+    const member = await this.env.DB.prepare('SELECT active FROM members WHERE user_id = ?')
+      .bind(who.id)
+      .first<{ active: number }>();
+    if (!member || !member.active || this.admission.revokedSince(who.id, ticket)) {
+      return new Response('left server', { status: 403 });
+    }
     // 같은 사람이 창을 또 열면 예전 창은 닫아요(한 사람 = 캐릭터 하나)
     for (const old of this.ctx.getWebSockets(`u:${who.id}`)) old.close(4001, 'opened elsewhere');
 
-    const voice = await this.getVoice();
     const start = spawnPoint(voice.layout, `${who.id}:${Date.now()}`);
     const tag: UserTag = {
       kind: 'user',
@@ -201,7 +230,10 @@ export class PlazaRoom extends DurableObject<Env> {
     const msg = parseBotMessage(raw);
     if (!msg) return;
     if (msg.t === 'voice') {
+      // 캐릭터를 찾는 동안 더 새로운 통화방 모습이 오면, 이 예전 모습은 버려요
+      const ticket = this.voiceUpdates.start();
       const chars = await this.characters(msg.channels.flatMap((c) => c.members.map((m) => m.id)));
+      if (!this.voiceUpdates.isLatest(ticket)) return;
       const snapshot = { channels: msg.channels, elsewhere: msg.elsewhere };
       this.voice = { layout: layoutRooms(msg.channels, (id) => chars.get(id) ?? characterUrl(null, id)), snapshot };
       await this.ctx.storage.put('voice', this.voice);
