@@ -37,7 +37,7 @@ import { CardPage, DogamPage, LandingPage, MePage, MessagePage } from './views/p
 import { ShopPage } from './views/shop';
 import { PlazaPage } from './views/plaza';
 import { GroupPage } from './views/group';
-import { groupViewFor } from './season';
+import { groupViewFor, seasonRanking } from './season';
 import { currentPeriod, grantBingo, markFlag, myBingo, todayPartners, LINE_JELLY, LINE_XP, FULL_JELLY } from './bingo';
 import { BingoPage } from './views/bingo';
 import { GuidePage } from './views/guide';
@@ -281,6 +281,19 @@ app.get('/api/bot/group/:id', async (c) => {
       me: view.me,
       today_top: view.todayTop,
     },
+    page_url: baseUrl(c) + '/group',
+  });
+});
+
+// 지금 시즌 전체 모둠 순위(디스코드 고정 패널 본문 그림). 시즌이 없으면 ranking: null
+app.get('/api/bot/ranking', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  const view = await seasonRanking(c.env.DB, Date.now());
+  if (!view) return c.json({ ranking: null, page_url: baseUrl(c) + '/group' });
+  return c.json({
+    season: { start: view.season.start, end: view.season.end },
+    ranking: view.ranking.map((r) => ({ no: r.no + 1, rank: r.rank, done: r.done, total: r.total, minutes: r.minutes, size: r.size })),
+    today_top: view.todayTop.map((t) => ({ name: t.name, minutes: t.minutes, group: t.group + 1 })),
     page_url: baseUrl(c) + '/group',
   });
 });

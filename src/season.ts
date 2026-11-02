@@ -720,3 +720,27 @@ export async function groupViewFor(db: D1Database, userId: string, nowMs: number
     ...activity(g, userId, kstParts(now).day),
   };
 }
+
+// 지금 시즌 전체 모둠 순위(디스코드 고정 패널에 모두에게 보여 줘요). 오늘의 활약은 서버 전체에서 3명.
+export type SeasonRanking = {
+  season: Season;
+  ranking: GroupRank[];
+  todayTop: { id: string; name: string; minutes: number; group: number }[];
+};
+
+export async function seasonRanking(db: D1Database, nowMs: number): Promise<SeasonRanking | null> {
+  const now = new Date(nowMs).toISOString();
+  const row = await db
+    .prepare('SELECT id FROM seasons WHERE starts_at <= ?1 AND ends_at > ?1 ORDER BY id DESC LIMIT 1')
+    .bind(now)
+    .first<{ id: string }>();
+  if (!row) return null;
+  const loaded = await loadGroups(db, row.id);
+  if (!loaded || loaded.groups.length === 0) return null;
+  const today = kstParts(now).day;
+  const todayTop = loaded.groups
+    .flatMap((g) => activity(g, '', today).todayTop.map((t) => ({ ...t, group: g.no })))
+    .sort((a, b) => b.minutes - a.minutes || (a.id < b.id ? -1 : 1))
+    .slice(0, 3);
+  return { season: loaded.season, ranking: rankGroups(loaded.groups, null), todayTop };
+}

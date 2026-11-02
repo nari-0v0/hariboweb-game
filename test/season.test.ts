@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 import { MAX_PER_CAT, QUESTS, pickQuests, questById, seededRandom } from '../src/quests';
-import { type Person, evaluateSeason, groupCount, groupViewFor, joinGroup, planGroups, rankGroups } from '../src/season';
+import { type Person, evaluateSeason, groupCount, groupViewFor, joinGroup, planGroups, rankGroups, seasonRanking } from '../src/season';
 import { applySync, parseSync } from '../src/sync';
 
 const NOW = Date.parse('2026-11-03T03:00:00Z'); // 한국 11월 3일 12시
@@ -210,6 +210,20 @@ describe('동기화로 시즌 모둠', () => {
     const mine = await groupViewFor(db, id(1), NOW + 61 * 60_000);
     expect(mine?.me.season).toBe(60);
     expect(mine?.todayTop.map((x) => [x.id, x.minutes])).toEqual([[id(1), 60], [id(2), 60]]);
+  });
+
+  it('고정 패널용 전체 모둠 순위와 서버 전체 오늘의 활약', async () => {
+    const { sql, db } = fakeD1(20);
+    expect(await seasonRanking(db, NOW)).toBeNull();
+    await applySync(db, payload({ members: members(20), full_members: true }), NOW);
+    const g1 = (sql.prepare('SELECT user_id FROM season_members WHERE group_no = 1 ORDER BY user_id').all() as { user_id: string }[]).map((r) => r.user_id);
+    const minutes = Array.from({ length: 20 }, (_, i) => ({ at: new Date(NOW + i * 60_000).toISOString(), room: id(999), members: g1.slice(0, 2) }));
+    await applySync(db, payload({ room_minutes: minutes }), NOW);
+    const r = await seasonRanking(db, NOW + 30 * 60_000);
+    expect(r?.ranking.map((x) => [x.no, x.rank, x.minutes, x.mine])).toEqual([[1, 1, 20, false], [0, 2, 0, false]]);
+    expect(r?.todayTop.map((t) => [t.id, t.minutes, t.group])).toEqual([[g1[0], 20, 1], [g1[1], 20, 1]]);
+    // 시즌이 끝나면 없어요
+    expect(await seasonRanking(db, Date.parse(r!.season.end))).toBeNull();
   });
 
   it('모둠 순위: 깬 퀘스트, 같으면 모둠 통화 시간, 둘 다 같으면 같은 등수', () => {
