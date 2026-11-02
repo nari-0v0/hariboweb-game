@@ -87,6 +87,9 @@ app.get('/', async (c) => {
   return page(c, <LandingPage error={error} devLogin={c.env.DEV_LOGIN === '1'} />);
 });
 
+// 사용설명서는 로그인하지 않아도 볼 수 있어요(디스코드 패널의 도움말 링크로도 들어와요).
+app.get('/guide', async (c) => page(c, <GuidePage viewer={await currentViewer(c)} />));
+
 app.get('/auth/login', (c) => {
   const state = randomToken();
   setCookie(c, STATE_COOKIE, state, { httpOnly: true, secure: secure(c), sameSite: 'Lax', path: '/auth', maxAge: 600 });
@@ -441,8 +444,6 @@ members.get('/group', async (c) => {
   const viewer = c.get('viewer');
   return page(c, <GroupPage viewer={viewer} view={await groupViewFor(c.env.DB, viewer.user_id, Date.now())} />);
 });
-
-members.get('/guide', (c) => page(c, <GuidePage viewer={c.get('viewer')} />));
 
 members.get('/bingo', async (c) => {
   const viewer = c.get('viewer');

@@ -42,7 +42,9 @@ export function LandingPage(props: { error?: string; devLogin: boolean }) {
           <a class="btn btn-discord" href="/auth/login">
             <DiscordIcon /> 디스코드로 시작하기
           </a>
-          <p class="hint">하리보 서버 멤버만 들어올 수 있어요.</p>
+          <p class="hint">
+            하리보 서버 멤버만 들어올 수 있어요. 처음이라면 <a href="/guide">사용설명서</a>를 먼저 읽어 보세요.
+          </p>
           {props.devLogin && (
             <form class="dev" method="get" action="/auth/dev">
               <input name="id" placeholder="개발용 디스코드 ID" aria-label="개발용 디스코드 ID" />

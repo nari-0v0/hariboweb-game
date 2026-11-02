@@ -56,11 +56,7 @@ export function Layout(props: {
         </header>
         <main class={props.wide ? 'wide' : undefined}>{props.children}</main>
         <footer class="foot">
-          {props.viewer && (
-            <>
-              <a href="/guide">사용설명서</a> ·{' '}
-            </>
-          )}
+          <a href="/guide">사용설명서</a> ·{' '}
           글꼴: 갈무리(Galmuri, OFL)
         </footer>
       </body>

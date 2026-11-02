@@ -6,7 +6,7 @@ import { JELLY_PER_CARD_STEP, LEVEL_STEP } from '../sync';
 import { Layout } from './layout';
 
 // 사용설명서: 도감에서 할 수 있는 것과 젤리 모으는 법. 숫자는 코드 값을 그대로 보여 줘요.
-export function GuidePage(props: { viewer: Member }) {
+export function GuidePage(props: { viewer: Member | null }) {
   return (
     <Layout title="사용설명서" viewer={props.viewer} active="guide">
       <section class="panel guide">
@@ -68,6 +68,11 @@ export function GuidePage(props: { viewer: Member }) {
           <li>내 카드, 칭찬하기, 우리 모둠, 모둠 순위, 이번 주 빙고 버튼이 있어요. 누르면 나만 보이는 창으로 열려요.</li>
           <li>알림은 보내지 않아요. 궁금할 때 버튼을 눌러 보세요.</li>
         </ul>
+        {!props.viewer && (
+          <p>
+            <a class="btn btn-discord" href="/auth/login">디스코드로 시작하기</a>
+          </p>
+        )}
       </section>
     </Layout>
   );
