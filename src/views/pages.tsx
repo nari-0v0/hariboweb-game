@@ -1,6 +1,6 @@
 import type { Member } from '../env';
 import type { DogamEntry, Profile } from '../db';
-import { levelName, progress, tierFor } from '../levels';
+import { TIERS, levelName, progress, tierFor, tierLabel } from '../levels';
 import { poolOf } from '../character';
 import { canUseTheme } from '../shop';
 import { THEMES } from '../themes';
@@ -13,14 +13,7 @@ const SAMPLE_STATS: [string, string][] = [
   ['내전', '12회'],
 ];
 
-const TIER_LABEL = { plain: '기본', silver: '은테', gold: '금테', sparkle: '반짝이', holo: '홀로그램', legend: '전설' } as const;
-const TIER_STEPS = [
-  [5, '은테'],
-  [10, '금테'],
-  [20, '반짝이'],
-  [30, '홀로그램'],
-  [50, '전설'],
-] as const;
+const TIER_STEPS = TIERS.filter((t) => t.min > 1).map((t) => [t.min, t.label] as const).reverse();
 
 function DiscordIcon() {
   return (
@@ -142,7 +135,7 @@ export function MePage(props: { viewer: Member; profile: Profile; items: Set<str
           <section class="panel">
             <div class="panel-head">
               <h1>{viewer.display_name}</h1>
-              <span class={`chip tier-chip t-${tierFor(level)}`}>{TIER_LABEL[tierFor(level)]}</span>
+              <span class={`chip tier-chip t-${tierFor(level)}`}>{tierLabel(tierFor(level))}</span>
             </div>
             <p class="muted">출석, 서바이벌, 빙고처럼 혼자 하는 활동으로 내 카드가 자라요.</p>
             <XpBar xp={profile.solo_xp} />
@@ -346,7 +339,7 @@ export function CardPage(props: { viewer: Member; owner: Member; target: Member;
             <p class="eyebrow">{mine ? `나와 ${target.display_name}님은` : `${owner.display_name}님과 ${target.display_name}님은`}</p>
             <h1 class="relation">
               {levelName(p.level)}
-              <span class={`chip tier-chip t-${tierFor(p.level)}`}>{TIER_LABEL[tierFor(p.level)]}</span>
+              <span class={`chip tier-chip t-${tierFor(p.level)}`}>{tierLabel(tierFor(p.level))}</span>
             </h1>
             <XpBar xp={entry.xp} />
             <TierRoad level={p.level} />

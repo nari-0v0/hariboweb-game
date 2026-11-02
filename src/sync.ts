@@ -90,10 +90,12 @@ export function parseSync(raw: unknown): Result {
   return { ok: true, value: { batch_id, members, removed, pair_xp, solo_xp, jelly_earned } };
 }
 
-// 카드 레벨이 오르면 그 카드 주인에게 도감 젤리 1개씩.
+// 카드가 10레벨을 넘길 때마다 그 카드 주인에게 도감 젤리 3개씩.
 // 카드마다 젤리를 준 레벨(jelly_level)을 적어 두고, 같은 트랜잭션 안에서 경험치를 올린 뒤
-// "지금 레벨 - 준 레벨"만큼 줘요. 그래서 동기화가 겹쳐도 레벨마다 딱 한 번만 받아요.
-export const JELLY_PER_CARD_LEVEL = 1;
+// 카드 모습이 바뀌는 10레벨마다 젤리를 줘요. 동기화가 겹쳐도 단계마다 딱 한 번만 받아요.
+// (만렙 100이라 레벨마다 주면 젤리가 너무 많이 풀려요)
+export const LEVEL_STEP = 10;
+export const JELLY_PER_CARD_STEP = 3;
 
 // SQL 안에서 경험치 → 레벨(levels.ts의 levelFromXp와 같아요)
 export function levelSql(col: string): string {
@@ -172,9 +174,10 @@ export async function applySync(db: D1Database, p: SyncPayload, nowMs = Date.now
   for (const j of p.jelly_earned) earned.set(j.id, (earned.get(j.id) ?? 0) + j.amount);
   for (const [id, amount] of earned) stmts.push(addJelly.bind(id, amount, t));
 
-  // 도감 젤리: 카드 레벨업. 경험치를 올린 다음, 아직 젤리를 안 준 레벨만큼 주고 준 레벨을 적어요.
+  // 도감 젤리: 카드 레벨업. 경험치를 올린 다음, 아직 젤리를 안 준 10레벨 단계만큼 주고 준 레벨을 적어요.
   const level = levelSql('xp');
-  const levelUp = `(SELECT COALESCE(SUM(${level} - jelly_level), 0) * ${JELLY_PER_CARD_LEVEL} FROM cards WHERE owner_id = ?1 AND ${level} > jelly_level)`;
+  const steps = `(${level} / ${LEVEL_STEP} - jelly_level / ${LEVEL_STEP})`;
+  const levelUp = `(SELECT COALESCE(SUM(${steps}), 0) * ${JELLY_PER_CARD_STEP} FROM cards WHERE owner_id = ?1 AND ${level} > jelly_level)`;
   const addLevelJelly = db.prepare(
     `INSERT INTO profiles (user_id, dogam_jelly, updated_at)
      SELECT ?1, ${levelUp}, ?2 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1) AND ${levelUp} > 0

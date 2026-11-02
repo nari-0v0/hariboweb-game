@@ -68,17 +68,19 @@ describe('levelSql', () => {
 });
 
 describe('applySync dogam jelly', () => {
-  it('gives one jelly per card level, once per level, to both card owners', async () => {
+  it('gives three jelly per 10-level step, once per step, to both card owners', async () => {
     const { sql, db } = fakeD1();
-    await applySync(db, batch('b1', 20)); // 레벨 1
+    await applySync(db, batch('b1', 100)); // 레벨 7
     expect(jellyOf(sql, A)).toBe(0);
-    await applySync(db, batch('b2', 100)); // 120xp → 레벨 3
-    expect(jellyOf(sql, A)).toBe(2);
-    expect(jellyOf(sql, B)).toBe(2);
-    await applySync(db, batch('b3', 10)); // 130xp, 그대로 레벨 3
-    expect(jellyOf(sql, A)).toBe(2);
+    await applySync(db, batch('b2', 100)); // 200xp → 레벨 10
+    expect(jellyOf(sql, A)).toBe(3);
+    expect(jellyOf(sql, B)).toBe(3);
+    await applySync(db, batch('b3', 10)); // 210xp, 그대로 레벨 10
+    expect(jellyOf(sql, A)).toBe(3);
     expect(await applySync(db, batch('b2', 100))).toBe('duplicate');
-    expect(jellyOf(sql, A)).toBe(2);
+    expect(jellyOf(sql, A)).toBe(3);
+    await applySync(db, batch('b4', 1800)); // 2010xp → 레벨 30, 단계 2개 더
+    expect(jellyOf(sql, A)).toBe(9);
   });
 
   it('adds bot-counted jelly and skips people not in the server', async () => {
@@ -92,7 +94,7 @@ describe('applySync dogam jelly', () => {
     const { sql } = fakeD1();
     // 마이그레이션 문장을 다시 돌려도 지금 레벨로 맞춰요
     sql.exec(`INSERT INTO cards (owner_id, target_id, xp, voice_seconds, scrims, first_met, updated_at) VALUES ('${A}', '${B}', 500, 0, 0, 'x', 'x')`);
-    const migration = readFileSync(join(process.cwd(), 'migrations', '0004_dogam_jelly.sql'), 'utf8');
+    const migration = readFileSync(join(process.cwd(), 'migrations', '0005_level_curve_100.sql'), 'utf8');
     const line = migration.split('\n').find((l) => l.startsWith('UPDATE cards SET jelly_level'))!;
     sql.exec(line);
     const row = sql.prepare('SELECT jelly_level FROM cards').get() as { jelly_level: number };

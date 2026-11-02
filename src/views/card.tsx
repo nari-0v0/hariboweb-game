@@ -1,5 +1,5 @@
 import { characterUrl } from '../character';
-import { levelName, progress, tierFor } from '../levels';
+import { levelName, progress, tierEffects, tierFor } from '../levels';
 import { themeOrBasic } from '../themes';
 
 export type CardProps = {
@@ -28,7 +28,7 @@ export function Card(p: CardProps) {
   const tier = unknown ? 'plain' : tierFor(level);
   const label = unknown ? '???' : p.kind === 'own' ? '나의 카드' : levelName(level);
   const theme = unknown ? 'basic' : themeOrBasic(p.theme);
-  const classes = ['card', `theme-${theme}`, `tier-${tier}`, `size-${p.size ?? 'small'}`];
+  const classes = ['card', `theme-${theme}`, `tier-${tier}`, ...(unknown ? [] : tierEffects(level)), `size-${p.size ?? 'small'}`];
   if (p.faded) classes.push('faded');
   if (unknown) classes.push('unknown');
 
