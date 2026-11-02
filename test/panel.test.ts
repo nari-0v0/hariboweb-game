@@ -6,8 +6,12 @@ import { describe, expect, it } from 'vitest';
 import { getBestCard, givePraise, kstDay, praiseToday } from '../src/db';
 import { cardPalette } from '../src/palette';
 
-const ids = ['111111111111111111', '222222222222222222', '333333333333333333', '444444444444444444', '555555555555555555'];
-const [A, B, C, D, E] = ids;
+const A = '111111111111111111';
+const B = '222222222222222222';
+const C = '333333333333333333';
+const D = '444444444444444444';
+const E = '555555555555555555';
+const ids = [A, B, C, D, E];
 const DAY = '2026-11-02';
 
 function fakeD1() {
