@@ -431,21 +431,22 @@ members.post('/api/shop/buy', async (c) => {
 members.post('/api/shop/service', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
   const viewer = c.get('viewer');
-  const item = serviceItem((await c.req.parseBody()).item);
+  const body = await c.req.parseBody();
+  const item = serviceItem(body.item);
   if (!item) return c.redirect('/shop?n=not_for_sale');
   let result: Awaited<ReturnType<typeof requestService>>;
   try {
-    // 값은 끝난 구매 수로 정해져요. 그 사이 봇이 앞 구매를 끝냈으면 새 값으로 다시 해요.
-    for (let tries = 0; ; tries++) {
-      const n = (await serviceState(c.env.DB, viewer.user_id)).bought.get(item.id) ?? 0;
-      result = await requestService(c.env.DB, viewer.user_id, item.id, servicePrice(item, n), n);
-      if (result !== 'changed' || tries >= 2) break;
-    }
+    // 값은 끝난 구매 수로 정해져요. 화면에서 본 값과 다르면 사지 않고 새 값을 보여 줘요.
+    const n = (await serviceState(c.env.DB, viewer.user_id)).bought.get(item.id) ?? 0;
+    const price = servicePrice(item, n);
+    if (String(body.price ?? '') !== String(price)) return c.redirect('/shop?n=price_changed');
+    result = await requestService(c.env.DB, viewer.user_id, item.id, price, n);
   } catch (e) {
     console.error('도감 서비스 결제 실패', e);
     return c.redirect('/shop?n=error');
   }
-  return c.redirect(`/shop?n=${result === 'pending' ? 'service_pending' : result === 'busy' || result === 'changed' ? 'service_busy' : 'not_enough_jelly'}`);
+  if (result === 'changed') return c.redirect('/shop?n=price_changed');
+  return c.redirect(`/shop?n=${result === 'pending' ? 'service_pending' : result === 'busy' ? 'service_busy' : 'not_enough_jelly'}`);
 });
 
 members.post('/api/me/deco', async (c) => {
