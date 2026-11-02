@@ -209,7 +209,9 @@ describe('동기화로 시즌 모둠', () => {
     expect(view?.me).toEqual({ today: 0, season: 0 });
     const mine = await groupViewFor(db, id(1), NOW + 61 * 60_000);
     expect(mine?.me.season).toBe(60);
-    expect(mine?.todayTop.map((x) => [x.id, x.minutes])).toEqual([[id(1), 60], [id(2), 60]]);
+    expect(mine?.todayTop.map((x) => [x.id, x.minutes])).toEqual([[id(1), 60], [id(2), 60]]);    // 시즌이 끝나면 지난 모둠을 지금 모둠처럼 보여 주지 않아요
+    const ends = (sql.prepare('SELECT ends_at FROM seasons').get() as { ends_at: string }).ends_at;
+    expect(await groupViewFor(db, id(1), Date.parse(ends))).toBeNull();
   });
 
   it('고정 패널용 전체 모둠 순위와 서버 전체 오늘의 활약', async () => {
