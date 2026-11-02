@@ -289,7 +289,8 @@ export async function requestService(
   userId: string,
   itemId: string,
   price: number,
-): Promise<'pending' | 'busy' | 'not_enough_jelly'> {
+  bought: number,
+): Promise<'pending' | 'busy' | 'not_enough_jelly' | 'changed'> {
   const id = crypto.randomUUID();
   const t = now();
   await db.batch([
@@ -299,16 +300,23 @@ export async function requestService(
          SELECT ?1, ?2, ?3, ?4, 'pending', ?5
          WHERE EXISTS (SELECT 1 FROM profiles WHERE user_id = ?2 AND dogam_jelly >= ?4)
            AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)
-           AND NOT EXISTS (SELECT 1 FROM purchases WHERE user_id = ?2 AND item_id = ?3 AND status = 'pending')`,
+           AND NOT EXISTS (SELECT 1 FROM purchases WHERE user_id = ?2 AND item_id = ?3 AND status = 'pending')
+           AND (SELECT COUNT(*) FROM purchases WHERE user_id = ?2 AND item_id = ?3 AND status = 'done') = ?6`,
       )
-      .bind(id, userId, itemId, price, t),
+      .bind(id, userId, itemId, price, t, bought),
     db
       .prepare('UPDATE profiles SET dogam_jelly = dogam_jelly - ?3, updated_at = ?4 WHERE user_id = ?2 AND EXISTS (SELECT 1 FROM purchases WHERE id = ?1)')
       .bind(id, userId, price, t),
   ]);
   if (await db.prepare('SELECT 1 FROM purchases WHERE id = ?').bind(id).first()) return 'pending';
   const busy = await db.prepare("SELECT 1 FROM purchases WHERE user_id = ? AND item_id = ? AND status = 'pending'").bind(userId, itemId).first();
-  return busy ? 'busy' : 'not_enough_jelly';
+  if (busy) return 'busy';
+  // 값을 계산한 뒤에 봇이 앞 구매를 끝냈으면 값이 올랐어요. 새 값으로 다시 계산하게 알려요.
+  const done = await db
+    .prepare("SELECT COUNT(*) AS n FROM purchases WHERE user_id = ? AND item_id = ? AND status = 'done'")
+    .bind(userId, itemId)
+    .first<{ n: number }>();
+  return (done?.n ?? 0) !== bought ? 'changed' : 'not_enough_jelly';
 }
 
 export async function listPendingServices(db: D1Database, limit = 20): Promise<{ id: string; user_id: string; item_id: string }[]> {

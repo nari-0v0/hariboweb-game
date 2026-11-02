@@ -435,13 +435,17 @@ members.post('/api/shop/service', async (c) => {
   if (!item) return c.redirect('/shop?n=not_for_sale');
   let result: Awaited<ReturnType<typeof requestService>>;
   try {
-    const { bought } = await serviceState(c.env.DB, viewer.user_id);
-    result = await requestService(c.env.DB, viewer.user_id, item.id, servicePrice(item, bought.get(item.id) ?? 0));
+    // 값은 끝난 구매 수로 정해져요. 그 사이 봇이 앞 구매를 끝냈으면 새 값으로 다시 해요.
+    for (let tries = 0; ; tries++) {
+      const n = (await serviceState(c.env.DB, viewer.user_id)).bought.get(item.id) ?? 0;
+      result = await requestService(c.env.DB, viewer.user_id, item.id, servicePrice(item, n), n);
+      if (result !== 'changed' || tries >= 2) break;
+    }
   } catch (e) {
     console.error('도감 서비스 결제 실패', e);
     return c.redirect('/shop?n=error');
   }
-  return c.redirect(`/shop?n=${result === 'pending' ? 'service_pending' : result === 'busy' ? 'service_busy' : 'not_enough_jelly'}`);
+  return c.redirect(`/shop?n=${result === 'pending' ? 'service_pending' : result === 'busy' || result === 'changed' ? 'service_busy' : 'not_enough_jelly'}`);
 });
 
 members.post('/api/me/deco', async (c) => {

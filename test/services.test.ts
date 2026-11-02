@@ -55,11 +55,11 @@ describe('디스코드 물건(벌점·경고 지우기, 닉네임 변경권)', (
 
   it('젤리를 먼저 빼고 봇에게 맡기고, 같은 물건은 하나씩만', async () => {
     const { db, jellyOf } = setup(300);
-    expect(await requestService(db, A, 'svc:penalty', 100)).toBe('pending');
+    expect(await requestService(db, A, 'svc:penalty', 100, 0)).toBe('pending');
     expect(jellyOf()).toBe(200);
-    expect(await requestService(db, A, 'svc:penalty', 100)).toBe('busy');
+    expect(await requestService(db, A, 'svc:penalty', 100, 0)).toBe('busy');
     expect(jellyOf()).toBe(200);
-    expect(await requestService(db, A, 'svc:warning', 300)).toBe('not_enough_jelly');
+    expect(await requestService(db, A, 'svc:warning', 300, 0)).toBe('not_enough_jelly');
     const pending = await listPendingServices(db);
     expect(pending.map((p) => p.item_id)).toEqual(['svc:penalty']);
     expect((await serviceState(db, A)).pending.has('svc:penalty')).toBe(true);
@@ -70,11 +70,16 @@ describe('디스코드 물건(벌점·경고 지우기, 닉네임 변경권)', (
     const state = await serviceState(db, A);
     expect(state.bought.get('svc:penalty')).toBe(1);
     expect(state.pending.size).toBe(0);
+    // 옛 값(산 횟수 0)으로 계산한 요청은 막혀요 → 새 값으로 다시
+    expect(await requestService(db, A, 'svc:penalty', 100, 0)).toBe('changed');
+    expect(jellyOf()).toBe(200);
+    expect(await requestService(db, A, 'svc:penalty', 150, 1)).toBe('pending');
+    expect(jellyOf()).toBe(50);
   });
 
   it('지울 게 없으면 젤리를 한 번만 돌려줘요', async () => {
     const { db, jellyOf } = setup(250);
-    await requestService(db, A, 'svc:warning', 200);
+    await requestService(db, A, 'svc:warning', 200, 0);
     expect(jellyOf()).toBe(50);
     const [p] = await listPendingServices(db);
     expect(await settleService(db, p!.id, false, 'no_warning')).toBe(true);
