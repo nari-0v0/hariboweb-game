@@ -310,12 +310,16 @@ export async function loadStats(db: D1Database, week: Week, userIds: string[]): 
     db
       .prepare(
         `SELECT from_id AS user_id, 'given' AS kind, COUNT(*) AS n FROM praises
-           WHERE day >= ?1 AND day <= ?2 AND from_id IN (SELECT value FROM json_each(?3)) GROUP BY from_id
+           WHERE day >= ?1 AND day <= ?2 AND created_at >= ?4 AND created_at < ?5
+             AND from_id IN (SELECT value FROM json_each(?3)) GROUP BY from_id
          UNION ALL
          SELECT to_id AS user_id, 'got' AS kind, COUNT(*) AS n FROM praises
-           WHERE day >= ?1 AND day <= ?2 AND to_id IN (SELECT value FROM json_each(?3)) GROUP BY to_id`,
+           WHERE day >= ?1 AND day <= ?2 AND created_at >= ?4 AND created_at < ?5
+             AND to_id IN (SELECT value FROM json_each(?3)) GROUP BY to_id`,
       )
-      .bind(firstDay, lastDay, ids)
+      // 날짜로 먼저 좁히고(색인), 칭찬한 시각으로 이 빙고판 기간 [시작, 끝) 안에 든 것만 세요.
+      // created_at은 "ISO시각#무작위"라서 문자열 비교로 시각 순서가 맞아요.
+      .bind(firstDay, lastDay, ids, week.start, week.end)
       .all<{ user_id: string; kind: string; n: number }>(),
     db
       .prepare('SELECT user_id, flag FROM bingo_flag WHERE week = ?1 AND user_id IN (SELECT value FROM json_each(?2))')

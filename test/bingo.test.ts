@@ -115,7 +115,7 @@ describe('기록 모으기', () => {
   it('칭찬, 패널 열기, 처음 만난 사람을 읽어요', async () => {
     const { sql, db } = fakeD1();
     const week = weekOf(NOW);
-    sql.exec(`INSERT INTO praises (day, from_id, to_id, jelly, created_at) VALUES ('2026-11-02', '${A}', '${B}', 1, 'x'), ('2026-11-03', '${A}', '${C}', 1, 'x'), ('2026-11-01', '${A}', '${D}', 1, 'x')`);
+    sql.exec(`INSERT INTO praises (day, from_id, to_id, jelly, created_at) VALUES ('2026-11-02', '${A}', '${B}', 1, '2026-11-02T01:00:00.000Z#a'), ('2026-11-03', '${A}', '${C}', 1, '2026-11-03T01:00:00.000Z#b'), ('2026-11-01', '${A}', '${D}', 1, '2026-11-01T01:00:00.000Z#c')`);
     sql.exec(`INSERT INTO bingo_pair (week, a, b, minutes) VALUES ('${week.id}', '${A}', '${B}', 40), ('${week.id}', '${A}', '${C}', 5)`);
     sql.exec(`INSERT INTO cards (owner_id, target_id, xp, voice_seconds, scrims, first_met, updated_at) VALUES ('${A}', '${B}', 1, 0, 0, '2026-11-02T00:00:00.000Z', 'x'), ('${A}', '${C}', 1, 0, 0, '2026-10-01T00:00:00.000Z', 'x')`);
     expect(await markFlag(db, A, 'panel', NOW)).toBe(true);
@@ -138,8 +138,8 @@ describe('줄 보상', () => {
       sql.prepare('INSERT INTO bingo_pair (week, a, b, minutes) VALUES (?, ?, ?, 600)').run(week, id, o);
       sql.prepare("INSERT INTO cards (owner_id, target_id, xp, voice_seconds, scrims, first_met, updated_at) VALUES (?, ?, 1, 0, 0, '2026-11-03T00:00:00.000Z', 'x')").run(id, o);
       for (const day of ['2026-11-02', '2026-11-03']) {
-        sql.prepare("INSERT INTO praises (day, from_id, to_id, jelly, created_at) VALUES (?, ?, ?, 0, 'x')").run(day, id, o);
-        sql.prepare("INSERT INTO praises (day, from_id, to_id, jelly, created_at) VALUES (?, ?, ?, 0, 'x')").run(day, o, id);
+        sql.prepare("INSERT INTO praises (day, from_id, to_id, jelly, created_at) VALUES (?, ?, ?, 0, ?)").run(day, id, o, `${day}T03:00:00.000Z#g`);
+        sql.prepare("INSERT INTO praises (day, from_id, to_id, jelly, created_at) VALUES (?, ?, ?, 0, ?)").run(day, o, id, `${day}T03:00:00.000Z#r`);
       }
     }
     sql.prepare("INSERT INTO bingo_flag (week, user_id, flag) VALUES (?, ?, 'panel'), (?, ?, 'web')").run(week, id, week, id);
@@ -209,5 +209,15 @@ describe('빙고 기간 = 생명력 주기의 절반', () => {
       { week: '2026-11-03', day: '2026-11-03', minutes: 0, attended: 1 },
       { week: '2026-11-10', day: '2026-11-10', minutes: 1, attended: 0 },
     ]);
+  });
+  it('경계 날의 칭찬은 칭찬한 시각의 빙고판에만 세요', async () => {
+    const { sql, db } = fakeD1();
+    const [first, second] = splitCycle('2026-11-02T21:00:00.000Z', '2026-11-16T21:00:00.000Z');
+    // 11월 10일(한국) 05:00은 앞 판, 09:00은 뒤 판
+    sql.exec(`INSERT INTO praises (day, from_id, to_id, jelly, created_at) VALUES
+      ('2026-11-10', '${A}', '${B}', 1, '2026-11-09T20:00:00.000Z#a'),
+      ('2026-11-10', '${A}', '${C}', 1, '2026-11-10T00:00:00.000Z#b')`);
+    expect((await loadStats(db, first!, [A])).get(A)!.praiseGiven).toBe(1);
+    expect((await loadStats(db, second!, [A])).get(A)!.praiseGiven).toBe(1);
   });
 });
