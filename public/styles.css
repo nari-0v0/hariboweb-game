@@ -492,8 +492,10 @@ main.wide { max-width: 1320px; }
   position: absolute; left: 8px; right: 8px; bottom: 6px; display: flex; flex-wrap: wrap-reverse; gap: 2px 6px;
   align-items: flex-end; pointer-events: none;
 }
-.plaza-room .plaza-seats { column-gap: 0; }
-.plaza-room .plaza-seat { width: 50px; }
+/* 방 상자 안은 한 줄로(4명까지 앉고 더 많으면 +N). 상자 안쪽 212px에 50px × 4 = 200px */
+.plaza-room .plaza-seats { left: 2px; right: 2px; column-gap: 0; flex-wrap: nowrap; justify-content: center; }
+.plaza-room .plaza-seat { width: 50px; flex: none; }
+.plaza-room .plaza-seat .plaza-name { max-width: 50px; padding: 0 2px; border-width: 1px; font-size: .6rem; letter-spacing: -.03em; }
 .plaza-seat { position: relative; width: 52px; display: grid; justify-items: center; }
 .plaza-seat img { width: 40px; height: 46px; object-fit: contain; }
 .plaza-seat .plaza-name { font-size: .62rem; max-width: 60px; }
@@ -589,3 +591,18 @@ main.wide { max-width: 1320px; }
   .bingo-sum { grid-template-columns: 1fr; }
 }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* 모둠 순위 */
+.rank-list { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; }
+.rank-list li { display: grid; grid-template-columns: 3.2em 1fr auto auto; gap: 10px; align-items: center; padding: 6px 10px; border: 2px solid var(--ink); background: #fff; font-size: .9rem; }
+.rank-list li.mine { background: var(--pink-soft); }
+@media (max-width: 520px) {
+  .rank-list li { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: .82rem; }
+  .rank-list li > * { white-space: nowrap; }
+}
+
+/* 사용설명서 */
+.guide h2 { font-size: 1.05rem; margin: 22px 0 6px; }
+.guide ul { margin: 0; padding-left: 20px; }
+.guide li { margin: 2px 0; overflow-wrap: anywhere; }
+.foot a { color: inherit; }

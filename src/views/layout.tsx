@@ -1,7 +1,7 @@
 import type { Child } from 'hono/jsx';
 import type { Member } from '../env';
 
-type NavKey = 'me' | 'dogam' | 'shop' | 'plaza' | 'group' | 'bingo';
+type NavKey = 'me' | 'dogam' | 'shop' | 'plaza' | 'group' | 'bingo' | 'guide';
 
 export function Layout(props: {
   title: string;
@@ -56,6 +56,7 @@ export function Layout(props: {
         </header>
         <main class={props.wide ? 'wide' : undefined}>{props.children}</main>
         <footer class="foot">
+          <a href="/guide">사용설명서</a> ·{' '}
           글꼴: 갈무리(Galmuri, OFL)
         </footer>
       </body>

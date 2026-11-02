@@ -1,4 +1,4 @@
-// 주간 빙고: 한 주마다 멤버마다 3×3 빙고판. 활동하면 칸이 저절로 채워지고, 한 줄마다 젤리와 경험치를 받아요.
+// 빙고: 생명력(커뮤니티) 주기마다 멤버마다 3×3 빙고판. 활동하면 칸이 저절로 채워지고, 한 줄마다 젤리와 경험치를 받아요.
 // 신청이나 인증, 관리자 확인은 없어요. 알림도 보내지 않아요(고정 패널과 웹 /bingo에서만 보여요).
 import { kstParts, type RoomMinute, type Attendance } from './season';
 import { seededRandom, shuffle } from './quests';
@@ -37,6 +37,50 @@ export function weekOf(ms: number): Week {
 export function weekOfDay(day: string): Week {
   return weekOf(Date.parse(`${day}T00:00:00Z`) - KST_MS);
 }
+
+// ── 빙고 기간 = 생명력 주기의 절반("이번 주") ──
+// 봇이 동기화 때 보내는 주기(season, 2주)를 반으로 나눠 bingo_periods에 적어 두고, 그 기간마다 빙고판이 새로 나와요.
+// 그래서 생명력 주기 하나에 빙고판이 2번 나와요.
+// 주기를 아직 모르면(봇이 주기를 안 보냈으면) 월요일 기준 주로 대신해요.
+
+export function periodFor(ms: number, periods: Week[]): Week {
+  const iso = new Date(ms).toISOString();
+  return periods.find((p) => p.start <= iso && iso < p.end) ?? weekOf(ms);
+}
+
+// 지금과 가까운 주기들(최근 60일 안에 끝난 것부터)
+export async function loadPeriods(db: D1Database, nowMs: number): Promise<Week[]> {
+  const { results } = await db
+    .prepare('SELECT id, starts_at, ends_at FROM bingo_periods WHERE ends_at > ? ORDER BY starts_at DESC LIMIT 20')
+    .bind(new Date(nowMs - 60 * DAY_MS).toISOString())
+    .all<{ id: string; starts_at: string; ends_at: string }>();
+  return results.map((r) => ({ id: r.id, start: r.starts_at, end: r.ends_at }));
+}
+
+// 주기 하나 → 앞 절반, 뒤 절반. id는 각 절반이 시작하는 날의 한국 날짜.
+export function splitCycle(start: string, end: string): Week[] {
+  const s = Date.parse(start);
+  const e = Date.parse(end);
+  const mid = s + Math.round((e - s) / 2 / 3_600_000) * 3_600_000;
+  const iso = (ms: number) => new Date(ms).toISOString();
+  return [
+    { id: kstParts(iso(s)).day, start: iso(s), end: iso(mid) },
+    { id: kstParts(iso(mid)).day, start: iso(mid), end: iso(e) },
+  ];
+}
+
+export function savePeriod(db: D1Database, p: Week): D1PreparedStatement {
+  return db
+    .prepare('INSERT INTO bingo_periods (id, starts_at, ends_at) VALUES (?1, ?2, ?3) ON CONFLICT (id) DO UPDATE SET starts_at = ?2, ends_at = ?3')
+    .bind(p.id, p.start, p.end);
+}
+
+export async function currentPeriod(db: D1Database, nowMs: number): Promise<Week> {
+  return periodFor(nowMs, await loadPeriods(db, nowMs));
+}
+
+// 출석은 한국 날짜로 와요. 그 날 정오(한국 시간)가 든 기간으로 쳐요.
+const dayNoonMs = (day: string) => Date.parse(`${day}T12:00:00Z`) - KST_MS;
 
 const isWeekend = (day: string) => {
   const dow = new Date(`${day}T00:00:00Z`).getUTCDay();
@@ -155,9 +199,17 @@ export function bingoStatements(
   db: D1Database,
   rooms: RoomMinute[],
   attendance: Attendance[],
-): { stmts: D1PreparedStatement[]; touched: Map<string, Set<string>> } {
+  periods: Week[] = [],
+): { stmts: D1PreparedStatement[]; touched: Map<string, Set<string>>; periods: Map<string, Week> } {
+  const used = new Map<string, Week>();
+  const periodId = (ms: number) => {
+    const p = periodFor(ms, periods);
+    used.set(p.id, p);
+    return p.id;
+  };
   const day = new Map<string, { minutes: number; crowd: number; night: number; attended: number }>();
   const pairs = new Map<string, number>();
+  const pairDays = new Map<string, number>();
   const touched = new Map<string, Set<string>>();
   const touch = (week: string, u: string) => (touched.get(week) ?? touched.set(week, new Set()).get(week)!).add(u);
   const dayRow = (k: string) => day.get(k) ?? day.set(k, { minutes: 0, crowd: 0, night: 0, attended: 0 }).get(k)!;
@@ -165,7 +217,7 @@ export function bingoStatements(
     const ids = [...new Set(r.members)].sort();
     if (ids.length < 2) continue;
     const { day: d, hour } = kstParts(r.at);
-    const week = weekOfDay(d).id;
+    const week = periodId(Date.parse(r.at));
     const night = hour >= 22 || hour < 2;
     for (const u of ids) {
       const row = dayRow(`${week}|${u}|${d}`);
@@ -178,10 +230,12 @@ export function bingoStatements(
       for (let j = i + 1; j < ids.length; j++) {
         const k = `${week}|${ids[i]}|${ids[j]}`;
         pairs.set(k, (pairs.get(k) ?? 0) + 1);
+        const dk = `${d}|${ids[i]}|${ids[j]}`;
+        pairDays.set(dk, (pairDays.get(dk) ?? 0) + 1);
       }
   }
   for (const a of attendance) {
-    const week = weekOfDay(a.day).id;
+    const week = periodId(dayNoonMs(a.day));
     dayRow(`${week}|${a.id}|${a.day}`).attended = 1;
     touch(week, a.id);
   }
@@ -203,14 +257,24 @@ export function bingoStatements(
     const [week, a, b] = k.split('|') as [string, string, string];
     stmts.push(addPair.bind(week, a, b, n));
   }
-  return { stmts, touched };
+  // 칭찬하기용 하루치 짝(봇이 재시작해도 오늘 같이 논 사람을 알 수 있게)
+  const addPairDay = db.prepare(
+    `INSERT INTO pair_day (day, a, b, minutes) VALUES (?1, ?2, ?3, ?4)
+     ON CONFLICT (day, a, b) DO UPDATE SET minutes = minutes + ?4`,
+  );
+  for (const [k, n] of pairDays) {
+    const [d, a, b] = k.split('|') as [string, string, string];
+    stmts.push(addPairDay.bind(d, a, b, n));
+  }
+  return { stmts, touched, periods: used };
 }
 
 // 한 번만 하면 되는 칸(패널에서 내 카드 열기, 웹에서 내 카드 보기)
 export async function markFlag(db: D1Database, userId: string, flag: 'panel' | 'web', nowMs: number): Promise<boolean> {
+  const period = await currentPeriod(db, nowMs);
   const res = await db
     .prepare('INSERT OR IGNORE INTO bingo_flag (week, user_id, flag) VALUES (?, ?, ?)')
-    .bind(weekOf(nowMs).id, userId, flag)
+    .bind(period.id, userId, flag)
     .run();
   return (res.meta?.changes ?? 0) > 0;
 }
@@ -222,6 +286,7 @@ export async function loadStats(db: D1Database, week: Week, userIds: string[]): 
   const out = new Map(userIds.map((u) => [u, emptyStats()]));
   if (!userIds.length) return out;
   const ids = JSON.stringify(userIds);
+  const firstDay = kstParts(week.start).day;
   const lastDay = kstParts(new Date(Date.parse(week.end) - 1).toISOString()).day;
   const [days, pairs, newCards, praises, flags] = await Promise.all([
     db
@@ -245,12 +310,16 @@ export async function loadStats(db: D1Database, week: Week, userIds: string[]): 
     db
       .prepare(
         `SELECT from_id AS user_id, 'given' AS kind, COUNT(*) AS n FROM praises
-           WHERE day >= ?1 AND day <= ?2 AND from_id IN (SELECT value FROM json_each(?3)) GROUP BY from_id
+           WHERE day >= ?1 AND day <= ?2 AND created_at >= ?4 AND created_at < ?5
+             AND from_id IN (SELECT value FROM json_each(?3)) GROUP BY from_id
          UNION ALL
          SELECT to_id AS user_id, 'got' AS kind, COUNT(*) AS n FROM praises
-           WHERE day >= ?1 AND day <= ?2 AND to_id IN (SELECT value FROM json_each(?3)) GROUP BY to_id`,
+           WHERE day >= ?1 AND day <= ?2 AND created_at >= ?4 AND created_at < ?5
+             AND to_id IN (SELECT value FROM json_each(?3)) GROUP BY to_id`,
       )
-      .bind(week.id, lastDay, ids)
+      // 날짜로 먼저 좁히고(색인), 칭찬한 시각으로 이 빙고판 기간 [시작, 끝) 안에 든 것만 세요.
+      // created_at은 "ISO시각#무작위"라서 문자열 비교로 시각 순서가 맞아요.
+      .bind(firstDay, lastDay, ids, week.start, week.end)
       .all<{ user_id: string; kind: string; n: number }>(),
     db
       .prepare('SELECT user_id, flag FROM bingo_flag WHERE week = ?1 AND user_id IN (SELECT value FROM json_each(?2))')
@@ -339,15 +408,40 @@ export async function grantBingo(db: D1Database, week: Week, userIds: string[], 
 
 // 이번 주 내 빙고(보는 김에 채운 줄 보상도 줘요)
 export async function myBingo(db: D1Database, userId: string, nowMs: number): Promise<BingoView | null> {
-  return (await grantBingo(db, weekOf(nowMs), [userId], nowMs)).get(userId) ?? null;
+  return (await grantBingo(db, await currentPeriod(db, nowMs), [userId], nowMs)).get(userId) ?? null;
 }
 
-// 동기화 뒤: 이번 묶음에서 기록이 바뀐 사람들. 지난 주 기록이 늦게 와도 그 주로 확인해요(한 주 전까지만).
-export async function grantTouched(db: D1Database, touched: Map<string, Set<string>>, nowMs: number): Promise<void> {
-  const current = weekOf(nowMs);
-  const previous = weekOf(nowMs - 7 * DAY_MS);
-  for (const w of [current, previous]) {
-    const ids = touched.get(w.id);
-    if (ids?.size) await grantBingo(db, w, [...ids], nowMs);
+// 동기화 뒤: 이번 묶음에서 기록이 바뀐 사람들. 늦게 온 기록은 끝난 지 하루 안 된 기간까지만 확인해요.
+export async function grantTouched(db: D1Database, touched: Map<string, Set<string>>, periods: Map<string, Week>, nowMs: number): Promise<void> {
+  const now = new Date(nowMs).toISOString();
+  const cutoff = new Date(nowMs - DAY_MS).toISOString();
+  for (const [id, users] of touched) {
+    const p = periods.get(id);
+    if (!p || p.start > now || p.end <= cutoff || !users.size) continue;
+    await grantBingo(db, p, [...users], nowMs);
   }
+}
+
+// ── 칭찬하기: 오늘 같이 통화한 사람 ──
+
+export const PAIR_DAY_KEEP_DAYS = 3;
+
+// 오래된 하루치 짝을 지워요(동기화 때마다)
+export function prunePairDays(db: D1Database, nowMs: number): D1PreparedStatement {
+  const cutoff = kstParts(new Date(nowMs - PAIR_DAY_KEEP_DAYS * DAY_MS).toISOString()).day;
+  return db.prepare('DELETE FROM pair_day WHERE day < ?').bind(cutoff);
+}
+
+// 그날(한국 날짜) userId와 같이 통화한 사람과 분. 오래 통화한 순.
+export async function todayPartners(db: D1Database, userId: string, day: string): Promise<{ id: string; minutes: number }[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT b AS id, minutes FROM pair_day WHERE day = ?1 AND a = ?2
+       UNION ALL
+       SELECT a AS id, minutes FROM pair_day WHERE day = ?1 AND b = ?2
+       ORDER BY minutes DESC, id`,
+    )
+    .bind(day, userId)
+    .all<{ id: string; minutes: number }>();
+  return results;
 }

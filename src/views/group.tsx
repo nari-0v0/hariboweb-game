@@ -11,6 +11,8 @@ function shortDay(iso: string) {
   return `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일`;
 }
 
+const hm = (min: number) => (min >= 60 ? `${Math.floor(min / 60)}시간${min % 60 ? ` ${min % 60}분` : ''}` : `${min}분`);
+
 // 우리 모둠: 이번 시즌 모둠원과 퀘스트 8개 진행도
 export function GroupPage(props: { viewer: Member; view: GroupView | null }) {
   const v = props.view;
@@ -65,6 +67,24 @@ export function GroupPage(props: { viewer: Member; view: GroupView | null }) {
             <p class="quest-count">{q.done ? '완료!' : `${q.value} / ${q.target}`}</p>
           </article>
         ))}
+      </section>
+      <section class="panel">
+        <h2>모둠 순위</h2>
+        <p class="muted">깬 퀘스트가 많은 모둠이 위예요. 같으면 모둠끼리 같이 통화한 시간이 긴 모둠이 위예요.</p>
+        <ol class="rank-list">
+          {v.ranking.map((r) => (
+            <li class={r.mine ? 'mine' : undefined}>
+              <b>{r.rank}위</b>
+              <span>
+                {r.no + 1}모둠{r.mine ? ' (우리)' : ''}
+              </span>
+              <span>
+                퀘스트 {r.done}/{r.total}
+              </span>
+              <span>통화 {hm(r.minutes)}</span>
+            </li>
+          ))}
+        </ol>
       </section>
       {v.titles.length > 0 && (
         <section class="panel">

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 import { MAX_PER_CAT, QUESTS, pickQuests, questById, seededRandom } from '../src/quests';
-import { type Person, evaluateSeason, groupCount, groupViewFor, joinGroup, planGroups } from '../src/season';
+import { type Person, evaluateSeason, groupCount, groupViewFor, joinGroup, planGroups, rankGroups } from '../src/season';
 import { applySync, parseSync } from '../src/sync';
 
 const NOW = Date.parse('2026-11-03T03:00:00Z'); // 한국 11월 3일 12시
@@ -205,6 +205,23 @@ describe('동기화로 시즌 모둠', () => {
     const view = await groupViewFor(db, id(5), NOW);
     expect(view?.titles).toEqual(['11월 3일 시즌 모둠 완주']);
     expect(view?.quests.every((q) => q.done)).toBe(true);
+    expect(view?.ranking).toEqual([{ no: 0, rank: 1, done: 8, total: 8, minutes: 60, size: 10, mine: true }]);
+    expect(view?.me).toEqual({ today: 0, season: 0 });
+    const mine = await groupViewFor(db, id(1), NOW + 61 * 60_000);
+    expect(mine?.me.season).toBe(60);
+    expect(mine?.todayTop.map((x) => [x.id, x.minutes])).toEqual([[id(1), 60], [id(2), 60]]);
+  });
+
+  it('모둠 순위: 깬 퀘스트, 같으면 모둠 통화 시간, 둘 다 같으면 같은 등수', () => {
+    const g = (no: number, done: number, minutes: number) =>
+      ({
+        no,
+        members: [],
+        quests: Array.from({ length: 8 }, (_, i) => ({ slot: i, quest: { target: () => 1, value: () => 0 } as never, done_at: i < done ? 'x' : null })),
+        ctx: { voice: [{ minutes }] },
+      }) as never;
+    const r = rankGroups([g(0, 2, 10), g(1, 3, 0), g(2, 2, 50), g(3, 2, 10)], 3);
+    expect(r.map((x) => [x.no, x.rank, x.mine])).toEqual([[1, 1, false], [2, 2, false], [0, 3, false], [3, 3, true]]);
   });
 
   it('나간 사람은 빠지고, 시즌 중에 처음 활동한 사람은 제일 작은 모둠으로', async () => {

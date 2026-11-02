@@ -53,7 +53,7 @@ Content-Type: application/json
 - `room_minutes`: 1분마다 2명 이상 있던 통화방(잠수방·헤드셋 끈 사람 빼고). 모둠끼리 통화 시간, 같이 통화한 짝, 이어서 통화한 시간, 신입과 통화한 시간을 여기서 세요.
 - `scrims`: 열린 내전과 참가자(참가만 세요). 내전 퀘스트는 웹 설정 `SCRIM_QUESTS=1`일 때만 뽑아요(기본은 꺼짐).
 - `attendance`: 출석한 사람과 한국 날짜.
-- `room_minutes`와 `attendance`는 주간 빙고 칸도 채워요(아래 "주간 빙고").
+- `room_minutes`와 `attendance`는 주간 빙고 칸도 채워요(아래 "주간 빙고"). `room_minutes`는 칭찬하기용 "오늘 같이 통화한 사람"(`pair_day`)도 채워요.
 - 모두 같은 `batch_id` 안에서 한 번만 더해져요.
 
 ## 응답
@@ -111,10 +111,11 @@ Content-Type: application/json
     "character_url": "https://.../char/girl-01-0.png", "page_url": "https://.../me" }
   ```
   `palette`는 웹 카드와 같은 색이에요(`src/palette.ts`). 봇은 이 색으로 디스코드용 카드 그림을 그려요.
-- `GET /api/bot/praise/<디스코드ID>` → `{"given":["오늘 이미 칭찬한 ID"],"left":2}`
+- `GET /api/bot/praise/<디스코드ID>` → `{"given":["오늘 이미 칭찬한 ID"],"left":2,"partners":[{"id":"ID","minutes":42}]}`
+  - `partners`: 웹에 쌓인 `room_minutes`로 본 오늘(한국 날짜) 같이 통화한 사람. 봇은 오늘 기록을 메모리에만 들고 있어서 재시작하면 비니까, 봇 기록과 이 목록을 합쳐서 칭찬할 사람을 보여 줘요. 웹은 하루치 짝만 3일 동안 남겨요.
 - `POST /api/bot/praise` `{"from":"ID","to":"ID"}` → `{"result":"done","jelly":true,"left":2}`
   - `result`: `done`, `already`(오늘 이미 그 사람에게 줌), `limit`(오늘 3번 다 씀), `self`, `not_member`
-  - 오늘 같이 통화했거나 내전을 뛴 사람인지는 봇이 확인하고 보내요.
+  - 오늘 같이 통화했거나 내전을 뛴 사람인지는 봇이 확인하고 보내요(봇 기록 + 위 `partners`).
   - 하루(한국 날짜) 3번, 같은 사람에게는 하루 1번. 받은 사람은 하루 3개까지 칭찬 1번에 도감 젤리 1개를 받아요(`jelly`).
   - 알림(DM·채팅)은 보내지 않아요.
 
@@ -124,12 +125,14 @@ Content-Type: application/json
 
 - 퀘스트를 깨면 그때 모둠원 모두 도감 젤리(쉬움 1, 보통 2, 어려움 3), 8개를 다 깨면 시즌 칭호.
 - 나간 사람은 모둠에서 빠지고(쌓인 기록은 남아요), 시즌 중에 처음 활동한 사람은 게임 역할이 겹치는 제일 작은 모둠에 들어가요. "모둠원 모두" 퀘스트는 시즌 시작 때 모둠원만 세요.
-- `GET /api/bot/group/<디스코드 ID>` → `{"group": {"no": 3, "season": {...}, "members": [{"id","name","late"}], "quests": [{"name","text","diff","reward","value","target","done"}], "titles": [...]}, "page_url": ".../group"}`. 모둠이 없으면 `"group": null`.
+- `GET /api/bot/group/<디스코드 ID>` → `{"group": {"no": 3, "season": {...}, "members": [{"id","name","late"}], "quests": [{"name","text","diff","reward","value","target","done"}], "titles": [...], "ranking": [{"no","rank","done","total","minutes","size","mine"}]}, "page_url": ".../group"}`. 모둠이 없으면 `"group": null`.
+  - `me`: `{"today","season"}` 내가 모둠원과 같이 통화한 분. `today_top`: 오늘 모둠원과 통화가 긴 순 3명 `[{"id","name","minutes"}]`. 고정 패널 "모둠 순위" 창에 써요.
+  - `ranking`: 이번 시즌 모둠 순위. 깬 퀘스트가 많은 순, 같으면 모둠끼리 통화한 분(`minutes`)이 긴 순. `mine`은 내 모둠.
 - 알림(DM·채팅)은 보내지 않아요. 고정 패널 "우리 모둠" 버튼과 웹 `/group`에서만 보여요.
 
 ## 주간 빙고
 
-한 주(한국 시간 월요일 0시 ~ 다음 월요일 0시)마다 멤버마다 3×3 빙고판이 하나씩 생겨요(쉬움 3, 보통 4, 어려움 2칸). 빙고판은 주와 멤버로 정해지는 무작위라 저장하지 않아요. 신청·인증·관리자 확인은 없고, 칸은 저절로 채워져요.
+생명력(커뮤니티) 주기를 반으로 나눈 "이번 주"마다 멤버마다 3×3 빙고판이 하나씩 생겨요. 주기는 봇이 보내는 `season`을 써서 한 주기에 빙고판이 2번 나와요(주기를 아직 모르면 한국 시간 월요일 기준 주로 대신해요)(쉬움 3, 보통 4, 어려움 2칸). 빙고판은 기간과 멤버로 정해지는 무작위라 저장하지 않아요. 신청·인증·관리자 확인은 없고, 칸은 저절로 채워져요.
 
 - 채우는 기록: 봇이 보내는 `room_minutes`(통화 시간, 4명 이상 방, 밤 10시~새벽 2시, 주말, 같이 통화한 사람, 한 사람과 통화한 시간, 처음 만난 사람)와 `attendance`(출석), 웹이 아는 칭찬 주기·받기, 패널에서 내 카드 열기(`GET /api/bot/card`), 웹에서 내 카드 보기. 그래서 봇은 `DOGAM_SEASON=1`이어야 통화·출석 칸이 채워져요. 내전 칸은 내전을 쉬는 동안 넣지 않았어요.
 - 보상: 한 줄(가로·세로·대각선)마다 도감 젤리 1개 + 내 카드 경험치 30, 9칸을 다 채우면 도감 젤리 3개 더. 줄마다 한 번만 받아요. 동기화 뒤, 칭찬 뒤, 빙고를 볼 때 확인해서 줘요. 지금 서버에 있는 멤버만 받아요.
