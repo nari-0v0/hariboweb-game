@@ -645,7 +645,26 @@ export type GroupView = {
   members: GroupState['members'];
   quests: { slot: number; name: string; text: string; cat: string; diff: QuestDiff; reward: number; value: number; target: number; done: boolean }[];
   titles: string[];
+  // 모둠별 순위: 깬 퀘스트가 많은 순, 같으면 모둠 통화 시간이 긴 순
+  ranking: GroupRank[];
 };
+
+export type GroupRank = { no: number; rank: number; done: number; total: number; minutes: number; size: number; mine: boolean };
+
+export function rankGroups(groups: GroupState[], mine: number | null): GroupRank[] {
+  const rows = groups.map((g) => {
+    const done = g.quests.filter((q) => !!q.done_at || questProgress(q.quest, g.ctx).done).length;
+    const minutes = g.ctx.voice.reduce((sum, v) => sum + v.minutes, 0);
+    return { no: g.no, done, total: g.quests.length, minutes, size: g.members.filter((m) => !m.left).length, mine: g.no === mine };
+  });
+  rows.sort((a, b) => b.done - a.done || b.minutes - a.minutes || a.no - b.no);
+  let rank = 0;
+  return rows.map((r, i) => {
+    const prev = rows[i - 1];
+    if (!prev || prev.done !== r.done || prev.minutes !== r.minutes) rank = i + 1;
+    return { ...r, rank };
+  });
+}
 
 // 지금 시즌에서 이 사람의 모둠(없으면 null)
 export async function groupViewFor(db: D1Database, userId: string, nowMs: number): Promise<GroupView | null> {
@@ -658,8 +677,8 @@ export async function groupViewFor(db: D1Database, userId: string, nowMs: number
     .bind(userId, now)
     .first<{ season_id: string; group_no: number }>();
   if (!row) return null;
-  const loaded = await loadGroups(db, row.season_id, row.group_no);
-  const g = loaded?.groups[0];
+  const loaded = await loadGroups(db, row.season_id);
+  const g = loaded?.groups.find((x) => x.no === row.group_no);
   if (!loaded || !g) return null;
   const { results: titles } = await db
     .prepare('SELECT title FROM season_titles WHERE user_id = ? ORDER BY season_id DESC LIMIT 20')
@@ -675,5 +694,6 @@ export async function groupViewFor(db: D1Database, userId: string, nowMs: number
       return { slot, name: quest.name, text: quest.text(p.target), cat: quest.cat, diff: quest.diff, reward: QUEST_REWARD[quest.diff], value: done ? p.target : p.value, target: p.target, done };
     }),
     titles: titles.map((r) => r.title),
+    ranking: rankGroups(loaded.groups, g.no),
   };
 }

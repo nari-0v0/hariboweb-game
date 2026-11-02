@@ -589,3 +589,12 @@ main.wide { max-width: 1320px; }
   .bingo-sum { grid-template-columns: 1fr; }
 }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* 모둠 순위 */
+.rank-list { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; }
+.rank-list li { display: grid; grid-template-columns: 3.2em 1fr auto auto; gap: 10px; align-items: center; padding: 6px 10px; border: 2px solid var(--ink); background: #fff; font-size: .9rem; }
+.rank-list li.mine { background: var(--pink-soft); }
+@media (max-width: 520px) {
+  .rank-list li { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: .82rem; }
+  .rank-list li > * { white-space: nowrap; }
+}

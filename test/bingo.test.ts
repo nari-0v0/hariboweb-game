@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
-import { todayPartners, boardFor, bingoView, emptyStats, FULL_JELLY, grantBingo, LINE_JELLY, LINE_XP, LINES, loadStats, markFlag, weekOf, weekOfDay, type BingoStats } from '../src/bingo';
+import { periodFor, splitCycle, todayPartners, boardFor, bingoView, emptyStats, FULL_JELLY, grantBingo, LINE_JELLY, LINE_XP, LINES, loadStats, markFlag, weekOf, weekOfDay, type BingoStats } from '../src/bingo';
 import { applySync, parseSync } from '../src/sync';
 
 const A = '111111111111111111';
@@ -180,5 +180,34 @@ describe('칭찬하기용 오늘 같이 통화한 사람', () => {
     expect(await todayPartners(db, B, '2026-11-02')).toEqual([{ id: A, minutes: 2 }]);
     expect(await todayPartners(db, A, '2026-11-02')).toEqual([{ id: B, minutes: 2 }]);
     expect((sql.prepare('SELECT COUNT(*) AS n FROM pair_day').get() as { n: number }).n).toBe(1);
+  });
+});
+
+describe('빙고 기간 = 생명력 주기의 절반', () => {
+  it('주기를 반으로 나누고, 동기화 기록은 그 절반에 쌓여요', async () => {
+    const halves = splitCycle('2026-11-02T21:00:00.000Z', '2026-11-16T21:00:00.000Z');
+    expect(halves).toEqual([
+      { id: '2026-11-03', start: '2026-11-02T21:00:00.000Z', end: '2026-11-09T21:00:00.000Z' },
+      { id: '2026-11-10', start: '2026-11-09T21:00:00.000Z', end: '2026-11-16T21:00:00.000Z' },
+    ]);
+    expect(periodFor(Date.parse('2026-11-10T00:00:00Z'), halves).id).toBe('2026-11-10');
+    // 주기를 모르면 월요일 기준 주
+    expect(periodFor(NOW, []).id).toBe('2026-11-02');
+
+    const { sql, db } = fakeD1();
+    const r = parseSync({
+      batch_id: '2026-11-10T00:05:00Z-c',
+      members: [A, B].map((id) => ({ id, name: id })),
+      season: { start: '2026-11-02T21:00:00Z', end: '2026-11-16T21:00:00Z' },
+      room_minutes: [{ at: '2026-11-10T00:00:00Z', room: ROOM, members: [A, B] }],
+      attendance: [{ id: A, day: '2026-11-03' }],
+    });
+    if (!r.ok) throw new Error(r.error);
+    await applySync(db, r.value, Date.parse('2026-11-10T00:06:00Z'));
+    expect(sql.prepare('SELECT id FROM bingo_periods ORDER BY id').all()).toEqual([{ id: '2026-11-03' }, { id: '2026-11-10' }]);
+    expect(sql.prepare('SELECT week, day, minutes, attended FROM bingo_day WHERE user_id = ? ORDER BY day').all(A)).toEqual([
+      { week: '2026-11-03', day: '2026-11-03', minutes: 0, attended: 1 },
+      { week: '2026-11-10', day: '2026-11-10', minutes: 1, attended: 0 },
+    ]);
   });
 });

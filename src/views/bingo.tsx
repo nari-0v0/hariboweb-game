@@ -38,7 +38,7 @@ export function BingoPage(props: { viewer: Member; view: BingoView | null }) {
         </div>
         <p class="muted">
           활동하면 칸이 저절로 채워져요. 신청이나 인증은 없어요. 한 줄마다 젤리 {LINE_JELLY}개와 내 카드 경험치 {LINE_XP}, 9칸을 다 채우면 젤리 {FULL_JELLY}개를 더 받아요.
-          빙고판은 월요일마다 새로 나와요.
+          빙고판은 생명력 주기를 반으로 나눠서, 한 주기에 2번 새로 나와요.
         </p>
       </section>
       <section class="bingo" aria-label="빙고판">

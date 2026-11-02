@@ -38,7 +38,7 @@ import { ShopPage } from './views/shop';
 import { PlazaPage } from './views/plaza';
 import { GroupPage } from './views/group';
 import { groupViewFor } from './season';
-import { grantBingo, markFlag, myBingo, todayPartners, weekOf, LINE_JELLY, LINE_XP, FULL_JELLY } from './bingo';
+import { currentPeriod, grantBingo, markFlag, myBingo, todayPartners, LINE_JELLY, LINE_XP, FULL_JELLY } from './bingo';
 import { BingoPage } from './views/bingo';
 
 export { PlazaRoom } from './plaza-room';
@@ -230,12 +230,12 @@ app.post('/api/bot/praise', async (c) => {
   // 칭찬 주기·받기 빙고 칸이 채워졌으면 줄 보상을 줘요(실패해도 칭찬은 끝났어요)
   if (result.result === 'done') {
     const now = Date.now();
-    await grantBingo(c.env.DB, weekOf(now), [body.from, body.to], now).catch((e) => console.error('빙고 보상 확인 실패', e));
+    await grantBingo(c.env.DB, await currentPeriod(c.env.DB, now), [body.from, body.to], now).catch((e) => console.error('빙고 보상 확인 실패', e));
   }
   return c.json(result);
 });
 
-// 디스코드 고정 패널 "이번 주 빙고". 보는 김에 채운 줄 보상도 줘요.
+// 디스코드 고정 패널 "빙고"(생명력 주기마다 새 빙고판). 보는 김에 채운 줄 보상도 줘요.
 app.get('/api/bot/bingo/:id', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
   const id = c.req.param('id');
@@ -271,6 +271,8 @@ app.get('/api/bot/group/:id', async (c) => {
       members: view.members.map((m) => ({ id: m.id, name: m.name, late: !m.start })),
       quests: view.quests.map((q) => ({ name: q.name, text: q.text, diff: q.diff, reward: q.reward, value: q.value, target: q.target, done: q.done })),
       titles: view.titles,
+      // 모둠별 순위(no는 1부터, mine = 내 모둠)
+      ranking: view.ranking.map((r) => ({ no: r.no + 1, rank: r.rank, done: r.done, total: r.total, minutes: r.minutes, size: r.size, mine: r.mine })),
     },
     page_url: baseUrl(c) + '/group',
   });
