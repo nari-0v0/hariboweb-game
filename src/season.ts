@@ -528,7 +528,14 @@ export type GroupState = {
 type Rows<T> = Promise<{ results: T[] }>;
 
 // 시즌의 모둠(groupNo가 있으면 그 모둠만) 기록을 읽어 퀘스트 계산용으로 묶어요.
-export async function loadGroups(db: D1Database, seasonId: string, groupNo: number | null = null): Promise<{ season: Season; groups: GroupState[] } | null> {
+// ended: 이미 끝난 시즌을 늦게 계산할 때예요. 로그인·카드 레벨처럼 "지금 상태"로만 알 수 있는 값은
+// 다음 시즌 활동이 섞이므로 쓰지 않아요(끝난 시즌 안에 적힌 기록만으로 계산).
+export async function loadGroups(
+  db: D1Database,
+  seasonId: string,
+  groupNo: number | null = null,
+  ended = false,
+): Promise<{ season: Season; groups: GroupState[] } | null> {
   const s = await db.prepare('SELECT id, starts_at, ends_at FROM seasons WHERE id = ?').bind(seasonId).first<{ id: string; starts_at: string; ends_at: string }>();
   if (!s) return null;
   const season: Season = { id: s.id, start: s.starts_at, end: s.ends_at };
@@ -569,8 +576,9 @@ export async function loadGroups(db: D1Database, seasonId: string, groupNo: numb
     ),
     q<{ owner_id: string }>(
       `SELECT DISTINCT c.owner_id FROM cards c JOIN season_members s ON s.season_id = ?1 AND s.user_id = c.owner_id
-       WHERE c.first_met >= ?3 AND (?2 IS NULL OR s.group_no = ?2)`,
+       WHERE c.first_met >= ?3 AND c.first_met < ?4 AND (?2 IS NULL OR s.group_no = ?2)`,
       season.start,
+      season.end,
     ),
     q<{ owner_id: string; target_id: string; xp: number }>(
       `SELECT n.owner_id, n.target_id, n.xp FROM season_snap n JOIN season_members s ON s.season_id = n.season_id AND s.user_id = n.owner_id
@@ -603,13 +611,18 @@ export async function loadGroups(db: D1Database, seasonId: string, groupNo: numb
         .filter((r) => groupOf.get(r.from_id) === no)
         .map((r) => ({ from: r.from_id, to: r.to_id, day: r.day, toNewbie: r.to_newbie === 1 })),
       attend: attend.results.filter((r) => groupOf.get(r.user_id) === no).map((r) => ({ user: r.user_id, day: r.day })),
-      newCardPairs: groupCards.filter((c) => c.first_met >= season.start).map((c) => `${c.owner_id}|${c.target_id}`),
+      newCardPairs: groupCards.filter((c) => c.first_met >= season.start && c.first_met < season.end).map((c) => `${c.owner_id}|${c.target_id}`),
       newCardOwners: newOwners.results.map((r) => r.owner_id).filter((u) => currentSet.has(u)),
-      pairLevels: groupCards.map((c) => ({ from: levelFromXp(snap.get(`${c.owner_id}|${c.target_id}`) ?? 0), now: levelFromXp(c.xp) })),
-      ownLevelUp: ms
-        .filter((m) => !m.left_at && levelFromXp(m.solo_xp ?? 0) > levelFromXp(snap.get(`${m.user_id}|${m.user_id}`) ?? 0))
-        .map((m) => m.user_id),
-      loggedIn: ms.filter((m) => !m.left_at && (m.last_login_at ?? '') >= season.start).map((m) => m.user_id),
+      pairLevels: groupCards.map((c) => {
+        const from = levelFromXp(snap.get(`${c.owner_id}|${c.target_id}`) ?? 0);
+        return { from, now: ended ? from : levelFromXp(c.xp) };
+      }),
+      ownLevelUp: ended
+        ? []
+        : ms
+            .filter((m) => !m.left_at && levelFromXp(m.solo_xp ?? 0) > levelFromXp(snap.get(`${m.user_id}|${m.user_id}`) ?? 0))
+            .map((m) => m.user_id),
+      loggedIn: ended ? [] : ms.filter((m) => !m.left_at && (m.last_login_at ?? '') >= season.start).map((m) => m.user_id),
     };
     return {
       no,
@@ -638,7 +651,9 @@ export function seasonTitle(season: Season): string {
 // 다 채운 퀘스트를 깬 것으로 적고, 지금 모둠원에게 젤리를 줘요. 8개를 다 깨면 시즌 칭호.
 // 같은 퀘스트를 두 번 깨지 않게: done_at이 비어 있을 때만 이번 표시(mark)를 적고, 그 표시가 있을 때만 젤리를 줘요.
 export async function evaluateSeason(db: D1Database, seasonId: string, nowMs: number): Promise<number> {
-  const loaded = await loadGroups(db, seasonId);
+  const end = await db.prepare('SELECT ends_at FROM seasons WHERE id = ?').bind(seasonId).first<{ ends_at: string }>();
+  if (!end) return 0;
+  const loaded = await loadGroups(db, seasonId, null, Date.parse(end.ends_at) <= nowMs);
   if (!loaded) return 0;
   const t = new Date(nowMs).toISOString();
   const mark = `${t}#${crypto.randomUUID()}`;

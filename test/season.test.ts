@@ -194,6 +194,9 @@ describe('동기화로 시즌 모둠', () => {
     const g0 = (sql.prepare('SELECT user_id FROM season_members WHERE group_no = 0 ORDER BY user_id').all() as { user_id: string }[]).map((r) => r.user_id);
     const endMs = Date.parse(END);
     const nextEnd = new Date(endMs + 14 * 86_400_000).toISOString();
+    // 앞 시즌의 "5인 도감 방문" 퀘스트는, 시즌이 끝난 뒤의 로그인으로 깨지면 안 돼요
+    sql.exec("UPDATE season_quests SET quest_id = 'login:5', done_at = NULL WHERE season_id = '2026-11-03' AND group_no = 0 AND slot = 0");
+    sql.prepare('UPDATE members SET last_login_at = ?').run(new Date(endMs + 30_000).toISOString());
     const parsed = parseSync({
       batch_id: `${new Date(endMs + 60_000).toISOString()}-x`,
       season: { start: END, end: nextEnd },
@@ -206,6 +209,7 @@ describe('동기화로 시즌 모둠', () => {
     expect(await applySync(db, parsed.value, endMs + 60_000)).toBe('applied');
     // 앞 시즌(11월 3일)에는 끝나기 전 1분만 들어가요
     expect(sql.prepare("SELECT SUM(minutes) AS n FROM gq_voice WHERE season_id = '2026-11-03'").get()).toEqual({ n: 1 });
+    expect(sql.prepare("SELECT done_at FROM season_quests WHERE season_id = '2026-11-03' AND group_no = 0 AND slot = 0").get()).toEqual({ done_at: null });
   });
 
   it('퀘스트를 채우면 모둠원 모두 젤리를 한 번만 받고, 8개 다 깨면 칭호', async () => {
