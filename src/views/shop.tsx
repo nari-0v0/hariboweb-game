@@ -1,6 +1,6 @@
 import type { Profile, Purchase } from '../db';
 import type { Member } from '../env';
-import { SHOP_ITEMS, canUse, type ShopItem } from '../shop';
+import { SERVICES, SHOP_ITEMS, canUse, serviceItem, servicePrice, type ShopItem } from '../shop';
 import { Card } from './card';
 import { Layout } from './layout';
 
@@ -13,6 +13,8 @@ const NOTICES: Record<string, PopupLine[]> = {
   not_for_sale: [{ title: '알림', text: '젤리로 살 수 없는 물건입니다.' }],
   locked: [{ title: '알림', text: '아직 사용할 수 없는 물건입니다.' }],
   not_enough_jelly: [{ title: '구매 실패', text: '도감 젤리가 부족해서 구매하지 못했습니다.', bad: true }],
+  service_pending: [{ title: '구매 완료', text: '구매가 완료되었습니다. 하리보봇이 곧 디스코드에 적용해요(1분 안쪽).' }],
+  service_busy: [{ title: '알림', text: '앞서 산 것을 하리보봇이 아직 적용하는 중이에요. 끝나면 다시 살 수 있어요.' }],
   error: [
     { title: '오류', text: '오류가 발생하였습니다.', bad: true },
     { title: '오류', text: '방장에게 문의해주세요.', bad: true, contact: true },
@@ -35,8 +37,11 @@ export function objectParticle(word: string): string {
 }
 
 // 결제 결과 문구
-export function resultLines(p: Pick<Purchase, 'status' | 'reason'>, name: string): PopupLine[] {
-  if (p.status === 'done') return [{ title: '구매 완료', text: `${name} 구매가 완료되었습니다.` }];
+export function resultLines(p: Pick<Purchase, 'status' | 'reason'> & { item_id?: string }, name: string): PopupLine[] {
+  const service = serviceItem(p.item_id);
+  if (p.status === 'done') return [{ title: '구매 완료', text: service ? service.done : `${name} 구매가 완료되었습니다.` }];
+  if (p.reason === 'no_penalty') return [{ title: '적용 안 됨', text: '지울 벌점이 없어서 도감 젤리를 돌려드렸습니다.' }];
+  if (p.reason === 'no_warning') return [{ title: '적용 안 됨', text: '지울 경고가 없어서 도감 젤리를 돌려드렸습니다.' }];
   if (p.reason === 'not_enough_jelly')
     return [{ title: '구매 실패', text: `젤리가 부족해서 ${name}${objectParticle(name)} 구매하지 못했습니다.`, bad: true }];
   if (p.reason === 'left') return [{ title: '구매 취소', text: `서버를 나가서 ${name} 구매가 취소되었습니다.`, bad: true }];
@@ -120,6 +125,7 @@ export function ShopPage(props: {
   owned: Set<string>;
   cards: number;
   results: Purchase[];
+  services: { bought: Map<string, number>; pending: Set<string> };
   notice?: string;
 }) {
   const { viewer, profile, owned, cards } = props;
@@ -127,7 +133,7 @@ export function ShopPage(props: {
   const themes = SHOP_ITEMS.filter((i) => i.kind === 'theme');
   const decoBuy = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price !== null);
   const decoReward = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price === null);
-  const nameOf = (id: string) => SHOP_ITEMS.find((i) => i.id === id)?.name ?? id;
+  const nameOf = (id: string) => SHOP_ITEMS.find((i) => i.id === id)?.name ?? serviceItem(id)?.name ?? id;
   const popup = props.results.flatMap((p) => resultLines(p, nameOf(p.item_id)));
   const notice = props.notice ? NOTICES[props.notice] : undefined;
   if (notice && !popup.length) popup.push(...notice);
@@ -171,6 +177,35 @@ export function ShopPage(props: {
               도감 젤리는 이 도감에서만 쓰는 젤리예요. 겜블 젤리와는 따로라서 겜블 지갑에서는 빠지지 않아요.
             </p>
             <p class="hint">모으는 법: {JELLY_HOWTO}</p>
+          </section>
+
+          <section class="panel">
+            <h2>디스코드 물건</h2>
+            <p class="muted">사면 하리보봇이 디스코드에 바로 적용해요. 벌점·경고 지우기는 살 때마다 값이 1.5배씩 올라요. 지울 게 없으면 젤리를 돌려드려요.</p>
+            <div class="service-list">
+              {SERVICES.map((item) => {
+                const pending = props.services.pending.has(item.id);
+                const price = servicePrice(item, props.services.bought.get(item.id) ?? 0);
+                return (
+                  <div class="service-item">
+                    <div>
+                      <span class="shop-name">{item.name}</span>
+                      <p class="hint">{item.text}</p>
+                    </div>
+                    {pending ? (
+                      <span class="tag">적용 중</span>
+                    ) : (
+                      <form method="post" action="/api/shop/service">
+                        <input type="hidden" name="item" value={item.id} />
+                        <button class="btn btn-small btn-buy" type="submit">
+                          🍬 {price}
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </section>
 
           <section class="panel">

@@ -14,6 +14,11 @@ import {
   getProfile,
   listDogam,
   buyWithJelly,
+  listPendingServices,
+  requestService,
+  serviceState,
+  settleService,
+  SERVICE_FAIL_REASONS,
   getBestCard,
   givePraise,
   praiseToday,
@@ -28,7 +33,7 @@ import {
   setTheme,
   upsertLoginMember,
 } from './db';
-import { canUse, canUseTheme, decoItemId, shopItem } from './shop';
+import { canUse, canUseTheme, decoItemId, serviceItem, servicePrice, shopItem } from './shop';
 import { characterUrl, isCharacterPool } from './character';
 import { applySync, parseSync } from './sync';
 import { levelName, progress, tierFor, tierLabel } from './levels';
@@ -157,6 +162,29 @@ app.post('/api/bot/sync', async (c) => {
 app.get('/api/bot/purchases', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
   return c.json({ purchases: [] });
+});
+
+// 도감 젤리로 산 벌점·경고 지우기, 닉네임 변경권. 봇이 가져가 디스코드 쪽에 적용하고 결과를 알려요.
+app.get('/api/bot/services', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  const rows = await listPendingServices(c.env.DB);
+  return c.json({ services: rows.map((r) => ({ id: r.id, user: r.user_id, kind: r.item_id.slice(4) })) });
+});
+
+app.post('/api/bot/services/:id', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'bad_json' }, 400);
+  }
+  const ok = (body as { ok?: unknown })?.ok;
+  const reason = (body as { reason?: unknown })?.reason;
+  if (typeof ok !== 'boolean') return c.json({ error: 'bad_ok' }, 400);
+  if (!ok && !(SERVICE_FAIL_REASONS as readonly unknown[]).includes(reason)) return c.json({ error: 'bad_reason' }, 400);
+  const changed = await settleService(c.env.DB, c.req.param('id'), ok, ok ? null : (reason as string));
+  return c.json({ ok: true, changed });
 });
 
 // 예전에 겜블 젤리로 산 것을 봇이 겜블 지갑에 돌려줘요. 봇이 목록을 가져가 돌려주고, 한 건씩 끝났다고 알려요.
@@ -366,17 +394,18 @@ const sameOrigin = (c: Context<AppEnv>) => {
 
 members.get('/shop', async (c) => {
   const viewer = c.get('viewer');
-  const [profile, owned, cards, results] = await Promise.all([
+  const [profile, owned, cards, results, services] = await Promise.all([
     getProfile(c.env.DB, viewer.user_id),
     getOwnedItems(c.env.DB, viewer.user_id),
     countOwnedCards(c.env.DB, viewer.user_id),
     listUnseenPurchases(c.env.DB, viewer.user_id),
+    serviceState(c.env.DB, viewer.user_id),
   ]);
   // 아직 결과를 안 본 결제는 이번에 팝업으로 보여 주고 본 것으로 표시해요
   await markPurchasesSeen(c.env.DB, viewer.user_id, results.map((p) => p.id));
   return page(
     c,
-    <ShopPage viewer={viewer} profile={profile} owned={owned} cards={cards} results={results} notice={c.req.query('n')} />,
+    <ShopPage viewer={viewer} profile={profile} owned={owned} cards={cards} results={results} services={services} notice={c.req.query('n')} />,
   );
 });
 
@@ -396,6 +425,23 @@ members.post('/api/shop/buy', async (c) => {
   }
   // 산 물건은 결과 팝업("구매가 완료되었습니다")으로, 못 산 이유는 안내 팝업으로 보여 줘요
   return c.redirect(result === 'done' ? '/shop' : `/shop?n=${result}`);
+});
+
+// 벌점·경고 지우기, 닉네임 변경권: 도감 젤리를 빼고 봇이 디스코드 쪽에 적용해요
+members.post('/api/shop/service', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const viewer = c.get('viewer');
+  const item = serviceItem((await c.req.parseBody()).item);
+  if (!item) return c.redirect('/shop?n=not_for_sale');
+  let result: Awaited<ReturnType<typeof requestService>>;
+  try {
+    const { bought } = await serviceState(c.env.DB, viewer.user_id);
+    result = await requestService(c.env.DB, viewer.user_id, item.id, servicePrice(item, bought.get(item.id) ?? 0));
+  } catch (e) {
+    console.error('도감 서비스 결제 실패', e);
+    return c.redirect('/shop?n=error');
+  }
+  return c.redirect(`/shop?n=${result === 'pending' ? 'service_pending' : result === 'busy' ? 'service_busy' : 'not_enough_jelly'}`);
 });
 
 members.post('/api/me/deco', async (c) => {

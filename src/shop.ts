@@ -65,3 +65,34 @@ export function canUseTheme(theme: string, owned: Set<string>): boolean {
   const item = shopItem(themeItemId(theme));
   return !!item && owned.has(item.id);
 }
+
+// ── 디스코드에 적용되는 물건(벌점·경고 지우기, 닉네임 변경권) ─────────────
+// 도감 젤리로 사면 하리보봇이 디스코드 쪽에 적용해요. 적용할 수 없으면(지울 벌점이 없음 등) 젤리를 돌려줘요.
+// 벌점·경고 지우기는 살 때마다 값이 1.5배씩 올라요(나리 계획).
+export type ServiceKey = 'penalty' | 'warning' | 'nickname';
+export type ServiceItem = { id: string; key: ServiceKey; name: string; base: number; grow: number; text: string; done: string };
+
+export const SERVICES: ServiceItem[] = [
+  { id: 'svc:penalty', key: 'penalty', name: '벌점 1점 지우기', base: 100, grow: 1.5, text: '하리보 벌점을 1점 지워요.', done: '벌점 1점이 지워졌습니다.' },
+  { id: 'svc:warning', key: 'warning', name: '경고 1점 지우기', base: 200, grow: 1.5, text: '하리보 경고를 1점 지워요.', done: '경고 1점이 지워졌습니다.' },
+  {
+    id: 'svc:nickname',
+    key: 'nickname',
+    name: '닉네임 변경권',
+    base: 5,
+    grow: 1,
+    text: '디스코드 닉네임 변경권 1장이에요. 하리보봇 가방에서 써요.',
+    done: '닉네임 변경권 1장을 받았습니다. 하리보봇 가방에서 쓸 수 있어요.',
+  },
+];
+
+const SERVICE_BY_ID = new Map(SERVICES.map((s) => [s.id, s]));
+
+export function serviceItem(id: unknown): ServiceItem | undefined {
+  return typeof id === 'string' ? SERVICE_BY_ID.get(id) : undefined;
+}
+
+// 이번에 살 값: 지금까지 산 횟수만큼 1.5배씩(올림)
+export function servicePrice(item: ServiceItem, bought: number): number {
+  return Math.ceil(item.base * item.grow ** Math.max(0, bought));
+}
