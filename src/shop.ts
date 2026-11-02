@@ -6,6 +6,7 @@ import { THEMES } from './themes';
 export const PRICES = {
   theme: 30,
   deco: 20,
+  gender: 30, // 성별 바꾸기(처음 한 번 고르는 건 무료)
 } as const;
 
 // 판타지 캐릭터는 도감 카드 3장, 6장, 9장… 모을 때마다 하나씩 열려요(순서는 그림 순서).

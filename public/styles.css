@@ -613,3 +613,18 @@ main.wide { max-width: 1320px; }
 .service-item > div { min-width: 0; }
 .service-item .hint { margin: 2px 0 0; }
 .service-item form, .service-item .tag { flex: none; }
+
+/* 처음 캐릭터(성별) 고르기 */
+.choose h1 { margin-top: 0; }
+.choose-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 16px 0; }
+.choose-card { display: grid; justify-items: center; gap: 8px; padding: 12px 6px; border: 3px solid transparent; border-radius: 14px; cursor: pointer; min-width: 0; }
+.choose-card:has(input:checked) { border-color: var(--pink); background: var(--pink-soft); }
+.choose-card input { position: absolute; opacity: 0; pointer-events: none; }
+.choose-card:focus-within { outline: 3px solid var(--sky); outline-offset: 2px; }
+.choose-card .card { max-width: 100%; }
+.choose-label { font-weight: 700; font-size: 1.1rem; }
+.choose-one { display: flex; justify-content: center; margin: 16px 0; }
+.choose-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.choose-actions form { margin: 0; }
+.choose-card > .tilt { width: 100%; max-width: 220px; }
+.choose-one > .tilt { width: 240px; max-width: 80%; }

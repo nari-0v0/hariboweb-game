@@ -262,7 +262,8 @@ export async function applySync(
 
   // 나간 사람: 본인 카드와 도감은 지우고, 다른 사람이 가진 그 사람 카드는 흐리게 남겨요.
   for (const id of p.removed) {
-    stmts.push(db.prepare('UPDATE members SET active = 0, updated_at = ? WHERE user_id = ?').bind(t, id));
+    // 다시 들어오면 캐릭터를 새로 받으니 성별도 다시 골라요
+    stmts.push(db.prepare('UPDATE members SET active = 0, gender_chosen_at = NULL, updated_at = ? WHERE user_id = ?').bind(t, id));
     stmts.push(db.prepare('DELETE FROM profiles WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM cards WHERE owner_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM owned_items WHERE user_id = ?').bind(id));
