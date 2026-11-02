@@ -1,6 +1,0 @@
-# 로컬 실행용. 이 파일을 .dev.vars로 복사해서 값을 채워요. (.dev.vars는 저장소에 올라가지 않아요)
-DISCORD_CLIENT_SECRET=
-SESSION_SECRET=로컬용-아무-긴-문자열
-BOT_SYNC_SECRET=로컬용-봇-동기화-비밀값
-# 1로 두면 /auth/dev?id=<디스코드ID> 로 디스코드 없이 로그인할 수 있어요. 로컬에서만 쓰세요.
-DEV_LOGIN=1
