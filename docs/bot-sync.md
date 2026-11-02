@@ -126,6 +126,7 @@ Content-Type: application/json
 - 퀘스트를 깨면 그때 모둠원 모두 도감 젤리(쉬움 1, 보통 2, 어려움 3), 8개를 다 깨면 시즌 칭호.
 - 나간 사람은 모둠에서 빠지고(쌓인 기록은 남아요), 시즌 중에 처음 활동한 사람은 게임 역할이 겹치는 제일 작은 모둠에 들어가요. "모둠원 모두" 퀘스트는 시즌 시작 때 모둠원만 세요.
 - `GET /api/bot/group/<디스코드 ID>` → `{"group": {"no": 3, "season": {...}, "members": [{"id","name","late"}], "quests": [{"name","text","diff","reward","value","target","done"}], "titles": [...], "ranking": [{"no","rank","done","total","minutes","size","mine"}]}, "page_url": ".../group"}`. 모둠이 없으면 `"group": null`.
+  - `me`: `{"today","season"}` 내가 모둠원과 같이 통화한 분. `today_top`: 오늘 모둠원과 통화가 긴 순 3명 `[{"id","name","minutes"}]`. 고정 패널 "모둠 순위" 창에 써요.
   - `ranking`: 이번 시즌 모둠 순위. 깬 퀘스트가 많은 순, 같으면 모둠끼리 통화한 분(`minutes`)이 긴 순. `mine`은 내 모둠.
 - 알림(DM·채팅)은 보내지 않아요. 고정 패널 "우리 모둠" 버튼과 웹 `/group`에서만 보여요.
 
