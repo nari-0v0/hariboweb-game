@@ -128,6 +128,7 @@ Content-Type: application/json
 - `GET /api/bot/group/<디스코드 ID>` → `{"group": {"no": 3, "season": {...}, "members": [{"id","name","late"}], "quests": [{"name","text","diff","reward","value","target","done"}], "titles": [...], "ranking": [{"no","rank","done","total","minutes","size","mine"}]}, "page_url": ".../group"}`. 모둠이 없으면 `"group": null`.
   - `me`: `{"today","season"}` 내가 모둠원과 같이 통화한 분. `today_top`: 오늘 모둠원과 통화가 긴 순 3명 `[{"id","name","minutes"}]`. 고정 패널 "모둠 순위" 창에 써요.
   - `ranking`: 이번 시즌 모둠 순위. 깬 퀘스트가 많은 순, 같으면 모둠끼리 통화한 분(`minutes`)이 긴 순. `mine`은 내 모둠.
+- `GET /api/bot/ranking` → 지금 시즌 전체 모둠 순위(고정 패널 본문 그림용) `{"season": {"start","end"}, "ranking": [{"no","rank","done","total","minutes","size"}], "today_top": [{"name","minutes","group"}], "page_url": ".../group"}`. 시즌이 없으면 `"ranking": null`. `minutes`는 모둠원 2명 이상이 같은 통화방에 있던 분, `today_top`은 서버 전체에서 오늘 모둠원과 가장 오래 통화한 3명이에요.
 - 알림(DM·채팅)은 보내지 않아요. 고정 패널 "우리 모둠" 버튼과 웹 `/group`에서만 보여요.
 
 ## 주간 빙고
