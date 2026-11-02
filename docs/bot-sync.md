@@ -47,7 +47,8 @@ Content-Type: application/json
 - 모으는 법:
   - 처음 한 번 5개 (계정당 한 번. 나갔다 다시 와도 또 받지 않아요)
   - 출석 1개, 하루 통화 3시간 3개 (봇이 `jelly_earned`로 보내요)
-  - 도감 카드 레벨이 오를 때마다 1개 (웹이 줘요)
+  - 도감 카드가 10레벨 오를 때마다 3개 (웹이 줘요)
+  - 칭찬을 받으면 1개 (하루 3개까지, 웹이 줘요)
 - 예전 봇이 쓰던 `GET /api/bot/purchases`는 늘 빈 목록 `{"purchases":[]}`을 돌려줘요. 결과를 보내던 `POST /api/bot/purchases/<번호>`는 없어졌어요.
 
 ### 예전 겜블 젤리 결제 돌려주기 (한 번만)
@@ -73,6 +74,27 @@ Content-Type: application/json
 | 빙고 한 줄 | 30 |
 
 하루 3시간씩 같이 놀면 3일쯤 친구(Lv.5), 2주쯤 절친(Lv.10), 두 달쯤 단짝(Lv.20)이 돼요.
+
+## 디스코드 고정 패널
+
+봇이 디스코드 채널에 고정 패널을 두고, 버튼을 누른 사람에게만 보이는 창으로 답해요. 모두 `Authorization: Bearer {BOT_SYNC_SECRET}`가 필요해요.
+
+- `GET /api/bot/card/<디스코드ID>` → 내 카드 정보. 서버에 없는 사람은 `404 {"error":"not_member"}`.
+  ```json
+  { "id": "ID", "name": "닉네임", "intro": "", "level": 12, "level_name": "친구", "ratio": 0.35,
+    "tier": "silver", "tier_label": "은색", "jelly": 45, "dogam": { "owned": 23, "total": 58 },
+    "best": { "id": "ID", "name": "젤리곰", "level": 12 }, "praise_left": 2,
+    "palette": { "rim": "#6b7a90", "body": ["#eef2f8", "..."], "ring": ["#f4f7fb", "#9aa8bc"], "sky": ["#a9dcff", "#e6f6ff"],
+                 "ground": "#8fd67a", "plate": ["#ffffff", "#dfe5ee"], "ink": "#2a2030", "sparkle": false },
+    "character_url": "https://.../char/girl-01-0.png", "page_url": "https://.../me" }
+  ```
+  `palette`는 웹 카드와 같은 색이에요(`src/palette.ts`). 봇은 이 색으로 디스코드용 카드 그림을 그려요.
+- `GET /api/bot/praise/<디스코드ID>` → `{"given":["오늘 이미 칭찬한 ID"],"left":2}`
+- `POST /api/bot/praise` `{"from":"ID","to":"ID"}` → `{"result":"done","jelly":true,"left":2}`
+  - `result`: `done`, `already`(오늘 이미 그 사람에게 줌), `limit`(오늘 3번 다 씀), `self`, `not_member`
+  - 오늘 같이 통화했거나 내전을 뛴 사람인지는 봇이 확인하고 보내요.
+  - 하루(한국 날짜) 3번, 같은 사람에게는 하루 1번. 받은 사람은 하루 3개까지 칭찬 1번에 도감 젤리 1개를 받아요(`jelly`).
+  - 알림(DM·채팅)은 보내지 않아요.
 
 ## 광장 실시간 연결
 

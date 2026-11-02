@@ -324,3 +324,77 @@ export async function countOwnedCards(db: D1Database, userId: string): Promise<n
     .first<{ n: number }>();
   return row?.n ?? 0;
 }
+
+// ── 디스코드 고정 패널 ─────────────────────────────────────
+
+// 한국 날짜(YYYY-MM-DD). 칭찬 횟수는 이 날짜로 세요.
+export function kstDay(at: Date = new Date()): string {
+  return new Date(at.getTime() + 9 * 3_600_000).toISOString().slice(0, 10);
+}
+
+export const PRAISE_PER_DAY = 3;
+export const PRAISE_JELLY_PER_DAY = 3;
+
+// 내가 가진 카드 중 레벨이 제일 높은 카드(지금 있는 멤버만)
+export function getBestCard(db: D1Database, ownerId: string) {
+  return db
+    .prepare(
+      `SELECT m.user_id, m.display_name, c.xp FROM cards c JOIN members m ON m.user_id = c.target_id
+       WHERE c.owner_id = ? AND m.active = 1 ORDER BY c.xp DESC, c.first_met LIMIT 1`,
+    )
+    .bind(ownerId)
+    .first<{ user_id: string; display_name: string; xp: number }>();
+}
+
+export async function praiseToday(db: D1Database, userId: string, day = kstDay()) {
+  const { results } = await db
+    .prepare('SELECT to_id FROM praises WHERE day = ? AND from_id = ?')
+    .bind(day, userId)
+    .all<{ to_id: string }>();
+  const given = results.map((r) => r.to_id);
+  return { given, left: Math.max(0, PRAISE_PER_DAY - given.length) };
+}
+
+export type PraiseResult = 'done' | 'already' | 'limit' | 'self' | 'not_member';
+
+// 칭찬 한 번. 하루 3번, 같은 사람에게 하루 1번. 받은 사람은 하루 3개까지 도감 젤리 1개씩 받아요.
+// 확인과 기록, 젤리 주기를 한 번에(트랜잭션) 해서 동시에 눌러도 한도를 넘지 않아요.
+export async function givePraise(
+  db: D1Database,
+  fromId: string,
+  toId: string,
+  day = kstDay(),
+): Promise<{ result: PraiseResult; jelly: boolean; left: number }> {
+  if (fromId === toId) return { result: 'self', jelly: false, left: (await praiseToday(db, fromId, day)).left };
+  const mark = `${now()}#${crypto.randomUUID()}`;
+  const mine = 'EXISTS (SELECT 1 FROM praises WHERE day = ?1 AND from_id = ?2 AND to_id = ?3 AND created_at = ?4 AND jelly = 1)';
+  await db.batch([
+    db
+      .prepare(
+        `INSERT INTO praises (day, from_id, to_id, jelly, created_at)
+         SELECT ?1, ?2, ?3,
+                (SELECT COUNT(*) FROM praises WHERE day = ?1 AND to_id = ?3 AND jelly = 1) < ?6,
+                ?4
+         WHERE (SELECT COUNT(*) FROM praises WHERE day = ?1 AND from_id = ?2) < ?5
+           AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)
+           AND EXISTS (SELECT 1 FROM members WHERE user_id = ?3 AND active = 1)
+         ON CONFLICT DO NOTHING`,
+      )
+      .bind(day, fromId, toId, mark, PRAISE_PER_DAY, PRAISE_JELLY_PER_DAY),
+    db
+      .prepare(
+        `INSERT INTO profiles (user_id, dogam_jelly, updated_at) SELECT ?3, 1, ?5 WHERE ${mine}
+         ON CONFLICT (user_id) DO UPDATE SET dogam_jelly = dogam_jelly + 1, updated_at = excluded.updated_at`,
+      )
+      .bind(day, fromId, toId, mark, now()),
+  ]);
+  const row = await db
+    .prepare('SELECT jelly, created_at FROM praises WHERE day = ? AND from_id = ? AND to_id = ?')
+    .bind(day, fromId, toId)
+    .first<{ jelly: number; created_at: string }>();
+  const { left } = await praiseToday(db, fromId, day);
+  if (row?.created_at === mark) return { result: 'done', jelly: row.jelly === 1, left };
+  if (row) return { result: 'already', jelly: false, left };
+  if (left === 0) return { result: 'limit', jelly: false, left };
+  return { result: 'not_member', jelly: false, left };
+}
