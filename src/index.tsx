@@ -14,6 +14,9 @@ import {
   getProfile,
   listDogam,
   buyWithJelly,
+  getBestCard,
+  givePraise,
+  praiseToday,
   giveStarterJelly,
   listPendingRefunds,
   listUnseenPurchases,
@@ -27,6 +30,8 @@ import {
 import { canUse, canUseTheme, decoItemId, shopItem } from './shop';
 import { characterUrl, isCharacterPool } from './character';
 import { applySync, parseSync } from './sync';
+import { levelName, progress, tierFor, tierLabel } from './levels';
+import { cardPalette } from './palette';
 import { CardPage, DogamPage, LandingPage, MePage, MessagePage } from './views/pages';
 import { ShopPage } from './views/shop';
 import { PlazaPage } from './views/plaza';
@@ -156,6 +161,63 @@ app.post('/api/bot/refunds/:id', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
   const changed = await markRefunded(c.env.DB, c.req.param('id'));
   return c.json({ ok: true, changed });
+});
+
+const isDiscordId = (v: unknown): v is string => typeof v === 'string' && /^\d{17,20}$/.test(v);
+
+// 디스코드 고정 패널 "내 카드". 봇이 이 정보로 카드 그림과 안내를 만들어요.
+app.get('/api/bot/card/:id', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  const id = c.req.param('id');
+  const member = isDiscordId(id) ? await getMember(c.env.DB, id) : null;
+  if (!member || !member.active) return c.json({ error: 'not_member' }, 404);
+  const [profile, entries, best, praise] = await Promise.all([
+    getProfile(c.env.DB, id),
+    listDogam(c.env.DB, id),
+    getBestCard(c.env.DB, id),
+    praiseToday(c.env.DB, id),
+  ]);
+  const p = progress(profile.solo_xp);
+  const tier = tierFor(p.level);
+  const base = baseUrl(c);
+  return c.json({
+    id,
+    name: member.display_name,
+    intro: profile.intro,
+    level: p.level,
+    level_name: levelName(p.level),
+    ratio: p.ratio,
+    tier,
+    tier_label: tierLabel(tier),
+    jelly: profile.dogam_jelly,
+    dogam: completion(entries),
+    best: best ? { id: best.user_id, name: best.display_name, level: progress(best.xp).level } : null,
+    praise_left: praise.left,
+    palette: cardPalette(profile.theme_id, p.level),
+    character_url: base + characterUrl(profile.character_id, id, profile.deco_id),
+    page_url: base + '/me',
+  });
+});
+
+// 오늘 칭찬을 몇 번 남겼는지, 누구에게 이미 줬는지
+app.get('/api/bot/praise/:id', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  const id = c.req.param('id');
+  if (!isDiscordId(id)) return c.json({ error: 'bad_id' }, 400);
+  return c.json(await praiseToday(c.env.DB, id));
+});
+
+// 칭찬하기. 오늘 같이 논 사람인지는 봇이 확인하고 보내요.
+app.post('/api/bot/praise', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  let body: { from?: unknown; to?: unknown };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'JSON이 아니에요' }, 400);
+  }
+  if (!isDiscordId(body.from) || !isDiscordId(body.to)) return c.json({ error: 'bad_id' }, 400);
+  return c.json(await givePraise(c.env.DB, body.from, body.to));
 });
 
 // 광장 실시간 연결(봇). 통화방 모습과 통화방 채팅을 보내고, 방 옮기기 요청을 받아요.
