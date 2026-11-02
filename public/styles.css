@@ -111,11 +111,16 @@ img, svg { image-rendering: pixelated; }
 .chip.small { font-size: .72rem; padding: 0 6px; }
 .chip.ghost { color: var(--ink-soft); border-color: var(--ink-soft); background: transparent; }
 .chip.sprout { background: #c9f2d9; }
-.tier-chip.t-plain { background: #eee6ea; }
+.tier-chip.t-plain { background: #ffd3df; }
 .tier-chip.t-silver { background: #e3e8ef; }
 .tier-chip.t-gold { background: #ffe08a; }
-.tier-chip.t-sparkle { background: #fff1b8; }
+.tier-chip.t-mint { background: #c8f2df; }
+.tier-chip.t-sky { background: #cde9ff; }
+.tier-chip.t-lavender { background: #e6d6ff; }
+.tier-chip.t-rose { background: #ffd1d6; }
 .tier-chip.t-holo { background: linear-gradient(90deg, #ffc6e6, #c6ecff, #d8ffc6); }
+.tier-chip.t-night { background: #2e3570; color: #fff; }
+.tier-chip.t-aurora { background: linear-gradient(90deg, #b8f5e0, #c6d8ff, #f0c6ff); }
 .tier-chip.t-legend { background: linear-gradient(90deg, #ff9aa8, #ffd36b, #8de8b0, #8cc8ff, #c39cff); }
 .notice { padding: 8px 12px; border: 3px solid var(--ink); background: #fff; margin: 0 0 12px; font-size: .9rem; }
 .notice.ok { background: #d6f7e4; }
@@ -176,8 +181,8 @@ img, svg { image-rendering: pixelated; }
 }
 
 /* 레벨 꾸미기 길 */
-.road { list-style: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; padding: 0; margin: 18px 0 0; position: relative; }
-.road::before { content: ''; position: absolute; top: 8px; left: 10%; right: 10%; height: 0; border-top: 3px dashed #cbbcc8; }
+.road { list-style: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px 4px; padding: 0; margin: 18px 0 0; position: relative; }
+.road::before { content: none; }
 .road li { display: grid; justify-items: center; gap: 2px; text-align: center; font-size: .72rem; color: var(--ink-soft); position: relative; }
 .road b { color: var(--ink); font-size: .78rem; margin-top: 2px; }
 .road .dot { width: 18px; height: 18px; background: #fff; border: 3px solid #cbbcc8; }
@@ -347,14 +352,12 @@ input:not([type=radio]):focus { background: #fff6fa; border-color: var(--pink); 
 .swatch.theme-basic, .swatch.theme-moonnight, .swatch.theme-rose, .swatch.theme-teaparty, .swatch.theme-ice, .swatch.theme-mermaid,
 .swatch.theme-forest, .swatch.theme-space, .swatch.theme-blackgold, .swatch.theme-cyber, .swatch.theme-racing { --x: 0; }
 
-/* 레벨이 오를수록 화려해져요 */
-.tier-silver .c-name { background: linear-gradient(180deg, #ffffff, #dfe5ee); }
-.tier-gold .c-name, .tier-sparkle .c-name, .tier-holo .c-name, .tier-legend .c-name { background: linear-gradient(180deg, #fff3b0, #ffd35a); }
-.tier-silver .c-body { box-shadow: inset 0 0 0 1.4cqw #e3e8ef, inset 0 1.4cqw 0 rgba(255, 255, 255, .35), inset 0 -1.6cqw 0 rgba(0, 0, 0, .14); }
-.tier-gold .c-body, .tier-sparkle .c-body, .tier-holo .c-body, .tier-legend .c-body {
-  box-shadow: inset 0 0 0 1.4cqw #ffd35a, inset 0 0 0 2.2cqw #fff3b0, inset 0 -1.6cqw 0 rgba(0, 0, 0, .14);
-}
-.tier-sparkle .fx, .tier-holo .fx, .tier-legend .fx {
+/* 레벨이 오를수록 화려해져요. 장식(테두리, 반짝이, 광택)은 어떤 테마에도 얹혀요. */
+.ring-silver .c-name { background: linear-gradient(180deg, #ffffff, #dfe5ee); }
+.ring-silver .c-body { box-shadow: inset 0 0 0 1.4cqw #e3e8ef, inset 0 1.4cqw 0 rgba(255, 255, 255, .35), inset 0 -1.6cqw 0 rgba(0, 0, 0, .14); }
+.ring-gold .c-name { background: linear-gradient(180deg, #fff3b0, #ffd35a); }
+.ring-gold .c-body { box-shadow: inset 0 0 0 1.4cqw #ffd35a, inset 0 0 0 2.2cqw #fff3b0, inset 0 -1.6cqw 0 rgba(0, 0, 0, .14); }
+.fx-sparkle .fx {
   background:
     linear-gradient(#fff, #fff) 14% 22% / 2cqw 2cqw no-repeat,
     linear-gradient(#fff, #fff) 84% 30% / 1.5cqw 1.5cqw no-repeat,
@@ -363,38 +366,54 @@ input:not([type=radio]):focus { background: #fff6fa; border-color: var(--pink); 
     linear-gradient(#fffbe0, #fffbe0) 50% 16% / 1.2cqw 1.2cqw no-repeat;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .tier-sparkle .fx, .tier-holo .fx, .tier-legend .fx { animation: blink 1.6s steps(2) infinite; }
+  .fx-sparkle .fx { animation: blink 1.6s steps(2) infinite; }
   .c-avatar { animation: bob 1.2s steps(2) infinite; }
   .tier-legend { animation: rainbow 3s steps(12) infinite; }
 }
 @keyframes blink { 50% { opacity: .25; } }
 @keyframes bob { 50% { translate: -50% -1.2cqw; } }
-.tier-holo .shine, .tier-legend .shine {
+.fx-shine .shine {
   opacity: .35; mix-blend-mode: soft-light;
   background: linear-gradient(115deg, transparent 20%, #ff9ad5 35%, #9ae6ff 50%, #c5ff9a 65%, transparent 80%);
 }
 .tier-legend { background: linear-gradient(90deg, #ff6f9c, #ffd35a, #7fdcc0, #6fb6ff, #b38cff, #ff6f9c); background-size: 200% 100%; }
 @keyframes rainbow { to { background-position: 200% 0; } }
 
-/* 기본(하리보) 테마 카드는 레벨이 오르면 카드 색도 같이 바뀌어요. 상점에서 산 테마는 그 색을 그대로 지켜요. */
+/* 기본(하리보) 카드는 10레벨마다 카드 색, 바깥 테두리, 안쪽 테두리, 이름칸 색이 함께 바뀌어요.
+   상점에서 산 테마는 산 색을 그대로 지키고 위 장식만 얹혀요. */
+.theme-basic { --rim: #b8486a; --ring: #ffd3df; --ring-2: #ff8fab; --plate: var(--t-paper); }
+.theme-basic.tier-silver { --rim: #6b7a90; --ring: #f4f7fb; --ring-2: #9aa8bc; --plate: linear-gradient(180deg, #ffffff, #dfe5ee); }
 .theme-basic.tier-silver .c-body { background: linear-gradient(160deg, #eef2f8 0%, #c3cedd 45%, #e6ebf3 60%, #aebbcd 100%); }
+.theme-basic.tier-gold { --rim: #a8741a; --ring: #fff3b0; --ring-2: #ffd35a; --plate: linear-gradient(180deg, #fff3b0, #ffd35a); }
 .theme-basic.tier-gold .c-body { background: linear-gradient(160deg, #fff1b3 0%, #f4c64e 45%, #ffe38a 60%, #e0a92e 100%); }
-.theme-basic.tier-sparkle .c-body { background: linear-gradient(160deg, #ffe0f4 0%, #c9a4ff 50%, #ffd1ec 62%, #a98cf0 100%); }
+.theme-basic.tier-mint { --rim: #2f8f6c; --ring: #e8fff4; --ring-2: #7fd8b0; --plate: linear-gradient(180deg, #f2fff8, #c8f2df); }
+.theme-basic.tier-mint .c-body { background: linear-gradient(160deg, #dffbee 0%, #8fdcb8 50%, #c6f5e0 62%, #6cc89f 100%); }
+.theme-basic.tier-sky { --rim: #3a78b8; --ring: #eef8ff; --ring-2: #8cc8f5; --plate: linear-gradient(180deg, #f4fbff, #cde9ff); }
+.theme-basic.tier-sky .c-body { background: linear-gradient(160deg, #e2f3ff 0%, #8ec9f5 50%, #cbe8ff 62%, #6aaee8 100%); }
+.theme-basic.tier-lavender { --rim: #6e4fc0; --ring: #f3e8ff; --ring-2: #b48cf5; --plate: linear-gradient(180deg, #fbf3ff, #dcc4ff); }
+.theme-basic.tier-lavender .c-body { background: linear-gradient(160deg, #ffe0f4 0%, #c9a4ff 50%, #ffd1ec 62%, #a98cf0 100%); }
+.theme-basic.tier-rose { --rim: #b0485a; --ring: #fff0f0; --ring-2: #f0a0a8; --plate: linear-gradient(180deg, #fff6f2, #ffd1d6); }
+.theme-basic.tier-rose .c-body { background: linear-gradient(160deg, #ffe8e0 0%, #f3a6a8 45%, #ffd8cc 60%, #d98088 100%); }
+.theme-basic.tier-holo { --rim: #8a6ab8; --ring: #ffffff; --ring-2: #c6ecff; --plate: linear-gradient(90deg, #ffe0f0, #e0f4ff, #e8ffe0, #fff6d0); }
 .theme-basic.tier-holo .c-body { background: linear-gradient(135deg, #ffc6e6 0%, #c6ecff 30%, #d8ffc6 55%, #fff1a8 75%, #e2c6ff 100%); }
+.theme-basic.tier-night { --rim: #151a40; --ring: #c8d0ff; --ring-2: #5a64b8; --plate: linear-gradient(180deg, #f0f2ff, #c8ceff); }
+.theme-basic.tier-night .c-body {
+  background:
+    linear-gradient(#fff, #fff) 8% 12% / 1.2cqw 1.2cqw no-repeat,
+    linear-gradient(#fff, #fff) 92% 20% / 1cqw 1cqw no-repeat,
+    linear-gradient(#ffe9a8, #ffe9a8) 6% 62% / 1cqw 1cqw no-repeat,
+    linear-gradient(#fff, #fff) 94% 70% / 1.2cqw 1.2cqw no-repeat,
+    linear-gradient(#fff, #fff) 50% 97% / 1cqw 1cqw no-repeat,
+    linear-gradient(160deg, #3a4290 0%, #1c2160 55%, #4a3a8a 100%);
+}
+.theme-basic.tier-night .c-intro { color: #e8eaff; }
+.theme-basic.tier-aurora { --rim: #3a7a8a; --ring: #f0fffb; --ring-2: #b8f5e0; --plate: linear-gradient(90deg, #e0fff4, #e4ecff, #f8e4ff); }
+.theme-basic.tier-aurora .c-body { background: linear-gradient(160deg, #b8f5e0 0%, #9fd8f0 30%, #c6c8ff 60%, #f0c6ff 100%); }
+.theme-basic.tier-legend { --ring: #fff8e0; --ring-2: #ffd36b; --plate: linear-gradient(90deg, #ffd0d8, #fff0b8, #d0f8e0, #d8ecff, #ead8ff); }
 .theme-basic.tier-legend .c-body { background: linear-gradient(135deg, #ff9aa8 0%, #ffd36b 22%, #8de8b0 45%, #8cc8ff 68%, #c39cff 100%); }
-
-/* 기본 카드의 바깥 테두리, 안쪽 테두리, 이름칸도 카드 색을 따라가요 */
-.theme-basic.tier-plain { background: #b8486a; }
-.theme-basic.tier-silver { background: #6b7a90; }
-.theme-basic.tier-silver .c-body { box-shadow: inset 0 0 0 1.4cqw #f4f7fb, inset 0 0 0 2.2cqw #9aa8bc, inset 0 -1.6cqw 0 rgba(0, 0, 0, .14); }
-.theme-basic.tier-gold { background: #a8741a; }
-.theme-basic.tier-sparkle { background: #6e4fc0; }
-.theme-basic.tier-sparkle .c-body { box-shadow: inset 0 0 0 1.4cqw #f3e8ff, inset 0 0 0 2.2cqw #b48cf5, inset 0 -1.6cqw 0 rgba(0, 0, 0, .14); }
-.theme-basic.tier-sparkle .c-name { background: linear-gradient(180deg, #fbf3ff, #dcc4ff); }
-.theme-basic.tier-holo { background: linear-gradient(135deg, #e070b0, #5aa8e0, #6cc86c, #e0b040, #a070e0); }
-.theme-basic.tier-holo .c-body { box-shadow: inset 0 0 0 1.4cqw #ffffff, inset 0 0 0 2.2cqw #c6ecff, inset 0 -1.6cqw 0 rgba(0, 0, 0, .14); }
-.theme-basic.tier-holo .c-name { background: linear-gradient(90deg, #ffe0f0, #e0f4ff, #e8ffe0, #fff6d0); }
-.theme-basic.tier-legend .c-name { background: linear-gradient(90deg, #ffd0d8, #fff0b8, #d0f8e0, #d8ecff, #ead8ff); }
+.theme-basic:not(.tier-legend):not(.unknown) { background: var(--rim); }
+.theme-basic .c-name { background: var(--plate); }
+.theme-basic:not(.tier-plain) .c-body { box-shadow: inset 0 0 0 1.4cqw var(--ring), inset 0 0 0 2.2cqw var(--ring-2), inset 0 -1.6cqw 0 rgba(0, 0, 0, .14); }
 
 .card.unknown .c-avatar { filter: brightness(0); opacity: .35; animation: none; }
 .card.unknown .c-name, .card.unknown .c-stats { opacity: .6; }

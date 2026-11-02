@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { levelFromXp, levelName, progress, tierFor, xpForLevel } from '../src/levels';
+import { levelFromXp, levelName, progress, tierEffects, tierFor, xpForLevel } from '../src/levels';
 
 describe('levels', () => {
   it('starts at level 1 and reaches each threshold exactly', () => {
@@ -17,14 +17,25 @@ describe('levels', () => {
   });
 
   it('names and tiers follow the plan', () => {
-    expect([1, 5, 10, 20].map(levelName)).toEqual(['첫 만남', '친구', '절친', '단짝']);
-    expect([4, 5, 10, 20, 30, 50].map(tierFor)).toEqual(['plain', 'silver', 'gold', 'sparkle', 'holo', 'legend']);
+    expect([1, 10, 30, 60, 100].map(levelName)).toEqual(['첫 만남', '친구', '절친', '단짝', '평생 단짝']);
+    expect([9, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(tierFor)).toEqual([
+      'plain', 'silver', 'gold', 'mint', 'sky', 'lavender', 'rose', 'holo', 'night', 'aurora', 'legend',
+    ]);
+    expect(tierEffects(9)).toEqual([]);
+    expect(tierEffects(10)).toEqual(['ring-silver']);
+    expect(tierEffects(75)).toEqual(['ring-gold', 'fx-sparkle', 'fx-shine']);
+  });
+
+  it('takes about a year at one hour (60 XP) a day', () => {
+    const days = xpForLevel(100) / 60;
+    expect(days).toBeGreaterThan(350);
+    expect(days).toBeLessThan(380);
   });
 
   it('reports progress inside a level', () => {
-    const p = progress(xpForLevel(3) + 25);
+    const p = progress(xpForLevel(3) + 5);
     expect(p.level).toBe(3);
     expect(p.next).toBe(xpForLevel(4));
-    expect(p.ratio).toBeCloseTo(25 / (xpForLevel(4) - xpForLevel(3)));
+    expect(p.ratio).toBeCloseTo(5 / (xpForLevel(4) - xpForLevel(3)));
   });
 });
