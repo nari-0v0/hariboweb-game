@@ -75,4 +75,12 @@ describe('처음 성별 고르기와 상점 성별 바꾸기', () => {
     expect(poolOf(row().character_id)).toBe('boy');
     expect(sql.prepare("SELECT COUNT(*) AS n FROM purchases WHERE item_id = 'change:gender' AND status = 'done'").get()).toEqual({ n: 1 });
   });
+
+  it('동시에 두 번 골라도 먼저 저장된 쪽만 남아요', async () => {
+    const { db, row } = setup(0);
+    const results = await Promise.all([chooseFirstGender(db, A, 'boy'), chooseFirstGender(db, A, 'girl')]);
+    expect(results.filter(Boolean)).toHaveLength(1);
+    const winner = results[0] ? 'boy' : 'girl';
+    expect(poolOf(row().character_id)).toBe(winner);
+  });
 });

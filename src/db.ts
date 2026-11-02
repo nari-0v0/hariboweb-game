@@ -190,12 +190,46 @@ async function chooseCharacterPoolOnce(db: D1Database, userId: string, pool: Cha
 }
 
 // 처음 성별 고르기: 캐릭터를 그 묶음으로 정하고 "골랐어요" 표시. 이미 골랐으면 바꾸지 않아요.
+// 표시와 캐릭터 바꾸기를 한 번에 해서, 동시에 두 번 눌러도 먼저 저장된 쪽만 남아요.
 export async function chooseFirstGender(db: D1Database, userId: string, pool: CharacterPool): Promise<boolean> {
   const member = await db.prepare('SELECT gender_chosen_at FROM members WHERE user_id = ?').bind(userId).first<{ gender_chosen_at: string | null }>();
   if (!member || member.gender_chosen_at) return false;
-  await chooseCharacterPool(db, userId, pool);
-  const r = await db.prepare('UPDATE members SET gender_chosen_at = ? WHERE user_id = ? AND gender_chosen_at IS NULL').bind(now(), userId).run();
-  return (r.meta.changes ?? 0) > 0;
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    const r = await retrySigConflict(() => chooseFirstGenderOnce(db, userId, pool));
+    if (r !== 'retry') return r;
+  }
+  return false;
+}
+
+async function chooseFirstGenderOnce(db: D1Database, userId: string, pool: CharacterPool): Promise<boolean | 'retry'> {
+  {
+    const plan = await planCharacterPool(db, userId, pool);
+    const mark = `${now()}#${crypto.randomUUID()}`;
+    const claim = db
+      .prepare(
+        `UPDATE members SET gender_chosen_at = ?1 WHERE user_id = ?2 AND gender_chosen_at IS NULL
+           AND (SELECT character_id FROM profiles WHERE user_id = ?2) IS ?3`,
+      )
+      .bind(mark, userId, plan.before);
+    const steps = [claim];
+    if (!plan.same) {
+      steps.push(
+        db
+          .prepare(
+            `INSERT INTO profiles (user_id, character_id, character_sig, updated_at)
+             SELECT ?1, ?2, ?3, ?4 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND gender_chosen_at = ?5)
+             ON CONFLICT (user_id) DO UPDATE SET character_id = ?2, character_sig = ?3, updated_at = ?4`,
+          )
+          .bind(userId, plan.character, plan.sig, now(), mark),
+      );
+    }
+    await db.batch(steps);
+    const after = await db.prepare('SELECT gender_chosen_at FROM members WHERE user_id = ?').bind(userId).first<{ gender_chosen_at: string | null }>();
+    if (after?.gender_chosen_at === mark) return true;
+    if (after?.gender_chosen_at) return false;
+    // 그 사이 캐릭터가 바뀌었어요(새 캐릭터 배정 등). 다시 계획해요.
+    return 'retry';
+  }
 }
 
 // 상점 "성별 바꾸기": 도감 젤리를 빼고 반대 묶음 캐릭터로 한 번에 바꿔요.
