@@ -102,8 +102,28 @@ export function completion(entries: DogamEntry[]) {
 
 // 캐릭터가 아직 없는 멤버에게 서버 안에서 겹치지 않는 캐릭터를 정해 줘요.
 // 여분 색을 받았던 멤버는 새 디자인이 생기면 그쪽으로 옮겨 줘요.
+// 두 사람이 동시에 같은 캐릭터를 고르면 겹침 검사(유니크 인덱스)에 한쪽이 막혀요. 그때는 다시 읽고 다시 골라요.
+function isSigConflict(e: unknown): boolean {
+  const text = String(e);
+  return text.includes('UNIQUE') && text.includes('character_sig');
+}
+
+async function retrySigConflict<T>(run: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await run();
+    } catch (e) {
+      if (!isSigConflict(e) || attempt >= 5) throw e;
+    }
+  }
+}
+
 export async function assignCharacters(db: D1Database, userIds: string[]) {
   if (userIds.length === 0) return;
+  await retrySigConflict(() => assignCharactersOnce(db, userIds));
+}
+
+async function assignCharactersOnce(db: D1Database, userIds: string[]) {
   const { results: rows } = await db
     .prepare('SELECT user_id, character_id, character_sig FROM profiles WHERE character_sig IS NOT NULL OR user_id IN (SELECT value FROM json_each(?))')
     .bind(JSON.stringify(userIds))
@@ -135,6 +155,10 @@ export async function assignCharacters(db: D1Database, userIds: string[]) {
 
 // 멤버가 소녀/소년 캐릭터를 골랐을 때: 이미 그 묶음이면 그대로, 아니면 그 묶음에서 안 쓰는 캐릭터로 바꿔요.
 export async function chooseCharacterPool(db: D1Database, userId: string, pool: CharacterPool): Promise<string | null> {
+  return retrySigConflict(() => chooseCharacterPoolOnce(db, userId, pool));
+}
+
+async function chooseCharacterPoolOnce(db: D1Database, userId: string, pool: CharacterPool): Promise<string | null> {
   const { results: rows } = await db
     .prepare('SELECT user_id, character_id, character_sig FROM profiles WHERE character_sig IS NOT NULL OR user_id = ?')
     .bind(userId)

@@ -129,6 +129,8 @@ app.post('/api/bot/sync', async (c) => {
   const parsed = parseSync(raw);
   if (!parsed.ok) return c.json({ error: parsed.error }, 400);
   const result = await applySync(c.env.DB, parsed.value);
+  // 서버를 나간 멤버가 광장을 열어 두고 있었다면 끊어요. 먼저 하고, 같은 묶음을 다시 받아도(duplicate) 또 해요.
+  if (result !== 'stale' && parsed.value.removed.length) await plazaStub(c).kick(parsed.value.removed);
   if (result === 'applied') {
     const ids = parsed.value.members.map((m) => m.id);
     await assignCharacters(c.env.DB, ids);
