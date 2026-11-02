@@ -35,6 +35,14 @@ export function getMember(db: D1Database, id: string) {
   return db.prepare('SELECT * FROM members WHERE user_id = ?').bind(id).first<Member>();
 }
 
+// 로그인한 채로 다시 들어와도 '들어온 때'를 남겨요(세션이 시즌보다 길어서). 한 시간에 한 번만 써요.
+export const VISIT_TOUCH_MS = 60 * 60 * 1000;
+export async function touchVisit(db: D1Database, member: Member, nowMs: number) {
+  const last = Date.parse(member.last_login_at ?? '');
+  if (Number.isFinite(last) && nowMs - last < VISIT_TOUCH_MS) return;
+  await db.prepare('UPDATE members SET last_login_at = ? WHERE user_id = ?').bind(new Date(nowMs).toISOString(), member.user_id).run();
+}
+
 // 로그인할 때 디스코드에서 확인한 정보로 멤버를 바로 등록해요. 봇 동기화를 기다리지 않아도 돼요.
 export async function upsertLoginMember(db: D1Database, p: LoginProfile) {
   await db

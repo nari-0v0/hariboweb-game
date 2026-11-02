@@ -33,6 +33,7 @@ import {
   saveProfile,
   setDeco,
   setTheme,
+  touchVisit,
   upsertLoginMember,
 } from './db';
 import { PRICES, canUse, canUseTheme, decoItemId, serviceItem, servicePrice, shopItem } from './shop';
@@ -349,6 +350,7 @@ members.use('*', async (c, next) => {
     return c.redirect('/');
   }
   c.set('viewer', viewer);
+  await touchVisit(c.env.DB, viewer, Date.now());
   // 처음 들어온 멤버는 여자·남자 캐릭터를 골라야 다른 화면으로 갈 수 있어요
   if (!viewer.gender_chosen_at && c.req.path !== '/choose' && c.req.path !== '/api/me/gender') {
     if (c.req.method !== 'GET') return c.text('먼저 캐릭터를 골라 주세요', 403);
