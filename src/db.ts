@@ -263,6 +263,93 @@ export async function buyWithJelly(
   return owned ? 'owned' : 'not_enough_jelly';
 }
 
+// ── 디스코드에 적용되는 물건 ─────────────────────────────
+
+// 내가 산 횟수(완료만)와 아직 봇이 적용 중인 것
+export async function serviceState(db: D1Database, userId: string): Promise<{ bought: Map<string, number>; pending: Set<string> }> {
+  const { results } = await db
+    .prepare(
+      `SELECT item_id, status, COUNT(*) AS n FROM purchases
+       WHERE user_id = ? AND item_id LIKE 'svc:%' AND status IN ('done', 'pending') GROUP BY item_id, status`,
+    )
+    .bind(userId)
+    .all<{ item_id: string; status: string; n: number }>();
+  const bought = new Map<string, number>();
+  const pending = new Set<string>();
+  for (const r of results) {
+    if (r.status === 'done') bought.set(r.item_id, r.n);
+    else pending.add(r.item_id);
+  }
+  return { bought, pending };
+}
+
+// 도감 젤리를 먼저 빼고 봇에게 맡겨요. 같은 물건은 하나가 끝나야 또 살 수 있어요.
+export async function requestService(
+  db: D1Database,
+  userId: string,
+  itemId: string,
+  price: number,
+  bought: number,
+): Promise<'pending' | 'busy' | 'not_enough_jelly' | 'changed'> {
+  const id = crypto.randomUUID();
+  const t = now();
+  await db.batch([
+    db
+      .prepare(
+        `INSERT INTO purchases (id, user_id, item_id, price, status, created_at)
+         SELECT ?1, ?2, ?3, ?4, 'pending', ?5
+         WHERE EXISTS (SELECT 1 FROM profiles WHERE user_id = ?2 AND dogam_jelly >= ?4)
+           AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)
+           AND NOT EXISTS (SELECT 1 FROM purchases WHERE user_id = ?2 AND item_id = ?3 AND status = 'pending')
+           AND (SELECT COUNT(*) FROM purchases WHERE user_id = ?2 AND item_id = ?3 AND status = 'done') = ?6`,
+      )
+      .bind(id, userId, itemId, price, t, bought),
+    db
+      .prepare('UPDATE profiles SET dogam_jelly = dogam_jelly - ?3, updated_at = ?4 WHERE user_id = ?2 AND EXISTS (SELECT 1 FROM purchases WHERE id = ?1)')
+      .bind(id, userId, price, t),
+  ]);
+  if (await db.prepare('SELECT 1 FROM purchases WHERE id = ?').bind(id).first()) return 'pending';
+  const busy = await db.prepare("SELECT 1 FROM purchases WHERE user_id = ? AND item_id = ? AND status = 'pending'").bind(userId, itemId).first();
+  if (busy) return 'busy';
+  // 값을 계산한 뒤에 봇이 앞 구매를 끝냈으면 값이 올랐어요. 새 값으로 다시 계산하게 알려요.
+  const done = await db
+    .prepare("SELECT COUNT(*) AS n FROM purchases WHERE user_id = ? AND item_id = ? AND status = 'done'")
+    .bind(userId, itemId)
+    .first<{ n: number }>();
+  return (done?.n ?? 0) !== bought ? 'changed' : 'not_enough_jelly';
+}
+
+export async function listPendingServices(db: D1Database, limit = 20): Promise<{ id: string; user_id: string; item_id: string }[]> {
+  const { results } = await db
+    .prepare(`SELECT id, user_id, item_id FROM purchases WHERE status = 'pending' AND item_id LIKE 'svc:%' ORDER BY created_at LIMIT ?`)
+    .bind(limit)
+    .all<{ id: string; user_id: string; item_id: string }>();
+  return results;
+}
+
+export const SERVICE_FAIL_REASONS = ['no_penalty', 'no_warning'] as const;
+
+// 봇이 적용한 결과. 실패면 뺀 젤리를 돌려줘요. 이미 끝난 결제는 그대로(두 번 돌려주지 않아요).
+export async function settleService(db: D1Database, id: string, ok: boolean, reason: string | null): Promise<boolean> {
+  const mark = `${now()}#${crypto.randomUUID()}`;
+  if (ok) {
+    const r = await db.prepare("UPDATE purchases SET status = 'done', settled_at = ? WHERE id = ? AND status = 'pending' AND item_id LIKE 'svc:%'").bind(mark, id).run();
+    return (r.meta.changes ?? 0) > 0;
+  }
+  await db.batch([
+    db
+      .prepare("UPDATE purchases SET status = 'failed', reason = ?3, settled_at = ?2 WHERE id = ?1 AND status = 'pending' AND item_id LIKE 'svc:%'")
+      .bind(id, mark, reason),
+    db
+      .prepare(
+        `UPDATE profiles SET dogam_jelly = dogam_jelly + (SELECT price FROM purchases WHERE id = ?1 AND settled_at = ?2), updated_at = ?3
+         WHERE user_id = (SELECT user_id FROM purchases WHERE id = ?1 AND settled_at = ?2)`,
+      )
+      .bind(id, mark, now()),
+  ]);
+  return !!(await db.prepare('SELECT 1 FROM purchases WHERE id = ? AND settled_at = ?').bind(id, mark).first());
+}
+
 // 처음 젤리 선물(계정당 한 번). 이번 호출이 표시를 직접 남겼을 때만 젤리를 더해요.
 export const STARTER_JELLY = 5;
 export async function giveStarterJelly(db: D1Database, userIds: string[]) {

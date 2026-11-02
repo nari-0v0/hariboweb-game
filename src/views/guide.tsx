@@ -35,6 +35,7 @@ export function GuidePage(props: { viewer: Member | null }) {
         <ul>
           <li>카드 테마 {PRICES.theme}개, 꾸밈 캐릭터 {PRICES.deco}개예요.</li>
           <li>판타지 캐릭터는 젤리로 못 사요. 도감 카드를 {REWARD_STEP}장 모을 때마다 하나씩 열려요.</li>
+          <li>벌점·경고 1점 지우기, 닉네임 변경권도 도감 젤리로 살 수 있어요. 하리보봇이 디스코드에 바로 적용해요. 벌점·경고 지우기는 살 때마다 값이 1.5배씩 올라요.</li>
         </ul>
 
         <h2>💛 칭찬하기</h2>

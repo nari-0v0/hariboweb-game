@@ -606,3 +606,10 @@ main.wide { max-width: 1320px; }
 .guide ul { margin: 0; padding-left: 20px; }
 .guide li { margin: 2px 0; overflow-wrap: anywhere; }
 .foot a { color: inherit; }
+
+/* 디스코드 물건(벌점·경고 지우기, 닉네임 변경권) */
+.service-list { display: flex; flex-direction: column; gap: 10px; }
+.service-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 2px solid var(--line, #c9e4f5); border-radius: 10px; background: #fff; }
+.service-item > div { min-width: 0; }
+.service-item .hint { margin: 2px 0 0; }
+.service-item form, .service-item .tag { flex: none; }

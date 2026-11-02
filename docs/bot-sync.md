@@ -81,6 +81,16 @@ Content-Type: application/json
 - 봇이 겜블 지갑에 젤리를 넣은 뒤 `POST /api/bot/refunds/<결제번호>` → `{"ok":true,"changed":true}`. 두 번 불러도 괜찮아요.
 - 봇은 거래번호 `dogam-web-refund:<결제번호>`로 한 번만 넣고, 목록이 비면 멈춰요. 알림(DM·채팅·관리자 로그)은 보내지 않아요.
 
+### 디스코드 물건 (벌점·경고 지우기, 닉네임 변경권)
+
+도감 젤리로 사면 웹이 젤리를 먼저 빼고, 봇이 디스코드(겜블 계정의 벌점·경고·가방)에 적용해요. 겜블 젤리는 쓰지 않아요.
+
+- `GET /api/bot/services` → `{"services":[{"id":"<결제번호>","user":"<디스코드 ID>","kind":"penalty"|"warning"|"nickname"}]}` (한 번에 20개까지)
+  - `penalty`: 벌점 1점 빼기, `warning`: 경고 1점 빼기, `nickname`: 가방에 `nickname_change` 1장 넣기
+- 봇이 적용한 뒤 `POST /api/bot/services/<결제번호>` `{"ok":true}` → 끝남. 지울 게 없으면 `{"ok":false,"reason":"no_penalty"|"no_warning"}` → 웹이 도감 젤리를 돌려줘요.
+- 두 번 불러도 한 번만 처리돼요. 봇은 거래번호 `dogam-svc:<결제번호>`로 같은 결제를 두 번 적용하지 않아요. 잠깐 못 하는 경우(겜블 점검 등)는 결과를 보내지 않고 다음에 다시 해요.
+- 값: 벌점 100, 경고 200(살 때마다 1.5배, 올림), 닉네임 변경권 5. 웹 `src/shop.ts`의 `SERVICES`.
+
 물건 번호는 `theme:<테마>`, `deco:<꾸밈 캐릭터>`이고 값은 웹 `src/shop.ts`에 있어요. 판타지 꾸밈 캐릭터는 젤리로 못 사고 도감 카드 3장마다 하나씩 열려요.
 
 ## 경험치 기준 (제안, 봇에서 정해요)
