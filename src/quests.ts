@@ -113,7 +113,7 @@ const COMBO_WINDOWS: Win[] = DAY_WINDOWS.filter((w) => w.key.startsWith('wd')).f
   HOUR_WINDOWS.filter((h) => h.key === 'evening' || h.key === 'night').map((h) => ({
     key: `${d.key}-${h.key}`,
     name: `${d.name} ${h.name}`,
-    label: `${d.label.trim()} ${h.label}`,
+    label: `${d.name} ${h.label}`,
     hours: h.hours,
     day: d.day,
     share: d.share * h.share,
