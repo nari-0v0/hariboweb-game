@@ -376,6 +376,13 @@ input:not([type=radio]):focus { background: #fff6fa; border-color: var(--pink); 
 .tier-legend { background: linear-gradient(90deg, #ff6f9c, #ffd35a, #7fdcc0, #6fb6ff, #b38cff, #ff6f9c); background-size: 200% 100%; }
 @keyframes rainbow { to { background-position: 200% 0; } }
 
+/* 기본(하리보) 테마 카드는 레벨이 오르면 카드 색도 같이 바뀌어요. 상점에서 산 테마는 그 색을 그대로 지켜요. */
+.theme-basic.tier-silver .c-body { background: linear-gradient(160deg, #eef2f8 0%, #c3cedd 45%, #e6ebf3 60%, #aebbcd 100%); }
+.theme-basic.tier-gold .c-body { background: linear-gradient(160deg, #fff1b3 0%, #f4c64e 45%, #ffe38a 60%, #e0a92e 100%); }
+.theme-basic.tier-sparkle .c-body { background: linear-gradient(160deg, #ffe0f4 0%, #c9a4ff 50%, #ffd1ec 62%, #a98cf0 100%); }
+.theme-basic.tier-holo .c-body { background: linear-gradient(135deg, #ffc6e6 0%, #c6ecff 30%, #d8ffc6 55%, #fff1a8 75%, #e2c6ff 100%); }
+.theme-basic.tier-legend .c-body { background: linear-gradient(135deg, #ff9aa8 0%, #ffd36b 22%, #8de8b0 45%, #8cc8ff 68%, #c39cff 100%); }
+
 .card.unknown .c-avatar { filter: brightness(0); opacity: .35; animation: none; }
 .card.unknown .c-name, .card.unknown .c-stats { opacity: .6; }
 .card.faded { filter: grayscale(1); opacity: .6; }
