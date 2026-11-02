@@ -18,6 +18,14 @@ describe('전체 리뷰 5회차 고침', () => {
     expect(questProgress(QUESTS.find((x) => x.id === 'partners:5')!, bigCtx).done).toBe(false);
   });
 
+  it('사람이 빠져 줄어든 모둠도 남은 사람 수에 맞춰요', () => {
+    const left = ['1', '2', '3', '4'];
+    const pairs = left.flatMap((a, i) => left.slice(i + 1).map((b) => ({ group_no: 0, a, b, minutes: 60 })));
+    // 처음 10명 중 6명이 나가고 4명 남음: 각자 남은 3명과 통화하면 깨요
+    const ctx = { startSize: 10, current: left, startCurrent: left, pairs } as unknown as GroupCtx;
+    expect(questProgress(QUESTS.find((x) => x.id === 'partners:5')!, ctx).done).toBe(true);
+  });
+
   it('단짝 만들기도 만들 수 있는 짝 수보다 많이 요구하지 않아요', () => {
     const q = QUESTS.find((x) => x.id === 'pairs60:10')!;
     // 2명 모둠은 짝이 1쌍뿐이에요

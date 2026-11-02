@@ -187,8 +187,9 @@ const people = (t10: number) => (c: GroupCtx) =>
 const everyone = (c: GroupCtx) => Math.max(1, c.startCurrent.length);
 const fixed = (n: number) => () => n;
 const maxPairs = (c: GroupCtx) => { const k = Math.max(c.startSize, c.current.length); return Math.max(1, (k * (k - 1)) / 2); };
-// 한 사람이 같이 통화할 수 있는 모둠원 수(나 빼고). 작은 모둠에서 못 깨는 목표가 되지 않게 이만큼까지만 요구해요.
-const partnerNeed = (c: GroupCtx, k: number) => Math.max(1, Math.min(k, Math.max(c.startSize, c.current.length) - 1));
+// 한 사람이 같이 통화할 수 있는 모둠원 수(나 빼고, 지금 남아 있는 모둠원 기준).
+// 작은 모둠이나 사람이 빠진 모둠에서 못 깨는 목표가 되지 않게 이만큼까지만 요구해요.
+const partnerNeed = (c: GroupCtx, k: number) => Math.max(1, Math.min(k, c.current.length - 1));
 const capTogether = (k: number, c: GroupCtx) => Math.max(2, Math.min(k, c.current.length));
 
 // ── 퀘스트 만들기 ──
