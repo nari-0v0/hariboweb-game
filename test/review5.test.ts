@@ -11,6 +11,7 @@ describe('전체 리뷰 5회차 고침', () => {
       const q = QUESTS.find((x) => x.id === id)!;
       expect(questProgress(q, ctx).done).toBe(true);
     }
+    expect(QUESTS.find((x) => x.id === 'partners:5')!.text(5, ctx)).toBe('모둠원 모두가 모둠원 4명 이상과 통화');
     // 큰 모둠은 그대로 5명이 필요해요
     const big = Array.from({ length: 10 }, (_, i) => String(i + 1));
     const bigCtx = { startSize: 10, current: big, startCurrent: big, pairs } as unknown as GroupCtx;

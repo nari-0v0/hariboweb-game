@@ -41,7 +41,8 @@ export type Quest = {
   diff: QuestDiff;
   // 내전 퀘스트는 내전이 열릴 때만 뽑아요(SCRIM_QUESTS=1)
   scrim?: boolean;
-  text: (target: number) => string;
+  // c가 있으면 그 모둠에 맞춘 문구(작은 모둠의 짝 수 등)를 보여 줘요.
+  text: (target: number, c?: GroupCtx) => string;
   target: (c: GroupCtx) => number;
   value: (c: GroupCtx) => number;
 };
@@ -323,13 +324,13 @@ for (const [min, n, diff] of [[60, 5, 'normal'], [60, 10, 'hard'], [120, 3, 'nor
 for (const [k, diff] of [[2, 'normal'], [3, 'normal'], [4, 'hard'], [5, 'hard']] as [number, QuestDiff][])
   add({
     id: `partners:${k}`, name: `발 넓은 모둠 ${k}`, cat: '짝', diff,
-    text: () => `모둠원 모두가 모둠원 ${k}명 이상과 통화`,
+    text: (_t, c) => `모둠원 모두가 모둠원 ${c ? partnerNeed(c, k) : k}명 이상과 통화`,
     target: everyone, value: (c) => { const p = partnerCounts(c); const need = partnerNeed(c, k); return countStart(c, (u) => (p.get(u) ?? 0) >= need); },
   });
 for (const [who, k, diff] of [[5, 3, 'easy'], [7, 3, 'normal'], [5, 5, 'normal'], [7, 5, 'hard']] as [number, number, QuestDiff][])
   add({
     id: `partners:${who}:${k}`, name: `친구 사귀기 ${who}·${k}`, cat: '짝', diff,
-    text: (t) => `모둠원 ${t}명 이상이 각자 모둠원 ${k}명 이상과 통화`,
+    text: (t, c) => `모둠원 ${t}명 이상이 각자 모둠원 ${c ? partnerNeed(c, k) : k}명 이상과 통화`,
     target: people(who), value: (c) => { const p = partnerCounts(c); const need = partnerNeed(c, k); return countCurrent(c, (u) => (p.get(u) ?? 0) >= need); },
   });
 

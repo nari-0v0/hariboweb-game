@@ -774,7 +774,7 @@ export async function groupViewFor(db: D1Database, userId: string, nowMs: number
     quests: g.quests.map(({ slot, quest, done_at }) => {
       const p = questProgress(quest, g.ctx);
       const done = !!done_at || p.done;
-      return { slot, name: quest.name, text: quest.text(p.target), cat: quest.cat, diff: quest.diff, reward: QUEST_REWARD[quest.diff], value: done ? p.target : p.value, target: p.target, done };
+      return { slot, name: quest.name, text: quest.text(p.target, g.ctx), cat: quest.cat, diff: quest.diff, reward: QUEST_REWARD[quest.diff], value: done ? p.target : p.value, target: p.target, done };
     }),
     titles: titles.map((r) => r.title),
     ranking: rankGroups(loaded.groups, g.no),
