@@ -1,4 +1,5 @@
 import { MAX_LEVEL, xpForLevel } from './levels';
+import { type Attendance, type RoomMinute, type ScrimRecord, type Season, ensureSeason, evaluateSeason, seasonFrom, seasonStatements } from './season';
 
 // 봇이 보내는 동기화 묶음을 검사하고 D1에 한 번에 반영해요. 자세한 형식은 docs/bot-sync.md
 const ID = /^\d{17,20}$/;
@@ -8,12 +9,19 @@ const MAX_JELLY_EARNED = 100; // 한 묶음에서 한 사람이 받는 도감 �
 
 export type SyncPayload = {
   batch_id: string;
-  members: { id: string; name: string; avatar_url: string | null; joined_at: string | null; is_newbie: boolean }[];
+  members: { id: string; name: string; avatar_url: string | null; joined_at: string | null; is_newbie: boolean; games?: string[] }[];
   removed: string[];
   pair_xp: { a: string; b: string; xp: number; voice_seconds: number; scrims: number; at: string }[];
   solo_xp: { id: string; xp: number }[];
   // 봇이 센 도감 젤리(출석, 하루 통화 등). 겜블 젤리와는 상관없어요.
   jelly_earned: { id: string; amount: number }[];
+  // 시즌 모둠 퀘스트용(없어도 돼요)
+  room_minutes: RoomMinute[];
+  scrims: ScrimRecord[];
+  attendance: Attendance[];
+  season: Season | null;
+  // 서버 멤버 전부를 담은 묶음인지(시즌 모둠은 이런 묶음이 와야 만들어요)
+  full_members: boolean;
 };
 
 type Result = { ok: true; value: SyncPayload } | { ok: false; error: string };
@@ -21,6 +29,10 @@ type Result = { ok: true; value: SyncPayload } | { ok: false; error: string };
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isCount = (v: unknown, max = MAX_XP): v is number => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= max;
 const isTime = (v: unknown): v is string => typeof v === 'string' && !Number.isNaN(Date.parse(v));
+const isDay = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
+const isText = (v: unknown, max: number): v is string => typeof v === 'string' && v.length >= 1 && v.length <= max;
+const isIds = (v: unknown, min: number, max: number): v is string[] =>
+  Array.isArray(v) && v.length >= min && v.length <= max && v.every((x) => typeof x === 'string' && ID.test(x));
 
 function list(raw: Record<string, unknown>, key: string): unknown[] | string {
   const v = raw[key] ?? [];
@@ -35,10 +47,10 @@ export function parseSync(raw: unknown): Result {
   if (typeof batch_id !== 'string' || batch_id.length < 1 || batch_id.length > 100)
     return { ok: false, error: 'batch_id가 필요해요' };
 
-  const lists = ['members', 'removed', 'pair_xp', 'solo_xp', 'jelly_earned'].map((k) => list(raw, k));
+  const lists = ['members', 'removed', 'pair_xp', 'solo_xp', 'jelly_earned', 'room_minutes', 'scrims', 'attendance'].map((k) => list(raw, k));
   const bad = lists.find((l) => typeof l === 'string');
   if (bad) return { ok: false, error: bad as string };
-  const [rawMembers, rawRemoved, rawPairs, rawSolo, rawJelly] = lists as unknown[][];
+  const [rawMembers, rawRemoved, rawPairs, rawSolo, rawJelly, rawRooms, rawScrims, rawAttend] = lists as unknown[][];
 
   const members: SyncPayload['members'] = [];
   for (const m of rawMembers!) {
@@ -51,7 +63,13 @@ export function parseSync(raw: unknown): Result {
     const joined = m.joined_at ?? null;
     if (joined !== null && !isTime(joined)) return { ok: false, error: `members.joined_at이 잘못됐어요 (${m.id})` };
     // members[].jelly(예전 겜블 젤리 잔액)는 더 이상 쓰지 않아서 와도 무시해요
-    members.push({ id: m.id, name: m.name, avatar_url: avatar, joined_at: joined, is_newbie: m.is_newbie === true });
+    let games: string[] | undefined;
+    if (m.games !== undefined) {
+      if (!Array.isArray(m.games) || m.games.length > 30 || !m.games.every((g) => isText(g, 50)))
+        return { ok: false, error: `members.games가 잘못됐어요 (${m.id})` };
+      games = [...new Set(m.games as string[])];
+    }
+    members.push({ id: m.id, name: m.name, avatar_url: avatar, joined_at: joined, is_newbie: m.is_newbie === true, ...(games ? { games } : {}) });
   }
 
   const removed: string[] = [];
@@ -87,7 +105,39 @@ export function parseSync(raw: unknown): Result {
     jelly_earned.push({ id: j.id, amount: j.amount });
   }
 
-  return { ok: true, value: { batch_id, members, removed, pair_xp, solo_xp, jelly_earned } };
+  const room_minutes: RoomMinute[] = [];
+  for (const r of rawRooms!) {
+    if (!isObj(r) || !isTime(r.at) || typeof r.room !== 'string' || !ID.test(r.room) || !isIds(r.members, 2, 99))
+      return { ok: false, error: 'room_minutes가 잘못됐어요' };
+    room_minutes.push({ at: new Date(r.at).toISOString(), room: r.room, members: r.members });
+  }
+
+  const scrims: ScrimRecord[] = [];
+  for (const x of rawScrims!) {
+    if (!isObj(x) || !isText(x.id, 100) || !isText(x.game, 50) || !isTime(x.at) || !isIds(x.members, 1, 100))
+      return { ok: false, error: 'scrims가 잘못됐어요' };
+    scrims.push({ id: x.id, game: x.game, at: new Date(x.at).toISOString(), members: x.members });
+  }
+
+  const attendance: Attendance[] = [];
+  for (const a of rawAttend!) {
+    if (!isObj(a) || typeof a.id !== 'string' || !ID.test(a.id) || !isDay(a.day)) return { ok: false, error: 'attendance가 잘못됐어요' };
+    attendance.push({ id: a.id, day: a.day });
+  }
+
+  let season: Season | null = null;
+  if (raw.season !== undefined && raw.season !== null) {
+    const x = raw.season;
+    if (!isObj(x) || !isTime(x.start) || !isTime(x.end)) return { ok: false, error: 'season이 잘못됐어요' };
+    const span = Date.parse(x.end) - Date.parse(x.start);
+    if (span <= 0 || span > 31 * DAY_MS) return { ok: false, error: 'season 기간이 잘못됐어요' };
+    season = seasonFrom(x.start, x.end);
+  }
+
+  return {
+    ok: true,
+    value: { batch_id, members, removed, pair_xp, solo_xp, jelly_earned, room_minutes, scrims, attendance, season, full_members: raw.full_members === true },
+  };
 }
 
 // 카드가 10레벨을 넘길 때마다 그 카드 주인에게 도감 젤리 3개씩.
@@ -127,24 +177,44 @@ export function isStaleBatch(batchId: string, nowMs: number): boolean {
   return nowMs - ms > SYNC_BATCH_MAX_AGE_DAYS * DAY_MS || ms - nowMs > DAY_MS;
 }
 
-export async function applySync(db: D1Database, p: SyncPayload, nowMs = Date.now()): Promise<'applied' | 'duplicate' | 'stale'> {
+export type SyncOptions = { scrimQuests?: boolean };
+
+export async function applySync(
+  db: D1Database,
+  p: SyncPayload,
+  nowMs = Date.now(),
+  opts: SyncOptions = {},
+): Promise<'applied' | 'duplicate' | 'stale'> {
   const t = new Date(nowMs).toISOString();
   if (isStaleBatch(p.batch_id, nowMs)) return 'stale';
   const seen = await db.prepare('SELECT 1 FROM sync_batches WHERE batch_id = ?').bind(p.batch_id).first();
   if (seen) return 'duplicate';
 
+  const upsertMember = db.prepare(
+    `INSERT INTO members (user_id, display_name, avatar_url, joined_at, is_newbie, active, updated_at, games)
+     VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, COALESCE(?7, '[]'))
+     ON CONFLICT (user_id) DO UPDATE SET display_name = ?2, avatar_url = ?3,
+       joined_at = COALESCE(?4, joined_at), is_newbie = ?5, active = 1, updated_at = ?6, games = COALESCE(?7, games)`,
+  );
+  const memberStmts = p.members.map((m) =>
+    upsertMember.bind(m.id, m.name, m.avatar_url, m.joined_at, m.is_newbie ? 1 : 0, t, m.games ? JSON.stringify(m.games) : null),
+  );
+
+  // 시즌 모둠: 서버 멤버 전부가 담긴 묶음이면 멤버(게임 역할)를 먼저 적고, 처음 보는 시즌이면 모둠을 만들어요.
+  // 멤버 적기는 덮어쓰기라 아래 묶음에서 한 번 더 해도 같아요.
+  if (p.season && p.full_members && Date.parse(p.season.start) <= nowMs && nowMs < Date.parse(p.season.end)) {
+    const exists = await db.prepare('SELECT 1 FROM seasons WHERE id = ?').bind(p.season.id).first();
+    if (!exists) {
+      if (memberStmts.length) await db.batch(memberStmts);
+      await ensureSeason(db, p.season, nowMs, { scrim: opts.scrimQuests });
+    }
+  }
+
   const stmts: D1PreparedStatement[] = [
     db.prepare('INSERT INTO sync_batches (batch_id, applied_at) VALUES (?, ?)').bind(p.batch_id, t),
     db.prepare('DELETE FROM sync_batches WHERE applied_at < ?').bind(new Date(nowMs - SYNC_BATCH_KEEP_DAYS * DAY_MS).toISOString()),
+    ...memberStmts,
   ];
-
-  const upsertMember = db.prepare(
-    `INSERT INTO members (user_id, display_name, avatar_url, joined_at, is_newbie, active, updated_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6)
-     ON CONFLICT (user_id) DO UPDATE SET display_name = ?2, avatar_url = ?3,
-       joined_at = COALESCE(?4, joined_at), is_newbie = ?5, active = 1, updated_at = ?6`,
-  );
-  for (const m of p.members) stmts.push(upsertMember.bind(m.id, m.name, m.avatar_url, m.joined_at, m.is_newbie ? 1 : 0, t));
 
   const addPair = db.prepare(
     `INSERT INTO cards (owner_id, target_id, xp, voice_seconds, scrims, first_met, updated_at)
@@ -198,11 +268,22 @@ export async function applySync(db: D1Database, p: SyncPayload, nowMs = Date.now
     stmts.push(db.prepare("UPDATE purchases SET status = 'failed', reason = 'left' WHERE user_id = ? AND status = 'pending'").bind(id));
   }
 
+  // 시즌 모둠 기록(통화방 1분, 내전, 출석)도 같은 트랜잭션에. 묶음이 한 번만 반영되니까 두 번 세지 않아요.
+  stmts.push(...(await seasonStatements(db, p, nowMs)));
+
   try {
     await db.batch(stmts);
   } catch (e) {
     if (String(e).includes('UNIQUE') && String(e).includes('sync_batches')) return 'duplicate';
     throw e;
+  }
+  // 다 채운 퀘스트 확인(실패해도 동기화는 끝났어요. 다음 묶음 때 다시 확인해요)
+  if (p.season) {
+    try {
+      await evaluateSeason(db, p.season.id, nowMs);
+    } catch (e) {
+      console.error('시즌 퀘스트 확인 실패', e);
+    }
   }
   return 'applied';
 }

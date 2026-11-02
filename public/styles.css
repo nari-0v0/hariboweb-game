@@ -548,3 +548,19 @@ main.wide { max-width: 1320px; }
 .plaza-room-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .plaza-room-count { color: var(--ink-soft); font-size: .8rem; }
 .plaza-room-who { grid-column: 1 / -1; color: var(--ink-soft); font-size: .8rem; overflow-wrap: anywhere; }
+
+/* 우리 모둠 */
+.group-members { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.group-members li { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; background: #fff; border: 3px solid var(--ink); clip-path: var(--notch); }
+.group-members a { color: var(--ink); text-decoration: none; }
+.quest-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 14px; margin: 16px 0; }
+.quest { padding: 16px; }
+.quest h2 { font-size: 1rem; margin: 8px 0 4px; }
+.quest p { margin: 0 0 10px; font-size: .9rem; overflow-wrap: anywhere; }
+.quest-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.quest-head .jelly { margin-left: auto; font-size: .85rem; }
+.quest-count { text-align: right; font-size: .85rem; }
+.quest.done { background: #e9fbef; }
+.diff-easy { background: #d6f7e4; }
+.diff-normal { background: #d8ecff; }
+.diff-hard { background: #ffe0e6; }

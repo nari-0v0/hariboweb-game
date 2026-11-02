@@ -35,6 +35,8 @@ import { cardPalette } from './palette';
 import { CardPage, DogamPage, LandingPage, MePage, MessagePage } from './views/pages';
 import { ShopPage } from './views/shop';
 import { PlazaPage } from './views/plaza';
+import { GroupPage } from './views/group';
+import { groupViewFor } from './season';
 
 export { PlazaRoom } from './plaza-room';
 
@@ -133,7 +135,7 @@ app.post('/api/bot/sync', async (c) => {
   }
   const parsed = parseSync(raw);
   if (!parsed.ok) return c.json({ error: parsed.error }, 400);
-  const result = await applySync(c.env.DB, parsed.value);
+  const result = await applySync(c.env.DB, parsed.value, Date.now(), { scrimQuests: c.env.SCRIM_QUESTS === '1' });
   // 서버를 나간 멤버가 광장을 열어 두고 있었다면 끊어요. 먼저 하고, 같은 묶음을 다시 받아도(duplicate) 또 해요.
   if (result !== 'stale' && parsed.value.removed.length) await plazaStub(c).kick(parsed.value.removed);
   if (result === 'applied') {
@@ -218,6 +220,25 @@ app.post('/api/bot/praise', async (c) => {
   }
   if (!isDiscordId(body.from) || !isDiscordId(body.to)) return c.json({ error: 'bad_id' }, 400);
   return c.json(await givePraise(c.env.DB, body.from, body.to));
+});
+
+// 디스코드 고정 패널 "우리 모둠". 이번 시즌 모둠원과 퀘스트 진행도.
+app.get('/api/bot/group/:id', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  const id = c.req.param('id');
+  if (!isDiscordId(id)) return c.json({ error: 'bad_id' }, 400);
+  const view = await groupViewFor(c.env.DB, id, Date.now());
+  if (!view) return c.json({ group: null, page_url: baseUrl(c) + '/group' });
+  return c.json({
+    group: {
+      no: view.groupNo + 1,
+      season: { start: view.season.start, end: view.season.end },
+      members: view.members.map((m) => ({ id: m.id, name: m.name, late: !m.start })),
+      quests: view.quests.map((q) => ({ name: q.name, text: q.text, diff: q.diff, reward: q.reward, value: q.value, target: q.target, done: q.done })),
+      titles: view.titles,
+    },
+    page_url: baseUrl(c) + '/group',
+  });
 });
 
 // 광장 실시간 연결(봇). 통화방 모습과 통화방 채팅을 보내고, 방 옮기기 요청을 받아요.
@@ -371,6 +392,11 @@ members.get('/card/:userId', async (c) => {
   const [entry, target] = await Promise.all([getOwnedCard(c.env.DB, owner.user_id, targetId), getMember(c.env.DB, targetId)]);
   if (!entry || !target) return notFound();
   return page(c, <CardPage viewer={viewer} owner={owner} target={target} entry={entry} />);
+});
+
+members.get('/group', async (c) => {
+  const viewer = c.get('viewer');
+  return page(c, <GroupPage viewer={viewer} view={await groupViewFor(c.env.DB, viewer.user_id, Date.now())} />);
 });
 
 members.get('/plaza', (c) => page(c, <PlazaPage viewer={c.get('viewer')} guildId={c.env.GUILD_ID} />));
