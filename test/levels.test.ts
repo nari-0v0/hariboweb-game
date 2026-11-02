@@ -19,7 +19,7 @@ describe('levels', () => {
   it('names and tiers follow the plan', () => {
     expect([1, 10, 30, 60, 100].map(levelName)).toEqual(['첫 만남', '친구', '절친', '단짝', '평생 단짝']);
     expect([9, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(tierFor)).toEqual([
-      'plain', 'silver', 'gold', 'mint', 'sky', 'lavender', 'rose', 'holo', 'night', 'aurora', 'legend',
+      'plain', 'silver', 'gold', 'mint', 'sky', 'lavender', 'rose', 'sunset', 'night', 'ruby', 'legend',
     ]);
     expect(tierEffects(9)).toEqual([]);
     expect(tierEffects(10)).toEqual(['ring-silver']);
