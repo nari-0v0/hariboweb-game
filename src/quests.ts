@@ -186,6 +186,8 @@ const people = (t10: number) => (c: GroupCtx) =>
 const everyone = (c: GroupCtx) => Math.max(1, c.startCurrent.length);
 const fixed = (n: number) => () => n;
 const maxPairs = (c: GroupCtx) => { const k = Math.max(c.startSize, c.current.length); return Math.max(1, (k * (k - 1)) / 2); };
+// 한 사람이 같이 통화할 수 있는 모둠원 수(나 빼고). 작은 모둠에서 못 깨는 목표가 되지 않게 이만큼까지만 요구해요.
+const partnerNeed = (c: GroupCtx, k: number) => Math.max(1, Math.min(k, Math.max(c.startSize, c.current.length) - 1));
 const capTogether = (k: number, c: GroupCtx) => Math.max(2, Math.min(k, c.current.length));
 
 // ── 퀘스트 만들기 ──
@@ -316,19 +318,19 @@ for (const [min, n, diff] of [[60, 5, 'normal'], [60, 10, 'hard'], [120, 3, 'nor
   add({
     id: `pairs${min}:${n}`, name: `단짝 만들기 ${hours(min)}`, cat: '짝', diff,
     text: (t) => `모둠 안에서 ${hours(min)} 넘게 같이 통화한 짝 ${t}쌍`,
-    target: scaled(n), value: (c) => c.pairs.filter((p) => p.minutes >= min).length,
+    target: (c) => Math.min(scaled(n)(c), maxPairs(c)), value: (c) => c.pairs.filter((p) => p.minutes >= min).length,
   });
 for (const [k, diff] of [[2, 'normal'], [3, 'normal'], [4, 'hard'], [5, 'hard']] as [number, QuestDiff][])
   add({
     id: `partners:${k}`, name: `발 넓은 모둠 ${k}`, cat: '짝', diff,
     text: () => `모둠원 모두가 모둠원 ${k}명 이상과 통화`,
-    target: everyone, value: (c) => { const p = partnerCounts(c); return countStart(c, (u) => (p.get(u) ?? 0) >= k); },
+    target: everyone, value: (c) => { const p = partnerCounts(c); const need = partnerNeed(c, k); return countStart(c, (u) => (p.get(u) ?? 0) >= need); },
   });
 for (const [who, k, diff] of [[5, 3, 'easy'], [7, 3, 'normal'], [5, 5, 'normal'], [7, 5, 'hard']] as [number, number, QuestDiff][])
   add({
     id: `partners:${who}:${k}`, name: `친구 사귀기 ${who}·${k}`, cat: '짝', diff,
     text: (t) => `모둠원 ${t}명 이상이 각자 모둠원 ${k}명 이상과 통화`,
-    target: people(who), value: (c) => { const p = partnerCounts(c); return countCurrent(c, (u) => (p.get(u) ?? 0) >= k); },
+    target: people(who), value: (c) => { const p = partnerCounts(c); const need = partnerNeed(c, k); return countCurrent(c, (u) => (p.get(u) ?? 0) >= need); },
   });
 
 // 7) 이어서 통화, 방, 연속

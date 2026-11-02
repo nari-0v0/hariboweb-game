@@ -280,7 +280,10 @@ export async function seasonStatements(db: D1Database, p: SeasonPayload, nowMs: 
 export async function seasonTargets(db: D1Database, p: SeasonPayload): Promise<{ season: Season; join: boolean }[]> {
   const out: { season: Season; join: boolean }[] = [];
   if (p.season && (await db.prepare('SELECT 1 FROM seasons WHERE id = ?').bind(p.season.id).first())) out.push({ season: p.season, join: true });
-  const times = [...p.room_minutes.map((r) => r.at), ...p.scrims.map((s) => s.at)].map((x) => Date.parse(x)).filter(Number.isFinite);
+  // 출석은 날짜(한국 시간)만 오므로 그날 0시로 봐요.
+  const times = [...p.room_minutes.map((r) => r.at), ...p.scrims.map((s) => s.at), ...p.attendance.map((a) => `${a.day}T00:00:00+09:00`)]
+    .map((x) => Date.parse(x))
+    .filter(Number.isFinite);
   if (!times.length) return out;
   const earliest = new Date(Math.min(...times)).toISOString();
   if (p.season && earliest >= p.season.start) return out;
