@@ -16,6 +16,7 @@ const NOTICES: Record<string, PopupLine[]> = {
   not_enough_jelly: [{ title: '구매 실패', text: '도감 젤리가 부족해서 구매하지 못했습니다.', bad: true }],
   service_pending: [{ title: '구매 완료', text: '구매가 완료되었습니다. 하리보봇이 곧 디스코드에 적용해요(1분 안쪽).' }],
   gender_same: [{ title: '알림', text: '이미 그 성별 캐릭터예요.' }],
+  price_changed: [{ title: '알림', text: '그 사이 값이 바뀌었어요. 새 값을 확인하고 다시 사 주세요.' }],
   service_busy: [{ title: '알림', text: '앞서 산 것을 하리보봇이 아직 적용하는 중이에요. 끝나면 다시 살 수 있어요.' }],
   error: [
     { title: '오류', text: '오류가 발생하였습니다.', bad: true },
@@ -212,6 +213,7 @@ export function ShopPage(props: {
                     ) : (
                       <form method="post" action="/api/shop/service">
                         <input type="hidden" name="item" value={item.id} />
+                        <input type="hidden" name="price" value={String(price)} />
                         <button class="btn btn-small btn-buy" type="submit">
                           🍬 {price}
                         </button>
