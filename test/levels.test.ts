@@ -5,15 +5,15 @@ describe('levels', () => {
   it('starts at level 1 and reaches each threshold exactly', () => {
     expect(levelFromXp(0)).toBe(1);
     expect(levelFromXp(-5)).toBe(1);
-    for (let l = 1; l <= 50; l++) {
+    for (let l = 1; l <= 100; l++) {
       expect(levelFromXp(xpForLevel(l))).toBe(l);
       if (l > 1) expect(levelFromXp(xpForLevel(l) - 1)).toBe(l - 1);
     }
   });
 
-  it('caps at 50', () => {
-    expect(levelFromXp(10_000_000)).toBe(50);
-    expect(progress(10_000_000)).toMatchObject({ level: 50, next: null, ratio: 1 });
+  it('caps at 100', () => {
+    expect(levelFromXp(10_000_000)).toBe(100);
+    expect(progress(10_000_000)).toMatchObject({ level: 100, next: null, ratio: 1 });
   });
 
   it('names and tiers follow the plan', () => {

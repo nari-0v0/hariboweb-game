@@ -1,5 +1,5 @@
 // 레벨 L에 도달하는 데 필요한 누적 경험치: 30 × (L-1)²
-export const MAX_LEVEL = 50;
+export const MAX_LEVEL = 100;
 
 export function xpForLevel(level: number): number {
   return 30 * (level - 1) ** 2;
