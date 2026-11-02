@@ -37,6 +37,8 @@ import { ShopPage } from './views/shop';
 import { PlazaPage } from './views/plaza';
 import { GroupPage } from './views/group';
 import { groupViewFor } from './season';
+import { grantBingo, markFlag, myBingo, weekOf, LINE_JELLY, LINE_XP, FULL_JELLY } from './bingo';
+import { BingoPage } from './views/bingo';
 
 export { PlazaRoom } from './plaza-room';
 
@@ -179,6 +181,8 @@ app.get('/api/bot/card/:id', async (c) => {
     getBestCard(c.env.DB, id),
     praiseToday(c.env.DB, id),
   ]);
+  // 주간 빙고 "패널에서 내 카드 열기" 칸(실패해도 카드는 보여 줘요)
+  await markFlag(c.env.DB, id, 'panel', Date.now()).catch((e) => console.error('빙고 표시 실패', e));
   const p = progress(profile.solo_xp);
   const tier = tierFor(p.level);
   const base = baseUrl(c);
@@ -219,7 +223,35 @@ app.post('/api/bot/praise', async (c) => {
     return c.json({ error: 'JSON이 아니에요' }, 400);
   }
   if (!isDiscordId(body.from) || !isDiscordId(body.to)) return c.json({ error: 'bad_id' }, 400);
-  return c.json(await givePraise(c.env.DB, body.from, body.to));
+  const result = await givePraise(c.env.DB, body.from, body.to);
+  // 칭찬 주기·받기 빙고 칸이 채워졌으면 줄 보상을 줘요(실패해도 칭찬은 끝났어요)
+  if (result.result === 'done') {
+    const now = Date.now();
+    await grantBingo(c.env.DB, weekOf(now), [body.from, body.to], now).catch((e) => console.error('빙고 보상 확인 실패', e));
+  }
+  return c.json(result);
+});
+
+// 디스코드 고정 패널 "이번 주 빙고". 보는 김에 채운 줄 보상도 줘요.
+app.get('/api/bot/bingo/:id', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  const id = c.req.param('id');
+  const member = isDiscordId(id) ? await getMember(c.env.DB, id) : null;
+  if (!member || !member.active) return c.json({ error: 'not_member' }, 404);
+  const view = await myBingo(c.env.DB, id, Date.now());
+  if (!view) return c.json({ error: 'not_member' }, 404);
+  return c.json({
+    name: member.display_name,
+    week: { start: view.week.start, end: view.week.end },
+    cells: view.cells.map((x) => ({ icon: x.icon, text: x.text, diff: x.diff, value: x.value, target: x.target, done: x.done, unit: x.unit ?? null })),
+    lines: view.lines,
+    filled: view.filled,
+    full: view.full,
+    jelly: view.jelly,
+    xp: view.xp,
+    rewards: { line_jelly: LINE_JELLY, line_xp: LINE_XP, full_jelly: FULL_JELLY },
+    page_url: baseUrl(c) + '/bingo',
+  });
 });
 
 // 디스코드 고정 패널 "우리 모둠". 이번 시즌 모둠원과 퀘스트 진행도.
@@ -266,6 +298,8 @@ members.use('*', async (c, next) => {
 
 members.get('/me', async (c) => {
   const viewer = c.get('viewer');
+  // 주간 빙고 "웹 도감에서 내 카드 보기" 칸
+  await markFlag(c.env.DB, viewer.user_id, 'web', Date.now()).catch((e) => console.error('빙고 표시 실패', e));
   const [profile, entries, items] = await Promise.all([
     getProfile(c.env.DB, viewer.user_id),
     listDogam(c.env.DB, viewer.user_id),
@@ -397,6 +431,11 @@ members.get('/card/:userId', async (c) => {
 members.get('/group', async (c) => {
   const viewer = c.get('viewer');
   return page(c, <GroupPage viewer={viewer} view={await groupViewFor(c.env.DB, viewer.user_id, Date.now())} />);
+});
+
+members.get('/bingo', async (c) => {
+  const viewer = c.get('viewer');
+  return page(c, <BingoPage viewer={viewer} view={await myBingo(c.env.DB, viewer.user_id, Date.now())} />);
 });
 
 members.get('/plaza', (c) => page(c, <PlazaPage viewer={c.get('viewer')} guildId={c.env.GUILD_ID} />));

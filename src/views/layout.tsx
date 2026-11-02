@@ -1,7 +1,7 @@
 import type { Child } from 'hono/jsx';
 import type { Member } from '../env';
 
-type NavKey = 'me' | 'dogam' | 'shop' | 'plaza' | 'group';
+type NavKey = 'me' | 'dogam' | 'shop' | 'plaza' | 'group' | 'bingo';
 
 export function Layout(props: {
   title: string;
@@ -45,6 +45,7 @@ export function Layout(props: {
               {nav('me', '/me', '내 카드')}
               {nav('dogam', '/dogam', '도감')}
               {nav('group', '/group', '모둠')}
+              {nav('bingo', '/bingo', '빙고')}
               {nav('plaza', '/plaza', '광장')}
               {nav('shop', '/shop', '상점')}
               <form method="post" action="/auth/logout">
