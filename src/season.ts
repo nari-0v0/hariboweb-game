@@ -710,7 +710,7 @@ export async function groupViewFor(db: D1Database, userId: string, nowMs: number
   const row = await db
     .prepare(
       `SELECT s.season_id, s.group_no FROM season_members s JOIN seasons x ON x.id = s.season_id
-       WHERE s.user_id = ? AND s.left_at IS NULL AND x.starts_at <= ? ORDER BY x.id DESC LIMIT 1`,
+       WHERE s.user_id = ?1 AND s.left_at IS NULL AND x.starts_at <= ?2 AND x.ends_at > ?2 ORDER BY x.id DESC LIMIT 1`,
     )
     .bind(userId, now)
     .first<{ season_id: string; group_no: number }>();
