@@ -185,6 +185,7 @@ const people = (t10: number) => (c: GroupCtx) =>
   Math.max(1, Math.min(c.current.length, Math.round((t10 * Math.max(1, c.current.length)) / 10)));
 const everyone = (c: GroupCtx) => Math.max(1, c.startCurrent.length);
 const fixed = (n: number) => () => n;
+const maxPairs = (c: GroupCtx) => { const k = Math.max(c.startSize, c.current.length); return Math.max(1, (k * (k - 1)) / 2); };
 const capTogether = (k: number, c: GroupCtx) => Math.max(2, Math.min(k, c.current.length));
 
 // ── 퀘스트 만들기 ──
@@ -308,7 +309,8 @@ for (const [n, diff] of [[5, 'easy'], [10, 'easy'], [15, 'normal'], [20, 'normal
   add({
     id: `pairs:${n}`, name: `짝꿍 ${n}쌍`, cat: '짝', diff,
     text: (t) => `모둠 안에서 같이 통화한 짝 ${t}쌍`,
-    target: scaled(n), value: (c) => c.pairs.filter((p) => p.minutes >= PAIR_MINUTES).length,
+    // 사람 수로 만들 수 있는 짝보다 많이 요구하지 않아요(7명이면 21쌍이 최대)
+    target: (c) => Math.min(scaled(n)(c), maxPairs(c)), value: (c) => c.pairs.filter((p) => p.minutes >= PAIR_MINUTES).length,
   });
 for (const [min, n, diff] of [[60, 5, 'normal'], [60, 10, 'hard'], [120, 3, 'normal'], [120, 6, 'hard'], [30, 10, 'normal']] as [number, number, QuestDiff][])
   add({

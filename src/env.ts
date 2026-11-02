@@ -22,6 +22,7 @@ export type Member = {
   is_newbie: number;
   active: number;
   gender_chosen_at?: string | null; // 처음 성별(여자·남자 캐릭터)을 고른 때
+  last_login_at?: string | null; // 마지막으로 로그인하거나 들어온 때(모둠 퀘스트 '접속'에 써요)
 };
 
 export type AppEnv = { Bindings: Env; Variables: { viewer: Member } };
