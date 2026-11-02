@@ -21,6 +21,7 @@ export type Member = {
   joined_at: string | null;
   is_newbie: number;
   active: number;
+  gender_chosen_at?: string | null; // 처음 성별(여자·남자 캐릭터)을 고른 때
 };
 
 export type AppEnv = { Bindings: Env; Variables: { viewer: Member } };

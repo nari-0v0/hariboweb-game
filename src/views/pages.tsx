@@ -147,21 +147,13 @@ export function MePage(props: { viewer: Member; profile: Profile; items: Set<str
           <section class="panel">
             <h2>카드 꾸미기</h2>
             {props.saved && <p class="notice ok">저장했어요!</p>}
-            <form method="post" action="/api/me/character" class="pool-pick">
+            <div class="pool-pick">
               <span class="pool-label">내 캐릭터</span>
-              {(['girl', 'boy'] as const).map((pool) => (
-                <button
-                  type="submit"
-                  name="pool"
-                  value={pool}
-                  class={poolOf(profile.character_id) === pool ? 'btn pool on' : 'btn pool'}
-                  aria-pressed={poolOf(profile.character_id) === pool ? 'true' : 'false'}
-                >
-                  {pool === 'girl' ? '여자' : '남자'}
-                </button>
-              ))}
-              <small class="hint">바꾸면 그 쪽에서 아직 아무도 안 쓰는 캐릭터가 새로 정해져요.</small>
-            </form>
+              <span class="btn pool on">{poolOf(profile.character_id) === 'boy' ? '남자' : '여자'}</span>
+              <small class="hint">
+                성별은 <a href="/shop#gender">젤리 상점</a>의 "성별 바꾸기"로 바꿀 수 있어요.
+              </small>
+            </div>
             <form method="post" action="/api/me/profile" class="stack">
               <label class="field">
                 <span>한 줄 소개</span>

@@ -1,6 +1,7 @@
 import type { Profile, Purchase } from '../db';
 import type { Member } from '../env';
-import { SERVICES, SHOP_ITEMS, canUse, serviceItem, servicePrice, type ShopItem } from '../shop';
+import { PRICES, SERVICES, SHOP_ITEMS, canUse, serviceItem, servicePrice, type ShopItem } from '../shop';
+import { poolOf } from '../character';
 import { Card } from './card';
 import { Layout } from './layout';
 
@@ -14,6 +15,7 @@ const NOTICES: Record<string, PopupLine[]> = {
   locked: [{ title: '알림', text: '아직 사용할 수 없는 물건입니다.' }],
   not_enough_jelly: [{ title: '구매 실패', text: '도감 젤리가 부족해서 구매하지 못했습니다.', bad: true }],
   service_pending: [{ title: '구매 완료', text: '구매가 완료되었습니다. 하리보봇이 곧 디스코드에 적용해요(1분 안쪽).' }],
+  gender_same: [{ title: '알림', text: '이미 그 성별 캐릭터예요.' }],
   price_changed: [{ title: '알림', text: '그 사이 값이 바뀌었어요. 새 값을 확인하고 다시 사 주세요.' }],
   service_busy: [{ title: '알림', text: '앞서 산 것을 하리보봇이 아직 적용하는 중이에요. 끝나면 다시 살 수 있어요.' }],
   error: [
@@ -134,7 +136,7 @@ export function ShopPage(props: {
   const themes = SHOP_ITEMS.filter((i) => i.kind === 'theme');
   const decoBuy = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price !== null);
   const decoReward = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price === null);
-  const nameOf = (id: string) => SHOP_ITEMS.find((i) => i.id === id)?.name ?? serviceItem(id)?.name ?? id;
+  const nameOf = (id: string) => SHOP_ITEMS.find((i) => i.id === id)?.name ?? serviceItem(id)?.name ?? (id === 'change:gender' ? '성별 바꾸기' : id);
   const popup = props.results.flatMap((p) => resultLines(p, nameOf(p.item_id)));
   const notice = props.notice ? NOTICES[props.notice] : undefined;
   if (notice && !popup.length) popup.push(...notice);
@@ -178,6 +180,19 @@ export function ShopPage(props: {
               도감 젤리는 이 도감에서만 쓰는 젤리예요. 겜블 젤리와는 따로라서 겜블 지갑에서는 빠지지 않아요.
             </p>
             <p class="hint">모으는 법: {JELLY_HOWTO}</p>
+          </section>
+
+          <section class="panel" id="gender">
+            <h2>성별 바꾸기</h2>
+            <div class="service-item">
+              <div>
+                <span class="shop-name">{poolOf(profile.character_id) === 'boy' ? '남자 → 여자' : '여자 → 남자'} 캐릭터로 바꾸기</span>
+                <p class="hint">바꾸기 전에 새 캐릭터를 미리 볼 수 있어요.</p>
+              </div>
+              <a class="btn btn-small btn-buy" href="/shop/gender">
+                🍬 {PRICES.gender}
+              </a>
+            </div>
           </section>
 
           <section class="panel">

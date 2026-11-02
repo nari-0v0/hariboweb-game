@@ -5,7 +5,9 @@ import { randomToken, safeEqual, signSession, verifySession } from './crypto';
 import { authorizeUrl, exchangeCode, fetchGuildProfile, type LoginProfile } from './discord';
 import {
   assignCharacters,
-  chooseCharacterPool,
+  buyGenderChange,
+  chooseFirstGender,
+  planCharacterPool,
   completion,
   countOwnedCards,
   getMember,
@@ -33,8 +35,9 @@ import {
   setTheme,
   upsertLoginMember,
 } from './db';
-import { canUse, canUseTheme, decoItemId, serviceItem, servicePrice, shopItem } from './shop';
-import { characterUrl, isCharacterPool } from './character';
+import { PRICES, canUse, canUseTheme, decoItemId, serviceItem, servicePrice, shopItem } from './shop';
+import { ChoosePage, GenderChangePage } from './views/choose';
+import { characterUrl, isCharacterPool, poolOf } from './character';
 import { applySync, parseSync } from './sync';
 import { levelName, progress, tierFor, tierLabel } from './levels';
 import { cardPalette } from './palette';
@@ -346,7 +349,34 @@ members.use('*', async (c, next) => {
     return c.redirect('/');
   }
   c.set('viewer', viewer);
+  // 처음 들어온 멤버는 여자·남자 캐릭터를 골라야 다른 화면으로 갈 수 있어요
+  if (!viewer.gender_chosen_at && c.req.path !== '/choose' && c.req.path !== '/api/me/gender') {
+    if (c.req.method !== 'GET') return c.text('먼저 캐릭터를 골라 주세요', 403);
+    return c.redirect('/choose');
+  }
   await next();
+});
+
+members.get('/choose', async (c) => {
+  const viewer = c.get('viewer');
+  if (viewer.gender_chosen_at) return c.redirect('/me');
+  const pick = c.req.query('pick');
+  const [girl, boy] = await Promise.all([
+    planCharacterPool(c.env.DB, viewer.user_id, 'girl'),
+    planCharacterPool(c.env.DB, viewer.user_id, 'boy'),
+  ]);
+  return page(
+    c,
+    <ChoosePage viewer={viewer} previews={{ girl: girl.character, boy: boy.character }} pick={isCharacterPool(pick) ? pick : undefined} />,
+  );
+});
+
+members.post('/api/me/gender', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const pool = (await c.req.parseBody()).pool;
+  if (!isCharacterPool(pool)) return c.redirect('/choose');
+  await chooseFirstGender(c.env.DB, c.get('viewer').user_id, pool);
+  return c.redirect('/me');
 });
 
 members.get('/me', async (c) => {
@@ -378,14 +408,8 @@ members.post('/api/me/profile', async (c) => {
   return c.redirect('/me?saved=1');
 });
 
-members.post('/api/me/character', async (c) => {
-  const origin = c.req.header('Origin');
-  if (origin && origin !== new URL(c.req.url).origin) return c.text('잘못된 요청이에요', 403);
-  const pool = (await c.req.parseBody()).pool;
-  if (!isCharacterPool(pool)) return c.text('소녀나 소년 중에 골라 주세요', 400);
-  await chooseCharacterPool(c.env.DB, c.get('viewer').user_id, pool);
-  return c.redirect('/me?saved=1');
-});
+// 예전 "여자/남자" 무료 바꾸기 버튼. 이제는 상점의 "성별 바꾸기"로 바꿔요.
+members.post('/api/me/character', (c) => c.redirect('/shop#gender'));
 
 const sameOrigin = (c: Context<AppEnv>) => {
   const origin = c.req.header('Origin');
@@ -425,6 +449,29 @@ members.post('/api/shop/buy', async (c) => {
   }
   // 산 물건은 결과 팝업("구매가 완료되었습니다")으로, 못 산 이유는 안내 팝업으로 보여 줘요
   return c.redirect(result === 'done' ? '/shop' : `/shop?n=${result}`);
+});
+
+// 성별 바꾸기: 확인 화면(미리보기) → 도감 젤리로 사요
+members.get('/shop/gender', async (c) => {
+  const viewer = c.get('viewer');
+  const profile = await getProfile(c.env.DB, viewer.user_id);
+  const to = poolOf(profile.character_id) === 'boy' ? 'girl' : 'boy';
+  const plan = await planCharacterPool(c.env.DB, viewer.user_id, to);
+  return page(c, <GenderChangePage viewer={viewer} to={to} character={plan.character} jelly={profile.dogam_jelly} />);
+});
+
+members.post('/api/shop/gender', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const pool = (await c.req.parseBody()).pool;
+  if (!isCharacterPool(pool)) return c.redirect('/shop?n=error');
+  let result: Awaited<ReturnType<typeof buyGenderChange>>;
+  try {
+    result = await buyGenderChange(c.env.DB, c.get('viewer').user_id, pool, PRICES.gender);
+  } catch (e) {
+    console.error('성별 바꾸기 실패', e);
+    return c.redirect('/shop?n=error');
+  }
+  return c.redirect(result === 'done' ? '/shop' : result === 'same' ? '/shop?n=gender_same' : '/shop?n=not_enough_jelly');
 });
 
 // 벌점·경고 지우기, 닉네임 변경권: 도감 젤리를 빼고 봇이 디스코드 쪽에 적용해요
