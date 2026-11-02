@@ -271,10 +271,37 @@ export async function seasonStatements(db: D1Database, p: SeasonPayload, nowMs: 
         .bind(t, JSON.stringify([...removed])),
     );
 
-  const season = p.season;
-  if (!season) return stmts;
-  const row = await db.prepare('SELECT 1 FROM seasons WHERE id = ?').bind(season.id).first();
-  if (!row) return stmts;
+  for (const { season, join } of await seasonTargets(db, p)) stmts.push(...(await groupStatements(db, p, season, t, removed, join)));
+  return stmts;
+}
+
+// 이번 묶음 기록이 들어갈 시즌들. 지금 시즌(봇이 보낸 season) + 시즌이 바뀌는 순간에 걸친 앞 시즌.
+// 앞 시즌에는 기록만 더하고, 새 모둠원은 넣지 않아요.
+export async function seasonTargets(db: D1Database, p: SeasonPayload): Promise<{ season: Season; join: boolean }[]> {
+  const out: { season: Season; join: boolean }[] = [];
+  if (p.season && (await db.prepare('SELECT 1 FROM seasons WHERE id = ?').bind(p.season.id).first())) out.push({ season: p.season, join: true });
+  const times = [...p.room_minutes.map((r) => r.at), ...p.scrims.map((s) => s.at)].map((x) => Date.parse(x)).filter(Number.isFinite);
+  if (!times.length) return out;
+  const earliest = new Date(Math.min(...times)).toISOString();
+  if (p.season && earliest >= p.season.start) return out;
+  const latest = new Date(Math.max(...times)).toISOString();
+  const { results } = await db
+    .prepare('SELECT id, starts_at, ends_at FROM seasons WHERE ends_at > ?1 AND starts_at <= ?2 AND id != ?3 ORDER BY id')
+    .bind(earliest, latest, p.season?.id ?? '')
+    .all<{ id: string; starts_at: string; ends_at: string }>();
+  for (const r of results) out.push({ season: { id: r.id, start: r.starts_at, end: r.ends_at }, join: false });
+  return out;
+}
+
+async function groupStatements(
+  db: D1Database,
+  p: SeasonPayload,
+  season: Season,
+  t: string,
+  removed: Set<string>,
+  join: boolean,
+): Promise<D1PreparedStatement[]> {
+  const stmts: D1PreparedStatement[] = [];
   const startMs = Date.parse(season.start);
   const endMs = Date.parse(season.end);
   const inSeason = (at: string) => {
@@ -332,7 +359,7 @@ export async function seasonStatements(db: D1Database, p: SeasonPayload, nowMs: 
     'INSERT OR IGNORE INTO season_members (season_id, user_id, group_no, start_member, joined_at) VALUES (?, ?, ?, 0, ?)',
   );
   const rejoin = db.prepare('UPDATE season_members SET left_at = NULL WHERE season_id = ? AND user_id = ?');
-  for (const u of [...seen].sort()) {
+  for (const u of join ? [...seen].sort() : []) {
     if (removed.has(u) || !activeNow.has(u)) continue;
     // 나갔다가 다시 들어온 사람은 원래 모둠으로 돌아가요
     const back = departed.get(u);

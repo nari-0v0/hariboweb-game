@@ -1,6 +1,6 @@
 import { MAX_LEVEL, xpForLevel } from './levels';
 import { bingoStatements, grantTouched, loadPeriods, prunePairDays, savePeriod, splitCycle } from './bingo';
-import { type Attendance, type RoomMinute, type ScrimRecord, type Season, ensureSeason, evaluateSeason, seasonFrom, seasonStatements } from './season';
+import { type Attendance, type RoomMinute, type ScrimRecord, type Season, ensureSeason, evaluateSeason, seasonFrom, seasonStatements, seasonTargets } from './season';
 
 // 봇이 보내는 동기화 묶음을 검사하고 D1에 한 번에 반영해요. 자세한 형식은 docs/bot-sync.md
 const ID = /^\d{17,20}$/;
@@ -291,12 +291,10 @@ export async function applySync(
     throw e;
   }
   // 다 채운 퀘스트 확인(실패해도 동기화는 끝났어요. 다음 묶음 때 다시 확인해요)
-  if (p.season) {
-    try {
-      await evaluateSeason(db, p.season.id, nowMs);
-    } catch (e) {
-      console.error('시즌 퀘스트 확인 실패', e);
-    }
+  try {
+    for (const { season } of await seasonTargets(db, p)) await evaluateSeason(db, season.id, nowMs);
+  } catch (e) {
+    console.error('시즌 퀘스트 확인 실패', e);
   }
   // 채운 빙고 줄 보상(실패해도 동기화는 끝났어요. 다음에 빙고를 보거나 다음 묶음 때 다시 확인해요)
   try {
