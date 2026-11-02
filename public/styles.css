@@ -492,8 +492,10 @@ main.wide { max-width: 1320px; }
   position: absolute; left: 8px; right: 8px; bottom: 6px; display: flex; flex-wrap: wrap-reverse; gap: 2px 6px;
   align-items: flex-end; pointer-events: none;
 }
-.plaza-room .plaza-seats { column-gap: 0; }
-.plaza-room .plaza-seat { width: 50px; }
+/* 방 상자 안은 한 줄로(4명까지 앉고 더 많으면 +N). 상자 안쪽 212px에 50px × 4 = 200px */
+.plaza-room .plaza-seats { left: 2px; right: 2px; column-gap: 0; flex-wrap: nowrap; justify-content: center; }
+.plaza-room .plaza-seat { width: 50px; flex: none; }
+.plaza-room .plaza-seat .plaza-name { max-width: 50px; padding: 0 2px; border-width: 1px; font-size: .6rem; letter-spacing: -.03em; }
 .plaza-seat { position: relative; width: 52px; display: grid; justify-items: center; }
 .plaza-seat img { width: 40px; height: 46px; object-fit: contain; }
 .plaza-seat .plaza-name { font-size: .62rem; max-width: 60px; }

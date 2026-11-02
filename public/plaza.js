@@ -39,7 +39,8 @@
     return e;
   };
   const safeChar = (src) => (typeof src === 'string' && src.startsWith('/char/') ? src : '/char/girl-01-0.png');
-  const discordLink = (ch) => `https://discord.com/channels/${GUILD}/${ch}`;
+  // 디스코드 앱으로 바로 열어요(discord:// 주소, 컴퓨터·휴대폰 앱 모두)
+  const discordLink = (ch) => `discord://-/channels/${GUILD}/${ch}`;
 
   // 알림
   let toastTimer = 0;

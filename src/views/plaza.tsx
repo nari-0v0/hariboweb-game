@@ -28,7 +28,7 @@ export function PlazaPage(props: { viewer: Member; guildId: string }) {
       <p class="hint plaza-help">컴퓨터: 방향키나 WASD, 또는 가고 싶은 곳 클릭 · 휴대폰: 가고 싶은 곳을 톡 · 통화방 목록을 눌러도 그 방으로 걸어가요</p>
       <div class="plaza-toast" id="plaza-toast" role="alert" hidden>
         <span id="plaza-toast-text"></span>
-        <a class="btn btn-small btn-discord" id="plaza-toast-link" href="#" target="_blank" rel="noopener" hidden>
+        <a class="btn btn-small btn-discord" id="plaza-toast-link" href="#" hidden>
           디스코드 열기
         </a>
       </div>
