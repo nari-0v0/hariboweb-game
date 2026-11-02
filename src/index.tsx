@@ -17,6 +17,7 @@ import {
   getBestCard,
   givePraise,
   praiseToday,
+  kstDay,
   giveStarterJelly,
   listPendingRefunds,
   listUnseenPurchases,
@@ -37,7 +38,7 @@ import { ShopPage } from './views/shop';
 import { PlazaPage } from './views/plaza';
 import { GroupPage } from './views/group';
 import { groupViewFor } from './season';
-import { grantBingo, markFlag, myBingo, weekOf, LINE_JELLY, LINE_XP, FULL_JELLY } from './bingo';
+import { grantBingo, markFlag, myBingo, todayPartners, weekOf, LINE_JELLY, LINE_XP, FULL_JELLY } from './bingo';
 import { BingoPage } from './views/bingo';
 
 export { PlazaRoom } from './plaza-room';
@@ -210,7 +211,9 @@ app.get('/api/bot/praise/:id', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
   const id = c.req.param('id');
   if (!isDiscordId(id)) return c.json({ error: 'bad_id' }, 400);
-  return c.json(await praiseToday(c.env.DB, id));
+  // partners: 오늘 웹에 쌓인 통화 기록으로 본 같이 통화한 사람(봇이 재시작해서 메모리가 비었을 때 봇이 같이 써요)
+  const [status, partners] = await Promise.all([praiseToday(c.env.DB, id), todayPartners(c.env.DB, id, kstDay())]);
+  return c.json({ ...status, partners });
 });
 
 // 칭찬하기. 오늘 같이 논 사람인지는 봇이 확인하고 보내요.

@@ -1,5 +1,5 @@
 import { MAX_LEVEL, xpForLevel } from './levels';
-import { bingoStatements, grantTouched } from './bingo';
+import { bingoStatements, grantTouched, prunePairDays } from './bingo';
 import { type Attendance, type RoomMinute, type ScrimRecord, type Season, ensureSeason, evaluateSeason, seasonFrom, seasonStatements } from './season';
 
 // 봇이 보내는 동기화 묶음을 검사하고 D1에 한 번에 반영해요. 자세한 형식은 docs/bot-sync.md
@@ -273,7 +273,7 @@ export async function applySync(
   stmts.push(...(await seasonStatements(db, p, nowMs)));
   // 주간 빙고 기록(통화방 1분, 출석)도 같은 트랜잭션에
   const bingo = bingoStatements(db, p.room_minutes, p.attendance);
-  stmts.push(...bingo.stmts);
+  stmts.push(...bingo.stmts, prunePairDays(db, nowMs));
 
   try {
     await db.batch(stmts);

@@ -158,6 +158,7 @@ export function bingoStatements(
 ): { stmts: D1PreparedStatement[]; touched: Map<string, Set<string>> } {
   const day = new Map<string, { minutes: number; crowd: number; night: number; attended: number }>();
   const pairs = new Map<string, number>();
+  const pairDays = new Map<string, number>();
   const touched = new Map<string, Set<string>>();
   const touch = (week: string, u: string) => (touched.get(week) ?? touched.set(week, new Set()).get(week)!).add(u);
   const dayRow = (k: string) => day.get(k) ?? day.set(k, { minutes: 0, crowd: 0, night: 0, attended: 0 }).get(k)!;
@@ -178,6 +179,8 @@ export function bingoStatements(
       for (let j = i + 1; j < ids.length; j++) {
         const k = `${week}|${ids[i]}|${ids[j]}`;
         pairs.set(k, (pairs.get(k) ?? 0) + 1);
+        const dk = `${d}|${ids[i]}|${ids[j]}`;
+        pairDays.set(dk, (pairDays.get(dk) ?? 0) + 1);
       }
   }
   for (const a of attendance) {
@@ -202,6 +205,15 @@ export function bingoStatements(
   for (const [k, n] of pairs) {
     const [week, a, b] = k.split('|') as [string, string, string];
     stmts.push(addPair.bind(week, a, b, n));
+  }
+  // 칭찬하기용 하루치 짝(봇이 재시작해도 오늘 같이 논 사람을 알 수 있게)
+  const addPairDay = db.prepare(
+    `INSERT INTO pair_day (day, a, b, minutes) VALUES (?1, ?2, ?3, ?4)
+     ON CONFLICT (day, a, b) DO UPDATE SET minutes = minutes + ?4`,
+  );
+  for (const [k, n] of pairDays) {
+    const [d, a, b] = k.split('|') as [string, string, string];
+    stmts.push(addPairDay.bind(d, a, b, n));
   }
   return { stmts, touched };
 }
@@ -350,4 +362,28 @@ export async function grantTouched(db: D1Database, touched: Map<string, Set<stri
     const ids = touched.get(w.id);
     if (ids?.size) await grantBingo(db, w, [...ids], nowMs);
   }
+}
+
+// ── 칭찬하기: 오늘 같이 통화한 사람 ──
+
+export const PAIR_DAY_KEEP_DAYS = 3;
+
+// 오래된 하루치 짝을 지워요(동기화 때마다)
+export function prunePairDays(db: D1Database, nowMs: number): D1PreparedStatement {
+  const cutoff = kstParts(new Date(nowMs - PAIR_DAY_KEEP_DAYS * DAY_MS).toISOString()).day;
+  return db.prepare('DELETE FROM pair_day WHERE day < ?').bind(cutoff);
+}
+
+// 그날(한국 날짜) userId와 같이 통화한 사람과 분. 오래 통화한 순.
+export async function todayPartners(db: D1Database, userId: string, day: string): Promise<{ id: string; minutes: number }[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT b AS id, minutes FROM pair_day WHERE day = ?1 AND a = ?2
+       UNION ALL
+       SELECT a AS id, minutes FROM pair_day WHERE day = ?1 AND b = ?2
+       ORDER BY minutes DESC, id`,
+    )
+    .bind(day, userId)
+    .all<{ id: string; minutes: number }>();
+  return results;
 }

@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
-import { boardFor, bingoView, emptyStats, FULL_JELLY, grantBingo, LINE_JELLY, LINE_XP, LINES, loadStats, markFlag, weekOf, weekOfDay, type BingoStats } from '../src/bingo';
+import { todayPartners, boardFor, bingoView, emptyStats, FULL_JELLY, grantBingo, LINE_JELLY, LINE_XP, LINES, loadStats, markFlag, weekOf, weekOfDay, type BingoStats } from '../src/bingo';
 import { applySync, parseSync } from '../src/sync';
 
 const A = '111111111111111111';
@@ -163,5 +163,22 @@ describe('줄 보상', () => {
     sql.prepare('UPDATE members SET active = 0 WHERE user_id = ?').run(B);
     await grantBingo(db, weekOf(NOW), [B], NOW);
     expect(profileOf(sql, B)).toEqual({ dogam_jelly: 0, solo_xp: 0 });
+  });
+});
+
+describe('칭찬하기용 오늘 같이 통화한 사람', () => {
+  it('동기화 기록으로 알고, 3일 지난 줄은 지워요', async () => {
+    const { sql, db } = fakeD1();
+    sql.exec(`INSERT INTO pair_day (day, a, b, minutes) VALUES ('2026-10-28', '${A}', '${C}', 9)`);
+    const r = parseSync({
+      batch_id: '2026-11-02T14:05:00Z-y',
+      members: [A, B, C].map((id) => ({ id, name: id })),
+      room_minutes: [0, 1].map((m) => ({ at: `2026-11-02T14:0${m}:00Z`, room: ROOM, members: [A, B] })),
+    });
+    if (!r.ok) throw new Error(r.error);
+    await applySync(db, r.value, Date.parse('2026-11-02T14:06:00Z'));
+    expect(await todayPartners(db, B, '2026-11-02')).toEqual([{ id: A, minutes: 2 }]);
+    expect(await todayPartners(db, A, '2026-11-02')).toEqual([{ id: B, minutes: 2 }]);
+    expect((sql.prepare('SELECT COUNT(*) AS n FROM pair_day').get() as { n: number }).n).toBe(1);
   });
 });
