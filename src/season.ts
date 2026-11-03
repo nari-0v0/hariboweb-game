@@ -568,8 +568,11 @@ export async function loadGroups(
        JOIN season_members a ON a.season_id = ?1 AND a.user_id = r.from_id AND a.left_at IS NULL
        JOIN season_members b ON b.season_id = ?1 AND b.user_id = r.to_id AND b.group_no = a.group_no AND b.left_at IS NULL
        LEFT JOIN members m ON m.user_id = r.to_id
-       WHERE r.day >= ?1 AND r.day <= ?3 AND (?2 IS NULL OR a.group_no = ?2)`,
+       WHERE r.day >= ?1 AND r.day <= ?3 AND r.created_at >= ?4 AND r.created_at < ?5 AND (?2 IS NULL OR a.group_no = ?2)`,
+      // 날짜로 먼저 좁히고(색인), 칭찬한 시각으로 시즌 기간 [시작, 끝) 안에 든 것만 세요(시즌이 하루 중간에 시작·끝나도 맞게).
       endDay,
+      season.start,
+      season.end,
     ),
     q<{ owner_id: string; target_id: string; xp: number; first_met: string }>(
       `SELECT c.owner_id, c.target_id, c.xp, c.first_met FROM cards c

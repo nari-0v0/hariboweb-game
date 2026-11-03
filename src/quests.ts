@@ -395,7 +395,7 @@ for (const [kind, diff] of [['give', 'normal'], ['get', 'normal'], ['both', 'har
 for (const [n, diff] of [[2, 'easy'], [3, 'normal'], [5, 'hard']] as [number, QuestDiff][])
   add({
     id: `praise:popular:${n}`, name: `인기 스타 ${n}`, cat: '칭찬', diff,
-    text: (t) => `모둠원 한 명이 모둠원 ${t}명에게 칭찬받기`, target: fixed(n),
+    text: (t) => `모둠원 한 명이 모둠원 ${t}명에게 칭찬받기`, target: (c) => partnerNeed(c, n),
     value: (c) => {
       const got = new Map<string, Set<string>>();
       for (const p of c.praises) (got.get(p.to) ?? got.set(p.to, new Set()).get(p.to)!).add(p.from);
