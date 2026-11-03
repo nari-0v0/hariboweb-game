@@ -213,6 +213,31 @@ describe('동기화로 시즌 모둠', () => {
     expect(sql.prepare("SELECT done_at FROM season_quests WHERE season_id = '2026-11-03' AND group_no = 0 AND slot = 0").get()).toEqual({ done_at: null });
   });
 
+  it('끝나기 직전 로그인으로 채운 퀘스트는 다음 묶음에 앞 시즌 기록이 없어도 확인해요', async () => {
+    const { sql, db } = fakeD1(10);
+    await applySync(db, payload({ members: members(10), full_members: true }), NOW);
+    sql.exec("UPDATE season_quests SET quest_id = 'login:all' WHERE slot = 0");
+    sql.exec("UPDATE season_quests SET done_at = 'x' WHERE slot > 0");
+    const endMs = Date.parse(END);
+    sql.prepare('UPDATE members SET last_login_at = ?').run(new Date(endMs - 60_000).toISOString());
+    const nextEnd = new Date(endMs + 14 * 86_400_000).toISOString();
+    // 시즌이 끝난 뒤 첫 묶음: 새 시즌 기록만 있어요
+    const parsed = parseSync({
+      batch_id: `${new Date(endMs + 60_000).toISOString()}-login`,
+      season: { start: END, end: nextEnd },
+      room_minutes: [{ at: new Date(endMs + 30_000).toISOString(), room: id(999), members: [id(1), id(2)] }],
+    });
+    if (!parsed.ok) throw new Error(parsed.error);
+    expect(await applySync(db, parsed.value, endMs + 60_000)).toBe('applied');
+    expect(sql.prepare("SELECT done_at IS NOT NULL AS done FROM season_quests WHERE season_id = '2026-11-03' AND slot = 0").get()).toEqual({ done: 1 });
+  });
+
+  it('새 카드 퀘스트는 모둠에서 만들 수 있는 짝 수보다 많이 요구하지 않아요', () => {
+    const q = questById('newcards:30')!;
+    expect(q.target({ startSize: 2, current: [id(1), id(2)] } as never)).toBe(1);
+    expect(q.target({ startSize: 10, current: Array.from({ length: 10 }, (_, i) => id(i + 1)) } as never)).toBe(30);
+  });
+
   it('시즌이 바뀐 뒤 온 출석만 있는 묶음도 앞 시즌 출석으로 넣어요', async () => {
     const { sql, db } = fakeD1(20);
     await applySync(db, payload({ members: members(20), full_members: true }), NOW);
