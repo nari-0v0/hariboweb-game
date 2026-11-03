@@ -1,7 +1,7 @@
 import type { Member } from '../env';
 import { FULL_JELLY, LINE_JELLY, LINE_XP } from '../bingo';
 import { PRICES, REWARD_STEP } from '../shop';
-import { STARTER_JELLY, PRAISE_PER_DAY, PRAISE_JELLY_PER_DAY } from '../db';
+import { PRAISE_PER_DAY, PRAISE_JELLY_PER_DAY } from '../db';
 import { JELLY_PER_CARD_STEP, LEVEL_STEP } from '../sync';
 import { Layout } from './layout';
 
@@ -24,7 +24,6 @@ export function GuidePage(props: { viewer: Member | null }) {
         <h2>🍬 도감 젤리</h2>
         <p>도감 젤리는 도감에서만 쓰는 젤리예요. 겜블 젤리와는 따로예요.</p>
         <ul>
-          <li>처음 한 번 {STARTER_JELLY}개</li>
           <li>출석 1개, 하루 통화 3시간 3개</li>
           <li>도감 카드가 {LEVEL_STEP}레벨 오를 때마다 {JELLY_PER_CARD_STEP}개</li>
           <li>칭찬을 받으면 1개 (하루 {PRAISE_JELLY_PER_DAY}개까지)</li>
