@@ -667,8 +667,12 @@ main.wide { max-width: 1320px; }
 .title-group > summary h2::before { content: '▸ '; }
 .title-group[open] > summary h2::before { content: '▾ '; }
 .title-group[open] > summary { margin-bottom: 12px; }
-.title-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
-.title-cell { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 6px; border: 2px solid var(--line, #c9e4f5); border-radius: 10px; background: #fff; min-width: 0; }
+.title-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+@media (max-width: 640px) { .title-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.title-cell { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 4px 6px; border: 2px solid var(--line, #c9e4f5); border-radius: 8px; background: #fff; min-width: 0; }
+.title-cell .title-chip { min-width: 0; padding: 0 6px; font-size: .82rem; white-space: nowrap; }
+.title-cell form, .title-cell .tag { flex: none; margin: 0; }
+.title-cell .btn-small { padding: 1px 6px; font-size: .74rem; border-width: 2px; }
 .title-cell.using { border-color: var(--pink); }
 .title-cell:not(.open):not(.using) .title-chip { background: #b9aebf; }
 
