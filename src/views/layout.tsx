@@ -4,7 +4,7 @@ import type { Member } from '../env';
 type NavKey = 'me' | 'dogam' | 'shop' | 'plaza' | 'group' | 'bingo' | 'titles' | 'expedition' | 'guide';
 
 // 메뉴·링크에 손가락이나 마우스를 올리면 다음 화면을 미리 받아 둬서, 누르면 바로 열려요(크롬·엣지·삼성 인터넷).
-// 상점은 열면 결제 결과를 '본 것'으로 바꾸고, 로그인·API는 미리 받으면 안 돼서 빼요.
+// 상점은 열면 결제 결과를 '본 것'으로 바꾸고, 원정대는 늘 지금 상태여야 하고, 로그인·API는 미리 받으면 안 돼서 빼요.
 const PREFETCH_RULES = JSON.stringify({
   prefetch: [
     {
@@ -16,6 +16,7 @@ const PREFETCH_RULES = JSON.stringify({
           { not: { href_matches: '/shop' } },
           { not: { href_matches: '/shop/*' } },
           { not: { href_matches: '/plaza/ws' } },
+          { not: { href_matches: '/expedition' } },
         ],
       },
       eagerness: 'moderate',

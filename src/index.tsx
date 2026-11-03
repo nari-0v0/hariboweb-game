@@ -646,6 +646,8 @@ members.get('/expedition', async (c) => {
     run ? Promise.resolve([]) : listCandidates(db, viewer.user_id),
     myRole(db, viewer.user_id),
   ]);
+  // 뒤로 가기로 지난 원정 화면이 다시 보이지 않게, 브라우저가 이 화면을 저장해 두지 않고 늘 새로 받아요
+  c.header('Cache-Control', 'no-store');
   return page(
     c,
     <ExpeditionPage

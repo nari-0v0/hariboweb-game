@@ -299,7 +299,7 @@ export function ExpeditionPage(props: {
   return (
     <Layout title="하리보 원정대" viewer={props.viewer} active="expedition">
       <Popup lines={NOTICES[props.notice ?? ''] ?? []} />
-      <div class="stack exp">
+      <div class="stack exp" data-fresh>
         <section class="panel">
           <span class="eyebrow">제1구역 · 안개숲</span>
           <div class="panel-head">

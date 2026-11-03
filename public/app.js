@@ -44,3 +44,8 @@
   // 뒤로 가기로 돌아왔을 때 메뉴가 열린 채로 남지 않게
   addEventListener('pageshow', () => (toggle.checked = false));
 })();
+
+// 원정대처럼 늘 지금 상태여야 하는 화면은 뒤로 가기로 돌아와도 저장된 옛 화면 대신 새로 불러와요
+addEventListener('pageshow', (e) => {
+  if (e.persisted && document.querySelector('[data-fresh]')) location.reload();
+});
