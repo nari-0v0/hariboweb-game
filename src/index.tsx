@@ -219,7 +219,10 @@ app.get('/api/bot/card/:id', async (c) => {
     praiseToday(c.env.DB, id),
   ]);
   // 주간 빙고 "패널에서 내 카드 열기" 칸(실패해도 카드는 보여 줘요)
-  await markFlag(c.env.DB, id, 'panel', Date.now()).catch((e) => console.error('빙고 표시 실패', e));
+  // 새로 채웠으면 그 자리에서 줄 보상도 확인해요(이 칸이 마지막 칸일 수 있어요)
+  await markFlag(c.env.DB, id, 'panel', Date.now())
+    .then((fresh) => (fresh ? myBingo(c.env.DB, id, Date.now()) : null))
+    .catch((e) => console.error('빙고 표시 실패', e));
   const p = progress(profile.solo_xp);
   const tier = tierFor(p.level);
   const base = baseUrl(c);
@@ -384,7 +387,10 @@ members.post('/api/me/gender', async (c) => {
 members.get('/me', async (c) => {
   const viewer = c.get('viewer');
   // 주간 빙고 "웹 도감에서 내 카드 보기" 칸
-  await markFlag(c.env.DB, viewer.user_id, 'web', Date.now()).catch((e) => console.error('빙고 표시 실패', e));
+  // 새로 채웠으면 그 자리에서 줄 보상도 확인해요(이 칸이 마지막 칸일 수 있어요)
+  await markFlag(c.env.DB, viewer.user_id, 'web', Date.now())
+    .then((fresh) => (fresh ? myBingo(c.env.DB, viewer.user_id, Date.now()) : null))
+    .catch((e) => console.error('빙고 표시 실패', e));
   const [profile, entries, items] = await Promise.all([
     getProfile(c.env.DB, viewer.user_id),
     listDogam(c.env.DB, viewer.user_id),

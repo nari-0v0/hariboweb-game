@@ -216,6 +216,9 @@ export async function applySync(
     db.prepare('DELETE FROM sync_batches WHERE applied_at < ?').bind(new Date(nowMs - SYNC_BATCH_KEEP_DAYS * DAY_MS).toISOString()),
     ...memberStmts,
   ];
+  // 시즌 모둠 기록(통화방 1분, 내전, 출석)도 같은 트랜잭션에. 묶음이 한 번만 반영되니까 두 번 세지 않아요.
+  // 경험치를 올리기 전에 넣어요: 시즌 중에 새로 들어온 사람의 시작 기준(스냅샷)에 이번 묶음 경험치가 섞이지 않게.
+  stmts.push(...(await seasonStatements(db, p, nowMs)));
 
   const addPair = db.prepare(
     `INSERT INTO cards (owner_id, target_id, xp, voice_seconds, scrims, first_met, updated_at)
@@ -270,8 +273,6 @@ export async function applySync(
     stmts.push(db.prepare("UPDATE purchases SET status = 'failed', reason = 'left' WHERE user_id = ? AND status = 'pending'").bind(id));
   }
 
-  // 시즌 모둠 기록(통화방 1분, 내전, 출석)도 같은 트랜잭션에. 묶음이 한 번만 반영되니까 두 번 세지 않아요.
-  stmts.push(...(await seasonStatements(db, p, nowMs)));
   // 주간 빙고 기록(통화방 1분, 출석)도 같은 트랜잭션에
   // 빙고 기간 = 생명력 주기(봇이 보내는 season)의 절반. 이번 묶음의 주기를 먼저 적어 둬요.
   const periods = await loadPeriods(db, nowMs);

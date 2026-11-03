@@ -653,10 +653,13 @@ export function seasonTitle(season: Season): string {
 
 // 다 채운 퀘스트를 깬 것으로 적고, 지금 모둠원에게 젤리를 줘요. 8개를 다 깨면 시즌 칭호.
 // 같은 퀘스트를 두 번 깨지 않게: done_at이 비어 있을 때만 이번 표시(mark)를 적고, 그 표시가 있을 때만 젤리를 줘요.
+// 봇은 10분마다 보내고 실패하면 다시 보내요. 시즌 끝 직전 기록이 늦게 와도 잡히게 30분 여유를 둬요.
+export const ENDED_GRACE_MS = 30 * 60 * 1000;
 export async function evaluateSeason(db: D1Database, seasonId: string, nowMs: number): Promise<number> {
   const end = await db.prepare('SELECT ends_at FROM seasons WHERE id = ?').bind(seasonId).first<{ ends_at: string }>();
   if (!end) return 0;
-  const loaded = await loadGroups(db, seasonId, null, Date.parse(end.ends_at) <= nowMs);
+  // 시즌이 끝난 직후의 마지막 묶음(끝나기 직전 활동)은 지금 상태로 계산해요. 그 뒤로는 끝난 시즌 기록만 써요.
+  const loaded = await loadGroups(db, seasonId, null, Date.parse(end.ends_at) + ENDED_GRACE_MS <= nowMs);
   if (!loaded) return 0;
   const t = new Date(nowMs).toISOString();
   const mark = `${t}#${crypto.randomUUID()}`;
