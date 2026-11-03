@@ -23,3 +23,29 @@
     t.style.removeProperty('--ry');
   }
 })();
+
+// 메뉴: 키보드(Enter·스페이스)로 열고, Esc나 메뉴 안 링크를 누르면 닫아요
+(() => {
+  const toggle = document.getElementById('menu-toggle');
+  if (!toggle) return;
+  document.querySelector('.menu-btn')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggle.checked = !toggle.checked;
+      if (toggle.checked) document.querySelector('.menu-panel a')?.focus();
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && toggle.checked) {
+      toggle.checked = false;
+      document.querySelector('.menu-btn')?.focus();
+    }
+  });
+  // 뒤로 가기로 돌아왔을 때 메뉴가 열린 채로 남지 않게
+  addEventListener('pageshow', () => (toggle.checked = false));
+})();
+
+// 원정대처럼 늘 지금 상태여야 하는 화면은 뒤로 가기로 돌아와도 저장된 옛 화면 대신 새로 불러와요
+addEventListener('pageshow', (e) => {
+  if (e.persisted && document.querySelector('[data-fresh]')) location.reload();
+});

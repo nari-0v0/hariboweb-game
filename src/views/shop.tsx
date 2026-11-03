@@ -123,7 +123,35 @@ function Action(props: { item: ShopItem; state: State; cards: number }) {
   );
 }
 
+export type ShopTab = 'store' | 'deco' | 'titles';
+
+// 상점 위쪽: 젤리 잔액과 매점·꾸미기·칭호 탭
+export function ShopHead(props: { jelly: number; tab: ShopTab }) {
+  const tab = (key: ShopTab, href: string, label: string) => (
+    <a href={href} class={`shop-tab${props.tab === key ? ' on' : ''}`} aria-current={props.tab === key ? 'page' : undefined}>
+      {label}
+    </a>
+  );
+  return (
+    <section class="panel shop-head">
+      <div class="panel-head">
+        <h1>젤리 상점</h1>
+        <span class="jelly" aria-label="내 도감 젤리">
+          🍬 {props.jelly}
+        </span>
+      </div>
+      <p class="hint">도감 젤리는 이 도감에서만 써요(겜블 젤리와 따로예요). 모으는 법: {JELLY_HOWTO}</p>
+      <nav class="shop-tabs" aria-label="상점 메뉴">
+        {tab('store', '/shop', '🛒 매점')}
+        {tab('deco', '/shop/deco', '🎨 꾸미기')}
+        {tab('titles', '/titles', '🏷️ 칭호')}
+      </nav>
+    </section>
+  );
+}
+
 export function ShopPage(props: {
+  tab: 'store' | 'deco';
   viewer: Member;
   profile: Profile;
   owned: Set<string>;
@@ -142,10 +170,55 @@ export function ShopPage(props: {
   const notice = props.notice ? NOTICES[props.notice] : undefined;
   if (notice && !popup.length) popup.push(...notice);
 
+  const head = <ShopHead jelly={profile.dogam_jelly} tab={props.tab} />;
   return (
-    <Layout title="젤리 상점" viewer={viewer} active="shop">
+    <Layout title={props.tab === 'deco' ? '꾸미기' : '매점'} viewer={viewer} active="shop">
       <Popup lines={popup} />
-      <div class="split">
+      {props.tab === 'store' ? (
+        <div class="stack-lg shop-store">
+          {head}
+          <section class="panel">
+            <h2>디스코드 물건</h2>
+            <p class="muted">사면 하리보봇이 디스코드에 바로 적용해요(성별 바꾸기는 도감 캐릭터만 바뀌어요). 벌점·경고 지우기는 살 때마다 값이 1.5배씩 올라요. 지울 게 없으면 젤리를 돌려드려요.</p>
+            <div class="service-list">
+              {SERVICES.map((item) => {
+                const pending = props.services.pending.has(item.id);
+                const price = servicePrice(item, props.services.bought.get(item.id) ?? 0);
+                return (
+                  <div class="service-item">
+                    <div>
+                      <span class="shop-name">{item.name}</span>
+                      <p class="hint">{item.text}</p>
+                    </div>
+                    {pending ? (
+                      <span class="tag">적용 중</span>
+                    ) : (
+                      <form method="post" action="/api/shop/service">
+                        <input type="hidden" name="item" value={item.id} />
+                        <input type="hidden" name="price" value={String(price)} />
+                        <button class="btn btn-small btn-buy" type="submit">
+                          🍬 {price}
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                );
+              })}
+                <div class="service-item" id="gender">
+                  <div>
+                    <span class="shop-name">성별 바꾸기</span>
+                    <p class="hint">{poolOf(profile.character_id) === 'boy' ? '남자 → 여자' : '여자 → 남자'} 캐릭터로 바꿔요. 바꾸기 전에 새 캐릭터를 미리 볼 수 있어요.</p>
+                  </div>
+                  <a class="btn btn-small btn-buy" href="/shop/gender">
+                    🍬 {PRICES.gender}
+                  </a>
+                </div>
+            </div>
+          </section>
+
+        </div>
+      ) : (
+        <div class="split">
         <div class="stage-wrap shop-preview">
           <Card
             id={viewer.user_id}
@@ -171,62 +244,7 @@ export function ShopPage(props: {
         </div>
 
         <div class="stack-lg">
-          <section class="panel">
-            <div class="panel-head">
-              <h1>젤리 상점</h1>
-              <span class="jelly" aria-label="내 도감 젤리">
-                🍬 {profile.dogam_jelly}
-              </span>
-            </div>
-            <p class="muted">
-              도감 젤리는 이 도감에서만 쓰는 젤리예요. 겜블 젤리와는 따로라서 겜블 지갑에서는 빠지지 않아요.
-            </p>
-            <p class="hint">모으는 법: {JELLY_HOWTO}</p>
-          </section>
-
-          <section class="panel" id="gender">
-            <h2>성별 바꾸기</h2>
-            <div class="service-item">
-              <div>
-                <span class="shop-name">{poolOf(profile.character_id) === 'boy' ? '남자 → 여자' : '여자 → 남자'} 캐릭터로 바꾸기</span>
-                <p class="hint">바꾸기 전에 새 캐릭터를 미리 볼 수 있어요.</p>
-              </div>
-              <a class="btn btn-small btn-buy" href="/shop/gender">
-                🍬 {PRICES.gender}
-              </a>
-            </div>
-          </section>
-
-          <section class="panel">
-            <h2>디스코드 물건</h2>
-            <p class="muted">사면 하리보봇이 디스코드에 바로 적용해요. 벌점·경고 지우기는 살 때마다 값이 1.5배씩 올라요. 지울 게 없으면 젤리를 돌려드려요.</p>
-            <div class="service-list">
-              {SERVICES.map((item) => {
-                const pending = props.services.pending.has(item.id);
-                const price = servicePrice(item, props.services.bought.get(item.id) ?? 0);
-                return (
-                  <div class="service-item">
-                    <div>
-                      <span class="shop-name">{item.name}</span>
-                      <p class="hint">{item.text}</p>
-                    </div>
-                    {pending ? (
-                      <span class="tag">적용 중</span>
-                    ) : (
-                      <form method="post" action="/api/shop/service">
-                        <input type="hidden" name="item" value={item.id} />
-                        <input type="hidden" name="price" value={String(price)} />
-                        <button class="btn btn-small btn-buy" type="submit">
-                          🍬 {price}
-                        </button>
-                      </form>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-
+          {head}
           <section class="panel">
             <h2>카드 테마</h2>
             <div class="shop-grid">
@@ -279,7 +297,8 @@ export function ShopPage(props: {
             </div>
           </section>
         </div>
-      </div>
+        </div>
+      )}
     </Layout>
   );
 }

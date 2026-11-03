@@ -1,3 +1,4 @@
+import { PREFETCH_RULES } from '../prefetch';
 import type { Child } from 'hono/jsx';
 import type { Member } from '../env';
 
@@ -12,9 +13,9 @@ export function Layout(props: {
   scripts?: string[];
   children?: Child;
 }) {
-  const nav = (key: NavKey, href: string, label: string) => (
+  const nav = (key: NavKey, href: string, label: string, icon: string) => (
     <a href={href} class={props.active === key ? 'on' : undefined} aria-current={props.active === key ? 'page' : undefined}>
-      {label}
+      <span aria-hidden="true">{icon}</span> {label}
     </a>
   );
   return (
@@ -28,6 +29,7 @@ export function Layout(props: {
         <link rel="stylesheet" href="/styles.css" />
         <script src="/app.js" defer></script>
         {props.scripts?.map((src) => <script src={src} defer></script>)}
+        {props.viewer && <script type="speculationrules" dangerouslySetInnerHTML={{ __html: PREFETCH_RULES }} />}
       </head>
       <body>
         <div class="sky" aria-hidden="true">
@@ -35,27 +37,39 @@ export function Layout(props: {
           <i class="cloud c2" />
           <i class="cloud c3" />
         </div>
+        {props.viewer && <input type="checkbox" id="menu-toggle" class="menu-toggle" aria-hidden="true" tabindex={-1} />}
         <header class="topbar">
-          <a class="brand" href="/">
+          <a class="brand" href={props.viewer ? '/me' : '/'}>
             <span class="brand-mark" aria-hidden="true"></span>
             <span class="brand-text">하리보 멤버 도감</span>
           </a>
           {props.viewer && (
-            <nav class="nav">
-              {nav('me', '/me', '내 카드')}
-              {nav('dogam', '/dogam', '도감')}
-              {nav('group', '/group', '모둠')}
-              {nav('bingo', '/bingo', '빙고')}
-              {nav('plaza', '/plaza', '광장')}
-              {nav('expedition', '/expedition', '원정대')}
-              {nav('titles', '/titles', '칭호')}
-              {nav('shop', '/shop', '상점')}
-              <form method="post" action="/auth/logout">
-                <button class="nav-out" type="submit">로그아웃</button>
-              </form>
-            </nav>
+            <label for="menu-toggle" class="menu-btn" role="button" tabindex={0} aria-label="메뉴 열기">
+              <span class="menu-icon" aria-hidden="true"></span>
+              <span class="menu-word">메뉴</span>
+            </label>
           )}
         </header>
+        {props.viewer && (
+          <>
+            <label for="menu-toggle" class="menu-scrim" aria-hidden="true"></label>
+            <nav class="menu-panel" aria-label="메뉴">
+              {nav('me', '/me', '내 카드', '🃏')}
+              {nav('dogam', '/dogam', '도감', '📖')}
+              {nav('group', '/group', '모둠', '👥')}
+              {nav('bingo', '/bingo', '빙고', '🎯')}
+              {nav('plaza', '/plaza', '광장', '🏞️')}
+              {nav('expedition', '/expedition', '원정대', '🧭')}
+              {nav('shop', '/shop', '상점', '🍬')}
+              {nav('guide', '/guide', '사용설명서', '📘')}
+              <form method="post" action="/auth/logout">
+                <button class="menu-out" type="submit">
+                  로그아웃
+                </button>
+              </form>
+            </nav>
+          </>
+        )}
         <main class={props.wide ? 'wide' : undefined}>{props.children}</main>
         <footer class="foot">
           <a href="/guide">사용설명서</a> ·{' '}

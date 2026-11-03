@@ -4,6 +4,8 @@
   "main": "src/index.tsx",
   "compatibility_date": "2026-10-01",
   "assets": { "directory": "./public" },
+  // 워커를 D1 데이터베이스(APAC) 가까이에서 실행해서, 화면 하나에 DB를 여러 번 읽어도 빨라요.
+  "placement": { "mode": "smart" },
   "d1_databases": [
     {
       "binding": "DB",

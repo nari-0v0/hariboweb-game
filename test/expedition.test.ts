@@ -277,3 +277,13 @@ describe('원정대 기록과 보상', () => {
     ]);
   });
 });
+
+describe('미리 받기', () => {
+  it('읽기만 하는 화면만 미리 받아요', async () => {
+    const { prefetchAllowed } = await import('../src/prefetch');
+    expect(prefetchAllowed('/dogam')).toBe(true);
+    expect(prefetchAllowed('/dogam/123')).toBe(true);
+    expect(prefetchAllowed('/card/1')).toBe(true);
+    for (const p of ['/me', '/titles', '/shop', '/shop/deco', '/bingo', '/expedition', '/dogamx', '/card/', '/choose']) expect(prefetchAllowed(p)).toBe(false);
+  });
+});
