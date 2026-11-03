@@ -152,9 +152,14 @@ export async function startRun(db: D1Database, userId: string, pickIds: string[]
   return 'started';
 }
 
-export async function quitRun(db: D1Database, userId: string): Promise<void> {
+// 화면에 보이던 원정만 그만둬요(다른 탭의 옛 화면이 새 원정을 끝내지 않게)
+export async function quitRun(db: D1Database, userId: string, runId: string): Promise<boolean> {
   const t = new Date().toISOString();
-  await db.prepare(`UPDATE exp_runs SET status = 'quit', updated_at = ?2, ended_at = ?2 WHERE user_id = ?1 AND status = 'going'`).bind(userId, t).run();
+  const r = await db
+    .prepare(`UPDATE exp_runs SET status = 'quit', updated_at = ?3, ended_at = ?3 WHERE id = ?2 AND user_id = ?1 AND status = 'going'`)
+    .bind(userId, runId, t)
+    .run();
+  return (r.meta.changes ?? 0) > 0;
 }
 
 export type ActResult = { result: 'ok' | 'done' | 'stale' | 'bad' | 'none'; runId?: string };

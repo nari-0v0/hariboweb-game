@@ -686,8 +686,9 @@ members.post('/api/expedition/act', async (c) => {
 
 members.post('/api/expedition/quit', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  await quitRun(c.env.DB, c.get('viewer').user_id);
-  return c.redirect('/expedition?n=quit');
+  const run = String((await c.req.parseBody()).run ?? '');
+  const quit = await quitRun(c.env.DB, c.get('viewer').user_id, run);
+  return c.redirect(quit ? '/expedition?n=quit' : '/expedition');
 });
 
 members.post('/api/expedition/role', async (c) => {

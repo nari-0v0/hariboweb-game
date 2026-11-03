@@ -255,13 +255,14 @@ describe('원정대 기록과 보상', () => {
     const old = (await currentRun(db, 'me'))!.row.id;
     await startRun(db, 'me', ['f1']);
     expect((await act(db, 'me', old, 0, 0)).result).toBe('stale');
+    expect(await quitRun(db, 'me', old)).toBe(false);
     expect((await currentRun(db, 'me'))!.choices).toEqual([]);
   });
 
   it('그만두면 진행 중인 원정이 없어지고 보상도 없어요', async () => {
     const { sql, db } = setup();
     await startRun(db, 'me', ['me']);
-    await quitRun(db, 'me');
+    expect(await quitRun(db, 'me', (await currentRun(db, 'me'))!.row.id)).toBe(true);
     expect(await currentRun(db, 'me')).toBeNull();
     expect(sql.prepare('SELECT COUNT(*) AS n FROM profiles').get()).toEqual({ n: 0 });
   });

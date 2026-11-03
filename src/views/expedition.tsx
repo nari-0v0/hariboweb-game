@@ -156,6 +156,7 @@ function RunView(props: { run: Run }) {
         </div>
       )}
       <form method="post" action="/api/expedition/quit" class="exp-quit">
+        <input type="hidden" name="run" value={props.run.row.id} />
         <button class="btn btn-small" type="submit">
           원정 그만두기 (보상과 주운 물건은 사라져요)
         </button>
