@@ -26,7 +26,7 @@ const NOTICES: Record<string, PopupLine[]> = {
 };
 
 // 도감 젤리 모으는 법(나리가 정한 규칙이 바뀌면 같이 바꿔요)
-export const JELLY_HOWTO = '처음 한 번 5개, 출석 1개, 하루 통화 3시간 3개, 도감 카드 레벨이 오를 때마다 1개';
+export const JELLY_HOWTO = '출석 1개, 하루 통화 3시간 3개, 도감 카드 레벨이 오를 때마다 1개';
 
 // 오류가 났을 때 방장에게 문의하는 카카오톡 오픈채팅
 export const OWNER_CONTACT_URL = 'https://open.kakao.com/o/sznz9sHg';
@@ -136,11 +136,11 @@ export function ShopHead(props: { jelly: number; tab: ShopTab }) {
     <section class="panel shop-head">
       <div class="panel-head">
         <h1>젤리 상점</h1>
-        <span class="jelly" aria-label="내 도감 젤리">
-          🍬 {props.jelly}
+        <span class="jelly">
+          보유 젤리 🍬 {props.jelly}개
         </span>
       </div>
-      <p class="hint">도감 젤리는 이 도감에서만 써요(겜블 젤리와 따로예요). 모으는 법: {JELLY_HOWTO}</p>
+      <p class="hint">모으는 법: {JELLY_HOWTO}</p>
       <nav class="shop-tabs" aria-label="상점 메뉴">
         {tab('store', '/shop', '🛒 매점')}
         {tab('deco', '/shop/deco', '🎨 꾸미기')}
