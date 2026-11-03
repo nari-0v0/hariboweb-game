@@ -84,13 +84,14 @@ export async function titleState(db: D1Database, userId: string): Promise<TitleS
   return row ?? { title_id: null, title_applied: null, title_note: null };
 }
 
-// 칭호 고르기(null이면 떼기). 같은 칭호를 다시 고르면 봇이 한 번 더 붙여 봐요(닉네임을 줄인 뒤 등).
+// 칭호 고르기(null이면 떼기). 같은 걸 다시 고르면(다시 붙이기·다시 떼기) 봇이 한 번 더 해 봐요.
+// 그때는 붙인 상태를 '?'(모름)로 둬서 봇 목록에 다시 나오게 해요.
 export async function equipTitle(db: D1Database, userId: string, titleId: string | null): Promise<void> {
   await db
     .prepare(
       `INSERT INTO profiles (user_id, title_id, updated_at) VALUES (?1, ?2, ?3)
        ON CONFLICT (user_id) DO UPDATE SET
-         title_applied = CASE WHEN COALESCE(title_id, '') = COALESCE(?2, '') THEN NULL ELSE title_applied END,
+         title_applied = CASE WHEN COALESCE(title_id, '') = COALESCE(?2, '') THEN '?' ELSE title_applied END,
          title_id = ?2, title_note = NULL, updated_at = ?3`,
     )
     .bind(userId, titleId, new Date().toISOString())

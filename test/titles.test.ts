@@ -130,6 +130,11 @@ describe('도감 칭호', () => {
     // 떼기
     await equipTitle(db, A, null);
     expect(await listTitleJobs(db)).toEqual([{ user: A, id: '', title: null }]);
+    await settleTitle(db, A, '', 'forbidden');
+    expect(await listTitleJobs(db)).toEqual([]);
+    // 못 뗐으면 다시 떼기를 누르면 또 나와요
+    await equipTitle(db, A, null);
+    expect(await listTitleJobs(db)).toEqual([{ user: A, id: '', title: null }]);
     await settleTitle(db, A, '', null);
     expect(await listTitleJobs(db)).toEqual([]);
     // 그 사이 다른 칭호를 고르면 예전 결과가 와도 다시 나와요
