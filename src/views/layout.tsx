@@ -71,7 +71,7 @@ export function Layout(props: {
           </>
         )}
         <main class={props.wide ? 'wide' : undefined}>{props.children}</main>
-        {/* 다음 화면이 늦게 오면(0.25초 넘게) 보이는 로딩 화면. app.js가 켜고 꺼요. */}
+        {/* 다음 화면이 늦게 오면(0.1초 넘게) 보이는 로딩 화면. app.js가 켜고 꺼요. */}
         <div class="loader" role="status" aria-live="polite">
           <div class="loader-box">
             <div class="loader-bears" aria-hidden="true">
