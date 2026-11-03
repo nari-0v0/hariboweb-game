@@ -65,6 +65,7 @@ import {
 } from './title-db';
 
 import { ExpeditionPage } from './views/expedition';
+import { prefetchAllowed } from './prefetch';
 import { act, currentRun, getRun, listCandidates, myRecord, myRole, quitRun, setRole, startRun } from './expedition-db';
 import { isRole } from './expedition';
 
@@ -383,6 +384,8 @@ app.get('/api/bot/plaza', async (c) => {
 });
 
 // 여기부터는 로그인한 하리보 멤버만
+const isPrefetch = (c: Context<AppEnv>) => /prefetch|prerender/i.test(c.req.header('Sec-Purpose') ?? c.req.header('Purpose') ?? '');
+
 const members = new Hono<AppEnv>();
 
 members.use('*', async (c, next) => {
@@ -392,6 +395,8 @@ members.use('*', async (c, next) => {
     return c.redirect('/');
   }
   c.set('viewer', viewer);
+  // 브라우저가 미리 받기만 하는 요청은 읽기만 하는 화면에만 답해요(열기만 해도 기록이 바뀌는 화면은 실제로 열 때만)
+  if (isPrefetch(c) && !prefetchAllowed(c.req.path)) return c.body(null, 503);
   await touchVisit(c.env.DB, viewer, Date.now());
   // 처음 들어온 멤버는 여자·남자 캐릭터를 골라야 다른 화면으로 갈 수 있어요
   if (!viewer.gender_chosen_at && c.req.path !== '/choose' && c.req.path !== '/api/me/gender') {
