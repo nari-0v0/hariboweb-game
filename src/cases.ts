@@ -180,8 +180,9 @@ export function topic(word: string): string {
   return `${word}${code % 28 ? '은' : '는'}`;
 }
 
-// 사건 만들기: 특징 단서 두 개를 겹쳐야 범인이 한 명으로 좁혀지게 짜요.
-// 범인 C, 나머지 X·Y·Z: 특징1은 C=X, 특징2는 C=Y. 알리바이로 X나 Y 중 한 명이 빠져요.
+// 사건 만들기: 특징 값 두 개씩을 2×2로 나눠 줘서(가-1, 가-2, 나-1, 나-2) 처음 카드만 봐서는 누가 범인인지 알 수 없어요.
+// 모든 특징 값은 꼭 두 명이 같이 가져요. 특징 단서 두 개를 겹치면 범인이 한 명으로 좁혀지고,
+// 알리바이는 범인과 특징 하나가 같은 사람(X 또는 Y) 중 한 명을 빼 줘요.
 export function makePuzzle(def: CaseDef, seed: string, suspects: Suspect[]): Puzzle {
   const r = rng(`${seed}:case`);
   const order = shuffle(r, [0, 1, 2, 3]); // [C, X, Y, Z]
@@ -192,7 +193,7 @@ export function makePuzzle(def: CaseDef, seed: string, suspects: Suspect[]): Puz
   traits[c] = [t1[0]!, t2[0]!];
   traits[x] = [t1[0]!, t2[1]!];
   traits[y] = [t1[1]!, t2[0]!];
-  traits[z] = [t1[2]!, t2[2]!];
+  traits[z] = [t1[1]!, t2[1]!];
   const method = Math.floor(r() * def.methods.length);
   const motive = Math.floor(r() * def.motives.length);
   const cleared = r() < 0.5 ? x : y;

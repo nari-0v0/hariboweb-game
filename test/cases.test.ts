@@ -51,8 +51,13 @@ describe('사건 만들기', () => {
         // 하나만으로는 두 명이 남아요(바로 찍히지 않게)
         expect(possible(p, [t1])).toHaveLength(2);
         expect(possible(p, [t2])).toHaveLength(2);
-        // 용의자 넷의 특징 조합은 모두 달라요
+        // 용의자 넷의 특징 조합은 모두 다르고, 모든 특징 값은 꼭 두 명이 같이 가져요(처음 카드만 봐서는 범인을 알 수 없게)
         expect(new Set(p.traits.map(([a, b]) => `${a}-${b}`)).size).toBe(4);
+        for (const k of [0, 1] as const) {
+          const counts = new Map<number, number>();
+          for (const t of p.traits) counts.set(t[k], (counts.get(t[k]) ?? 0) + 1);
+          expect([...counts.values()]).toEqual([2, 2]);
+        }
         // 알리바이는 범인을 빼지 않아요
         const alibi = p.clues.find((c) => c.kind === 'alibi')!;
         expect(alibi.who).not.toBe(p.culprit);
