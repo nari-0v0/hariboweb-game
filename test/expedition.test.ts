@@ -91,6 +91,24 @@ describe('원정대 규칙', () => {
     expect(again).toEqual(s);
   });
 
+  it('고를 때마다 화면에 크게 보일 결과(판정·변화량)를 남겨요', () => {
+    const crew = crewOf(['scout', 'guard', 'mage']);
+    for (let i = 0; i < 60; i++) {
+      const s = startState(`last-${i}`, crew);
+      const r = rng(`last-pick-${i}`);
+      let turn = 0;
+      while (s.phase !== 'done') {
+        const prev = { hp: s.hp, food: s.food, mana: s.mana, phase: s.phase };
+        const opts = s.phase === 'path' ? s.paths.map((_, k) => k) : visibleOptions(eventById(s.event!)!, crew, s).filter((v) => v.ok).map((v) => v.index);
+        const c = opts[Math.floor(r() * opts.length)]!;
+        expect(applyChoice(`last-${i}`, crew, s, c, turn++)).toBe(true);
+        expect(s.last!.kind).toBe(prev.phase === 'path' ? 'move' : 'event');
+        expect(s.last!.delta).toEqual({ hp: s.hp - prev.hp, food: s.food - prev.food, mana: s.mana - prev.mana });
+        if (s.last!.roll) expect(s.last!.roll.ok).toBe(s.last!.roll.total >= s.last!.roll.need);
+      }
+    }
+  });
+
   it('어떻게 골라도 막히지 않고 끝나요', () => {
     const roleSets: Crew['role'][][] = [
       ['scout', 'guard', 'mage'],

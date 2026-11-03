@@ -16,6 +16,7 @@ import {
   type Crew,
   type Ending,
   type RoleId,
+  type RunState,
 } from '../expedition';
 import { Layout } from './layout';
 import { Popup, type PopupLine } from './shop';
@@ -89,13 +90,73 @@ function ActButton(props: { run: string; at: number; c: number; disabled?: boole
   );
 }
 
+// 변화량 칩: ❤️ -2 처럼 크게
+function DeltaChips(props: { s: RunState }) {
+  const l = props.s.last;
+  if (!l) return null;
+  const chips: [string, number][] = [
+    ['❤️', l.delta.hp],
+    ['🍖', l.delta.food],
+    ['✨', l.delta.mana],
+  ];
+  const shown = chips.filter(([, n]) => n !== 0);
+  if (!shown.length && !l.finds.length) return null;
+  return (
+    <div class="exp-delta">
+      {shown.map(([icon, n]) => (
+        <span class={n > 0 ? 'up' : 'down'}>
+          {icon} {n > 0 ? `+${n}` : n}
+        </span>
+      ))}
+      {l.finds.map((f) => (
+        <span class="up">
+          {findOf(f)!.icon} {findOf(f)!.name}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// 바로 앞 선택의 결과: 주사위, 성공·실패, 이야기, 변화량을 크게 보여 줘요
+function Outcome(props: { s: RunState }) {
+  const { s } = props;
+  const l = s.last;
+  if (!l || l.kind !== 'event') return null;
+  const roll = l.roll;
+  const mood = roll ? (roll.ok ? 'win' : 'lose') : 'plain';
+  return (
+    <div class={`exp-outcome ${mood}`} role="status">
+      {roll ? (
+        <div class="exp-dice">
+          <span class="die" aria-label={`주사위 ${roll.die}`}>
+            {roll.die}
+          </span>
+          <div>
+            <b class="exp-verdict">{roll.ok ? '성공!' : '실패…'}</b>
+            <span class="hint">
+              {roll.who} 판정 {roll.total}
+              {roll.total !== roll.die && ` (주사위 ${roll.die} + 보너스 ${roll.total - roll.die})`} / 필요 {roll.need}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <b class="exp-verdict">결과</b>
+      )}
+      {s.log.map((line) => (
+        <p class={line.good ? 'good' : line.bad ? 'bad' : undefined}>{line.text}</p>
+      ))}
+      <DeltaChips s={s} />
+    </div>
+  );
+}
+
 function RunView(props: { run: Run }) {
   const { state: s, crew, choices } = props.run;
   const at = choices.length;
   const ev = s.event ? eventById(s.event) : null;
   const healer = crew.some((c) => c.role === 'healer');
   return (
-    <section class="panel exp-run">
+    <section class="panel exp-run" id="now">
       <div class="exp-top">
         <Track step={s.step} />
         <div class="exp-res">
@@ -107,16 +168,13 @@ function RunView(props: { run: Run }) {
           {s.finds.length > 0 && <span title="주운 물건">🎒 {s.finds.length}</span>}
         </div>
       </div>
-      <div class="crew-row">
-        {crew.map((c) => (
-          <CrewCard c={c} />
-        ))}
-      </div>
-      {s.log.length > 0 && (
+      <Outcome s={s} />
+      {s.last?.kind !== 'event' && s.log.length > 0 && (
         <div class="exp-log" role="status">
           {s.log.map((l) => (
             <p class={l.good ? 'good' : l.bad ? 'bad' : undefined}>{l.text}</p>
           ))}
+          <DeltaChips s={s} />
         </div>
       )}
       {s.phase === 'path' && (
@@ -155,6 +213,12 @@ function RunView(props: { run: Run }) {
           </div>
         </div>
       )}
+      <h3>대원</h3>
+      <div class="crew-row">
+        {crew.map((c) => (
+          <CrewCard c={c} />
+        ))}
+      </div>
       <form method="post" action="/api/expedition/quit" class="exp-quit">
         <input type="hidden" name="run" value={props.run.row.id} />
         <button class="btn btn-small" type="submit">
@@ -171,16 +235,21 @@ function ResultView(props: { run: Run }) {
   if (!ending) return null;
   const e = ENDINGS[ending];
   return (
-    <section class={`panel exp-result end-${ending}`}>
+    <section class={`panel exp-result end-${ending}`} id="now">
       <span class="eyebrow">원정 결과</span>
       <h2>{e.name}</h2>
       <p>{e.text}</p>
-      {s.log.length > 0 && (
-        <div class="exp-log">
-          {s.log.map((l) => (
-            <p class={l.good ? 'good' : l.bad ? 'bad' : undefined}>{l.text}</p>
-          ))}
-        </div>
+      {s.last?.kind === 'event' ? (
+        <Outcome s={s} />
+      ) : (
+        s.log.length > 0 && (
+          <div class="exp-log">
+            {s.log.map((l) => (
+              <p class={l.good ? 'good' : l.bad ? 'bad' : undefined}>{l.text}</p>
+            ))}
+            <DeltaChips s={s} />
+          </div>
+        )
       )}
       <div class="crew-row">
         {crew.map((c) => (
@@ -204,6 +273,37 @@ function ResultView(props: { run: Run }) {
         </ul>
       </details>
     </section>
+  );
+}
+
+// 처음 하는 사람을 위한 하는 법(기록이 없으면 펼쳐 둬요)
+function HowTo(props: { open: boolean }) {
+  return (
+    <details class="panel exp-howto" open={props.open}>
+      <summary>
+        <h2>❔ 하는 법</h2> <span class="hint">눌러서 펼치기·접기</span>
+      </summary>
+      <ol>
+        <li>
+          <b>대원 고르기</b>: 아래에서 데려갈 멤버를 {CREW_SIZE}명까지 체크하고 <b>원정 시작</b>을 눌러요. 도감에 모은 카드만 데려갈 수 있고, 모자라면 견습 대원이 채워요.
+        </li>
+        <li>
+          <b>길 고르기</b>: 숲은 {STEPS}칸이에요. 칸마다 ⚔️ 위험한 길, 💎 반짝이는 길, ❓ 안개 길, ⛺ 쉼터 중 하나를 골라요. 한 칸 갈 때마다 식량 1개를 써요.
+        </li>
+        <li>
+          <b>사건 풀기</b>: 길마다 사건이 나와요. 선택지를 하나 고르면 결과가 나와요. 🔍🛡️✨ 같은 역할 표시가 붙은 선택지는 그 역할 대원이 있어야 고를 수 있어서, 역할을 섞어 데려가면 좋아요.
+        </li>
+        <li>
+          <b>체력·식량·마력</b>: 위쪽 숫자예요. 체력이 0이 되면 마을로 돌아와요(실패해도 카드와 젤리는 잃지 않아요).
+        </li>
+        <li>
+          <b>결말</b>: 마지막 칸에서 숲의 주인을 만나요. 결말은 💎 보물 발견, 🏠 무사 귀환, 🌙 숨은 결말 세 가지예요.
+        </li>
+        <li>
+          <b>보상</b>: 하루 첫 {DAILY_REWARD_RUNS}판은 끝까지 가면 내 카드 경험치를 받고, 보물·숨은 결말이면 도감 젤리 1개도 받아요. 주운 물건은 원정 기록에 모여요.
+        </li>
+      </ol>
+    </details>
   );
 }
 
@@ -313,6 +413,7 @@ export function ExpeditionPage(props: {
         ) : (
           <>
             {props.result && <ResultView run={props.result} />}
+            <HowTo open={props.record.runs === 0 && !props.result} />
             <StartForm candidates={props.candidates} />
             <RolePicker {...props.role} />
             <RecordView record={props.record} />
