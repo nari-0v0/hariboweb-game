@@ -475,7 +475,7 @@ for (const [n, diff] of [[1, 'easy'], [3, 'normal'], [5, 'hard']] as [number, Qu
 for (const [n, diff] of [[3, 'easy'], [5, 'easy'], [10, 'normal'], [15, 'normal'], [20, 'hard'], [30, 'hard']] as [number, QuestDiff][])
   add({
     id: `newcards:${n}`, name: `새 카드 ${n}장`, cat: '카드', diff,
-    text: (t) => `시즌에 처음 같이 논 짝 ${t}쌍(도감 새 카드)`, target: scaled(n), value: (c) => c.newCardPairs.length,
+    text: (t) => `시즌에 처음 같이 논 짝 ${t}쌍(도감 새 카드)`, target: (c) => Math.min(scaled(n)(c), maxPairs(c)), value: (c) => c.newCardPairs.length,
   });
 for (const [who, diff] of [[5, 'normal'], [0, 'hard']] as [number, QuestDiff][])
   add({
