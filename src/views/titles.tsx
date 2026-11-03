@@ -120,22 +120,23 @@ export function TitlesPage(props: {
                 <span class="shop-name">지금 칭호: {current ? `[${current}]` : '없음'}</span>
                 {apply && <p class="hint">{apply.text}</p>}
               </div>
-              {current && apply?.retry ? (
-                <form method="post" action="/api/titles/equip">
-                  <input type="hidden" name="title" value={state.title_id ?? ''} />
-                  <button class="btn btn-small" type="submit">
-                    다시 붙이기
-                  </button>
-                </form>
-              ) : (
-                current && (
+              {current && (
+                <div class="title-actions">
+                  {apply?.retry && (
+                    <form method="post" action="/api/titles/equip">
+                      <input type="hidden" name="title" value={state.title_id ?? ''} />
+                      <button class="btn btn-small" type="submit">
+                        다시 붙이기
+                      </button>
+                    </form>
+                  )}
                   <form method="post" action="/api/titles/equip">
                     <input type="hidden" name="title" value="" />
                     <button class="btn btn-small" type="submit">
                       칭호 떼기
                     </button>
                   </form>
-                )
+                </div>
               )}
             </div>
             <p class="hint">

@@ -641,3 +641,4 @@ main.wide { max-width: 1320px; }
 .title-info .hint { overflow-wrap: anywhere; }
 .title-info .now { color: var(--pink); }
 .title-item form, .title-item .tag { flex: none; }
+.title-actions { flex: none; display: flex; flex-direction: column; gap: 6px; }

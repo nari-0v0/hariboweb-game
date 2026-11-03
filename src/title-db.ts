@@ -1,4 +1,5 @@
 import { buyWithJelly, countOwnedCards, markPurchasesSeen } from './db';
+import { FULL_LINE } from './bingo';
 import { TITLES, titleById, titleItemId, titleProgress, type Title, type TitleStats } from './titles';
 
 type N = { n: number };
@@ -19,7 +20,8 @@ export async function loadTitleStats(db: D1Database, userId: string, nowIso: str
       )
       .bind(userId, nowIso),
     db.prepare('SELECT COUNT(*) AS n FROM season_titles WHERE user_id = ?').bind(userId),
-    db.prepare('SELECT COUNT(*) AS n FROM bingo_lines WHERE user_id = ?').bind(userId),
+    // 다 채운 판 보너스(FULL_LINE)는 줄이 아니라서 빼고 세요
+    db.prepare('SELECT COUNT(*) AS n FROM bingo_lines WHERE user_id = ? AND line != ?').bind(userId, FULL_LINE),
     db.prepare('SELECT COUNT(*) AS n FROM praises WHERE to_id = ?').bind(userId),
     db.prepare('SELECT COUNT(*) AS n FROM praises WHERE from_id = ?').bind(userId),
   ]);

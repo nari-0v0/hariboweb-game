@@ -85,6 +85,9 @@ describe('도감 칭호', () => {
       for (let slot = 0; slot < 8; slot++) sql.exec(`INSERT INTO season_quests VALUES ('${s}', 1, ${slot}, 'q', ${slot < 7 ? "'d'" : 'NULL'})`);
     }
     const stats = await loadTitleStats(db, A, '2026-11-03T00:00:00Z');
+    // 빙고: 다 채운 판 보너스(8번)는 줄로 세지 않아요
+    sql.exec(`INSERT INTO bingo_lines VALUES ('w1', '${A}', 0, 'm', 'x'), ('w1', '${A}', 8, 'm', 'x')`);
+    expect((await loadTitleStats(db, A, '2026-11-03T00:00:00Z')).bingoLines).toBe(1);
     // 아직 안 끝난 시즌은 세지 않아요
     expect(stats.seasons).toEqual([{ done: 7, total: 8 }, { done: 7, total: 8 }]);
     const owned = await ownedTitles(db, A);
