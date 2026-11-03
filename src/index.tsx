@@ -64,6 +64,10 @@ import {
   titleState,
 } from './title-db';
 
+import { ExpeditionPage } from './views/expedition';
+import { act, currentRun, getRun, listCandidates, myRecord, myRole, quitRun, setRole, startRun } from './expedition-db';
+import { isRole } from './expedition';
+
 export { PlazaRoom } from './plaza-room';
 
 const SESSION_COOKIE = 'hs';
@@ -625,6 +629,73 @@ members.post('/api/titles/buy', async (c) => {
   }
   // 산 칭호가 들어 있는 묶음을 펼쳐서 보여 줘요
   return c.redirect(`/titles?n=${result === 'done' ? 'bought' : result}&t=${encodeURIComponent(t.id)}`);
+});
+
+members.get('/expedition', async (c) => {
+  const viewer = c.get('viewer');
+  const db = c.env.DB;
+  const run = await currentRun(db, viewer.user_id);
+  const rid = c.req.query('r');
+  const [result, record, candidates, role] = await Promise.all([
+    !run && rid ? getRun(db, viewer.user_id, rid) : Promise.resolve(null),
+    myRecord(db, viewer.user_id),
+    run ? Promise.resolve([]) : listCandidates(db, viewer.user_id),
+    myRole(db, viewer.user_id),
+  ]);
+  return page(
+    c,
+    <ExpeditionPage
+      viewer={viewer}
+      run={run}
+      result={result?.row.status === 'done' ? result : null}
+      record={record}
+      candidates={candidates}
+      role={role}
+      notice={c.req.query('n')}
+    />,
+  );
+});
+
+members.post('/api/expedition/start', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const viewer = c.get('viewer');
+  const body = await c.req.parseBody({ all: true });
+  const raw = body.m;
+  const ids = (Array.isArray(raw) ? raw : raw === undefined ? [] : [raw]).map(String);
+  const r = await startRun(c.env.DB, viewer.user_id, ids);
+  return c.redirect(r === 'started' ? '/expedition' : `/expedition?n=${r}`);
+});
+
+members.post('/api/expedition/act', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const viewer = c.get('viewer');
+  const body = await c.req.parseBody();
+  const at = Number(body.at);
+  const choice = Number(body.c);
+  if (!Number.isInteger(at) || !Number.isInteger(choice) || at < 0 || choice < 0) return c.redirect('/expedition');
+  try {
+    const r = await act(c.env.DB, viewer.user_id, at, choice);
+    if (r.result === 'done' && r.runId) return c.redirect(`/expedition?r=${encodeURIComponent(r.runId)}`);
+  } catch (e) {
+    console.error('원정 진행 실패', e);
+    return c.redirect('/expedition?n=error');
+  }
+  // 이미 반영됐거나 엉뚱한 차례면 지금 화면을 다시 보여 줘요
+  return c.redirect('/expedition');
+});
+
+members.post('/api/expedition/quit', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  await quitRun(c.env.DB, c.get('viewer').user_id);
+  return c.redirect('/expedition?n=quit');
+});
+
+members.post('/api/expedition/role', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const role = (await c.req.parseBody()).role;
+  if (!isRole(role)) return c.redirect('/expedition');
+  await setRole(c.env.DB, c.get('viewer').user_id, role);
+  return c.redirect('/expedition?n=role');
 });
 
 members.get('/dogam', async (c) => {
