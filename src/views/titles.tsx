@@ -136,10 +136,10 @@ export function TitlesPage(props: {
         <div class="stack-lg">
           <ShopHead jelly={profile.dogam_jelly} tab="titles" />
           <section class="panel">
-            <h2>칭호</h2>
-            <p class="muted">
-              고른 칭호는 하리보봇이 디스코드 닉네임 앞에 <b>「칭호」</b>로 붙여요. 닉네임·생년은 그대로예요(닉네임 변경권과는 따로예요).
-            </p>
+            <div class="panel-head">
+              <h2>칭호</h2>
+              <span class="hint">예: 「칭호」 닉네임 생년</span>
+            </div>
             <div class="service-item">
               <div>
                 <span class="shop-name">지금 칭호: {current ? `「${current}」` : '없음'}</span>
@@ -172,9 +172,20 @@ export function TitlesPage(props: {
                 </div>
               )}
             </div>
-            <p class="hint">
-              가진 칭호 {count}/{TITLES.length}개 · 조건을 채운 칭호는 이 화면을 열면 열려요.
-            </p>
+            <details class="owned-titles">
+              <summary>
+                보유 칭호 {count}/{TITLES.length}개
+              </summary>
+              {count ? (
+                <div class="title-grid">
+                  {TITLES.filter((t) => owned.has(t.id)).map((t) => (
+                    <ShopChip t={t} owned using={state.title_id === t.id} />
+                  ))}
+                </div>
+              ) : (
+                <p class="hint">아직 가진 칭호가 없어요.</p>
+              )}
+            </details>
           </section>
 
           <p class="hint center">묶음을 누르면 펼쳐져요.</p>

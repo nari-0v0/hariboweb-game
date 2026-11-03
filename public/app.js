@@ -49,3 +49,52 @@
 addEventListener('pageshow', (e) => {
   if (e.persisted && document.querySelector('[data-fresh]')) location.reload();
 });
+
+// 로딩 화면: 다른 화면으로 넘어갈 때 0.25초 넘게 걸리면 곰젤리가 통통 뛰어요(바로 열리면 안 보여요)
+(() => {
+  const root = document.documentElement;
+  let timer = 0;
+  const show = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => root.classList.add('loading'), 250);
+  };
+  const hide = () => {
+    clearTimeout(timer);
+    root.classList.remove('loading');
+  };
+  document.addEventListener('click', (e) => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = e.target instanceof Element && e.target.closest('a[href]');
+    if (!a || a.target || a.hasAttribute('download')) return;
+    const url = new URL(a.href, location.href);
+    if (url.origin !== location.origin) return;
+    if (url.pathname === location.pathname && url.search === location.search && url.hash) return; // 같은 화면 안 이동
+    show();
+  });
+  document.addEventListener('submit', (e) => {
+    if (!e.defaultPrevented && !(e.target instanceof HTMLFormElement && e.target.target)) show();
+  });
+  addEventListener('pageshow', hide);
+  addEventListener('pagehide', hide);
+})();
+
+// 메뉴를 열면 메뉴 속 화면(읽기만 하는 화면)을 바로 미리 받아 둬요. 누르면 거의 바로 열려요.
+(() => {
+  const toggle = document.getElementById('menu-toggle');
+  const rules = document.querySelector('script[type="speculationrules"]');
+  if (!toggle || !rules || !HTMLScriptElement.supports?.('speculationrules')) return;
+  let done = false;
+  toggle.addEventListener('change', () => {
+    if (!toggle.checked || done) return;
+    done = true;
+    try {
+      const where = JSON.parse(rules.textContent).prefetch[0].where;
+      const s = document.createElement('script');
+      s.type = 'speculationrules';
+      s.textContent = JSON.stringify({
+        prefetch: [{ where: { and: [{ selector_matches: '.menu-panel a' }, where] }, eagerness: 'immediate' }],
+      });
+      document.head.append(s);
+    } catch {}
+  });
+})();

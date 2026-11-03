@@ -43,6 +43,7 @@ import { applySync, parseSync } from './sync';
 import { levelName, progress, tierFor, tierLabel } from './levels';
 import { cardPalette } from './palette';
 import { CardPage, DogamPage, LandingPage, MePage, MessagePage } from './views/pages';
+import { ErrorPage, NotFoundPage } from './views/errors';
 import { ShopPage } from './views/shop';
 import { PlazaPage } from './views/plaza';
 import { GroupPage } from './views/group';
@@ -468,7 +469,7 @@ const sameOrigin = (c: Context<AppEnv>) => {
   return !origin || origin === new URL(c.req.url).origin;
 };
 
-// 상점: 매점(디스코드 물건·성별 바꾸기)과 꾸미기(테마·꾸밈 캐릭터) 탭. 칭호 탭은 /titles예요.
+// 상점: 매점(잡다매점: 디스코드 물건·성별 바꾸기)과 꾸미기(테마·꾸밈 캐릭터) 탭. 칭호 탭은 /titles예요.
 async function shopPage(c: Context<AppEnv>, tab: 'store' | 'deco') {
   const viewer = c.get('viewer');
   const [profile, owned, cards, results, services] = await Promise.all([
@@ -771,6 +772,13 @@ members.get('/plaza/ws', async (c) => {
 
 app.route('/', members);
 
-app.notFound((c) => page(c, <MessagePage title="페이지가 없어요" message="주소를 다시 확인해 주세요." />, 404));
+app.notFound((c) => page(c, <NotFoundPage viewer={c.get('viewer') ?? null} />, 404));
+
+// 처리하지 못한 오류: 하얀 화면 대신 다시 시도·방장 문의 화면을 보여 줘요
+app.onError((err, c) => {
+  console.error('화면 오류', c.req.method, c.req.path, err);
+  const retry = c.req.method === 'GET' && /^\/(?![\/\\])/.test(c.req.path) ? c.req.path : '/me';
+  return c.html('<!doctype html>' + String(<ErrorPage retry={retry} />), 500);
+});
 
 export default app;

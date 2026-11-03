@@ -27,7 +27,7 @@ export type Title = { id: string; name: string; group: string; rule: TitleRule }
 const SHOP_GROUPS: [string, number, string][] = [
   ["영어 태그", 10, "MOOD VIBE ZZZ LUV WAVE NOVA AURA BLUE CALM COZY DAWN DUSK ECHO GLOW HAZE HOPE JAZZ LUNA MINT MIST NEON PEAK PINK PURE RAIN ROSE SAGE SNOW SOFT SOLO SYNC TIDE VOID WILD WISH ZERO ZEST BOLD COOL CUTE EASY FREE HYPE LOFI LUCK MOON NERD OKAY POP RAD SUN SKY YAY ZEN BUZZ CHEF FOMO OMG YOLO WOW HIHI BYE"],
   ["게임 용어", 20, "GG GLHF AFK BRB LOL OP NPC PVP RPG FPS TANK HEAL DPS BUFF NERF META LAG PING RAGE TRIO AIM HP MP EXP LVUP KDA DUOQ 1V1 5V5 RUSH CAMP LOOT 캐리 버스 고인물 뉴비 원딜 정글 탑신 미드 서폿 힐러 탱커 딜러 에임 피지컬 뇌지컬 한타 존버 랭커 티어 승률 연승 각성 역캐 하드캐리 보스 막타 파밍 칼각 무빙 갱킹 와드 백도어 풀피"],
-  ["요즘 말", 30, "킹받 찐 가보자고 럭키비키 원영적 갓벽 아싸 MZ 꾸안꾸 어쩔 저쩔 쌉가능 개꿀 꿀잼 노잼 텐션 하이텐션 갓생 소확행 오운완 중꺾마 반모 칼답 짤부자 밈장인 인싸템 TMI 몰루 ㄱㄱ ㅇㅈ 실화 레알 인정 ㄹㅇ 존맛 JMT 꿀팁 대박 띵작 갓겜 국룰 찐텐 할많하않 머쓱 별다줄 뇌절 스불재 아무말 혼코노 퇴사각 출첵 오히려 킹갓"],
+  ["유행어", 30, "킹받 찐 가보자고 럭키비키 원영적 갓벽 아싸 MZ 꾸안꾸 어쩔 저쩔 쌉가능 개꿀 꿀잼 노잼 텐션 하이텐션 갓생 소확행 오운완 중꺾마 반모 칼답 짤부자 밈장인 인싸템 TMI 몰루 ㄱㄱ ㅇㅈ 실화 레알 인정 ㄹㅇ 존맛 JMT 꿀팁 대박 띵작 갓겜 국룰 찐텐 할많하않 머쓱 별다줄 뇌절 스불재 아무말 혼코노 퇴사각 출첵 오히려 킹갓"],
   ["하루와 기분", 30, "몽글 새벽 느긋 감성 낭만 야행성 포근 산들 반짝 말랑 꿀잠 졸림 출근 퇴근 칼퇴 월요병 불금 주말 방학 휴가 집순 집돌 귀차니 무념 멍때림 힐링 행복 평화 여유 낮잠 밤샘 올빼미 아침형 설렘 두근 심쿵 시크 츤데레 열정 냉정 엉뚱 해맑 수줍 당당 느림보 부지런 덤벙 꼼꼼 소심 대범 낙천 진지 장난꾼 개구짐 엉망 단순 복잡 배고픔"],
   ["간식", 20, "커피 라떼 녹차 딸기 복숭아 레몬 체리 수박 귤 망고 초코 바닐라 민초 반민초 떡볶이 치킨 피자 라면 국밥 마라 탕후루 붕어빵 호떡 고구마 마카롱 쿠키 푸딩 젤리빈 솜사탕 팝콘 아아 따아 버블티 콜라 사이다 우유 식혜 김밥 만두 쭈꾸미"],
   ["자연과 하늘", 50, "구름 하늘 바다 노을 별빛 달빛 은하 우주 오로라 무지개 햇살 소나기 눈송이 벚꽃 단풍 파도 바람 숲속 이슬 안개 새싹잎 첫눈 한여름 봄바람 가을밤 겨울잠 유성 혜성 성운 일출"],
