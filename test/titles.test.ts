@@ -49,27 +49,32 @@ function setup(jelly = 0) {
   return f;
 }
 
-const empty: TitleStats = { bestXp: 0, friendXps: [], cards: 0, seasons: [], fullClears: 0, bingoLines: 0, praiseGot: 0, praiseGave: 0 };
+const empty: TitleStats = { bestXp: 0, ownXp: 0, friendXps: [], cards: 0, seasons: [], fullClears: 0, bingoLines: 0, bingoFull: 0, praiseGot: 0, praiseGave: 0, voiceSeconds: 0 };
+const byName = (name: string) => TITLES.find((t) => t.name === name)!;
 
 describe('도감 칭호', () => {
-  it('칭호는 서버 태그처럼 4글자까지, id는 겹치지 않아요', () => {
-    expect(TITLES.every((t) => [...t.name].length <= TITLE_MAX && !/[\s[\]]/.test(t.name))).toBe(true);
+  it('칭호는 500개쯤, 서버 태그처럼 4글자까지, 이름과 id는 겹치지 않아요', () => {
+    expect(TITLES.length).toBeGreaterThanOrEqual(500);
+    expect(new Set(TITLES.map((t) => t.name)).size).toBe(TITLES.length);
+    expect(TITLES.every((t) => [...t.name].length <= TITLE_MAX && !/[\s\u300c\u300d]/.test(t.name))).toBe(true);
     expect(new Set(TITLES.map((t) => t.id)).size).toBe(TITLES.length);
     expect(TITLES.every((t) => /^[a-z0-9-]{1,32}$/.test(t.id))).toBe(true);
     expect(TITLES.some((t) => /하리보|곰돌/.test(t.name))).toBe(false);
   });
 
-  it('닉네임 앞 칭호 떼기', () => {
-    expect(stripTitle('[ACE] 냥이 03')).toBe('냥이 03');
+  it('닉네임에서 칭호와 왕관 떼기', () => {
+    expect(stripTitle('「ACE」 냥이 03')).toBe('냥이 03');
+    expect(stripTitle('👑 「ACE」 냥이 03 👑')).toBe('냥이 03');
     expect(stripTitle('냥이 03')).toBe('냥이 03');
-    expect(stripTitle('[TOOLONG] 냥이')).toBe('[TOOLONG] 냥이');
+    expect(stripTitle('[ACE] 03')).toBe('[ACE] 03');
+    expect(stripTitle('「TOOLONG」 냥이')).toBe('「TOOLONG」 냥이');
   });
 
   it('조건: 카드 레벨, 퀘스트 성공률', () => {
-    const bff = titleById('bff')!;
+    const bff = titleById('lv-30')!;
     expect(titleProgress(bff, { ...empty, bestXp: xpForLevel(29) }).ok).toBe(false);
     expect(titleProgress(bff, { ...empty, bestXp: xpForLevel(30) }).ok).toBe(true);
-    const ace = titleById('ace')!;
+    const ace = titleById('rate-s2-80')!;
     // 시즌 1번만으로는 안 열려요
     expect(titleProgress(ace, { ...empty, seasons: [{ done: 8, total: 8 }] }).ok).toBe(false);
     expect(titleProgress(ace, { ...empty, seasons: [{ done: 8, total: 8 }, { done: 5, total: 8 }] }).ok).toBe(true); // 13/16 = 81%
@@ -87,48 +92,51 @@ describe('도감 칭호', () => {
     const stats = await loadTitleStats(db, A, '2026-11-03T00:00:00Z');
     // 빙고: 다 채운 판 보너스(8번)는 줄로 세지 않아요
     sql.exec(`INSERT INTO bingo_lines VALUES ('w1', '${A}', 0, 'm', 'x'), ('w1', '${A}', 8, 'm', 'x')`);
-    expect((await loadTitleStats(db, A, '2026-11-03T00:00:00Z')).bingoLines).toBe(1);
+    const b = await loadTitleStats(db, A, '2026-11-03T00:00:00Z');
+    expect([b.bingoLines, b.bingoFull]).toEqual([1, 1]);
     // 아직 안 끝난 시즌은 세지 않아요
     expect(stats.seasons).toEqual([{ done: 7, total: 8 }, { done: 7, total: 8 }]);
     const owned = await ownedTitles(db, A);
     const fresh = await recordEarnedTitles(db, A, stats, owned);
-    expect(fresh.sort()).toEqual(['ace', 'bff', 'bond', 'steady']);
+    expect(fresh.sort()).toEqual(
+      ['friends30-1', 'lv-10', 'lv-15', 'lv-20', 'lv-25', 'lv-30', 'lv-5', 'rate-s2-30', 'rate-s2-50', 'rate-s2-70', 'rate-s2-80', 'season-1', 'season-2'].sort(),
+    );
     // 다시 열면 새로 얻은 건 없어요
     expect(await recordEarnedTitles(db, A, stats, await ownedTitles(db, A))).toEqual([]);
   });
 
   it('상점 칭호는 도감 젤리로 사고, 상점 결과 팝업에는 다시 안 떠요', async () => {
     const { sql, db } = setup(40);
-    expect(await buyTitle(db, A, titleById('ace')!)).toBe('not_for_sale');
-    expect(await buyTitle(db, A, titleById('mood')!)).toBe('done');
-    expect(await buyTitle(db, A, titleById('mood')!)).toBe('owned');
-    expect(await buyTitle(db, A, titleById('wave')!)).toBe('not_enough_jelly');
-    expect((sql.prepare('SELECT dogam_jelly FROM profiles WHERE user_id = ?').get(A) as { dogam_jelly: number }).dogam_jelly).toBe(10);
-    expect([...(await ownedTitles(db, A))]).toEqual(['mood']);
+    expect(await buyTitle(db, A, titleById('rate-s2-80')!)).toBe('not_for_sale');
+    expect(await buyTitle(db, A, byName('MOOD'))).toBe('done'); // 10
+    expect(await buyTitle(db, A, byName('MOOD'))).toBe('owned');
+    expect(await buyTitle(db, A, byName('구름'))).toBe('not_enough_jelly'); // 50
+    expect((sql.prepare('SELECT dogam_jelly FROM profiles WHERE user_id = ?').get(A) as { dogam_jelly: number }).dogam_jelly).toBe(30);
+    expect([...(await ownedTitles(db, A))]).toEqual([byName('MOOD').id]);
     expect(sql.prepare('SELECT COUNT(*) AS n FROM purchases WHERE seen_at IS NULL').get()).toEqual({ n: 0 });
   });
 
   it('고르면 봇 목록에 나오고, 봇이 알리면 빠져요. 같은 칭호를 다시 고르면 다시 붙여 봐요', async () => {
     const { db } = setup();
     expect(await listTitleJobs(db)).toEqual([]);
-    await equipTitle(db, A, 'mood');
-    expect(await listTitleJobs(db)).toEqual([{ user: A, id: 'mood', title: 'MOOD' }]);
-    await settleTitle(db, A, 'mood', 'too_long');
+    await equipTitle(db, A, 'shop-1');
+    expect(await listTitleJobs(db)).toEqual([{ user: A, id: 'shop-1', title: 'MOOD' }]);
+    await settleTitle(db, A, 'shop-1', 'too_long');
     expect(await listTitleJobs(db)).toEqual([]);
-    expect(await titleState(db, A)).toEqual({ title_id: 'mood', title_applied: 'mood', title_note: 'too_long' });
-    await equipTitle(db, A, 'mood');
-    expect(await listTitleJobs(db)).toEqual([{ user: A, id: 'mood', title: 'MOOD' }]);
-    await settleTitle(db, A, 'mood', null);
+    expect(await titleState(db, A)).toEqual({ title_id: 'shop-1', title_applied: 'shop-1', title_note: 'too_long' });
+    await equipTitle(db, A, 'shop-1');
+    expect(await listTitleJobs(db)).toEqual([{ user: A, id: 'shop-1', title: 'MOOD' }]);
+    await settleTitle(db, A, 'shop-1', null);
     // 떼기
     await equipTitle(db, A, null);
     expect(await listTitleJobs(db)).toEqual([{ user: A, id: '', title: null }]);
     await settleTitle(db, A, '', null);
     expect(await listTitleJobs(db)).toEqual([]);
     // 그 사이 다른 칭호를 고르면 예전 결과가 와도 다시 나와요
-    await equipTitle(db, A, 'mood');
-    await equipTitle(db, A, 'vibe');
-    await settleTitle(db, A, 'mood', null);
-    expect(await listTitleJobs(db)).toEqual([{ user: A, id: 'vibe', title: 'VIBE' }]);
+    await equipTitle(db, A, 'shop-1');
+    await equipTitle(db, A, 'shop-2');
+    await settleTitle(db, A, 'shop-1', null);
+    expect(await listTitleJobs(db)).toEqual([{ user: A, id: 'shop-2', title: 'VIBE' }]);
   });
 
   it('목록에서 빠진 칭호를 고른 채면 떼요', async () => {

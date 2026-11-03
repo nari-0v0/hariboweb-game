@@ -65,6 +65,33 @@ function TitleRow(props: { t: Title; stats: TitleStats; owned: boolean; using: b
   );
 }
 
+// 상점 칭호는 이름표와 버튼만 작게 보여요(500개 가까이라)
+function ShopChip(props: { t: Title; owned: boolean; using: boolean }) {
+  const { t, owned, using } = props;
+  return (
+    <div class={`title-cell${using ? ' using' : owned ? ' open' : ''}`}>
+      <span class="title-chip">{t.name}</span>
+      {using ? (
+        <span class="tag on">사용 중</span>
+      ) : owned ? (
+        <form method="post" action="/api/titles/equip">
+          <input type="hidden" name="title" value={t.id} />
+          <button class="btn btn-small" type="submit">
+            쓰기
+          </button>
+        </form>
+      ) : (
+        <form method="post" action="/api/titles/buy">
+          <input type="hidden" name="title" value={t.id} />
+          <button class="btn btn-small btn-buy" type="submit">
+            🍬 {t.rule.kind === 'shop' ? t.rule.price : ''}
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
+
 export function TitlesPage(props: {
   viewer: Member;
   profile: Profile;
@@ -72,13 +99,14 @@ export function TitlesPage(props: {
   owned: Set<string>;
   state: TitleState;
   fresh: string[];
+  focus?: string;
   notice?: string;
 }) {
   const { viewer, profile, stats, owned, state } = props;
   const current = titleName(state.title_id);
   const popup: PopupLine[] = [];
   if (props.fresh.length)
-    popup.push({ title: '새 칭호', text: `새 칭호를 얻었어요: ${props.fresh.map((id) => `[${titleName(id)}]`).join(' ')}` });
+    popup.push({ title: '새 칭호', text: `새 칭호를 얻었어요: ${props.fresh.map((id) => `「${titleName(id)}」`).join(' ')}` });
   const notice = props.notice ? NOTICES[props.notice] : undefined;
   if (notice) popup.push(...notice);
   const apply = applyText(state);
@@ -113,11 +141,11 @@ export function TitlesPage(props: {
               </span>
             </div>
             <p class="muted">
-              고른 칭호는 하리보봇이 디스코드 닉네임 앞에 <b>[칭호]</b>로 붙여요. 닉네임·생년은 그대로예요(닉네임 변경권과는 따로예요).
+              고른 칭호는 하리보봇이 디스코드 닉네임 앞에 <b>「칭호」</b>로 붙여요. 닉네임·생년은 그대로예요(닉네임 변경권과는 따로예요).
             </p>
             <div class="service-item">
               <div>
-                <span class="shop-name">지금 칭호: {current ? `[${current}]` : '없음'}</span>
+                <span class="shop-name">지금 칭호: {current ? `「${current}」` : '없음'}</span>
                 {apply && <p class="hint">{apply.text}</p>}
               </div>
               {current && (
@@ -144,17 +172,36 @@ export function TitlesPage(props: {
             </p>
           </section>
 
-          {TITLE_GROUPS.map((g) => (
-            <section class="panel">
-              <h2>{g === '상점' ? '상점 칭호' : `${g} 칭호`}</h2>
-              {g === '상점' && <p class="muted">도감 젤리로 사요. 한 번 사면 계속 쓸 수 있어요.</p>}
-              <div class="title-list">
-                {TITLES.filter((t) => t.group === g).map((t) => (
-                  <TitleRow t={t} stats={stats} owned={owned.has(t.id)} using={state.title_id === t.id} />
-                ))}
-              </div>
-            </section>
-          ))}
+          <p class="hint center">묶음을 누르면 펼쳐져요.</p>
+          {TITLE_GROUPS.map((g) => {
+            const list = TITLES.filter((t) => t.group === g);
+            const shop = list[0]?.rule.kind === 'shop' ? list[0].rule.price : null;
+            const have = list.filter((t) => owned.has(t.id)).length;
+            const open = list.some((t) => t.id === state.title_id || t.id === props.focus || props.fresh.includes(t.id));
+            return (
+              <details class="panel title-group" open={open}>
+                <summary>
+                  <h2>{g}</h2>
+                  <span class="hint">
+                    {shop !== null ? `🍬 ${shop} · ` : ''}가진 {have}/{list.length}
+                  </span>
+                </summary>
+                {shop !== null ? (
+                  <div class="title-grid">
+                    {list.map((t) => (
+                      <ShopChip t={t} owned={owned.has(t.id)} using={state.title_id === t.id} />
+                    ))}
+                  </div>
+                ) : (
+                  <div class="title-list">
+                    {list.map((t) => (
+                      <TitleRow t={t} stats={stats} owned={owned.has(t.id)} using={state.title_id === t.id} />
+                    ))}
+                  </div>
+                )}
+              </details>
+            );
+          })}
         </div>
       </div>
     </Layout>

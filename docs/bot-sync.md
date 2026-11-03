@@ -93,9 +93,9 @@ Content-Type: application/json
 
 물건 번호는 `theme:<테마>`, `deco:<꾸밈 캐릭터>`이고 값은 웹 `src/shop.ts`에 있어요. 판타지 꾸밈 캐릭터는 젤리로 못 사고 도감 카드 3장마다 하나씩 열려요.
 
-## 도감 칭호 (닉네임 앞 `[칭호] `)
+## 도감 칭호 (닉네임 앞 `「칭호」 `)
 
-멤버가 웹 `/titles`에서 칭호를 고르면 하리보봇이 디스코드 닉네임 앞에 `[칭호] `로 붙여요. 칭호는 4글자까지이고 띄어쓰기·대괄호가 없어요(웹 `src/titles.ts`).
+멤버가 웹 `/titles`에서 칭호를 고르면 하리보봇이 디스코드 닉네임 앞에 `「칭호」 `로 붙여요. 칭호는 4글자까지이고 띄어쓰기·대괄호가 없어요(웹 `src/titles.ts`).
 
 - `GET /api/bot/titles` → `{"titles":[{"user":"<디스코드 ID>","id":"ace","title":"ACE"}]}` (바꿀 멤버만, 한 번에 50명까지). 칭호를 뗄 때는 `{"user":"…","id":"","title":null}`.
 - 봇이 닉네임 앞 칭호만 바꾼 뒤 `POST /api/bot/titles/<디스코드 ID>` `{"id":"ace","ok":true}`. 못 붙이면 `{"id":"ace","ok":false,"reason":"too_long"|"forbidden"|"left"}`.

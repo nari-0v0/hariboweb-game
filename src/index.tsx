@@ -584,6 +584,7 @@ members.get('/titles', async (c) => {
       owned={owned}
       state={state}
       fresh={fresh}
+      focus={c.req.query('t')}
       notice={c.req.query('n')}
     />,
   );
@@ -622,7 +623,8 @@ members.post('/api/titles/buy', async (c) => {
     console.error('칭호 결제 실패', e);
     return c.redirect('/titles?n=error');
   }
-  return c.redirect(`/titles?n=${result === 'done' ? 'bought' : result}`);
+  // 산 칭호가 들어 있는 묶음을 펼쳐서 보여 줘요
+  return c.redirect(`/titles?n=${result === 'done' ? 'bought' : result}&t=${encodeURIComponent(t.id)}`);
 });
 
 members.get('/dogam', async (c) => {

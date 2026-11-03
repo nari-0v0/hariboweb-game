@@ -6,8 +6,8 @@ type N = { n: number };
 
 // 칭호 조건에 쓰는 내 기록을 한 번에 읽어요
 export async function loadTitleStats(db: D1Database, userId: string, nowIso: string): Promise<TitleStats> {
-  const [cards, seasons, clears, bingo, got, gave] = await db.batch([
-    db.prepare('SELECT xp FROM cards WHERE owner_id = ?').bind(userId),
+  const [cards, seasons, clears, bingo, got, gave, own] = await db.batch([
+    db.prepare('SELECT xp, voice_seconds FROM cards WHERE owner_id = ?').bind(userId),
     // 끝난 시즌마다 내가 끝까지 있던 모둠의 퀘스트 수와 깬 수
     db
       .prepare(
@@ -20,15 +20,22 @@ export async function loadTitleStats(db: D1Database, userId: string, nowIso: str
       )
       .bind(userId, nowIso),
     db.prepare('SELECT COUNT(*) AS n FROM season_titles WHERE user_id = ?').bind(userId),
-    // 다 채운 판 보너스(FULL_LINE)는 줄이 아니라서 빼고 세요
-    db.prepare('SELECT COUNT(*) AS n FROM bingo_lines WHERE user_id = ? AND line != ?').bind(userId, FULL_LINE),
+    // 다 채운 판 보너스(FULL_LINE)는 줄이 아니라서 따로 세요
+    db
+      .prepare('SELECT SUM(line != ?2) AS n, SUM(line = ?2) AS full FROM bingo_lines WHERE user_id = ?1')
+      .bind(userId, FULL_LINE),
     db.prepare('SELECT COUNT(*) AS n FROM praises WHERE to_id = ?').bind(userId),
     db.prepare('SELECT COUNT(*) AS n FROM praises WHERE from_id = ?').bind(userId),
+    db.prepare('SELECT solo_xp AS n FROM profiles WHERE user_id = ?').bind(userId),
   ]);
-  const xps = (cards!.results as { xp: number }[]).map((r) => Number(r.xp));
+  const cardRows = cards!.results as { xp: number; voice_seconds: number }[];
+  const xps = cardRows.map((r) => Number(r.xp));
   const n = (r: D1Result | undefined) => Number((r?.results[0] as N | undefined)?.n ?? 0);
   return {
     bestXp: xps.reduce((a, b) => Math.max(a, b), 0),
+    ownXp: n(own),
+    voiceSeconds: cardRows.reduce((a, r) => a + Number(r.voice_seconds), 0),
+    bingoFull: Number((bingo?.results[0] as { full?: number } | undefined)?.full ?? 0),
     friendXps: xps,
     cards: await countOwnedCards(db, userId),
     seasons: (seasons!.results as { done: number; total: number }[]).map((r) => ({ done: Number(r.done), total: Number(r.total) })),
