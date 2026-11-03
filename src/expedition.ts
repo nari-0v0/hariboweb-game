@@ -94,6 +94,14 @@ export const ENDINGS: Record<Ending, { name: string; text: string }> = {
 
 export type LogLine = { text: string; good?: boolean; bad?: boolean };
 
+export type Roll = { who: string; die: number; total: number; need: number; ok: boolean };
+export type LastResult = {
+  kind: 'move' | 'event';
+  roll: Roll | null;
+  delta: { hp: number; food: number; mana: number };
+  finds: FindId[]; // 이번에 주운 물건
+};
+
 export type RunState = {
   step: number; // 지금 몇 번째 칸(1~7). 길을 고르기 전에는 이전 칸 번호
   phase: 'path' | 'event' | 'done';
@@ -109,6 +117,7 @@ export type RunState = {
   intro: string; // 지금 사건 소개 문장
   mood: number; // 대원 분위기(다음 판정 한 번에 더하거나 빼요)
   log: LogLine[]; // 바로 앞 선택의 결과
+  last: LastResult | null; // 바로 앞 선택의 결과를 크게 보여 줄 때 쓰는 값(판정·변화량)
   journal: string[]; // 원정 일지(끝나면 보여 줘요)
   ending: Ending | null;
 };
@@ -323,6 +332,7 @@ export function startState(seed: string, crew: Crew[]): RunState {
     intro: '',
     mood: 0,
     log: [{ text: '안개숲 입구에 도착했어요. 갈 길을 골라 주세요.' }],
+    last: null,
     journal: [],
     ending: null,
   };
@@ -403,7 +413,21 @@ function finish(s: RunState, ending: Ending) {
 }
 
 // 고른 번호 하나를 반영해요. 맞지 않는 번호면 false.
+// 성공하면 s.last에 판정과 체력·식량·마력 변화량을 남겨서 화면에 크게 보여 줘요.
 export function applyChoice(seed: string, crew: Crew[], s: RunState, choice: number, turn: number): boolean {
+  const before = { hp: s.hp, food: s.food, mana: s.mana, finds: s.finds.length, phase: s.phase };
+  const note: { roll: Roll | null } = { roll: null };
+  if (!step(seed, crew, s, choice, turn, note)) return false;
+  s.last = {
+    kind: before.phase === 'path' ? 'move' : 'event',
+    roll: note.roll,
+    delta: { hp: s.hp - before.hp, food: s.food - before.food, mana: s.mana - before.mana },
+    finds: s.finds.slice(before.finds),
+  };
+  return true;
+}
+
+function step(seed: string, crew: Crew[], s: RunState, choice: number, turn: number, note: { roll: Roll | null }): boolean {
   const r = rng(`${seed}:turn:${turn}`);
   if (s.phase === 'path') {
     const kind = s.paths[choice];
@@ -442,7 +466,7 @@ export function applyChoice(seed: string, crew: Crew[], s: RunState, choice: num
     const die = 1 + Math.floor(r() * 6);
     const total = die + (who ? personal(who) : 0) + s.mood;
     const ok = total >= opt.check;
-    s.log.push({ text: `🎲 ${who?.name ?? '대원'}의 판정: ${die}${total !== die ? ` (보너스 포함 ${total})` : ''} / 필요 ${opt.check} → ${ok ? '성공' : '실패'}`, good: ok, bad: !ok });
+    note.roll = { who: who?.name ?? '대원', die, total, need: opt.check, ok };
     s.mood = 0; // 분위기는 한 번 쓰면 돌아와요
     if (!ok) out = opt.lose ?? { text: '잘 되지 않았어요.' };
   }

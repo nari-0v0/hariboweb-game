@@ -675,7 +675,7 @@ members.post('/api/expedition/start', async (c) => {
   const raw = body.m;
   const ids = (Array.isArray(raw) ? raw : raw === undefined ? [] : [raw]).map(String);
   const r = await startRun(c.env.DB, viewer.user_id, ids);
-  return c.redirect(r === 'started' ? '/expedition' : `/expedition?n=${r}`);
+  return c.redirect(r === 'started' ? '/expedition#now' : `/expedition?n=${r}`);
 });
 
 members.post('/api/expedition/act', async (c) => {
@@ -687,13 +687,13 @@ members.post('/api/expedition/act', async (c) => {
   if (!Number.isInteger(at) || !Number.isInteger(choice) || at < 0 || choice < 0) return c.redirect('/expedition');
   try {
     const r = await act(c.env.DB, viewer.user_id, String(body.run ?? ''), at, choice);
-    if (r.result === 'done' && r.runId) return c.redirect(`/expedition?r=${encodeURIComponent(r.runId)}`);
+    if (r.result === 'done' && r.runId) return c.redirect(`/expedition?r=${encodeURIComponent(r.runId)}#now`);
   } catch (e) {
     console.error('원정 진행 실패', e);
     return c.redirect('/expedition?n=error');
   }
-  // 이미 반영됐거나 엉뚱한 차례면 지금 화면을 다시 보여 줘요
-  return c.redirect('/expedition');
+  // 이미 반영됐거나 엉뚱한 차례면 지금 화면을 다시 보여 줘요(#now: 결과가 바로 보이게 원정 칸으로 내려가요)
+  return c.redirect('/expedition#now');
 });
 
 members.post('/api/expedition/quit', async (c) => {
