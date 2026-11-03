@@ -2,7 +2,7 @@ import { PREFETCH_RULES } from '../prefetch';
 import type { Child } from 'hono/jsx';
 import type { Member } from '../env';
 
-type NavKey = 'me' | 'dogam' | 'shop' | 'plaza' | 'group' | 'bingo' | 'titles' | 'expedition' | 'guide';
+type NavKey = 'me' | 'dogam' | 'shop' | 'plaza' | 'group' | 'bingo' | 'titles' | 'expedition' | 'cases' | 'guide';
 
 export function Layout(props: {
   title: string;
@@ -60,6 +60,7 @@ export function Layout(props: {
               {nav('bingo', '/bingo', '빙고', '🎯')}
               {nav('plaza', '/plaza', '광장', '🏞️')}
               {nav('expedition', '/expedition', '원정대', '🧭')}
+              {nav('cases', '/cases', '사건파일', '🔎')}
               {nav('shop', '/shop', '상점', '🍬')}
               {nav('guide', '/guide', '사용설명서', '📘')}
               <form method="post" action="/auth/logout">
