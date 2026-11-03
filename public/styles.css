@@ -833,7 +833,19 @@ main.wide { max-width: 1320px; }
 
 /* 사건파일 */
 .case-run h3, .case-result h3 { margin: 16px 0 6px; }
-.suspect-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 8px 0; }
+.suspect-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 8px 0; }
+.suspect form { margin: 4px 0 0; width: 100%; }
+.suspect .btn-small { width: 100%; justify-content: center; font-size: .74rem; padding-inline: 4px; }
+.case-ask { background: var(--sky); color: var(--ink); }
+.case-x { margin-top: 4px; background: #fff; color: var(--ink); }
+.case-say { margin: 4px 0 0; padding: 4px 6px; border: 2px dashed var(--ink); background: #fffbe6; font-size: .78rem; line-height: 1.45; text-align: left; overflow-wrap: anywhere; }
+.suspect.crossed { opacity: .45; background: #e9eef3; }
+.suspect.crossed img { filter: grayscale(1); }
+.suspect.crossed .crew-name { text-decoration: line-through 3px; }
+.case-left { margin: 8px 0; font-size: 1rem; }
+.case-left b { font-size: 1.25rem; }
+.case-left.low b { color: #c0315a; }
+.case-clue.closed { background: #e9eef3; color: #6b7a8a; }
 .suspect .hint { font-size: .74rem; }
 .suspect.culprit { background: #ffd3e1; border-color: #c0315a; }
 .suspect.wrong { opacity: .55; }
@@ -856,10 +868,14 @@ main.wide { max-width: 1320px; }
 .g-F .grade-badge { background: #9c8fa3; }
 .g-S .grade-badge { background: var(--yellow); color: var(--ink); }
 .case-truth { margin: 8px 0; padding-left: 0; list-style: none; display: grid; gap: 4px; }
+@media (max-width: 760px) {
+  .suspect-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 @media (max-width: 520px) {
   .suspect-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (prefers-reduced-motion: no-preference) {
+  .case-say.fresh { animation: pop-in .35s steps(4) both; }
   .case-clue.fresh { animation: pop-in .35s steps(4) both; }
   .grade-badge { animation: roll .6s steps(6) both; }
 }
