@@ -4,7 +4,7 @@ import type { TitleState } from '../title-db';
 import { TITLES, TITLE_GROUPS, titleName, titleProgress, type Title, type TitleStats } from '../titles';
 import { Card } from './card';
 import { Layout } from './layout';
-import { Popup, type PopupLine } from './shop';
+import { Popup, ShopHead, type PopupLine } from './shop';
 
 const NOTICES: Record<string, PopupLine[]> = {
   equipped: [{ title: '변경 완료', text: '칭호를 바꿨어요. 하리보봇이 곧(1분 안쪽) 디스코드 닉네임 앞에 붙여요.' }],
@@ -114,7 +114,7 @@ export function TitlesPage(props: {
   const count = TITLES.filter((t) => owned.has(t.id)).length;
 
   return (
-    <Layout title="칭호" viewer={viewer} active="titles">
+    <Layout title="칭호" viewer={viewer} active="shop">
       <Popup lines={popup} />
       <div class="split">
         <div class="stage-wrap shop-preview">
@@ -134,13 +134,9 @@ export function TitlesPage(props: {
         </div>
 
         <div class="stack-lg">
+          <ShopHead jelly={profile.dogam_jelly} tab="titles" />
           <section class="panel">
-            <div class="panel-head">
-              <h1>칭호</h1>
-              <span class="jelly" aria-label="내 도감 젤리">
-                🍬 {profile.dogam_jelly}
-              </span>
-            </div>
+            <h2>칭호</h2>
             <p class="muted">
               고른 칭호는 하리보봇이 디스코드 닉네임 앞에 <b>「칭호」</b>로 붙여요. 닉네임·생년은 그대로예요(닉네임 변경권과는 따로예요).
             </p>

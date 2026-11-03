@@ -463,7 +463,8 @@ const sameOrigin = (c: Context<AppEnv>) => {
   return !origin || origin === new URL(c.req.url).origin;
 };
 
-members.get('/shop', async (c) => {
+// 상점: 매점(디스코드 물건·성별 바꾸기)과 꾸미기(테마·꾸밈 캐릭터) 탭. 칭호 탭은 /titles예요.
+async function shopPage(c: Context<AppEnv>, tab: 'store' | 'deco') {
   const viewer = c.get('viewer');
   const [profile, owned, cards, results, services] = await Promise.all([
     getProfile(c.env.DB, viewer.user_id),
@@ -476,26 +477,29 @@ members.get('/shop', async (c) => {
   await markPurchasesSeen(c.env.DB, viewer.user_id, results.map((p) => p.id));
   return page(
     c,
-    <ShopPage viewer={viewer} profile={profile} owned={owned} cards={cards} results={results} services={services} notice={c.req.query('n')} />,
+    <ShopPage tab={tab} viewer={viewer} profile={profile} owned={owned} cards={cards} results={results} services={services} notice={c.req.query('n')} />,
   );
-});
+}
+
+members.get('/shop', (c) => shopPage(c, 'store'));
+members.get('/shop/deco', (c) => shopPage(c, 'deco'));
 
 members.post('/api/shop/buy', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
   const viewer = c.get('viewer');
   const item = shopItem((await c.req.parseBody()).item);
-  if (!item || item.price === null) return c.redirect('/shop?n=not_for_sale');
+  if (!item || item.price === null) return c.redirect('/shop/deco?n=not_for_sale');
   const owned = await getOwnedItems(c.env.DB, viewer.user_id);
-  if (owned.has(item.id)) return c.redirect('/shop?n=owned');
+  if (owned.has(item.id)) return c.redirect('/shop/deco?n=owned');
   let result: Awaited<ReturnType<typeof buyWithJelly>>;
   try {
     result = await buyWithJelly(c.env.DB, viewer.user_id, item.id, item.price);
   } catch (e) {
     console.error('도감 젤리 결제 실패', e);
-    return c.redirect('/shop?n=error');
+    return c.redirect('/shop/deco?n=error');
   }
   // 산 물건은 결과 팝업("구매가 완료되었습니다")으로, 못 산 이유는 안내 팝업으로 보여 줘요
-  return c.redirect(result === 'done' ? '/shop' : `/shop?n=${result}`);
+  return c.redirect(result === 'done' ? '/shop/deco' : `/shop/deco?n=${result}`);
 });
 
 // 성별 바꾸기: 확인 화면(미리보기) → 도감 젤리로 사요
@@ -549,23 +553,23 @@ members.post('/api/me/deco', async (c) => {
   const key = String((await c.req.parseBody()).deco ?? '');
   if (key === '') {
     await setDeco(c.env.DB, viewer.user_id, null);
-    return c.redirect('/shop?n=unequipped');
+    return c.redirect('/shop/deco?n=unequipped');
   }
   const item = shopItem(decoItemId(key));
-  if (!item) return c.redirect('/shop?n=error');
+  if (!item) return c.redirect('/shop/deco?n=error');
   const [owned, cards] = await Promise.all([getOwnedItems(c.env.DB, viewer.user_id), countOwnedCards(c.env.DB, viewer.user_id)]);
-  if (!canUse(item, owned, cards)) return c.redirect('/shop?n=locked');
+  if (!canUse(item, owned, cards)) return c.redirect('/shop/deco?n=locked');
   await setDeco(c.env.DB, viewer.user_id, key);
-  return c.redirect('/shop?n=equipped');
+  return c.redirect('/shop/deco?n=equipped');
 });
 
 members.post('/api/me/theme', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
   const viewer = c.get('viewer');
   const theme = String((await c.req.parseBody()).theme ?? '');
-  if (!canUseTheme(theme, await getOwnedItems(c.env.DB, viewer.user_id))) return c.redirect('/shop?n=locked');
+  if (!canUseTheme(theme, await getOwnedItems(c.env.DB, viewer.user_id))) return c.redirect('/shop/deco?n=locked');
   await setTheme(c.env.DB, viewer.user_id, theme);
-  return c.redirect('/shop?n=theme');
+  return c.redirect('/shop/deco?n=theme');
 });
 
 // 칭호: 얻은 칭호를 고르면 하리보봇이 디스코드 닉네임 앞에 붙여요

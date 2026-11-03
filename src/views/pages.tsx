@@ -153,7 +153,7 @@ export function MePage(props: { viewer: Member; profile: Profile; items: Set<str
               <span class="pool-label">내 캐릭터</span>
               <span class="btn pool on">{poolOf(profile.character_id) === 'boy' ? '남자' : '여자'}</span>
               <small class="hint">
-                성별은 <a href="/shop#gender">젤리 상점</a>의 "성별 바꾸기"로 바꿀 수 있어요.
+                성별은 <a href="/shop#gender">젤리 상점 매점</a>의 "성별 바꾸기"로 바꿀 수 있어요.
               </small>
             </div>
             <form method="post" action="/api/me/profile" class="stack">
@@ -189,7 +189,7 @@ export function MePage(props: { viewer: Member; profile: Profile; items: Set<str
                   })}
                 </div>
                 <small class="hint">
-                  잠긴 테마와 꾸밈 캐릭터는 <a href="/shop">젤리 상점</a>에서 열 수 있어요.
+                  잠긴 테마와 꾸밈 캐릭터는 <a href="/shop/deco">젤리 상점의 꾸미기</a>에서 열 수 있어요.
                 </small>
               </fieldset>
               <button class="btn btn-primary" type="submit">저장하기</button>
