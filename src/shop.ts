@@ -74,8 +74,8 @@ export type ServiceKey = 'penalty' | 'warning' | 'nickname';
 export type ServiceItem = { id: string; key: ServiceKey; name: string; base: number; grow: number; text: string; done: string };
 
 export const SERVICES: ServiceItem[] = [
-  { id: 'svc:penalty', key: 'penalty', name: '벌점 1점 지우기', base: 100, grow: 1.5, text: '하리보 벌점을 1점 지워요.', done: '벌점 1점이 지워졌습니다.' },
-  { id: 'svc:warning', key: 'warning', name: '경고 1점 지우기', base: 200, grow: 1.5, text: '하리보 경고를 1점 지워요.', done: '경고 1점이 지워졌습니다.' },
+  { id: 'svc:penalty', key: 'penalty', name: '벌점 1점 지우기', base: 100, grow: 1.5, text: '하리보 벌점을 1점 지워요. 살 때마다 값이 1.5배씩 올라요.', done: '벌점 1점이 지워졌습니다.' },
+  { id: 'svc:warning', key: 'warning', name: '경고 1점 지우기', base: 200, grow: 1.5, text: '하리보 경고를 1점 지워요. 살 때마다 값이 1.5배씩 올라요.', done: '경고 1점이 지워졌습니다.' },
   {
     id: 'svc:nickname',
     key: 'nickname',

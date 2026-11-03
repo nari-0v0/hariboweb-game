@@ -1,7 +1,7 @@
 import type { Member } from '../env';
 import { FULL_JELLY, LINE_JELLY, LINE_XP } from '../bingo';
 import { PRICES, REWARD_STEP } from '../shop';
-import { STARTER_JELLY, PRAISE_PER_DAY, PRAISE_JELLY_PER_DAY } from '../db';
+import { PRAISE_PER_DAY, PRAISE_JELLY_PER_DAY } from '../db';
 import { JELLY_PER_CARD_STEP, LEVEL_STEP } from '../sync';
 import { Layout } from './layout';
 
@@ -24,7 +24,6 @@ export function GuidePage(props: { viewer: Member | null }) {
         <h2>🍬 도감 젤리</h2>
         <p>도감 젤리는 도감에서만 쓰는 젤리예요. 겜블 젤리와는 따로예요.</p>
         <ul>
-          <li>처음 한 번 {STARTER_JELLY}개</li>
           <li>출석 1개, 하루 통화 3시간 3개</li>
           <li>도감 카드가 {LEVEL_STEP}레벨 오를 때마다 {JELLY_PER_CARD_STEP}개</li>
           <li>칭찬을 받으면 1개 (하루 {PRAISE_JELLY_PER_DAY}개까지)</li>
@@ -33,10 +32,12 @@ export function GuidePage(props: { viewer: Member | null }) {
 
         <h2>🛒 상점</h2>
         <ul>
-          <li>카드 테마 {PRICES.theme}개, 꾸밈 캐릭터 {PRICES.deco}개예요.</li>
-          <li>처음 들어오면 여자·남자 캐릭터 중 하나를 골라요. 나중에 바꾸려면 상점에서 "성별 바꾸기"({PRICES.gender}개)를 사요.</li>
+          <li>상점은 <b>매점</b>, <b>꾸미기</b>, <b>칭호</b> 탭으로 나뉘어 있어요. 위쪽 오른쪽 <b>메뉴</b> 버튼으로 다른 화면에 갈 수 있어요.</li>
+          <li>꾸미기: 카드 테마 {PRICES.theme}개, 꾸밈 캐릭터 {PRICES.deco}개예요.</li>
+          <li>처음 들어오면 여자·남자 캐릭터 중 하나를 골라요. 나중에 바꾸려면 매점에서 "성별 바꾸기"({PRICES.gender}개)를 사요.</li>
+          <li>칭호: 고른 칭호는 하리보봇이 디스코드 닉네임 앞에 「칭호」로 붙여요. 닉네임·생년은 그대로예요(닉네임 변경권과는 따로예요). 조건을 채운 칭호는 칭호 화면을 열면 열려요.</li>
           <li>판타지 캐릭터는 젤리로 못 사요. 도감 카드를 {REWARD_STEP}장 모을 때마다 하나씩 열려요.</li>
-          <li>벌점·경고 1점 지우기, 닉네임 변경권도 도감 젤리로 살 수 있어요. 하리보봇이 디스코드에 바로 적용해요. 벌점·경고 지우기는 살 때마다 값이 1.5배씩 올라요.</li>
+          <li>매점: 벌점·경고 1점 지우기, 닉네임 변경권도 도감 젤리로 살 수 있어요. 하리보봇이 디스코드에 바로 적용해요. 벌점·경고 지우기는 살 때마다 값이 1.5배씩 올라요.</li>
         </ul>
 
         <h2>💛 칭찬하기</h2>
@@ -63,6 +64,14 @@ export function GuidePage(props: { viewer: Member | null }) {
         <ul>
           <li>멤버들과 같이 돌아다니는 지도예요. 통화방 상자에 들어가 멈추면 디스코드에서 그 통화방으로 옮겨져요.</li>
           <li>디스코드 통화방에 먼저 들어가 있어야 옮길 수 있어요. 통화방 채팅은 말풍선으로 보여요(저장하지 않아요).</li>
+        </ul>
+
+        <h2>🧭 원정대 · 🔎 사건파일</h2>
+        <ul>
+          <li>원정대: 도감 카드 멤버 3명을 데리고 안개숲 7칸을 지나요. 길과 선택지를 고르고, 마지막 칸에서 결말을 만나요.</li>
+          <li>사건파일: 장소를 조사하고 용의자를 심문해서 범인·방법·동기를 맞혀요. 범인만 거짓말을 하고, 조사·심문은 합쳐서 10번까지예요. 범인과 단서는 매번 바뀌어요.</li>
+          <li>둘 다 하루 첫 3판은 내 카드 경험치를 받고, 좋은 결과면 도감 젤리 1개도 받아요. 실패해도 잃는 건 없어요.</li>
+          <li>이야기 속 인물은 멤버의 이름만 빌린 가상 인물이에요. 실제 멤버와는 관계없어요.</li>
         </ul>
 
         <h2>📌 디스코드 고정 패널</h2>

@@ -3,6 +3,7 @@ import type { Member } from '../env';
 import { PRICES, SERVICES, SHOP_ITEMS, canUse, serviceItem, servicePrice, type ShopItem } from '../shop';
 import { poolOf } from '../character';
 import { Card } from './card';
+import { titleName } from '../titles';
 import { Layout } from './layout';
 
 // 버튼을 누른 뒤 팝업으로 보여 주는 안내
@@ -25,12 +26,12 @@ const NOTICES: Record<string, PopupLine[]> = {
 };
 
 // 도감 젤리 모으는 법(나리가 정한 규칙이 바뀌면 같이 바꿔요)
-export const JELLY_HOWTO = '처음 한 번 5개, 출석 1개, 하루 통화 3시간 3개, 도감 카드 레벨이 오를 때마다 1개';
+export const JELLY_HOWTO = '출석 1개, 하루 통화 3시간 3개, 도감 카드 레벨이 오를 때마다 1개';
 
 // 오류가 났을 때 방장에게 문의하는 카카오톡 오픈채팅
 export const OWNER_CONTACT_URL = 'https://open.kakao.com/o/sznz9sHg';
 
-type PopupLine = { title: string; text: string; bad?: boolean; contact?: boolean };
+export type PopupLine = { title: string; text: string; bad?: boolean; contact?: boolean };
 
 // 받침이 있으면 "을", 없으면 "를"
 export function objectParticle(word: string): string {
@@ -56,7 +57,7 @@ export function resultLines(p: Pick<Purchase, 'status' | 'reason'> & { item_id?:
   ];
 }
 
-function Popup(props: { lines: PopupLine[] }) {
+export function Popup(props: { lines: PopupLine[] }) {
   if (!props.lines.length) return null;
   const bad = props.lines.some((l) => l.bad);
   return (
@@ -122,7 +123,35 @@ function Action(props: { item: ShopItem; state: State; cards: number }) {
   );
 }
 
+export type ShopTab = 'store' | 'deco' | 'titles';
+
+// 상점 위쪽: 젤리 잔액과 매점·꾸미기·칭호 탭
+export function ShopHead(props: { jelly: number; tab: ShopTab }) {
+  const tab = (key: ShopTab, href: string, label: string) => (
+    <a href={href} class={`shop-tab${props.tab === key ? ' on' : ''}`} aria-current={props.tab === key ? 'page' : undefined}>
+      {label}
+    </a>
+  );
+  return (
+    <section class="panel shop-head">
+      <div class="panel-head">
+        <h1>젤리 상점</h1>
+        <span class="jelly">
+          보유 젤리 🍬 {props.jelly}개
+        </span>
+      </div>
+      <p class="hint">모으는 법: {JELLY_HOWTO}</p>
+      <nav class="shop-tabs" aria-label="상점 메뉴">
+        {tab('store', '/shop', '🛒 매점')}
+        {tab('deco', '/shop/deco', '🎨 꾸미기')}
+        {tab('titles', '/titles', '🏷️ 칭호')}
+      </nav>
+    </section>
+  );
+}
+
 export function ShopPage(props: {
+  tab: 'store' | 'deco';
   viewer: Member;
   profile: Profile;
   owned: Set<string>;
@@ -141,63 +170,16 @@ export function ShopPage(props: {
   const notice = props.notice ? NOTICES[props.notice] : undefined;
   if (notice && !popup.length) popup.push(...notice);
 
+  const head = <ShopHead jelly={profile.dogam_jelly} tab={props.tab} />;
   return (
-    <Layout title="젤리 상점" viewer={viewer} active="shop">
+    <Layout title={props.tab === 'deco' ? '꾸미기' : '매점'} viewer={viewer} active="shop">
       <Popup lines={popup} />
-      <div class="split">
-        <div class="stage-wrap shop-preview">
-          <Card
-            id={viewer.user_id}
-            character={profile.character_id}
-            deco={profile.deco_id}
-            kind="own"
-            size="large"
-            name={viewer.display_name}
-            theme={profile.theme_id}
-            intro={profile.intro}
-            xp={profile.solo_xp}
-            stats={[]}
-          />
-          {profile.deco_id && (
-            <form method="post" action="/api/me/deco" class="center">
-              <input type="hidden" name="deco" value="" />
-              <button class="btn btn-small" type="submit">
-                기본 캐릭터로 돌아가기
-              </button>
-            </form>
-          )}
-        </div>
-
-        <div class="stack-lg">
+      {props.tab === 'store' ? (
+        <div class="stack-lg shop-store">
+          {head}
           <section class="panel">
-            <div class="panel-head">
-              <h1>젤리 상점</h1>
-              <span class="jelly" aria-label="내 도감 젤리">
-                🍬 {profile.dogam_jelly}
-              </span>
-            </div>
-            <p class="muted">
-              도감 젤리는 이 도감에서만 쓰는 젤리예요. 겜블 젤리와는 따로라서 겜블 지갑에서는 빠지지 않아요.
-            </p>
-            <p class="hint">모으는 법: {JELLY_HOWTO}</p>
-          </section>
-
-          <section class="panel" id="gender">
-            <h2>성별 바꾸기</h2>
-            <div class="service-item">
-              <div>
-                <span class="shop-name">{poolOf(profile.character_id) === 'boy' ? '남자 → 여자' : '여자 → 남자'} 캐릭터로 바꾸기</span>
-                <p class="hint">바꾸기 전에 새 캐릭터를 미리 볼 수 있어요.</p>
-              </div>
-              <a class="btn btn-small btn-buy" href="/shop/gender">
-                🍬 {PRICES.gender}
-              </a>
-            </div>
-          </section>
-
-          <section class="panel">
-            <h2>디스코드 물건</h2>
-            <p class="muted">사면 하리보봇이 디스코드에 바로 적용해요. 벌점·경고 지우기는 살 때마다 값이 1.5배씩 올라요. 지울 게 없으면 젤리를 돌려드려요.</p>
+            <h2>잡다매점</h2>
+            <p class="muted">사면 하리보봇이 디스코드에 바로 적용해요. 지울 게 없으면 젤리를 돌려드려요.</p>
             <div class="service-list">
               {SERVICES.map((item) => {
                 const pending = props.services.pending.has(item.id);
@@ -222,9 +204,47 @@ export function ShopPage(props: {
                   </div>
                 );
               })}
+                <div class="service-item" id="gender">
+                  <div>
+                    <span class="shop-name">성별 바꾸기</span>
+                    <p class="hint">{poolOf(profile.character_id) === 'boy' ? '남자 → 여자' : '여자 → 남자'} 캐릭터로 바꿔요. 바꾸기 전에 새 캐릭터를 미리 볼 수 있어요.</p>
+                  </div>
+                  <a class="btn btn-small btn-buy" href="/shop/gender">
+                    🍬 {PRICES.gender}
+                  </a>
+                </div>
             </div>
           </section>
 
+        </div>
+      ) : (
+        <div class="split">
+        <div class="stage-wrap shop-preview">
+          <Card
+            id={viewer.user_id}
+            character={profile.character_id}
+            deco={profile.deco_id}
+            kind="own"
+            size="large"
+            name={viewer.display_name}
+            title={titleName(profile.title_id)}
+            theme={profile.theme_id}
+            intro={profile.intro}
+            xp={profile.solo_xp}
+            stats={[]}
+          />
+          {profile.deco_id && (
+            <form method="post" action="/api/me/deco" class="center">
+              <input type="hidden" name="deco" value="" />
+              <button class="btn btn-small" type="submit">
+                기본 캐릭터로 돌아가기
+              </button>
+            </form>
+          )}
+        </div>
+
+        <div class="stack-lg">
+          {head}
           <section class="panel">
             <h2>카드 테마</h2>
             <div class="shop-grid">
@@ -277,7 +297,8 @@ export function ShopPage(props: {
             </div>
           </section>
         </div>
-      </div>
+        </div>
+      )}
     </Layout>
   );
 }

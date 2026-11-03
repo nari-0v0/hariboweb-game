@@ -1,4 +1,5 @@
 import type { Member } from './env';
+import { stripTitle } from './titles';
 import type { LoginProfile } from './discord';
 import { type CharacterPool, pickCharacter, poolOf, shouldRepick } from './character';
 
@@ -10,6 +11,7 @@ export type Profile = {
   character_id: string | null;
   deco_id: string | null;
   dogam_jelly: number;
+  title_id?: string | null;
 };
 
 export type DogamEntry = {
@@ -27,6 +29,7 @@ export type DogamEntry = {
   intro: string | null;
   character_id: string | null;
   deco_id: string | null;
+  title_id: string | null;
 };
 
 const now = () => new Date().toISOString();
@@ -52,7 +55,7 @@ export async function upsertLoginMember(db: D1Database, p: LoginProfile) {
        ON CONFLICT (user_id) DO UPDATE SET display_name = ?2, avatar_url = ?3,
          joined_at = COALESCE(?4, joined_at), active = 1, updated_at = ?5, last_login_at = ?5`,
     )
-    .bind(p.id, p.name, p.avatar_url, p.joined_at, now())
+    .bind(p.id, stripTitle(p.name) || p.name, p.avatar_url, p.joined_at, now())
     .run();
   await assignCharacters(db, [p.id]);
   await giveStarterJelly(db, [p.id]);
@@ -77,7 +80,7 @@ const DOGAM_SELECT = `SELECT m.user_id, m.display_name, m.joined_at, m.active, m
               (c.owner_id IS NOT NULL) AS owned,
               COALESCE(c.xp, 0) AS xp, COALESCE(c.voice_seconds, 0) AS voice_seconds,
               COALESCE(c.scrims, 0) AS scrims, c.first_met,
-              p.theme_id, p.intro, p.character_id, p.deco_id
+              p.theme_id, p.intro, p.character_id, p.deco_id, p.title_id
        FROM members m
        LEFT JOIN cards c ON c.owner_id = ?1 AND c.target_id = m.user_id
        LEFT JOIN profiles p ON p.user_id = m.user_id`;

@@ -43,6 +43,7 @@ import { applySync, parseSync } from './sync';
 import { levelName, progress, tierFor, tierLabel } from './levels';
 import { cardPalette } from './palette';
 import { CardPage, DogamPage, LandingPage, MePage, MessagePage } from './views/pages';
+import { ErrorPage, NotFoundPage } from './views/errors';
 import { ShopPage } from './views/shop';
 import { PlazaPage } from './views/plaza';
 import { GroupPage } from './views/group';
@@ -50,6 +51,26 @@ import { groupViewFor, seasonRanking } from './season';
 import { currentPeriod, grantBingo, markFlag, myBingo, todayPartners, LINE_JELLY, LINE_XP, FULL_JELLY } from './bingo';
 import { BingoPage } from './views/bingo';
 import { GuidePage } from './views/guide';
+import { TitlesPage } from './views/titles';
+import { titleById, titleProgress } from './titles';
+import {
+  TITLE_FAIL_REASONS,
+  buyTitle,
+  equipTitle,
+  listTitleJobs,
+  loadTitleStats,
+  ownedTitles,
+  recordEarnedTitles,
+  settleTitle,
+  titleState,
+} from './title-db';
+
+import { ExpeditionPage } from './views/expedition';
+import { prefetchAllowed } from './prefetch';
+import { act, currentRun, getRun, listCandidates, myRecord, myRole, quitRun, setRole, startRun } from './expedition-db';
+import { isRole } from './expedition';
+import { CasesPage } from './views/cases';
+import { accuse, caseRecord, currentCase, getCase, lookAt, quitCase, startCase } from './cases-db';
 
 export { PlazaRoom } from './plaza-room';
 
@@ -191,6 +212,28 @@ app.post('/api/bot/services/:id', async (c) => {
   return c.json({ ok: true, changed });
 });
 
+// 도감 칭호: 봇이 "닉네임 앞 칭호를 바꿀 멤버"를 가져가 바꾸고 결과를 알려요
+app.get('/api/bot/titles', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  return c.json({ titles: await listTitleJobs(c.env.DB) });
+});
+
+app.post('/api/bot/titles/:user', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'bad_json' }, 400);
+  }
+  const { id, ok, reason } = (body ?? {}) as { id?: unknown; ok?: unknown; reason?: unknown };
+  if (typeof id !== 'string' || (id !== '' && !titleById(id))) return c.json({ error: 'bad_id' }, 400);
+  if (typeof ok !== 'boolean') return c.json({ error: 'bad_ok' }, 400);
+  if (!ok && !(TITLE_FAIL_REASONS as readonly unknown[]).includes(reason)) return c.json({ error: 'bad_reason' }, 400);
+  const changed = await settleTitle(c.env.DB, c.req.param('user'), id, ok ? null : (reason as string));
+  return c.json({ ok: true, changed });
+});
+
 // 예전에 겜블 젤리로 산 것을 봇이 겜블 지갑에 돌려줘요. 봇이 목록을 가져가 돌려주고, 한 건씩 끝났다고 알려요.
 app.get('/api/bot/refunds', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
@@ -219,7 +262,10 @@ app.get('/api/bot/card/:id', async (c) => {
     praiseToday(c.env.DB, id),
   ]);
   // 주간 빙고 "패널에서 내 카드 열기" 칸(실패해도 카드는 보여 줘요)
-  await markFlag(c.env.DB, id, 'panel', Date.now()).catch((e) => console.error('빙고 표시 실패', e));
+  // 새로 채웠으면 그 자리에서 줄 보상도 확인해요(이 칸이 마지막 칸일 수 있어요)
+  await markFlag(c.env.DB, id, 'panel', Date.now())
+    .then((fresh) => (fresh ? myBingo(c.env.DB, id, Date.now()) : null))
+    .catch((e) => console.error('빙고 표시 실패', e));
   const p = progress(profile.solo_xp);
   const tier = tierFor(p.level);
   const base = baseUrl(c);
@@ -341,6 +387,8 @@ app.get('/api/bot/plaza', async (c) => {
 });
 
 // 여기부터는 로그인한 하리보 멤버만
+const isPrefetch = (c: Context<AppEnv>) => /prefetch|prerender/i.test(c.req.header('Sec-Purpose') ?? c.req.header('Purpose') ?? '');
+
 const members = new Hono<AppEnv>();
 
 members.use('*', async (c, next) => {
@@ -350,6 +398,8 @@ members.use('*', async (c, next) => {
     return c.redirect('/');
   }
   c.set('viewer', viewer);
+  // 브라우저가 미리 받기만 하는 요청은 읽기만 하는 화면에만 답해요(열기만 해도 기록이 바뀌는 화면은 실제로 열 때만)
+  if (isPrefetch(c) && !prefetchAllowed(c.req.path)) return c.body(null, 503);
   await touchVisit(c.env.DB, viewer, Date.now());
   // 처음 들어온 멤버는 여자·남자 캐릭터를 골라야 다른 화면으로 갈 수 있어요
   if (!viewer.gender_chosen_at && c.req.path !== '/choose' && c.req.path !== '/api/me/gender') {
@@ -384,7 +434,10 @@ members.post('/api/me/gender', async (c) => {
 members.get('/me', async (c) => {
   const viewer = c.get('viewer');
   // 주간 빙고 "웹 도감에서 내 카드 보기" 칸
-  await markFlag(c.env.DB, viewer.user_id, 'web', Date.now()).catch((e) => console.error('빙고 표시 실패', e));
+  // 새로 채웠으면 그 자리에서 줄 보상도 확인해요(이 칸이 마지막 칸일 수 있어요)
+  await markFlag(c.env.DB, viewer.user_id, 'web', Date.now())
+    .then((fresh) => (fresh ? myBingo(c.env.DB, viewer.user_id, Date.now()) : null))
+    .catch((e) => console.error('빙고 표시 실패', e));
   const [profile, entries, items] = await Promise.all([
     getProfile(c.env.DB, viewer.user_id),
     listDogam(c.env.DB, viewer.user_id),
@@ -418,7 +471,8 @@ const sameOrigin = (c: Context<AppEnv>) => {
   return !origin || origin === new URL(c.req.url).origin;
 };
 
-members.get('/shop', async (c) => {
+// 상점: 매점(잡다매점: 디스코드 물건·성별 바꾸기)과 꾸미기(테마·꾸밈 캐릭터) 탭. 칭호 탭은 /titles예요.
+async function shopPage(c: Context<AppEnv>, tab: 'store' | 'deco') {
   const viewer = c.get('viewer');
   const [profile, owned, cards, results, services] = await Promise.all([
     getProfile(c.env.DB, viewer.user_id),
@@ -431,26 +485,29 @@ members.get('/shop', async (c) => {
   await markPurchasesSeen(c.env.DB, viewer.user_id, results.map((p) => p.id));
   return page(
     c,
-    <ShopPage viewer={viewer} profile={profile} owned={owned} cards={cards} results={results} services={services} notice={c.req.query('n')} />,
+    <ShopPage tab={tab} viewer={viewer} profile={profile} owned={owned} cards={cards} results={results} services={services} notice={c.req.query('n')} />,
   );
-});
+}
+
+members.get('/shop', (c) => shopPage(c, 'store'));
+members.get('/shop/deco', (c) => shopPage(c, 'deco'));
 
 members.post('/api/shop/buy', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
   const viewer = c.get('viewer');
   const item = shopItem((await c.req.parseBody()).item);
-  if (!item || item.price === null) return c.redirect('/shop?n=not_for_sale');
+  if (!item || item.price === null) return c.redirect('/shop/deco?n=not_for_sale');
   const owned = await getOwnedItems(c.env.DB, viewer.user_id);
-  if (owned.has(item.id)) return c.redirect('/shop?n=owned');
+  if (owned.has(item.id)) return c.redirect('/shop/deco?n=owned');
   let result: Awaited<ReturnType<typeof buyWithJelly>>;
   try {
     result = await buyWithJelly(c.env.DB, viewer.user_id, item.id, item.price);
   } catch (e) {
     console.error('도감 젤리 결제 실패', e);
-    return c.redirect('/shop?n=error');
+    return c.redirect('/shop/deco?n=error');
   }
   // 산 물건은 결과 팝업("구매가 완료되었습니다")으로, 못 산 이유는 안내 팝업으로 보여 줘요
-  return c.redirect(result === 'done' ? '/shop' : `/shop?n=${result}`);
+  return c.redirect(result === 'done' ? '/shop/deco' : `/shop/deco?n=${result}`);
 });
 
 // 성별 바꾸기: 확인 화면(미리보기) → 도감 젤리로 사요
@@ -504,23 +561,215 @@ members.post('/api/me/deco', async (c) => {
   const key = String((await c.req.parseBody()).deco ?? '');
   if (key === '') {
     await setDeco(c.env.DB, viewer.user_id, null);
-    return c.redirect('/shop?n=unequipped');
+    return c.redirect('/shop/deco?n=unequipped');
   }
   const item = shopItem(decoItemId(key));
-  if (!item) return c.redirect('/shop?n=error');
+  if (!item) return c.redirect('/shop/deco?n=error');
   const [owned, cards] = await Promise.all([getOwnedItems(c.env.DB, viewer.user_id), countOwnedCards(c.env.DB, viewer.user_id)]);
-  if (!canUse(item, owned, cards)) return c.redirect('/shop?n=locked');
+  if (!canUse(item, owned, cards)) return c.redirect('/shop/deco?n=locked');
   await setDeco(c.env.DB, viewer.user_id, key);
-  return c.redirect('/shop?n=equipped');
+  return c.redirect('/shop/deco?n=equipped');
 });
 
 members.post('/api/me/theme', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
   const viewer = c.get('viewer');
   const theme = String((await c.req.parseBody()).theme ?? '');
-  if (!canUseTheme(theme, await getOwnedItems(c.env.DB, viewer.user_id))) return c.redirect('/shop?n=locked');
+  if (!canUseTheme(theme, await getOwnedItems(c.env.DB, viewer.user_id))) return c.redirect('/shop/deco?n=locked');
   await setTheme(c.env.DB, viewer.user_id, theme);
-  return c.redirect('/shop?n=theme');
+  return c.redirect('/shop/deco?n=theme');
+});
+
+// 칭호: 얻은 칭호를 고르면 하리보봇이 디스코드 닉네임 앞에 붙여요
+members.get('/titles', async (c) => {
+  const viewer = c.get('viewer');
+  const nowIso = new Date().toISOString();
+  const [stats, owned, state, profile] = await Promise.all([
+    loadTitleStats(c.env.DB, viewer.user_id, nowIso),
+    ownedTitles(c.env.DB, viewer.user_id),
+    titleState(c.env.DB, viewer.user_id),
+    getProfile(c.env.DB, viewer.user_id),
+  ]);
+  const fresh = await recordEarnedTitles(c.env.DB, viewer.user_id, stats, owned);
+  return page(
+    c,
+    <TitlesPage
+      viewer={viewer}
+      profile={profile}
+      stats={stats}
+      owned={owned}
+      state={state}
+      fresh={fresh}
+      focus={c.req.query('t')}
+      notice={c.req.query('n')}
+    />,
+  );
+});
+
+members.post('/api/titles/equip', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const viewer = c.get('viewer');
+  const raw = String((await c.req.parseBody()).title ?? '');
+  if (raw === '') {
+    await equipTitle(c.env.DB, viewer.user_id, null);
+    return c.redirect('/titles?n=removed');
+  }
+  const t = titleById(raw);
+  if (!t) return c.redirect('/titles?n=error');
+  const owned = await ownedTitles(c.env.DB, viewer.user_id);
+  if (!owned.has(t.id)) {
+    // 방금 조건을 채웠을 수도 있어요
+    const stats = await loadTitleStats(c.env.DB, viewer.user_id, new Date().toISOString());
+    if (t.rule.kind === 'shop' || !titleProgress(t, stats).ok) return c.redirect('/titles?n=locked');
+    await recordEarnedTitles(c.env.DB, viewer.user_id, stats, owned);
+  }
+  await equipTitle(c.env.DB, viewer.user_id, t.id);
+  return c.redirect('/titles?n=equipped');
+});
+
+members.post('/api/titles/buy', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const viewer = c.get('viewer');
+  const t = titleById((await c.req.parseBody()).title);
+  if (!t) return c.redirect('/titles?n=error');
+  let result: Awaited<ReturnType<typeof buyTitle>>;
+  try {
+    result = await buyTitle(c.env.DB, viewer.user_id, t);
+  } catch (e) {
+    console.error('칭호 결제 실패', e);
+    return c.redirect('/titles?n=error');
+  }
+  // 산 칭호가 들어 있는 묶음을 펼쳐서 보여 줘요
+  return c.redirect(`/titles?n=${result === 'done' ? 'bought' : result}&t=${encodeURIComponent(t.id)}`);
+});
+
+members.get('/expedition', async (c) => {
+  const viewer = c.get('viewer');
+  const db = c.env.DB;
+  const run = await currentRun(db, viewer.user_id);
+  const rid = c.req.query('r');
+  const [result, record, candidates, role] = await Promise.all([
+    !run && rid ? getRun(db, viewer.user_id, rid) : Promise.resolve(null),
+    myRecord(db, viewer.user_id),
+    run ? Promise.resolve([]) : listCandidates(db, viewer.user_id),
+    myRole(db, viewer.user_id),
+  ]);
+  // 뒤로 가기로 지난 원정 화면이 다시 보이지 않게, 브라우저가 이 화면을 저장해 두지 않고 늘 새로 받아요
+  c.header('Cache-Control', 'no-store');
+  return page(
+    c,
+    <ExpeditionPage
+      viewer={viewer}
+      run={run}
+      result={result?.row.status === 'done' ? result : null}
+      record={record}
+      candidates={candidates}
+      role={role}
+      notice={c.req.query('n')}
+    />,
+  );
+});
+
+members.post('/api/expedition/start', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const viewer = c.get('viewer');
+  const body = await c.req.parseBody({ all: true });
+  const raw = body.m;
+  const ids = (Array.isArray(raw) ? raw : raw === undefined ? [] : [raw]).map(String);
+  const r = await startRun(c.env.DB, viewer.user_id, ids);
+  return c.redirect(r === 'started' ? '/expedition#now' : `/expedition?n=${r}`);
+});
+
+members.post('/api/expedition/act', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const viewer = c.get('viewer');
+  const body = await c.req.parseBody();
+  const at = Number(body.at);
+  const choice = Number(body.c);
+  if (!Number.isInteger(at) || !Number.isInteger(choice) || at < 0 || choice < 0) return c.redirect('/expedition');
+  try {
+    const r = await act(c.env.DB, viewer.user_id, String(body.run ?? ''), at, choice);
+    if (r.result === 'done' && r.runId) return c.redirect(`/expedition?r=${encodeURIComponent(r.runId)}#now`);
+  } catch (e) {
+    console.error('원정 진행 실패', e);
+    return c.redirect('/expedition?n=error');
+  }
+  // 이미 반영됐거나 엉뚱한 차례면 지금 화면을 다시 보여 줘요(#now: 결과가 바로 보이게 원정 칸으로 내려가요)
+  return c.redirect('/expedition#now');
+});
+
+members.post('/api/expedition/quit', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const run = String((await c.req.parseBody()).run ?? '');
+  const quit = await quitRun(c.env.DB, c.get('viewer').user_id, run);
+  return c.redirect(quit ? '/expedition?n=quit' : '/expedition');
+});
+
+members.post('/api/expedition/role', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const role = (await c.req.parseBody()).role;
+  if (!isRole(role)) return c.redirect('/expedition');
+  await setRole(c.env.DB, c.get('viewer').user_id, role);
+  return c.redirect('/expedition?n=role');
+});
+
+// 하리보 사건파일
+members.get('/cases', async (c) => {
+  const viewer = c.get('viewer');
+  const db = c.env.DB;
+  const rid = c.req.query('r');
+  const [run, record] = await Promise.all([currentCase(db, viewer.user_id), caseRecord(db, viewer.user_id)]);
+  const result = !run && rid ? await getCase(db, viewer.user_id, rid) : null;
+  // 뒤로 가기로 지난 사건 화면이 다시 보이지 않게 늘 새로 받아요
+  c.header('Cache-Control', 'no-store');
+  return page(
+    c,
+    <CasesPage viewer={viewer} run={run} result={result?.row.status === 'done' ? result : null} record={record} notice={c.req.query('n')} />,
+  );
+});
+
+members.post('/api/cases/start', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const r = await startCase(c.env.DB, c.get('viewer').user_id, String((await c.req.parseBody()).case ?? ''));
+  return c.redirect(r === 'started' ? '/cases#now' : `/cases?n=${r}`);
+});
+
+members.post('/api/cases/look', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const body = await c.req.parseBody();
+  const at = Number(body.at);
+  const spot = Number(body.spot);
+  if (!Number.isInteger(at) || !Number.isInteger(spot)) return c.redirect('/cases#now');
+  try {
+    await lookAt(c.env.DB, c.get('viewer').user_id, String(body.run ?? ''), at, spot);
+  } catch (e) {
+    console.error('사건 조사 실패', e);
+    return c.redirect('/cases?n=error');
+  }
+  return c.redirect('/cases#now');
+});
+
+members.post('/api/cases/accuse', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const body = await c.req.parseBody();
+  const num = (v: unknown) => (v === undefined || v === '' ? NaN : Number(v));
+  const answer = { culprit: num(body.culprit), method: num(body.method), motive: num(body.motive) };
+  if (![answer.culprit, answer.method, answer.motive].every(Number.isInteger)) return c.redirect('/cases?n=need_answer#now');
+  try {
+    const r = await accuse(c.env.DB, c.get('viewer').user_id, String(body.run ?? ''), Number(body.at), answer);
+    if (r.result === 'done' && r.runId) return c.redirect(`/cases?r=${encodeURIComponent(r.runId)}#now`);
+    if (r.result === 'bad') return c.redirect('/cases?n=need_look#now');
+  } catch (e) {
+    console.error('사건 지목 실패', e);
+    return c.redirect('/cases?n=error');
+  }
+  return c.redirect('/cases#now');
+});
+
+members.post('/api/cases/quit', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const quit = await quitCase(c.env.DB, c.get('viewer').user_id, String((await c.req.parseBody()).run ?? ''));
+  return c.redirect(quit ? '/cases?n=quit' : '/cases');
 });
 
 members.get('/dogam', async (c) => {
@@ -584,6 +833,13 @@ members.get('/plaza/ws', async (c) => {
 
 app.route('/', members);
 
-app.notFound((c) => page(c, <MessagePage title="페이지가 없어요" message="주소를 다시 확인해 주세요." />, 404));
+app.notFound((c) => page(c, <NotFoundPage viewer={c.get('viewer') ?? null} />, 404));
+
+// 처리하지 못한 오류: 하얀 화면 대신 다시 시도·방장 문의 화면을 보여 줘요
+app.onError((err, c) => {
+  console.error('화면 오류', c.req.method, c.req.path, err);
+  const retry = c.req.method === 'GET' && /^\/(?![\/\\])/.test(c.req.path) ? c.req.path : '/me';
+  return c.html('<!doctype html>' + String(<ErrorPage retry={retry} />), 500);
+});
 
 export default app;
