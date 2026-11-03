@@ -178,8 +178,8 @@ export function ShopPage(props: {
         <div class="stack-lg shop-store">
           {head}
           <section class="panel">
-            <h2>디스코드 물건</h2>
-            <p class="muted">사면 하리보봇이 디스코드에 바로 적용해요(성별 바꾸기는 도감 캐릭터만 바뀌어요). 벌점·경고 지우기는 살 때마다 값이 1.5배씩 올라요. 지울 게 없으면 젤리를 돌려드려요.</p>
+            <h2>잡다매점</h2>
+            <p class="muted">사면 하리보봇이 디스코드에 바로 적용해요. 지울 게 없으면 젤리를 돌려드려요.</p>
             <div class="service-list">
               {SERVICES.map((item) => {
                 const pending = props.services.pending.has(item.id);

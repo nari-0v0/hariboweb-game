@@ -71,6 +71,17 @@ export function Layout(props: {
           </>
         )}
         <main class={props.wide ? 'wide' : undefined}>{props.children}</main>
+        {/* 다음 화면이 늦게 오면(0.25초 넘게) 보이는 로딩 화면. app.js가 켜고 꺼요. */}
+        <div class="loader" role="status" aria-live="polite">
+          <div class="loader-box">
+            <div class="loader-bears" aria-hidden="true">
+              <span class="brand-mark" />
+              <span class="brand-mark" />
+              <span class="brand-mark" />
+            </div>
+            <span class="loader-text">불러오는 중…</span>
+          </div>
+        </div>
         <footer class="foot">
           <a href="/guide">사용설명서</a> ·{' '}
           글꼴: 갈무리(Galmuri, OFL)

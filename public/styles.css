@@ -756,3 +756,38 @@ main.wide { max-width: 1320px; }
 .shop-tab.on { background: var(--ink); color: #fff; }
 .shop-store { max-width: 760px; margin: 0 auto; }
 .stack-lg { display: grid; gap: 16px; align-content: start; min-width: 0; }
+
+/* 보유 칭호: 눌러서 펼쳐 봐요 */
+.owned-titles { margin-top: 10px; }
+.owned-titles > summary { cursor: pointer; font-weight: 700; list-style: none; }
+.owned-titles > summary::-webkit-details-marker { display: none; }
+.owned-titles > summary::before { content: '▸ '; }
+.owned-titles[open] > summary::before { content: '▾ '; }
+.owned-titles[open] > summary { margin-bottom: 8px; }
+
+/* 로딩 화면: 화면 아래쪽에 작은 상자로(내용을 가리지 않게) */
+.loader {
+  position: fixed; inset: auto 0 24px 0; z-index: 50; display: flex; justify-content: center;
+  pointer-events: none; opacity: 0; visibility: hidden; transition: opacity .15s, visibility .15s;
+}
+.loading .loader { opacity: 1; visibility: visible; }
+.loader-box {
+  display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: var(--paper);
+  border: 4px solid var(--ink); clip-path: var(--notch); font-weight: 700;
+}
+.loader-bears, .err-bears { display: flex; gap: 6px; }
+@media (prefers-reduced-motion: no-preference) {
+  .loading .loader-bears .brand-mark { animation: hop .6s steps(3) infinite; }
+  .loader-bears .brand-mark:nth-child(2) { animation-delay: .15s; }
+  .loader-bears .brand-mark:nth-child(3) { animation-delay: .3s; }
+  .err-bears .brand-mark { animation: hop 1.4s steps(3) infinite; }
+  .err-bears .brand-mark:nth-child(2) { animation-delay: .25s; }
+  .err-bears .brand-mark:nth-child(3) { animation-delay: .5s; }
+}
+@keyframes hop { 0%, 100% { translate: 0 0; } 50% { translate: 0 -8px; } }
+
+/* 404·오류 화면 */
+.err-page { display: grid; justify-items: center; gap: 6px; }
+.err-code { margin: 0; font-size: clamp(2.6rem, 10vw, 4rem); font-weight: 700; line-height: 1; color: var(--pink); text-shadow: 4px 4px 0 var(--ink); }
+.err-bears { margin: 6px 0 4px; }
+.err-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 8px; }
