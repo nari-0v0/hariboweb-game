@@ -50,13 +50,13 @@ addEventListener('pageshow', (e) => {
   if (e.persisted && document.querySelector('[data-fresh]')) location.reload();
 });
 
-// 로딩 화면: 다른 화면으로 넘어갈 때 0.25초 넘게 걸리면 곰젤리가 통통 뛰어요(바로 열리면 안 보여요)
+// 로딩 화면: 다른 화면으로 넘어갈 때 0.1초 넘게 걸리면 곰젤리가 통통 뛰어요(바로 열리면 안 보여요)
 (() => {
   const root = document.documentElement;
   let timer = 0;
   const show = () => {
     clearTimeout(timer);
-    timer = setTimeout(() => root.classList.add('loading'), 250);
+    timer = setTimeout(() => root.classList.add('loading'), 100);
   };
   const hide = () => {
     clearTimeout(timer);
