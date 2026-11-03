@@ -1,3 +1,4 @@
+import { stripTitle } from './titles';
 import { MAX_LEVEL, xpForLevel } from './levels';
 import { bingoStatements, grantTouched, loadPeriods, prunePairDays, savePeriod, splitCycle } from './bingo';
 import { type Attendance, type RoomMinute, type ScrimRecord, type Season, ensureSeason, evaluateSeason, seasonFrom, seasonStatements, seasonTargets } from './season';
@@ -70,7 +71,7 @@ export function parseSync(raw: unknown): Result {
         return { ok: false, error: `members.games가 잘못됐어요 (${m.id})` };
       games = [...new Set(m.games as string[])];
     }
-    members.push({ id: m.id, name: m.name, avatar_url: avatar, joined_at: joined, is_newbie: m.is_newbie === true, ...(games ? { games } : {}) });
+    members.push({ id: m.id, name: stripTitle(m.name) || m.name, avatar_url: avatar, joined_at: joined, is_newbie: m.is_newbie === true, ...(games ? { games } : {}) });
   }
 
   const removed: string[] = [];

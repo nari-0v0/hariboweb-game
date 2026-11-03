@@ -8,6 +8,8 @@ export type CardProps = {
   character?: string | null;
   deco?: string | null;
   name: string;
+  // 도감 칭호(디스코드 닉네임 앞에 붙는 것)
+  title?: string | null;
   theme: string | null;
   intro: string | null;
   xp: number;
@@ -48,7 +50,10 @@ export function Card(p: CardProps) {
             <div class="c-ground" />
             <img class="c-avatar" src={characterUrl(p.character, p.id, unknown ? null : p.deco)} alt="" loading="lazy" />
           </div>
-          <div class="c-name">{p.name}</div>
+          <div class="c-name">
+            {p.title && !unknown && <span class="c-title">{p.title}</span>}
+            {p.name}
+          </div>
           <div class="c-intro">{unknown ? '같이 놀면 카드가 열려요' : p.intro || '...'}</div>
           <div class="c-stats">
             {p.stats.slice(0, 3).map(([k, v]) => (

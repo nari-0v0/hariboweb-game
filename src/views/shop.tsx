@@ -3,6 +3,7 @@ import type { Member } from '../env';
 import { PRICES, SERVICES, SHOP_ITEMS, canUse, serviceItem, servicePrice, type ShopItem } from '../shop';
 import { poolOf } from '../character';
 import { Card } from './card';
+import { titleName } from '../titles';
 import { Layout } from './layout';
 
 // 버튼을 누른 뒤 팝업으로 보여 주는 안내
@@ -30,7 +31,7 @@ export const JELLY_HOWTO = '처음 한 번 5개, 출석 1개, 하루 통화 3시
 // 오류가 났을 때 방장에게 문의하는 카카오톡 오픈채팅
 export const OWNER_CONTACT_URL = 'https://open.kakao.com/o/sznz9sHg';
 
-type PopupLine = { title: string; text: string; bad?: boolean; contact?: boolean };
+export type PopupLine = { title: string; text: string; bad?: boolean; contact?: boolean };
 
 // 받침이 있으면 "을", 없으면 "를"
 export function objectParticle(word: string): string {
@@ -56,7 +57,7 @@ export function resultLines(p: Pick<Purchase, 'status' | 'reason'> & { item_id?:
   ];
 }
 
-function Popup(props: { lines: PopupLine[] }) {
+export function Popup(props: { lines: PopupLine[] }) {
   if (!props.lines.length) return null;
   const bad = props.lines.some((l) => l.bad);
   return (
@@ -153,6 +154,7 @@ export function ShopPage(props: {
             kind="own"
             size="large"
             name={viewer.display_name}
+            title={titleName(profile.title_id)}
             theme={profile.theme_id}
             intro={profile.intro}
             xp={profile.solo_xp}

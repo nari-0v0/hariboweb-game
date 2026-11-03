@@ -50,6 +50,19 @@ import { groupViewFor, seasonRanking } from './season';
 import { currentPeriod, grantBingo, markFlag, myBingo, todayPartners, LINE_JELLY, LINE_XP, FULL_JELLY } from './bingo';
 import { BingoPage } from './views/bingo';
 import { GuidePage } from './views/guide';
+import { TitlesPage } from './views/titles';
+import { titleById, titleProgress } from './titles';
+import {
+  TITLE_FAIL_REASONS,
+  buyTitle,
+  equipTitle,
+  listTitleJobs,
+  loadTitleStats,
+  ownedTitles,
+  recordEarnedTitles,
+  settleTitle,
+  titleState,
+} from './title-db';
 
 export { PlazaRoom } from './plaza-room';
 
@@ -188,6 +201,28 @@ app.post('/api/bot/services/:id', async (c) => {
   if (typeof ok !== 'boolean') return c.json({ error: 'bad_ok' }, 400);
   if (!ok && !(SERVICE_FAIL_REASONS as readonly unknown[]).includes(reason)) return c.json({ error: 'bad_reason' }, 400);
   const changed = await settleService(c.env.DB, c.req.param('id'), ok, ok ? null : (reason as string));
+  return c.json({ ok: true, changed });
+});
+
+// 도감 칭호: 봇이 "닉네임 앞 칭호를 바꿀 멤버"를 가져가 바꾸고 결과를 알려요
+app.get('/api/bot/titles', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  return c.json({ titles: await listTitleJobs(c.env.DB) });
+});
+
+app.post('/api/bot/titles/:user', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'bad_json' }, 400);
+  }
+  const { id, ok, reason } = (body ?? {}) as { id?: unknown; ok?: unknown; reason?: unknown };
+  if (typeof id !== 'string' || (id !== '' && !titleById(id))) return c.json({ error: 'bad_id' }, 400);
+  if (typeof ok !== 'boolean') return c.json({ error: 'bad_ok' }, 400);
+  if (!ok && !(TITLE_FAIL_REASONS as readonly unknown[]).includes(reason)) return c.json({ error: 'bad_reason' }, 400);
+  const changed = await settleTitle(c.env.DB, c.req.param('user'), id, ok ? null : (reason as string));
   return c.json({ ok: true, changed });
 });
 
@@ -527,6 +562,69 @@ members.post('/api/me/theme', async (c) => {
   if (!canUseTheme(theme, await getOwnedItems(c.env.DB, viewer.user_id))) return c.redirect('/shop?n=locked');
   await setTheme(c.env.DB, viewer.user_id, theme);
   return c.redirect('/shop?n=theme');
+});
+
+// 칭호: 얻은 칭호를 고르면 하리보봇이 디스코드 닉네임 앞에 붙여요
+members.get('/titles', async (c) => {
+  const viewer = c.get('viewer');
+  const nowIso = new Date().toISOString();
+  const [stats, owned, state, profile] = await Promise.all([
+    loadTitleStats(c.env.DB, viewer.user_id, nowIso),
+    ownedTitles(c.env.DB, viewer.user_id),
+    titleState(c.env.DB, viewer.user_id),
+    getProfile(c.env.DB, viewer.user_id),
+  ]);
+  const fresh = await recordEarnedTitles(c.env.DB, viewer.user_id, stats, owned);
+  return page(
+    c,
+    <TitlesPage
+      viewer={viewer}
+      profile={profile}
+      stats={stats}
+      owned={owned}
+      state={state}
+      fresh={fresh}
+      focus={c.req.query('t')}
+      notice={c.req.query('n')}
+    />,
+  );
+});
+
+members.post('/api/titles/equip', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const viewer = c.get('viewer');
+  const raw = String((await c.req.parseBody()).title ?? '');
+  if (raw === '') {
+    await equipTitle(c.env.DB, viewer.user_id, null);
+    return c.redirect('/titles?n=removed');
+  }
+  const t = titleById(raw);
+  if (!t) return c.redirect('/titles?n=error');
+  const owned = await ownedTitles(c.env.DB, viewer.user_id);
+  if (!owned.has(t.id)) {
+    // 방금 조건을 채웠을 수도 있어요
+    const stats = await loadTitleStats(c.env.DB, viewer.user_id, new Date().toISOString());
+    if (t.rule.kind === 'shop' || !titleProgress(t, stats).ok) return c.redirect('/titles?n=locked');
+    await recordEarnedTitles(c.env.DB, viewer.user_id, stats, owned);
+  }
+  await equipTitle(c.env.DB, viewer.user_id, t.id);
+  return c.redirect('/titles?n=equipped');
+});
+
+members.post('/api/titles/buy', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const viewer = c.get('viewer');
+  const t = titleById((await c.req.parseBody()).title);
+  if (!t) return c.redirect('/titles?n=error');
+  let result: Awaited<ReturnType<typeof buyTitle>>;
+  try {
+    result = await buyTitle(c.env.DB, viewer.user_id, t);
+  } catch (e) {
+    console.error('칭호 결제 실패', e);
+    return c.redirect('/titles?n=error');
+  }
+  // 산 칭호가 들어 있는 묶음을 펼쳐서 보여 줘요
+  return c.redirect(`/titles?n=${result === 'done' ? 'bought' : result}&t=${encodeURIComponent(t.id)}`);
 });
 
 members.get('/dogam', async (c) => {

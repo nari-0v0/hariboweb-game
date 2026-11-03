@@ -1,3 +1,4 @@
+import { titleName } from '../titles';
 import type { Member } from '../env';
 import type { DogamEntry, Profile } from '../db';
 import { TIERS, levelName, progress, tierFor, tierLabel } from '../levels';
@@ -123,6 +124,7 @@ export function MePage(props: { viewer: Member; profile: Profile; items: Set<str
             kind="own"
             size="large"
             name={viewer.display_name}
+            title={titleName(profile.title_id)}
             theme={profile.theme_id}
             intro={profile.intro}
             xp={profile.solo_xp}
@@ -259,6 +261,7 @@ export function DogamPage(props: {
                   kind={e.owned ? 'pair' : 'unknown'}
                   faded={!e.active}
                   name={e.display_name}
+                  title={e.active ? titleName(e.title_id) : null}
                   theme={e.theme_id}
                   intro={e.intro}
                   xp={e.xp}
@@ -317,6 +320,7 @@ export function CardPage(props: { viewer: Member; owner: Member; target: Member;
             size="large"
             faded={!target.active}
             name={target.display_name}
+            title={target.active ? titleName(entry.title_id) : null}
             theme={entry.theme_id}
             intro={entry.intro}
             xp={entry.xp}
