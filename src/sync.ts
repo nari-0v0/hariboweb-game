@@ -1,7 +1,7 @@
 import { stripTitle } from './titles';
 import { MAX_LEVEL, xpForLevel } from './levels';
 import { bingoStatements, grantTouched, loadPeriods, prunePairDays, savePeriod, splitCycle } from './bingo';
-import { type Attendance, type RoomMinute, type ScrimRecord, type Season, ensureSeason, evaluateSeason, seasonFrom, seasonStatements, seasonTargets } from './season';
+import { type Attendance, type RoomMinute, type ScrimRecord, type Season, ENDED_GRACE_MS, ensureSeason, evaluateSeason, seasonFrom, seasonStatements, seasonTargets } from './season';
 
 // 봇이 보내는 동기화 묶음을 검사하고 D1에 한 번에 반영해요. 자세한 형식은 docs/bot-sync.md
 const ID = /^\d{17,20}$/;
@@ -297,7 +297,18 @@ export async function applySync(
   }
   // 다 채운 퀘스트 확인(실패해도 동기화는 끝났어요. 다음 묶음 때 다시 확인해요)
   try {
-    for (const { season } of await seasonTargets(db, p)) await evaluateSeason(db, season.id, nowMs);
+    const seen = new Set<string>();
+    for (const { season } of await seasonTargets(db, p)) {
+      seen.add(season.id);
+      await evaluateSeason(db, season.id, nowMs);
+    }
+    // 막 끝난 시즌(끝나고 ENDED_GRACE_MS 안)은 이번 묶음에 그 시즌 기록이 없어도 마지막으로 한 번 더 확인해요.
+    // 로그인·칭찬처럼 봇 기록이 아닌 활동으로 끝나기 직전에 채운 퀘스트를 놓치지 않게요.
+    const { results: justEnded } = await db
+      .prepare('SELECT id FROM seasons WHERE ends_at <= ?1 AND ends_at > ?2')
+      .bind(new Date(nowMs).toISOString(), new Date(nowMs - ENDED_GRACE_MS).toISOString())
+      .all<{ id: string }>();
+    for (const r of justEnded) if (!seen.has(r.id)) await evaluateSeason(db, r.id, nowMs);
   } catch (e) {
     console.error('시즌 퀘스트 확인 실패', e);
   }
