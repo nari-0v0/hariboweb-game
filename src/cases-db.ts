@@ -2,6 +2,8 @@ import { characterUrl } from './character';
 import { kstDay } from './db';
 import { rng } from './expedition';
 import {
+  ACTIONS,
+  ASK,
   CASE_XP,
   DAILY_REWARD_CASES,
   SUSPECTS,
@@ -17,9 +19,9 @@ import {
 } from './cases';
 
 // 용의자가 모자라면 채우는 가상 인물(실제 멤버가 아니에요)
-const NPCS = ['떠돌이 상인', '안개 우체부', '수상한 손님', '옆 동네 구경꾼'];
+const NPCS = ['떠돌이 상인', '안개 우체부', '수상한 손님', '옆 동네 구경꾼', '길 잃은 여행자'];
 
-// 용의자: 내가 카드를 가진 지금 있는 멤버 중 무작위 4명. 모자라면 가상 인물로 채워요.
+// 용의자: 내가 카드를 가진 지금 있는 멤버 중 무작위 5명. 모자라면 가상 인물로 채워요.
 export async function pickSuspects(db: D1Database, userId: string, seed: string): Promise<Suspect[]> {
   const { results } = await db
     .prepare(
@@ -62,10 +64,12 @@ export type CaseRow = {
 
 export type CaseRun = { row: CaseRow; def: CaseDef; suspects: Suspect[]; looked: number[]; puzzle: Puzzle; answer: Answer | null };
 
+// 예전 방식(용의자 4명) 사건은 다시 계산할 수 없어서 null이에요.
 export function loadCase(row: CaseRow): CaseRun | null {
   const def = caseById(row.case_id);
   if (!def) return null;
   const suspects = JSON.parse(row.suspects) as Suspect[];
+  if (suspects.length !== SUSPECTS) return null;
   return {
     row,
     def,
@@ -81,7 +85,10 @@ export async function currentCase(db: D1Database, userId: string): Promise<CaseR
     .prepare(`SELECT * FROM case_runs WHERE user_id = ? AND status = 'going' ORDER BY started_at DESC LIMIT 1`)
     .bind(userId)
     .first<CaseRow>();
-  return row ? loadCase(row) : null;
+  if (!row) return null;
+  const run = loadCase(row);
+  if (!run) await quitCase(db, userId, row.id); // 예전 방식 사건은 덮어요(보상 없음)
+  return run;
 }
 
 export async function getCase(db: D1Database, userId: string, id: string): Promise<CaseRun | null> {
@@ -116,12 +123,14 @@ export async function quitCase(db: D1Database, userId: string, runId: string): P
 
 export type CaseResult = { result: 'ok' | 'done' | 'stale' | 'bad' | 'none'; runId?: string };
 
-// 장소 한 곳 조사. runId·at = 화면에 보이던 사건과 조사 횟수(옛 화면·두 번 누르기 막기)
+// 행동 하나: 장소 조사(0~7) 또는 용의자 심문(ASK+i). runId·at = 화면에 보이던 사건과 행동 횟수(옛 화면·두 번 누르기 막기)
 export async function lookAt(db: D1Database, userId: string, runId: string, at: number, spot: number): Promise<CaseResult> {
   const run = await currentCase(db, userId);
   if (!run) return { result: 'none' };
   if (run.row.id !== runId || run.looked.length !== at) return { result: 'stale', runId: run.row.id };
-  if (!Number.isInteger(spot) || spot < 0 || spot >= run.def.places.length || run.looked.includes(spot)) return { result: 'bad', runId: run.row.id };
+  const place = Number.isInteger(spot) && spot >= 0 && spot < run.def.places.length;
+  const ask = Number.isInteger(spot) && spot >= ASK && spot < ASK + run.suspects.length;
+  if ((!place && !ask) || run.looked.includes(spot) || run.looked.length >= ACTIONS) return { result: 'bad', runId: run.row.id };
   const r = await db
     .prepare(`UPDATE case_runs SET looked = ?3, updated_at = ?4 WHERE id = ?1 AND status = 'going' AND looked = ?2`)
     .bind(run.row.id, run.row.looked, JSON.stringify([...run.looked, spot]), new Date().toISOString())
@@ -137,7 +146,7 @@ export async function accuse(db: D1Database, userId: string, runId: string, at: 
   const ok = (v: number, n: number) => Number.isInteger(v) && v >= 0 && v < n;
   if (!ok(answer.culprit, run.suspects.length) || !ok(answer.method, run.def.methods.length) || !ok(answer.motive, run.def.motives.length))
     return { result: 'bad', runId: run.row.id };
-  if (!run.looked.length) return { result: 'bad', runId: run.row.id }; // 한 곳도 안 보고 찍기는 안 돼요
+  if (!run.looked.length) return { result: 'bad', runId: run.row.id }; // 아무것도 안 하고 찍기는 안 돼요
   const g = grade(run.puzzle, answer, run.looked.length);
   const t = now.toISOString();
   const day = kstDay(now);
