@@ -324,6 +324,23 @@ describe('동기화로 시즌 모둠', () => {
     expect((sql.prepare("SELECT done_at FROM season_quests WHERE season_id = '2026-11-03' AND slot = 0").get() as { done_at: string | null }).done_at).not.toBeNull();
   });
 
+  it('시즌이 끝난 뒤 30분 여유 안에 로그인한 건 앞 시즌 접속 퀘스트에 안 들어가요', async () => {
+    const { sql, db } = fakeD1(10);
+    await applySync(db, payload({ members: members(10), full_members: true }), NOW);
+    sql.exec("UPDATE season_quests SET quest_id = 'login:5', done_at = NULL WHERE slot = 0");
+    sql.exec("UPDATE season_quests SET done_at = 'x' WHERE slot > 0");
+    const endMs = Date.parse(END);
+    sql.exec(`UPDATE members SET last_login_at = '${new Date(endMs + 30_000).toISOString()}'`);
+    const parsed = parseSync({
+      batch_id: `${new Date(endMs + 60_000).toISOString()}-login`,
+      season: { start: END, end: new Date(endMs + 14 * 86_400_000).toISOString() },
+      room_minutes: [{ at: new Date(endMs - 60_000).toISOString(), room: id(999), members: [id(1), id(2)] }],
+    });
+    if (!parsed.ok) throw new Error(parsed.error);
+    expect(await applySync(db, parsed.value, endMs + 60_000)).toBe('applied');
+    expect((sql.prepare("SELECT done_at FROM season_quests WHERE season_id = '2026-11-03' AND slot = 0").get() as { done_at: string | null }).done_at).toBeNull();
+  });
+
   it('시즌 정보 없는 묶음으로 나가도 모둠에서 빠지고, 다시 들어오면 원래 모둠으로', async () => {
     const { sql, db } = fakeD1(20);
     await applySync(db, payload({ members: members(20), full_members: true }), NOW);

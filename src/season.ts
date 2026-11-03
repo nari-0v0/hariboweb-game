@@ -625,7 +625,7 @@ export async function loadGroups(
         : ms
             .filter((m) => !m.left_at && levelFromXp(m.solo_xp ?? 0) > levelFromXp(snap.get(`${m.user_id}|${m.user_id}`) ?? 0))
             .map((m) => m.user_id),
-      loggedIn: ended ? [] : ms.filter((m) => !m.left_at && (m.last_login_at ?? '') >= season.start).map((m) => m.user_id),
+      loggedIn: ended ? [] : ms.filter((m) => !m.left_at && (m.last_login_at ?? '') >= season.start && (m.last_login_at ?? '') < season.end).map((m) => m.user_id),
     };
     return {
       no,
