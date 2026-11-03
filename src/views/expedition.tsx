@@ -76,9 +76,10 @@ function Track(props: { step: number }) {
   );
 }
 
-function ActButton(props: { at: number; c: number; disabled?: boolean; children?: unknown }) {
+function ActButton(props: { run: string; at: number; c: number; disabled?: boolean; children?: unknown }) {
   return (
     <form method="post" action="/api/expedition/act">
+      <input type="hidden" name="run" value={props.run} />
       <input type="hidden" name="at" value={String(props.at)} />
       <input type="hidden" name="c" value={String(props.c)} />
       <button class="btn exp-choice" type="submit" disabled={props.disabled}>
@@ -124,7 +125,7 @@ function RunView(props: { run: Run }) {
           <p class="hint">한 칸 갈 때마다 식량 1개를 써요. 식량이 없으면 체력이 2 줄어요.</p>
           <div class="exp-choices">
             {s.paths.map((k, i) => (
-              <ActButton at={at} c={i}>
+              <ActButton run={props.run.row.id} at={at} c={i}>
                 <span class="exp-icon">{PATH_INFO[k].icon}</span> {PATH_INFO[k].name}
               </ActButton>
             ))}
@@ -137,7 +138,7 @@ function RunView(props: { run: Run }) {
           <p>{s.intro}</p>
           <div class="exp-choices">
             {visibleOptions(ev, crew, s).map(({ opt, index, ok, why }) => (
-              <ActButton at={at} c={index} disabled={!ok}>
+              <ActButton run={props.run.row.id} at={at} c={index} disabled={!ok}>
                 <span class="exp-opt">
                   {opt.label}
                   <span class="exp-meta">

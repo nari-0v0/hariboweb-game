@@ -197,7 +197,7 @@ describe('원정대 기록과 보상', () => {
       const ev = run.state.event ? eventById(run.state.event) : null;
       const back = ev?.options.findIndex((o) => o.win.end === 'retreat') ?? -1;
       const c = back >= 0 ? back : opts[opts.length - 1]!;
-      const r = await act(db, 'me', run.choices.length, c, now);
+      const r = await act(db, 'me', run.row.id, run.choices.length, c, now);
       if (r.result === 'done') return r.runId!;
       expect(r.result).toBe('ok');
     }
@@ -243,9 +243,19 @@ describe('원정대 기록과 보상', () => {
   it('옛 차례로 다시 누르면 반영하지 않아요', async () => {
     const { db } = setup();
     await startRun(db, 'me', ['me']);
-    expect((await act(db, 'me', 0, 0)).result).toBe('ok');
-    expect((await act(db, 'me', 0, 0)).result).toBe('stale');
+    const id = (await currentRun(db, 'me'))!.row.id;
+    expect((await act(db, 'me', id, 0, 0)).result).toBe('ok');
+    expect((await act(db, 'me', id, 0, 0)).result).toBe('stale');
     expect((await currentRun(db, 'me'))!.choices).toEqual([0]);
+  });
+
+  it('다른 탭의 옛 원정 화면에서 누른 건 새 원정에 반영하지 않아요', async () => {
+    const { db } = setup();
+    await startRun(db, 'me', ['me']);
+    const old = (await currentRun(db, 'me'))!.row.id;
+    await startRun(db, 'me', ['f1']);
+    expect((await act(db, 'me', old, 0, 0)).result).toBe('stale');
+    expect((await currentRun(db, 'me'))!.choices).toEqual([]);
   });
 
   it('그만두면 진행 중인 원정이 없어지고 보상도 없어요', async () => {

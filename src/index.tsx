@@ -674,7 +674,7 @@ members.post('/api/expedition/act', async (c) => {
   const choice = Number(body.c);
   if (!Number.isInteger(at) || !Number.isInteger(choice) || at < 0 || choice < 0) return c.redirect('/expedition');
   try {
-    const r = await act(c.env.DB, viewer.user_id, at, choice);
+    const r = await act(c.env.DB, viewer.user_id, String(body.run ?? ''), at, choice);
     if (r.result === 'done' && r.runId) return c.redirect(`/expedition?r=${encodeURIComponent(r.runId)}`);
   } catch (e) {
     console.error('원정 진행 실패', e);

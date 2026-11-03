@@ -159,11 +159,11 @@ export async function quitRun(db: D1Database, userId: string): Promise<void> {
 
 export type ActResult = { result: 'ok' | 'done' | 'stale' | 'bad' | 'none'; runId?: string };
 
-// 선택 하나 반영. at = 화면에 보이던 차례(뒤로 가기·두 번 누르기로 엉뚱하게 반영되지 않게)
-export async function act(db: D1Database, userId: string, at: number, choice: number, now = new Date()): Promise<ActResult> {
+// 선택 하나 반영. runId·at = 화면에 보이던 원정과 차례(다른 탭의 옛 화면, 뒤로 가기, 두 번 누르기로 엉뚱하게 반영되지 않게)
+export async function act(db: D1Database, userId: string, runId: string, at: number, choice: number, now = new Date()): Promise<ActResult> {
   const run = await currentRun(db, userId);
   if (!run) return { result: 'none' };
-  if (run.choices.length !== at) return { result: 'stale', runId: run.row.id };
+  if (run.row.id !== runId || run.choices.length !== at) return { result: 'stale', runId: run.row.id };
   const s = run.state;
   if (!applyChoice(run.row.seed, run.crew, s, choice, at)) return { result: 'bad', runId: run.row.id };
   const old = run.row.choices;
