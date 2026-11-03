@@ -69,6 +69,8 @@ import { ExpeditionPage } from './views/expedition';
 import { prefetchAllowed } from './prefetch';
 import { act, currentRun, getRun, listCandidates, myRecord, myRole, quitRun, setRole, startRun } from './expedition-db';
 import { isRole } from './expedition';
+import { CasesPage } from './views/cases';
+import { accuse, caseRecord, currentCase, getCase, lookAt, quitCase, startCase } from './cases-db';
 
 export { PlazaRoom } from './plaza-room';
 
@@ -709,6 +711,65 @@ members.post('/api/expedition/role', async (c) => {
   if (!isRole(role)) return c.redirect('/expedition');
   await setRole(c.env.DB, c.get('viewer').user_id, role);
   return c.redirect('/expedition?n=role');
+});
+
+// 하리보 사건파일
+members.get('/cases', async (c) => {
+  const viewer = c.get('viewer');
+  const db = c.env.DB;
+  const rid = c.req.query('r');
+  const [run, record] = await Promise.all([currentCase(db, viewer.user_id), caseRecord(db, viewer.user_id)]);
+  const result = !run && rid ? await getCase(db, viewer.user_id, rid) : null;
+  // 뒤로 가기로 지난 사건 화면이 다시 보이지 않게 늘 새로 받아요
+  c.header('Cache-Control', 'no-store');
+  return page(
+    c,
+    <CasesPage viewer={viewer} run={run} result={result?.row.status === 'done' ? result : null} record={record} notice={c.req.query('n')} />,
+  );
+});
+
+members.post('/api/cases/start', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const r = await startCase(c.env.DB, c.get('viewer').user_id, String((await c.req.parseBody()).case ?? ''));
+  return c.redirect(r === 'started' ? '/cases#now' : `/cases?n=${r}`);
+});
+
+members.post('/api/cases/look', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const body = await c.req.parseBody();
+  const at = Number(body.at);
+  const spot = Number(body.spot);
+  if (!Number.isInteger(at) || !Number.isInteger(spot)) return c.redirect('/cases#now');
+  try {
+    await lookAt(c.env.DB, c.get('viewer').user_id, String(body.run ?? ''), at, spot);
+  } catch (e) {
+    console.error('사건 조사 실패', e);
+    return c.redirect('/cases?n=error');
+  }
+  return c.redirect('/cases#now');
+});
+
+members.post('/api/cases/accuse', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const body = await c.req.parseBody();
+  const num = (v: unknown) => (v === undefined || v === '' ? NaN : Number(v));
+  const answer = { culprit: num(body.culprit), method: num(body.method), motive: num(body.motive) };
+  if (![answer.culprit, answer.method, answer.motive].every(Number.isInteger)) return c.redirect('/cases?n=need_answer#now');
+  try {
+    const r = await accuse(c.env.DB, c.get('viewer').user_id, String(body.run ?? ''), Number(body.at), answer);
+    if (r.result === 'done' && r.runId) return c.redirect(`/cases?r=${encodeURIComponent(r.runId)}#now`);
+    if (r.result === 'bad') return c.redirect('/cases?n=need_look#now');
+  } catch (e) {
+    console.error('사건 지목 실패', e);
+    return c.redirect('/cases?n=error');
+  }
+  return c.redirect('/cases#now');
+});
+
+members.post('/api/cases/quit', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const quit = await quitCase(c.env.DB, c.get('viewer').user_id, String((await c.req.parseBody()).run ?? ''));
+  return c.redirect(quit ? '/cases?n=quit' : '/cases');
 });
 
 members.get('/dogam', async (c) => {

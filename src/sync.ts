@@ -273,6 +273,7 @@ export async function applySync(
     stmts.push(db.prepare('DELETE FROM owned_items WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM exp_runs WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM exp_finds WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM case_runs WHERE user_id = ?').bind(id));
     stmts.push(db.prepare("UPDATE purchases SET status = 'failed', reason = 'left' WHERE user_id = ? AND status = 'pending'").bind(id));
   }
 
