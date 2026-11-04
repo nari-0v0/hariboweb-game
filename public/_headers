@@ -12,3 +12,5 @@
   Cache-Control: public, max-age=60, stale-while-revalidate=604800
 /cases.js
   Cache-Control: public, max-age=60, stale-while-revalidate=604800
+/room.js
+  Cache-Control: public, max-age=60, stale-while-revalidate=604800

@@ -879,3 +879,76 @@ main.wide { max-width: 1320px; }
   .case-clue.fresh { animation: pop-in .35s steps(4) both; }
   .grade-badge { animation: roll .6s steps(6) both; }
 }
+
+/* ── 내 방 꾸미기 ── */
+.room-frame { border: 4px solid var(--ink); background: var(--ink); clip-path: var(--notch); margin: 10px auto; max-width: 760px; }
+.room-editor[hidden], .room-tools[hidden], .room-actions [hidden] { display: none; }
+.room { position: relative; aspect-ratio: 10 / 7; container-type: inline-size; overflow: hidden; touch-action: manipulation; }
+.room-wall, .room-floor { position: absolute; left: 0; right: 0; }
+.room-wall { top: 0; height: calc(100% * var(--wall-rows) / var(--rows)); border-bottom: 4px solid rgba(42, 32, 48, .35); }
+.room-floor { bottom: 0; height: calc(100% - 100% * var(--wall-rows) / var(--rows)); }
+.room-items { position: absolute; inset: 0; }
+.room-item {
+  position: absolute; display: grid; place-items: center;
+  left: calc(100% * var(--x) / 10); top: calc(100% * var(--y) / 7);
+  width: calc(100% * var(--w) / 10); height: calc(100% * var(--h) / 7);
+  font-size: calc(min(var(--w), var(--h)) * 6.4cqw); line-height: 1;
+}
+.room-item span { filter: drop-shadow(0 2px 0 rgba(42, 32, 48, .25)); }
+.room-item img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+.room-item.me img { height: 125%; margin-top: -25%; }
+.room.editing { cursor: pointer; }
+.room.editing .room-items {
+  background-image: linear-gradient(to right, rgba(42, 32, 48, .14) 1px, transparent 1px), linear-gradient(to bottom, rgba(42, 32, 48, .14) 1px, transparent 1px);
+  background-size: 10% calc(100% / 7);
+}
+.room.editing .room-item:hover { outline: 2px dashed rgba(42, 32, 48, .5); }
+.room-item.picked { outline: 3px solid var(--pink); background: rgba(255, 111, 156, .18); }
+.room-likes { font-weight: 700; color: var(--pink); font-size: 1.1rem; }
+.room-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.room-actions form { margin: 0; }
+.room-editor { margin-top: 12px; display: grid; gap: 6px; }
+.room-editor h3 { margin: 6px 0 0; font-size: .95rem; }
+.room-tip { margin: 0; padding: 6px 8px; border: 2px dashed var(--ink); background: #fffbe6; }
+.room-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.room-palette, .room-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.room-chip { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; padding: 4px 8px; border: 2px solid var(--ink); background: #fff; font: inherit; font-size: .85rem; cursor: pointer; color: var(--ink); }
+.room-chip.on { background: var(--pink-soft); border-color: var(--pink); }
+.room-chip.placed { background: #eef7ff; }
+.chip-icon { font-size: 1.2rem; line-height: 1; }
+.room-save { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.room-store summary { cursor: pointer; list-style: none; }
+.room-store summary h2 { display: inline; }
+.room-store h3 { margin: 12px 0 6px; font-size: .95rem; }
+.furn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; }
+.furn-cell { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 2px solid var(--ink); background: #fff; min-width: 0; }
+.furn-cell form { margin: 0 0 0 auto; }
+.furn-cell .tag { margin-left: auto; }
+.furn-icon { font-size: 1.6rem; line-height: 1; }
+.furn-name { min-width: 0; overflow-wrap: anywhere; font-size: .88rem; }
+.swatch { display: inline-block; width: 28px; height: 22px; border: 2px solid var(--ink); flex: none; }
+.room-chip .swatch { width: 18px; height: 14px; }
+.room-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; margin-bottom: 8px; }
+.room-link { display: grid; justify-items: center; gap: 2px; padding: 8px 4px; border: 3px solid var(--ink); background: var(--paper); text-decoration: none; text-align: center; clip-path: var(--notch); min-width: 0; }
+.room-link img { width: 56px; height: 56px; image-rendering: pixelated; object-fit: contain; }
+.room-link b { font-size: .85rem; overflow-wrap: anywhere; }
+@media (max-width: 520px) {
+  .furn-grid { grid-template-columns: 1fr; }
+  .room-frame { border-width: 3px; }
+}
+
+/* 벽지 */
+.wall-sky .room-wall, .swatch.wall-sky { background: #cfeaff; }
+.wall-strawberry .room-wall, .swatch.wall-strawberry { background: #ffd9e6; }
+.wall-mint .room-wall, .swatch.wall-mint { background: #d4f5ea; }
+.wall-lemon .room-wall, .swatch.wall-lemon { background: #fff3c2; }
+.wall-lavender .room-wall, .swatch.wall-lavender { background: #e6dcff; }
+.wall-stripe .room-wall, .swatch.wall-stripe { background: repeating-linear-gradient(90deg, #fff1e0 0 12px, #ffd9e6 12px 24px); }
+.wall-dots .room-wall, .swatch.wall-dots { background: radial-gradient(circle, #9fd8ff 2px, transparent 3px) 0 0 / 14px 14px, #f2f9ff; }
+/* 바닥 */
+.floor-wood .room-floor, .swatch.floor-wood { background: repeating-linear-gradient(0deg, #d9a56b 0 18px, #c98f55 18px 20px); }
+.floor-check .room-floor, .swatch.floor-check { background: repeating-conic-gradient(#fff 0 25%, #ffd3e1 0 50%) 0 0 / 28px 28px; }
+.floor-pink .room-floor, .swatch.floor-pink { background: #ffb8cf; }
+.floor-grass .room-floor, .swatch.floor-grass { background: repeating-linear-gradient(45deg, #9be38f 0 8px, #8dd681 8px 16px); }
+.floor-marble .room-floor, .swatch.floor-marble { background: linear-gradient(135deg, #f4f1f7 0%, #e6e1ec 50%, #f8f6fa 100%); }
+.floor-night .room-floor, .swatch.floor-night { background: radial-gradient(circle, #ffe98a 1px, transparent 2px) 0 0 / 18px 18px, #3b3b6d; }
