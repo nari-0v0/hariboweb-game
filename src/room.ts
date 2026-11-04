@@ -5,7 +5,6 @@
 export const COLS = 10;
 export const ROWS = 7;
 export const WALL_ROWS = 2;
-export const MAX_ITEMS = 40;
 export const ME = 'me'; // 방 주인 캐릭터(늘 있어요)
 
 export type Zone = 'wall' | 'floor';
@@ -95,6 +94,9 @@ export const FLOORS: Surface[] = [
   { key: 'marble', name: '대리석 바닥', price: 10 },
   { key: 'night', name: '밤하늘 카펫', price: 10 },
 ];
+
+// 가구는 한 번씩만 놓으니, 가진 가구를 다 놓아도(주인 캐릭터 포함) 저장할 수 있어요.
+export const MAX_ITEMS = FURNITURE.length + 1;
 
 const BY_KEY = new Map(FURNITURE.map((x) => [x.key, x]));
 export const furniture = (key: string) => BY_KEY.get(key);

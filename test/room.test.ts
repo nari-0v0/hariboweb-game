@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_LAYOUT, FURNITURE, ME, checkLayout, parseLayout, roomItem } from '../src/room';
+import { COLS, DEFAULT_LAYOUT, FURNITURE, ME, ROWS, checkLayout, furnId, parseLayout, roomItem } from '../src/room';
 import { buyRoomItem, getRoom, likeRoom, listRooms, saveRoom } from '../src/room-db';
 import { applySync, parseSync } from '../src/sync';
 
@@ -59,6 +59,27 @@ describe('방 배치 확인', () => {
     expect(checkLayout([{ k: 'tree', x: 2, y: 6 }], new Set(['furn:tree']))).toBeNull(); // 세로 2칸
     expect(checkLayout([{ k: 'chair', x: 1.5, y: 3 }], none)).toBeNull();
     expect(checkLayout('nope', none)).toBeNull();
+  });
+
+  it('가구를 전부 놓아도 저장되고 다시 읽어도 그대로예요', () => {
+    const owned = new Set(FURNITURE.map((x) => furnId(x.key)));
+    let layout: { k: string; x: number; y: number }[] = [];
+    for (const k of [...FURNITURE.map((x) => x.key), ME]) {
+      let done = false;
+      for (let y = 0; y < ROWS && !done; y++)
+        for (let x = 0; x < COLS && !done; x++) {
+          const next = [...layout, { k, x, y }];
+          if (checkLayout(next, owned)) (layout = next), (done = true);
+        }
+      expect(done).toBe(true);
+    }
+    expect(checkLayout(layout, owned)).toHaveLength(FURNITURE.length + 1);
+    expect(parseLayout(JSON.stringify(layout), owned)).toEqual(layout);
+    // 주인 캐릭터 없이 보내도 자동으로 넣고, 다시 읽어도 기본 방으로 안 돌아가요
+    const noMe = layout.filter((p) => p.k !== ME);
+    const saved = checkLayout(noMe, owned);
+    expect(saved).toHaveLength(FURNITURE.length + 1);
+    expect(parseLayout(JSON.stringify(saved), owned)).toEqual(saved);
   });
 
   it('저장된 방을 읽을 때는 잘못된 물건만 빼요', () => {
