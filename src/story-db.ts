@@ -1,3 +1,4 @@
+import { episodeRelease } from './case-episodes';
 import { buildCrew, listCandidates } from './expedition-db';
 import { kstDay } from './db';
 import { DAILY_REWARD_RUNS, RUN_XP, isRole, runJelly } from './expedition';
@@ -62,17 +63,19 @@ export async function activeStory(db: D1Database, user: string, kind: string): P
   return run;
 }
 export const uuid = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
-export async function beginStory(db: D1Database, user: string, kind: StoryState['kind'], content: string, ids: string[], requestId: string): Promise<string | null> {
+export async function beginStory(db: D1Database, user: string, kind: StoryState['kind'], content: string, ids: string[], requestId: string, now = new Date()): Promise<string | null> {
   if (!uuid(requestId) || !(kind === 'case' ? storyCase(content) : region(content)) || ids.length > 3 || new Set(ids).size !== ids.length) return null;
   const previous = await getStory(db, user, requestId);
   if (previous) return previous.row.kind === kind ? previous.row.id : null;
+  const release = kind === 'case' ? episodeRelease(content) : undefined;
+  if (release && kstDay(now) < release) return null;
   const active = await activeStory(db, user, kind);
   if (active) return active.row.id;
   const candidates = await listCandidates(db, user);
   if (ids.some(id => !candidates.some(c => c.id === id))) return null;
   const crew = buildCrew(ids.map(id => candidates.find(c => c.id === id)!), requestId);
   const s = startStory(kind, content, crew, await storyMarks(db, user));
-  const t = new Date().toISOString();
+  const t = now.toISOString();
   await db.prepare(`INSERT OR IGNORE INTO story_runs (id, user_id, kind, content_id, state, started_at, updated_at, mutation)
     SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ? AND active = 1)`)
     .bind(requestId, user, kind, content, JSON.stringify(s), t, t, requestId, user).run();

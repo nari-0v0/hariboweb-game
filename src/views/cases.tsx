@@ -280,7 +280,7 @@ export function CasesPage(props: { viewer: Member; run: CaseRun | null; result: 
           <div class="panel-head">
             <h1>하리보 사건파일</h1>
           </div>
-          <p><a class="btn btn-primary" href="/cases/story">새 이야기 6개 · 증거와 선택으로 조사하기 ▶</a></p>
+          <p><a class="btn btn-primary" href="/cases/story">하리보 사건파일 · 새 연재 사건 확인하기 ▶</a></p>
           <p class="muted">장소를 조사하고 용의자를 심문해서 범인·방법·동기를 맞혀요. 틀려도 잃는 건 없어요.</p>
           <FictionNote big={!props.run} />
         </section>

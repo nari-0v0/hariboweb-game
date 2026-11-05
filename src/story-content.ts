@@ -1,3 +1,4 @@
+import { EPISODE_CASES } from './case-episodes';
 // v1 원고. 정답과 근거는 함께 관리하며, 멤버는 조력자로만 출연합니다.
 export type Mark = Record<string, string>;
 export type Investigation = { id: string; label: string; text: string; grant?: Mark; need?: string };
@@ -190,7 +191,7 @@ export const STORY_EVENTS: StoryEvent[] = [
     { label: '문 주변을 마지막으로 조사', text: '문 주변의 장치와 귀환 경로를 비교했다.', time: 1, end: 'return' },
   ] },
 ];
-export const storyCase = (id: string) => STORY_CASES.find(c => c.id === id);
+export const storyCase = (id: string) => STORY_CASES.find(c => c.id === id) ?? EPISODE_CASES.find(c => c.id === id);
 export const storyEvent = (id: string) => STORY_EVENTS.find(e => e.id === id);
 export const region = (id: string) => REGIONS.find(r => r.id === id);
 export const meets = (marks: Mark, need?: string) => !need || (need.includes('=') ? marks[need.split('=')[0]!] === need.split('=')[1] : marks[need] === '1');

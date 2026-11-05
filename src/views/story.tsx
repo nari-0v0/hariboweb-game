@@ -1,3 +1,5 @@
+import { CASE_EPISODES } from '../case-episodes';
+import { kstDay } from '../db';
 import { MYSTERY_INTRO } from '../jelly-mystery';
 import type { Member } from '../env';
 import type { Candidate } from '../expedition-db';
@@ -76,18 +78,21 @@ function Play(props: { run: StoryRun }) {
 }
 export function StoryPage(props: { viewer: Member; kind: StoryState['kind']; run: StoryRun | null; candidates: Candidate[]; marks: Mark; notice?: string }) {
   const { kind, run } = props;
-  const definitions = kind === 'case' ? STORY_CASES.map(c => ({ id: c.id, title: c.title, intro: c.id === 'jelly500' ? MYSTERY_INTRO : c.intro, art: '/char/deco/detective.png' })) : REGIONS.map(r => ({ id: r.id, title: r.name, intro: r.intro, art: r.art }));
+  const today = kstDay();
+  const nextEpisode = CASE_EPISODES.find(episode => episode.release > today);
+  const definitions = kind === 'case' ? STORY_CASES.map(c => ({ id: c.id, title: c.title, intro: c.id === 'jelly500' ? MYSTERY_INTRO : c.intro, art: '/char/deco/detective.png', release: undefined as string | undefined })).concat(CASE_EPISODES.filter(episode => episode.release <= today).map(episode => ({ ...episode, art: '/char/deco/detective.png' }))) : REGIONS.map(r => ({ id: r.id, title: r.name, intro: r.intro, art: r.art, release: undefined }));
   return <Layout title={kind === 'case' ? '하리보 사건파일 · 이야기' : '하리보 원정대 · 이야기'} viewer={props.viewer} active={kind === 'case' ? 'cases' : 'expedition'} scripts={['/tactile.js?v=mystery-jelly-1']}>
     <div class="stack exp story" data-fresh>
       <section class="panel"><span class="eyebrow">함께 남기는 모험 기록</span><h1>{kind === 'case' ? '하리보 사건파일' : '하리보 원정대'}</h1>
-        <p>{kind === 'case' ? '방 안을 탐색하고, 증거를 조립하고 연결해 6개 사건의 진실을 밝혀요.' : '안개숲·별빛 유적·달빛 마을의 지도를 직접 복원해요. 대원을 보내 길을 밝히고 18개 현장을 발견하세요.'}</p>
+        <p>{kind === 'case' ? '방을 조사하고 단서를 연결해 사건의 진실을 밝혀요. 연재 사건은 공개된 뒤 언제든 플레이할 수 있어요.' : '안개숲·별빛 유적·달빛 마을의 지도를 직접 복원해요. 대원을 보내 길을 밝히고 18개 현장을 발견하세요.'}</p>
         <FictionNote />
         <p class="hint">이야기별 최초 완료에 경험치 10 · 해결/발견/구조 성공은 도감 젤리 1개도 받아요. 안전 귀환은 경험치만 받아요. 기존 모드와 각각 하루 첫 3판 한도를 공유해요. 한도 이후에는 다음 날 다시 완료해 최초 보상을 받을 수 있어요. 겜블 지갑과는 별개예요.</p>
         <p class="hint">발견은 바로 기록되며 시즌이 지나도 유지돼요. 다른 이야기에서 얻은 기록은 새 판을 시작할 때 반영돼요. 원정은 새 칸 탐사에 시간 1이 들어요. 지도 회전과 대원 재배치는 시간을 쓰지 않아요.</p>
         <div class="end-row"><a class="btn btn-small" href={kind === 'case' ? '/expedition/story' : '/cases/story'}>{kind === 'case' ? '원정대로 이어가기' : '사건파일로 이어가기'}</a><a class="btn btn-small" href={kind === 'case' ? '/cases' : '/expedition'}>기존 무작위 모드</a></div>
         {props.notice && <p role="status">{props.notice === 'stale' ? '이미 반영되었거나 다른 화면에서 진행했어요. 현재 기록을 보여드려요.' : props.notice === 'error' ? '요청 결과를 확인하지 못했어요. 현재 기록을 확인한 뒤 다시 눌러 주세요.' : '입력을 확인해 주세요. 기록은 현재 화면에서 이어갈 수 있어요.'}</p>}
       </section>
-      {run ? <Play run={run} /> : <section class="panel"><h2>이야기 고르기</h2><div class="story-grid">{definitions.map(d => <article class="story-card"><img class="story-art" src={d.art} alt="" /><h3>{d.title}</h3><p>{d.intro}</p>
+      {kind === 'case' && nextEpisode && <section class="panel"><h2>다음 연재 사건</h2><p><time datetime={nextEpisode.release}>{nextEpisode.release} 한국 시간 00:00</time> 공개 · {nextEpisode.title}</p></section>}
+      {run ? <Play run={run} /> : <section class="panel"><h2>이야기 고르기</h2><div class="story-grid">{definitions.map(d => <article class="story-card"><img class="story-art" src={d.art} alt="" />{d.release && <span class="eyebrow">연재 · {d.release} 공개</span>}<h3>{d.title}</h3><p>{d.intro}</p>
         <form method="post" action="/api/story/start">
           <input type="hidden" name="request" value={crypto.randomUUID()} /><input type="hidden" name="kind" value={kind} /><input type="hidden" name="content" value={d.id} />
           <details><summary>조력자 고르기 (최대 3명)</summary><div class="story-picks">{props.candidates.map(c => <label><input type="checkbox" name="m" value={c.id} checked={c.me} /> {c.name} · {roleOf(c.role).name}</label>)}</div><p class="hint">모자라면 견습 대원이 함께해요. 수집한 현재 멤버만 고를 수 있어요. 역할은 기존 원정대의 내 역할에서 바꿀 수 있어요.</p></details>

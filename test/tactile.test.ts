@@ -1,10 +1,11 @@
+import { CASE_EPISODES } from '../src/case-episodes';
 import { describe, expect, it } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CASE_PLAY, connected, newMap, skillReason } from '../src/tactile';
 import { advanceStory, startStory as startCurrentStory, startLegacyStory, type StoryAction, type StoryState } from '../src/story';
-import { STORY_CASES, REGIONS, meets } from '../src/story-content';
+import { STORY_CASES, REGIONS, meets, storyCase } from '../src/story-content';
 import type { Crew } from '../src/expedition';
 import { actStory, activeStory, beginStory, decodeStory, getStory } from '../src/story-db';
 const crew: Crew[] = ['guard', 'scout', 'healer'].map((role, i) => ({ id: null, name: `견습${i}`, art: '/char/deco/explorer.png', role, bonus: 0, cond: 'plain' })) as Crew[];
@@ -18,15 +19,15 @@ const go = (s: StoryState, action: StoryAction['action'], choice: string) => {
   const next = advanceStory(s, { action, choice }); expect(next, `${action}: ${choice}`).not.toBeNull(); return next!.state;
 };
 function prepareCase(id: string) {
-  const def = STORY_CASES.find(d => d.id === id)!;
+  const def = storyCase(id)!;
   let s = startStory('case', id, crew, {});
   for (const o of CASE_PLAY[id]!.objects) if (meets(s.marks, def.clues.find(c => c.id === o.clue)!.need)) s = go(s, 'inspect', `${o.clue}|${o.task.solution}`);
   for (let i = 1; i < def.evidence.length; i++) s = go(s, 'connect', `${def.evidence[i - 1]}>${def.evidence[i]}`);
   return s;
 }
 describe('직접 탐색·복원하는 사건파일', () => {
-  it('6개 사건 모두 물건 조사·도구 조작·증거 연결·흐름 복원으로 끝낼 수 있다', () => {
-    for (const def of STORY_CASES) {
+  it('기본과 연재 사건 모두 물건 조사·도구 조작·증거 연결·흐름 복원으로 끝낼 수 있다', () => {
+    for (const def of [...STORY_CASES, ...CASE_EPISODES]) {
       let s = prepareCase(def.id);
       expect(s.version).toBe(2);
       s = go(s, 'reconstruct', CASE_PLAY[def.id]!.path.map(p => p.id).join(','));
@@ -121,6 +122,15 @@ function dbFixture() {
   return { db, sql, inject: (v: boolean) => { fail = v; } };
 }
 describe('조작형 저장과 보상 보호', () => {
+  it('연재 사건은 한국 시간 공개일 자정부터 시작할 수 있다', async () => {
+    const { db } = dbFixture();
+    const id = crypto.randomUUID(), episode = CASE_EPISODES[1]!;
+    const release = new Date(episode.release + 'T00:00:00+09:00');
+    expect(await beginStory(db, 'me', 'case', episode.id, [], id, new Date(release.getTime() - 1))).toBeNull();
+    expect(await getStory(db, 'me', id)).toBeNull();
+    expect(await beginStory(db, 'me', 'case', episode.id, [], id, release)).toBe(id);
+    expect((await getStory(db, 'me', id))?.state.content).toBe(episode.id);
+  });
   it('새 판은 v2이며 v1 진행 판을 보상 없이 보존하고 손상된 지도는 거부한다', async () => {
     const { db, sql } = dbFixture(), id = crypto.randomUUID();
     await beginStory(db, 'me', 'expedition', 'mist', [], id);

@@ -1,3 +1,4 @@
+import { CASE_EPISODES } from './case-episodes';
 import { checkMystery, readMystery, MYSTERY_ENDING } from './jelly-mystery';
 import type { StoryAction, StoryState } from './story';
 import { meets, region, storyCase, storyEvent, type Mark } from './story-content';
@@ -9,6 +10,13 @@ type CasePlay = { rooms: CaseRoom[]; objects: { clue: string; room: number; icon
 const plain: ObjectTask = { kind: 'inspect', hint: '물건을 확대해 살핀 뒤 수첩에 옮기세요.', solution: '' };
 const room = (name: string, icon: string, color: string): CaseRoom => ({ name, icon, color });
 export const CASE_PLAY: Record<string, CasePlay> = {
+  ...Object.fromEntries(CASE_EPISODES.map(episode => [episode.id, {
+    rooms: episode.rooms.map(name => room(name, '🔎', '#b9d9d3')),
+    objects: episode.clues.map(([clue, , , room, icon], index) => ({
+      clue, room, icon, x: 26 + index * 23, y: index % 2 ? 37 : 68, task: plain,
+    })),
+    path: episode.path.map((text, index) => ({ id: ['cause', 'effect', 'result'][index]!, text })),
+  }])),
   jelly500: {
     rooms: [room('창고', '📦', '#b9d9d3'), room('주방', '🧁', '#eddbbd'), room('행사 준비실', '🎀', '#d3c9e5')],
     objects: [
