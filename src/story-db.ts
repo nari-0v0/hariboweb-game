@@ -22,6 +22,8 @@ export function decodeStory(row: StoryRow): StoryRun | null {
       const p = s.interaction;
       if (!p || (s.kind === 'case' ? p.mode !== 'case' : p.mode !== 'map')) return null;
       if (p.mode === 'case' && !strings(p.links)) return null;
+      if (p.mode === 'map' && (p.skillsUsed !== undefined && (!strings(p.skillsUsed) || p.skillsUsed.some(r => !isRole(r))))) return null;
+      if (p.mode === 'map' && p.cells.some(c => (c.peeked !== undefined && typeof c.peeked !== 'boolean') || (c.traced !== undefined && typeof c.traced !== 'boolean'))) return null;
       if (p.mode === 'map' && (!Array.isArray(p.cells) || p.cells.length !== 25 || p.camp !== 20 || !Array.isArray(p.crewAt) || p.crewAt.length !== 3 || p.crewAt.some(n => !Number.isInteger(n) || n < 0 || n > 24) || p.cells.some(c => !c || !Array.isArray(c.ports) || c.ports.some(n => !Number.isInteger(n) || n < 0 || n > 3) || !Number.isInteger(c.rotation) || c.rotation < 0 || c.rotation > 3 || typeof c.revealed !== 'boolean' || typeof c.surveyed !== 'boolean' || (c.event !== null && !storyEvent(c.event))))) return null;
     }
     return { row, state: s };

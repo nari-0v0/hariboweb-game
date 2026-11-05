@@ -63,8 +63,8 @@ export const CASE_PLAY: Record<string, CasePlay> = {
   },
 };
 
-export type MapCell = { ports: number[]; rotation: number; revealed: boolean; event: string | null; surveyed: boolean };
-export type TactileState = { mode: 'case'; links: string[] } | { mode: 'map'; cells: MapCell[]; crewAt: number[]; camp: number };
+export type MapCell = { ports: number[]; rotation: number; revealed: boolean; event: string | null; surveyed: boolean; peeked?: boolean; traced?: boolean };
+export type TactileState = { mode: 'case'; links: string[] } | { mode: 'map'; cells: MapCell[]; crewAt: number[]; camp: number; skillsUsed?: string[] };
 const NEIGHBORS = [[-5, 0, 2], [1, 1, 3], [5, 2, 0], [-1, 3, 1]] as const;
 export function neighbors(i: number): number[] { return NEIGHBORS.filter(([d]) => i + d >= 0 && i + d < 25 && (Math.abs(d) !== 1 || Math.floor(i / 5) === Math.floor((i + d) / 5))).map(([d]) => i + d); }
 export const cellPorts = (c: MapCell) => c.ports.map(p => (p + c.rotation) % 4);
@@ -97,6 +97,30 @@ export function newMap(content: string): Extract<TactileState, { mode: 'map' }> 
   cells.forEach((c, i) => { c.rotation = i === 20 ? 0 : (i + (content === 'mist' ? 1 : content === 'ruins' ? 2 : 3)) % 4; });
   cells[20]!.revealed = true;
   return { mode: 'map', cells, crewAt: [20, 20, 20], camp: 20 };
+}
+export const FIELD_SKILLS = {
+  scout: { label: '주변 발자국 살피기', text: '인접 칸의 길·수풀을 미리 확인해요.' },
+  guard: { label: '안전 탐사', text: '안개 탐사 시 막힌 지형에서도 체력을 잃지 않아요. 항상 적용돼요.' },
+  mage: { label: '봉인된 길 정렬', text: '드러난 길 조각 하나를 원래 방향으로 맞춰요.' },
+  healer: { label: '구급 치료', text: '체력을 2 회복해요. 현장을 기록할 때에도 체력을 1 회복시켜요.' },
+  talker: { label: '주민에게 길 안내받기', text: '인접 안개 칸 하나를 시간·체력 소모 없이 밝혀요.' },
+  scribe: { label: '지도의 원형 탁본', text: '길 조각의 원래 북쪽 방향을 지도에 표시해요.' },
+} as const;
+export function skillReason(s: StoryState, n: number, actor: number): string | null {
+  const map = s.interaction, c = map?.mode === 'map' ? map.cells[n] : null, who = s.crew[actor];
+  if (!map || map.mode !== 'map' || !c || !who) return '조사 위치와 대원을 골라 주세요';
+  if (who.role === 'guard') return '항상 적용되는 특성이에요';
+  if (map.skillsUsed?.includes(who.role)) return '이번 원정에서 이미 사용했어요';
+  const reach = connected(map);
+  if (!reach.has(n) && !neighbors(n).some(i => reach.has(i))) return '기지에서 이어지는 길 가까이에서 사용해요';
+  if (who.role === 'talker') return c.revealed ? '아직 안개에 가려진 칸을 골라 주세요' : null;
+  if (!c.revealed) return '먼저 이 칸의 안개를 걷어 주세요';
+  if (who.role === 'scout') return neighbors(n).some(i => !map.cells[i]!.revealed && !map.cells[i]!.peeked) ? null : '새로 살펴볼 주변 안개가 없어요';
+  if (who.role === 'healer') return s.hp < 8 ? null : '아직 치료할 부상이 없어요';
+  if (n === map.camp || !c.ports.length) return '기지 이외의 길 조각을 골라 주세요';
+  if (who.role === 'mage' && c.rotation === 0) return '이미 원래 방향으로 놓인 조각이에요';
+  if (who.role === 'scribe' && c.traced) return '이미 탁본한 조각이에요';
+  return null;
 }
 const EVENT_MARKS: Record<string, Mark> = {
   fork: { fairySong: '1' }, bag: { explorerTrail: '1' }, chest: { glyph: '1', chestFriend: '1' }, mushroom: { cave: '1' }, merchant: { lantern: '1' }, signal: { rescued: '1' },
@@ -159,11 +183,23 @@ export function advanceTactile(old: StoryState, a: StoryAction): { state: StoryS
     } else return null;
   } else {
     if (s.phase !== 'play' || !/^(?:[0-9]|1[0-9]|2[0-4])(?::[0-2])?$/.test(a.choice)) return null;
-    if ((a.action === 'scout') !== a.choice.includes(':')) return null;
+    if ((a.action === 'scout' || a.action === 'skill') !== a.choice.includes(':')) return null;
     const [n, actor] = a.choice.split(':').map(Number), cell = t.cells[n!];
     if (!cell) return null;
     const reach = connected(t);
-    if (a.action === 'scout') {
+    if (a.action === 'skill') {
+      if (skillReason(s, n!, actor!)) return null;
+      const who = s.crew[actor!]!;
+      t.skillsUsed = [...(t.skillsUsed ?? []), who.role];
+      if (who.role === 'scout') {
+        const around = neighbors(n!).filter(i => !t.cells[i]!.revealed && !t.cells[i]!.peeked);
+        around.forEach(i => { t.cells[i]!.peeked = true; });
+        s.log.push(`${who.name}이(가) 주변 ${around.length}칸의 발자국을 살폈다. 길이 있는 곳과 막힌 수풀이 안개 위에 표시됐다.`);
+      } else if (who.role === 'healer') { s.hp = Math.min(8, s.hp + 2); s.log.push(`${who.name}의 구급 치료로 체력이 2 회복됐다.`); }
+      else if (who.role === 'mage') { cell.rotation = 0; s.log.push(`${who.name}이(가) 길에 남은 마력을 읽어 원래 방향으로 조각을 정렬했다.`); }
+      else if (who.role === 'scribe') { cell.traced = true; s.log.push(`${who.name}이(가) 원래 지도의 북쪽 방향을 탁본했다. 금빛 화살표를 위로 맞추면 원래 배치를 확인할 수 있다.`); }
+      else if (who.role === 'talker') { cell.revealed = true; t.crewAt[actor!] = n!; s.log.push(`${who.name}이(가) 주민의 안내로 안개를 걷었다. 시간과 체력을 쓰지 않고 지형을 확인했다.`); }
+    } else if (a.action === 'scout') {
       if (!Number.isInteger(actor) || !s.crew[actor!] || (!reach.has(n!) && !neighbors(n!).some(i => reach.has(i)))) return null;
       const fresh = !cell.revealed;
       cell.revealed = true; t.crewAt[actor!] = n!;
@@ -195,5 +231,6 @@ export function advanceTactile(old: StoryState, a: StoryAction): { state: StoryS
     s.position = t.cells.filter(c => c.surveyed).length;
   }
   s.journal.push(...s.log);
+  s.journal = s.journal.slice(-200);
   return { state: s, grants };
 }

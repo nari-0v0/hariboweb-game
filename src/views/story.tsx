@@ -76,7 +76,7 @@ function Play(props: { run: StoryRun }) {
 export function StoryPage(props: { viewer: Member; kind: StoryState['kind']; run: StoryRun | null; candidates: Candidate[]; marks: Mark; notice?: string }) {
   const { kind, run } = props;
   const definitions = kind === 'case' ? STORY_CASES.map(c => ({ id: c.id, title: c.title, intro: c.intro, art: '/char/deco/detective.png' })) : REGIONS.map(r => ({ id: r.id, title: r.name, intro: r.intro, art: r.art }));
-  return <Layout title={kind === 'case' ? '하리보 사건파일 · 이야기' : '하리보 원정대 · 이야기'} viewer={props.viewer} active={kind === 'case' ? 'cases' : 'expedition'} scripts={['/tactile.js']}>
+  return <Layout title={kind === 'case' ? '하리보 사건파일 · 이야기' : '하리보 원정대 · 이야기'} viewer={props.viewer} active={kind === 'case' ? 'cases' : 'expedition'} scripts={['/tactile.js?v=polish-1']}>
     <div class="stack exp story" data-fresh>
       <section class="panel"><span class="eyebrow">함께 남기는 모험 기록</span><h1>{kind === 'case' ? '하리보 사건파일' : '하리보 원정대'}</h1>
         <p>{kind === 'case' ? '방 안을 탐색하고, 증거를 조립하고 연결해 6개 사건의 진실을 밝혀요.' : '안개숲·별빛 유적·달빛 마을의 지도를 직접 복원해요. 대원을 보내 길을 밝히고 18개 현장을 발견하세요.'}</p>

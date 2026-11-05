@@ -9,7 +9,7 @@ export type StoryState = {
   phase: 'play' | 'epilogue' | 'done'; ending: string | null; correct: boolean;
   log: string[]; journal: string[];
 };
-export type StoryAction = { action: 'look' | 'answer' | 'promise' | 'choose' | 'quit' | 'inspect' | 'connect' | 'reconstruct' | 'scout' | 'rotate' | 'survey' | 'return'; choice: string };
+export type StoryAction = { action: 'look' | 'answer' | 'promise' | 'choose' | 'quit' | 'inspect' | 'connect' | 'reconstruct' | 'scout' | 'rotate' | 'survey' | 'return' | 'skill'; choice: string };
 export function startStory(kind: StoryState['kind'], content: string, crew: Crew[], marks: Mark): StoryState {
   const s = startLegacyStory(kind, content, crew, marks);
   s.version = 2;

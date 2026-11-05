@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CASE_PLAY, connected, newMap } from '../src/tactile';
+import { CASE_PLAY, connected, newMap, skillReason } from '../src/tactile';
 import { advanceStory, startStory, startLegacyStory, type StoryAction, type StoryState } from '../src/story';
 import { STORY_CASES, REGIONS, meets } from '../src/story-content';
 import type { Crew } from '../src/expedition';
@@ -138,5 +138,59 @@ describe('조작형 저장과 보상 보호', () => {
     expect(await actStory(db, 'me', id, 0, action)).toBe('stale');
     expect(sql.prepare('SELECT solo_xp, dogam_jelly FROM profiles WHERE user_id = ?').get('me')).toEqual({ solo_xp: 10, dogam_jelly: 1 });
     s = (await getStory(db, 'me', id))!.state; expect(s.ending).toBe('solved');
+  });
+});
+
+describe('대원 특기와 저장 호환성', () => {
+  const special = (role: Crew['role']) => startStory('expedition', 'mist', [{ ...crew[0]! }, { ...crew[1]!, role }, { ...crew[2]!, role }], {});
+  it('탐색가는 안개를 열지 않고 이웃 지형만 미리 보고 같은 역할의 재사용은 막힌다', () => {
+    let s = go(special('scout'), 'scout', '15:0');
+    const original = structuredClone(s);
+    s = go(s, 'skill', '15:1');
+    if (s.interaction?.mode !== 'map' || original.interaction?.mode !== 'map') throw new Error('map');
+    expect(s.interaction.cells[10]!.peeked).toBe(true); expect(s.interaction.cells[10]!.revealed).toBe(false);
+    expect(original.interaction.cells[10]!.peeked).toBeUndefined();
+    expect(s.time).toBe(1); expect(s.seen).toEqual([]);
+    expect(advanceStory(s, { action: 'skill', choice: '15:2' })).toBeNull();
+  });
+  it('기록가는 원형 방향을 남기고 마법사는 실제 길을 정렬한다', () => {
+    let s = go(special('scribe'), 'scout', '15:0'); s = go(s, 'scout', '10:0');
+    s = go(s, 'skill', '10:1');
+    if (s.interaction?.mode !== 'map') throw new Error('map');
+    expect(s.interaction.cells[10]!.traced).toBe(true); expect(s.interaction.cells[10]!.rotation).toBe(3);
+    s = go(special('mage'), 'scout', '15:0'); s = go(s, 'scout', '10:0');
+    expect(connected(s.interaction as ReturnType<typeof newMap>).has(10)).toBe(false);
+    s = go(s, 'skill', '10:1');
+    expect(connected(s.interaction as ReturnType<typeof newMap>).has(10)).toBe(true);
+    expect(s.time).toBe(2); expect(s.marks).toEqual({});
+  });
+  it('협상가는 한 칸을 무료 탐사하고 치유사는 부상 때만 치료하며 수호자는 탐사 피해를 막는다', () => {
+    let s = go(special('talker'), 'skill', '15:1');
+    expect(s.time).toBe(0); expect(s.hp).toBe(8);
+    expect((s.interaction as ReturnType<typeof newMap>).cells[15]!.revealed).toBe(true);
+    s = special('healer'); expect(skillReason(s, 20, 1)).toBeTruthy(); s.hp = 5;
+    s = go(s, 'skill', '20:1'); expect(s.hp).toBe(7);
+    expect(advanceStory(s, { action: 'skill', choice: '20:2' })).toBeNull();
+    s = go(special('scout'), 'scout', '15:0');
+    expect(go(s, 'scout', '16:0').hp).toBe(8);
+    expect(go(s, 'scout', '16:1').hp).toBe(7);
+  });
+  it('고립된 칸·잘못된 대원·패시브 특기 요청은 서버가 차단한다', () => {
+    const s = special('talker');
+    for (const choice of ['0:1', '15:4', '15', '20:0']) expect(advanceStory(s, { action: 'skill', choice })).toBeNull();
+  });
+  it('동시 특기 요청은 한 번만 저장되며 특기로 화폐·경험치가 생기지 않는다', async () => {
+    const { db, sql } = dbFixture(), id = crypto.randomUUID();
+    await beginStory(db, 'me', 'expedition', 'mist', [], id);
+    sql.prepare('UPDATE story_runs SET state = ? WHERE id = ?').run(JSON.stringify(special('talker')), id);
+    const action = { action: 'skill', choice: '15:1' } as const;
+    expect((await Promise.all([actStory(db, 'me', id, 0, action), actStory(db, 'me', id, 0, action)])).sort()).toEqual(['ok', 'stale']);
+    const run = (await getStory(db, 'me', id))!;
+    expect((run.state.interaction as ReturnType<typeof newMap>).skillsUsed).toEqual(['talker']);
+    expect(run.row.xp).toBe(0); expect(run.row.jelly).toBe(0);
+    expect(sql.prepare('SELECT COUNT(*) n FROM story_rewards').get()).toEqual({ n: 0 });
+    const bad = structuredClone(run.state);
+    (bad.interaction as ReturnType<typeof newMap>).skillsUsed = ['forged-role'];
+    expect(decodeStory({ ...run.row, state: JSON.stringify(bad) })).toBeNull();
   });
 });
