@@ -274,6 +274,9 @@ export async function applySync(
     stmts.push(db.prepare('DELETE FROM exp_runs WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM exp_finds WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM case_runs WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM story_runs WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM story_marks WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM story_rewards WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM rooms WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM room_likes WHERE from_id = ?1 OR to_id = ?1').bind(id));
     stmts.push(db.prepare("UPDATE purchases SET status = 'failed', reason = 'left' WHERE user_id = ? AND status = 'pending'").bind(id));

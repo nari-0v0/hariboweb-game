@@ -14,3 +14,5 @@
   Cache-Control: public, max-age=60, stale-while-revalidate=604800
 /room.js
   Cache-Control: public, max-age=60, stale-while-revalidate=604800
+/tactile.js
+  Cache-Control: public, max-age=60, stale-while-revalidate=604800

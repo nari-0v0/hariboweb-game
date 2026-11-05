@@ -59,8 +59,8 @@ export function Layout(props: {
               {nav('group', '/group', '모둠', '👥')}
               {nav('bingo', '/bingo', '빙고', '🎯')}
               {nav('plaza', '/plaza', '광장', '🏞️')}
-              {nav('expedition', '/expedition', '원정대', '🧭')}
-              {nav('cases', '/cases', '사건파일', '🔎')}
+              {nav('expedition', '/expedition/story', '원정대', '🧭')}
+              {nav('cases', '/cases/story', '사건파일', '🔎')}
               {nav('room', '/room', '내 방', '🏠')}
               {nav('shop', '/shop', '상점', '🍬')}
               {nav('guide', '/guide', '사용설명서', '📘')}
