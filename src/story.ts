@@ -1,19 +1,21 @@
 import type { Crew } from './expedition';
 import { meets, region, storyCase, storyEvent, type Mark, type StoryOption } from './story-content';
 import { advanceTactile, newMap, type TactileState } from './tactile';
+import { newJellyInvestigation } from './jelly-investigation';
 
 export type StoryState = {
-  version: 1 | 2; kind: 'case' | 'expedition'; content: string; crew: Crew[]; marks: Mark;
+  version: 1 | 2 | 3; kind: 'case' | 'expedition'; content: string; crew: Crew[]; marks: Mark;
   interaction?: TactileState;
   seen: string[]; route: string[]; position: number; hp: number; tools: number; time: number;
   phase: 'play' | 'epilogue' | 'done'; ending: string | null; correct: boolean;
   log: string[]; journal: string[];
 };
-export type StoryAction = { action: 'look' | 'answer' | 'promise' | 'choose' | 'quit' | 'inspect' | 'connect' | 'reconstruct' | 'scout' | 'rotate' | 'survey' | 'return' | 'skill'; choice: string };
+export type StoryAction = { action: 'look' | 'answer' | 'promise' | 'choose' | 'quit' | 'inspect' | 'connect' | 'reconstruct' | 'scout' | 'rotate' | 'survey' | 'return' | 'skill' | 'jelly'; choice: string };
 export function startStory(kind: StoryState['kind'], content: string, crew: Crew[], marks: Mark): StoryState {
   const s = startLegacyStory(kind, content, crew, marks);
   s.version = 2;
   s.interaction = kind === 'case' ? { mode: 'case', links: [] } : newMap(content);
+  if (kind === 'case' && content === 'jelly500' && s.interaction.mode === 'case') { s.version = 3; s.interaction.jelly = newJellyInvestigation(); }
   return s;
 }
 export function startLegacyStory(kind: StoryState['kind'], content: string, crew: Crew[], marks: Mark): StoryState {
@@ -40,7 +42,7 @@ export function optionReason(s: StoryState, opt: StoryOption): string | null {
 
 // 순수 상태 전이. 실패한 입력은 원본을 절대로 바꾸지 않습니다.
 export function advanceStory(old: StoryState, a: StoryAction): { state: StoryState; grants: Mark } | null {
-  if (old.version === 2) return advanceTactile(old, a);
+  if (old.version >= 2) return advanceTactile(old, a);
   if (old.phase === 'done') return null;
   const s = structuredClone(old);
   const grants: Mark = {};

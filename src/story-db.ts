@@ -5,6 +5,7 @@ import { CASE_XP, DAILY_REWARD_CASES, caseJelly } from './cases';
 import { advanceStory, startStory, type StoryAction, type StoryState } from './story';
 import { region, storyCase, type Mark } from './story-content';
 import { storyEvent } from './story-content';
+import { isJellyState } from './jelly-investigation';
 
 export type StoryRow = { id: string; user_id: string; kind: 'case' | 'expedition'; content_id: string; state: string; revision: number; status: string; xp: number; jelly: number; season_id: string | null; mutation: string };
 export type StoryRun = { row: StoryRow; state: StoryState };
@@ -12,16 +13,17 @@ export function decodeStory(row: StoryRow): StoryRun | null {
   try {
     const s = JSON.parse(row.state) as StoryState;
     const strings = (v: unknown): v is string[] => Array.isArray(v) && v.every(x => typeof x === 'string');
-    if (![1, 2].includes(s.version) || s.kind !== row.kind || s.content !== row.content_id || !Array.isArray(s.crew) || !strings(s.seen) || !strings(s.route) || !strings(s.journal) || !strings(s.log)) return null;
+    if (![1, 2, 3].includes(s.version) || s.kind !== row.kind || s.content !== row.content_id || !Array.isArray(s.crew) || !strings(s.seen) || !strings(s.route) || !strings(s.journal) || !strings(s.log)) return null;
     if (!s.marks || typeof s.marks !== 'object' || Array.isArray(s.marks) || !Object.values(s.marks).every(v => typeof v === 'string')) return null;
     if (![s.hp, s.tools, s.time, s.position, row.revision].every(n => Number.isSafeInteger(n) && n >= 0)) return null;
     if (!['play', 'epilogue', 'done'].includes(s.phase) || typeof s.correct !== 'boolean' || (s.ending !== null && typeof s.ending !== 'string')) return null;
     if (s.crew.some(c => !c || typeof c.name !== 'string' || typeof c.art !== 'string' || !isRole(c.role))) return null;
     if (!(s.kind === 'case' ? storyCase(s.content) : region(s.content))) return null;
-    if (s.version === 2) {
+    if (s.version >= 2) {
       const p = s.interaction;
       if (!p || (s.kind === 'case' ? p.mode !== 'case' : p.mode !== 'map')) return null;
       if (p.mode === 'case' && !strings(p.links)) return null;
+      if (s.version === 3 && (s.kind !== 'case' || s.content !== 'jelly500' || p.mode !== 'case' || !isJellyState(p.jelly))) return null;
       if (p.mode === 'map' && (p.skillsUsed !== undefined && (!strings(p.skillsUsed) || p.skillsUsed.some(r => !isRole(r))))) return null;
       if (p.mode === 'map' && p.cells.some(c => (c.peeked !== undefined && typeof c.peeked !== 'boolean') || (c.traced !== undefined && typeof c.traced !== 'boolean'))) return null;
       if (p.mode === 'map' && (!Array.isArray(p.cells) || p.cells.length !== 25 || p.camp !== 20 || !Array.isArray(p.crewAt) || p.crewAt.length !== 3 || p.crewAt.some(n => !Number.isInteger(n) || n < 0 || n > 24) || p.cells.some(c => !c || !Array.isArray(c.ports) || c.ports.some(n => !Number.isInteger(n) || n < 0 || n > 3) || !Number.isInteger(c.rotation) || c.rotation < 0 || c.rotation > 3 || typeof c.revealed !== 'boolean' || typeof c.surveyed !== 'boolean' || (c.event !== null && !storyEvent(c.event))))) return null;
@@ -45,6 +47,16 @@ export async function activeStory(db: D1Database, user: string, kind: string): P
   if (!run || run.state.version === 1) {
     await db.prepare("UPDATE story_runs SET status = 'quit', ended_at = ?, updated_at = ? WHERE id = ? AND revision = ? AND status = 'going'").bind(new Date().toISOString(), new Date().toISOString(), row.id, row.revision).run();
     return null;
+  }
+  if (run.state.version === 2 && run.state.kind === 'case' && run.state.content === 'jelly500') {
+    const next = startStory('case', 'jelly500', run.state.crew, run.state.marks);
+    next.seen = run.state.seen.filter(id => ['receipt', 'promise'].includes(id));
+    next.journal = [...run.state.journal, '연결 조사로 전환했다. 기존 장부와 발견 기록은 유지하며 바닥 흔적부터 다시 확인한다.'];
+    next.log = ['조사 방식이 바뀌었어요. 기록한 장부는 남아 있고, 상자를 움직여 새 흔적을 찾을 수 있어요.'];
+    await db.prepare("UPDATE story_runs SET state = ?, revision = revision + 1, updated_at = ?, mutation = ? WHERE id = ? AND user_id = ? AND revision = ? AND status = 'going'")
+      .bind(JSON.stringify(next), new Date().toISOString(), crypto.randomUUID(), row.id, user, row.revision).run();
+    const upgraded = await getStory(db, user, row.id);
+    return upgraded?.row.status === 'going' ? upgraded : null;
   }
   return run;
 }

@@ -26,7 +26,7 @@ export function Layout(props: {
         {props.refresh && <meta http-equiv="refresh" content={`${props.refresh.seconds}; url=${props.refresh.url}`} />}
         <title>{props.title} · 하리보 멤버 도감</title>
         <link rel="preload" href="/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin="" />
-        <link rel="stylesheet" href="/styles.css?v=room-tabs-2" />
+        <link rel="stylesheet" href="/styles.css?v=linked-jelly-1" />
         <script src="/app.js?v=polish-1" defer></script>
         {props.scripts?.map((src) => <script src={src} defer></script>)}
         {props.viewer && <script type="speculationrules" dangerouslySetInnerHTML={{ __html: PREFETCH_RULES }} />}

@@ -515,7 +515,7 @@ members.post('/api/story/act', async c => {
   const raw = await c.req.text();
   if (raw.length > 4096) return c.text('입력이 너무 길어요', 413);
   const b = new URLSearchParams(raw), id = b.get('run'), at = b.get('at'), action = b.get('action'), choice = b.get('choice');
-  if (!uuid(id) || !at || !/^(0|[1-9][0-9]{0,5})$/.test(at) || !action || !['look', 'answer', 'promise', 'choose', 'quit', 'inspect', 'connect', 'reconstruct', 'scout', 'rotate', 'survey', 'return', 'skill'].includes(action) || choice === null || choice.length > 100 || ['run', 'at', 'action', 'choice'].some(k => b.getAll(k).length !== 1)) return c.text('잘못된 입력이에요', 400);
+  if (!uuid(id) || !at || !/^(0|[1-9][0-9]{0,5})$/.test(at) || !action || !['look', 'answer', 'promise', 'choose', 'quit', 'inspect', 'connect', 'reconstruct', 'scout', 'rotate', 'survey', 'return', 'skill', 'jelly'].includes(action) || choice === null || choice.length > 100 || ['run', 'at', 'action', 'choice'].some(k => b.getAll(k).length !== 1)) return c.text('잘못된 입력이에요', 400);
   const user = c.get('viewer').user_id, run = await getStory(c.env.DB, user, id);
   if (!run) return c.text('이야기를 찾을 수 없어요', 404);
   const url = run.row.kind === 'case' ? '/cases/story' : '/expedition/story';

@@ -37,8 +37,12 @@ check((await post('/api/story/act', action('inspect', 'receipt|time,porter,amoun
 check((await post('/api/story/act', action('answer', '1'), cookie)).headers.get('location')?.includes('n=bad'), true);
 check((await post('/api/story/act', action('inspect', 'receipt|time,porter,amount,destination'), cookie)).status, 303); rev++;
 check((await post('/api/story/act', action('inspect', 'receipt|time,porter,amount,destination', 0), cookie)).headers.get('location')?.includes('n=stale'), true);
-check((await post('/api/story/act', action('inspect', 'boxes|500'), cookie)).status, 303); rev++;
-check((await post('/api/story/act', action('connect', 'receipt>boxes'), cookie)).status, 303); rev++;
+check((await post('/api/story/act', action('inspect', 'boxes|500'), cookie)).headers.get('location')?.includes('n=bad'), true);
+check((await post('/api/story/act', action('jelly', 'cart:S17'), cookie)).headers.get('location')?.includes('n=bad'), true);
+for (const step of ['move:right', 'trace', 'collect', 'test:sugar', 'test:flour', 'match:sugar', 'cart:S17', 'seal:3', 'count:b1,b2,b3,b4,b5:500']) {
+  check((await post('/api/story/act', action('jelly', step), cookie)).status, 303); rev++;
+}
+for (const pair of ['trail>match', 'match>boxes', 'boxes>receipt']) { check((await post('/api/story/act', action('connect', pair), cookie)).status, 303); rev++; }
 const final = await Promise.all([post('/api/story/act', action('reconstruct', 'warehouse,cart,party'), cookie), post('/api/story/act', action('reconstruct', 'warehouse,cart,party'), cookie)]);
 check(final.filter(r => r.headers.get('location')?.includes('n=stale')).length, 1);
 const page = await html(`/cases/story?r=${request}`, cookie);

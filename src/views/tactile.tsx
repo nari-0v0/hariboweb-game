@@ -4,6 +4,8 @@ import { meets, region, storyCase, storyEvent } from '../story-content';
 import { fillStory } from '../story';
 import { JellyScenery, EvidenceProp } from './jelly-scene';
 import { roleOf } from '../expedition';
+import { JELLY_CASE } from '../jelly-investigation';
+import { JellyInventory, JellyStation, JellyWarehouseScene } from './jelly-investigation';
 
 export function TactileForm(props: { run: StoryRun; action: string; choice: string; children?: any; prefix?: string; class?: string; disabled?: boolean; label?: string }) {
   return <form class={props.class} method="post" action="/api/story/act" data-puzzle-form={props.prefix !== undefined ? '' : undefined} data-prefix={props.prefix}>
@@ -38,26 +40,29 @@ function Task(props: { task: ObjectTask; clue: string; jelly: boolean }) {
   </>;
 }
 export function CaseWorkbench(props: { run: StoryRun }) {
-  const { run } = props, s = run.state, play = CASE_PLAY[s.content]!, def = storyCase(s.content)!, t = s.interaction;
+  const { run } = props, s = run.state, play = CASE_PLAY[s.content]!, def = s.version === 3 ? JELLY_CASE : storyCase(s.content)!, t = s.interaction;
   if (!t || t.mode !== 'case') return null;
   const ready = def.evidence.every(id => s.seen.includes(id)) && t.links.length === def.evidence.length - 1;
-  return <div class="case-workbench" data-interaction-key={run.row.id}>
+  return <div class="case-workbench" data-interaction-key={run.row.id} data-investigation-version={s.version}>
     <noscript><p>방 이동과 증거 조립에는 브라우저의 JavaScript가 필요해요.</p></noscript>
     <p>{def.intro}</p>
     <ol class="case-milestones" aria-label="수사 진행"><li class={def.evidence.every(id => s.seen.includes(id)) ? 'complete' : 'current'}>현장 증거 {def.evidence.filter(id => s.seen.includes(id)).length}/{def.evidence.length}</li><li class={t.links.length === def.evidence.length - 1 ? 'complete' : ''}>증거 연결 {t.links.length}/{def.evidence.length - 1}</li><li class={ready ? 'current' : ''}>사건 복원</li></ol>
     <details class="witness-notes"><summary>조력자 대화 수첩</summary>{def.dialogue.map(line => <p>{fillStory(line, s.crew)}</p>)}</details>
     <div class="room-tabs" role="group" aria-label="방 이동">{play.rooms.map((r, i) => <button type="button" class="btn" data-room-button={String(i)} aria-pressed={i === 0 ? 'true' : 'false'}>{r.icon} {r.name}</button>)}</div>
+    {s.version === 3 && <JellyInventory run={run} />}
     <button class="btn btn-small" type="button" data-aid-toggle aria-pressed="false">조사 위치 도움 켜기</button>
     {play.rooms.map((r, i) => <div class={`search-scene room-${i}${s.content === 'jelly500' ? ' jelly-scene' : ''}`} data-room-scene={String(i)} hidden={i !== 0} style={`--room-color:${r.color}`} aria-label={`${r.name} 조사 장면`}>
       {s.content === 'jelly500' ? <JellyScenery room={i} /> : <><div class="scene-window" aria-hidden="true" /><div class="scene-shelf" aria-hidden="true" /><div class="scene-desk" aria-hidden="true" /></>}<span class="scene-name">{r.name}</span>
       <img class="scene-helper" src={s.crew[0]?.art ?? '/char/deco/detective.png'} alt="조사 중인 조력자" />
-      {play.objects.filter(o => o.room === i).map(o => {
+      {s.version === 3 && i === 0 && <JellyWarehouseScene run={run} />}
+      {play.objects.filter(o => o.room === i && (s.version !== 3 || ['receipt', 'promise'].includes(o.clue))).map(o => {
         const c = def.clues.find(c => c.id === o.clue)!, seen = s.seen.includes(o.clue), available = meets(s.marks, c.need);
         return <button class={`hotspot${seen ? ' found' : ''}${s.content === 'jelly500' ? ' physical-prop' : ''}`} type="button" data-open-object={o.clue} style={`left:${o.x}%;top:${o.y}%`} disabled={!available} aria-label={`${c.label}${seen ? ' (기록함)' : !available ? ' (기록 필요)' : ' 확대'}`}>{s.content === 'jelly500' ? <EvidenceProp clue={o.clue} /> : <span>{o.icon}</span>}<small>{seen ? '✓ 기록함' : available ? '조사' : '잠김'}</small></button>;
       })}
     </div>)}
+    {s.version === 3 && play.rooms.map((_, i) => <JellyStation run={run} room={i} />)}
     <p class="hint">방 안의 물건을 눌러 확대하세요. 작은 열쇠나 바닥 흔적도 놓치지 마세요.</p>
-    {play.objects.map(o => {
+    {play.objects.filter(o => s.version !== 3 || ['receipt', 'promise'].includes(o.clue)).map(o => {
       const c = def.clues.find(c => c.id === o.clue)!;
       return <dialog class="object-dialog" data-object-dialog={o.clue} aria-label={c.label}>
         <button class="btn dialog-close" type="button" data-close-dialog>닫기 ×</button><h3>{c.label}</h3><div class="object-zoom" aria-hidden="true">{s.content === 'jelly500' ? <EvidenceProp clue={o.clue} /> : o.icon}</div>
@@ -67,7 +72,7 @@ export function CaseWorkbench(props: { run: StoryRun }) {
     <section class="evidence-workbench"><h3>수사 보드 · 연결 {t.links.length}/{def.evidence.length - 1}</h3><p class="hint">같은 이동·시각·정체로 이어지는 증거를 연결하세요. 카드에서 카드로 끌거나 두 카드를 차례로 누르면 돼요.</p>
       <TactileForm run={run} action="connect" choice="" class="evidence-form" label="연결선 기록">
         <div class="evidence-board" data-evidence-board data-links={JSON.stringify(t.links)}><svg class="evidence-lines" aria-hidden="true" />
-          {def.clues.filter(c => s.seen.includes(c.id)).map(c => <button type="button" class="evidence-paper" draggable="true" data-evidence={c.id}><b>📌 {c.label}</b><span>{c.text}</span></button>)}
+          {def.clues.filter(c => s.seen.includes(c.id) && (s.version !== 3 || def.evidence.includes(c.id))).map(c => <button type="button" class="evidence-paper" draggable="true" data-evidence={c.id}><b>📌 {c.label}</b><span>{c.text}</span></button>)}
           {!s.seen.length && <p>현장에서 발견한 증거가 여기에 모여요.</p>}
         </div><p class="hint" data-connect-status aria-live="polite">두 증거를 연결해 보세요.</p>
       </TactileForm>

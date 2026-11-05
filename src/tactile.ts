@@ -1,5 +1,6 @@
 import type { StoryAction, StoryState } from './story';
 import { meets, region, storyCase, storyEvent, type Mark } from './story-content';
+import { JELLY_CASE, applyJellyAction, type JellyInvestigation } from './jelly-investigation';
 
 export type ObjectTask = { kind: 'inspect' | 'strips' | 'clock' | 'code' | 'align'; hint: string; pieces?: { id: string; text: string }[]; solution: string };
 export type CaseRoom = { name: string; icon: string; color: string };
@@ -64,7 +65,7 @@ export const CASE_PLAY: Record<string, CasePlay> = {
 };
 
 export type MapCell = { ports: number[]; rotation: number; revealed: boolean; event: string | null; surveyed: boolean; peeked?: boolean; traced?: boolean };
-export type TactileState = { mode: 'case'; links: string[] } | { mode: 'map'; cells: MapCell[]; crewAt: number[]; camp: number; skillsUsed?: string[] };
+export type TactileState = { mode: 'case'; links: string[]; jelly?: JellyInvestigation } | { mode: 'map'; cells: MapCell[]; crewAt: number[]; camp: number; skillsUsed?: string[] };
 const NEIGHBORS = [[-5, 0, 2], [1, 1, 3], [5, 2, 0], [-1, 3, 1]] as const;
 export function neighbors(i: number): number[] { return NEIGHBORS.filter(([d]) => i + d >= 0 && i + d < 25 && (Math.abs(d) !== 1 || Math.floor(i / 5) === Math.floor((i + d) / 5))).map(([d]) => i + d); }
 export const cellPorts = (c: MapCell) => c.ports.map(p => (p + c.rotation) % 4);
@@ -157,9 +158,12 @@ export function advanceTactile(old: StoryState, a: StoryAction): { state: StoryS
   if (a.action === 'quit' || (a.action === 'return' && t.mode === 'map')) {
     done(a.action === 'quit' ? 'quit' : 'return', a.action !== 'quit'); s.log.push('작성한 지도와 발견 기록을 챙겨 기지로 돌아왔다.');
   } else if (t.mode === 'case') {
-    const def = storyCase(s.content)!, play = CASE_PLAY[s.content]!;
-    if (a.action === 'inspect' && s.phase === 'play') {
+    const def = s.version === 3 ? JELLY_CASE : storyCase(s.content)!, play = CASE_PLAY[s.content]!;
+    if (a.action === 'jelly' && s.version === 3) {
+      if (!applyJellyAction(s, a.choice)) return null;
+    } else if (a.action === 'inspect' && s.phase === 'play') {
       const [id, payload = ''] = a.choice.split('|'), obj = play.objects.find(o => o.clue === id), clue = def.clues.find(c => c.id === id);
+      if (s.version === 3 && !['receipt', 'promise'].includes(id ?? '')) return null;
       if (!obj || !clue || s.seen.includes(id!) || !meets(s.marks, clue.need)) return null;
       if (payload.trim().toUpperCase() !== obj.task.solution.toUpperCase()) { s.log.push('복원한 내용이 물건의 기록과 맞지 않아요. 확대 화면의 기준을 다시 살펴보세요.'); }
       else {
@@ -175,6 +179,7 @@ export function advanceTactile(old: StoryState, a: StoryAction): { state: StoryS
       else if (t.links.includes(key)) return null;
       else { t.links.push(key); s.log.push('두 증거가 같은 사실을 가리키는 것을 확인했다. 수사 보드에 연결선을 남겼다.'); }
     } else if (a.action === 'reconstruct' && s.phase === 'play') {
+      if (s.version === 3 && !t.jelly?.counted) return null;
       if (!def.evidence.every(id => s.seen.includes(id)) || t.links.length !== def.evidence.length - 1) return null;
       if (a.choice !== play.path.map(p => p.id).join(',')) s.log.push('배치한 흐름은 증거와 일치하지 않아요. 시간과 이동 방향을 다시 확인하세요.');
       else { grant(def.grant); s.log.push(def.ending); if (def.extra && meets(s.marks, def.extra.need)) s.log.push(def.extra.text); if (def.id === 'mirror') s.phase = 'epilogue'; else done('solved'); }

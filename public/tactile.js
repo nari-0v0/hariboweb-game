@@ -10,6 +10,7 @@
   let memory = cache.get(key) || {};
   try { if (!cache.has(key)) memory = JSON.parse(localStorage.getItem(key) || sessionStorage.getItem(key) || '{}'); } catch { /* 기기 저장 없이도 플레이 가능 */ }
   if (!memory || typeof memory !== 'object' || Array.isArray(memory)) memory = {};
+  if (root.dataset.investigationVersion === '3' && memory.version !== 3) { memory.version = 3; memory.room = '0'; }
   if (!memory.drafts || typeof memory.drafts !== 'object' || Array.isArray(memory.drafts)) memory.drafts = {};
   const remember = () => { cache.set(key, memory); try { localStorage.setItem(key, JSON.stringify(memory)); } catch {} };
   const formKey = form => `${form.querySelector('[name="action"]').value}:${form.dataset.prefix || ''}`;
@@ -17,6 +18,7 @@
   const status = (node, text) => { if (node) node.textContent = text; };
   function room(id) {
     root.querySelectorAll('[data-room-scene]').forEach(n => { n.hidden = n.dataset.roomScene !== id; });
+    root.querySelectorAll('[data-room-station]').forEach(n => { n.hidden = n.dataset.roomStation !== id; });
     root.querySelectorAll('[data-room-button]').forEach(n => n.setAttribute('aria-pressed', String(n.dataset.roomButton === id)));
     memory.room = id; remember();
   }
@@ -77,6 +79,51 @@
     };
     n.addEventListener('input', update); update();
   });
+  // 연결 조사: 물건 이동·표본 대조·봉인·실물 수량. 서버는 각 단계의 선행 조사를 확인합니다.
+  const send = form => { if (form && !form.querySelector('button[type="submit"]')?.disabled && !root.closest('.story')?.hasAttribute('aria-busy')) form.requestSubmit(); };
+  const crate = root.querySelector('[data-jelly-crate]'), warehouse = crate?.closest('[data-room-scene]');
+  const pushCrate = direction => send(root.querySelector(`[data-jelly-action="move:${direction}"]`));
+  if (crate && !crate.disabled) {
+    crate.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', 'jelly-crate'));
+    warehouse.addEventListener('dragover', e => e.preventDefault());
+    warehouse.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.getData('text/plain') === 'jelly-crate') { const r = crate.getBoundingClientRect(); pushCrate(e.clientX > r.left + r.width / 2 ? 'right' : 'left'); } });
+    let touchStart = null;
+    crate.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse') return; touchStart = e.clientX; crate.setPointerCapture(e.pointerId); });
+    crate.addEventListener('pointermove', e => { if (touchStart !== null) crate.style.transform = `translateX(${Math.max(-130, Math.min(200, e.clientX - touchStart))}px)`; });
+    crate.addEventListener('pointerup', e => { if (touchStart === null) return; const dx = e.clientX - touchStart; touchStart = null; crate.style.removeProperty('transform'); if (Math.abs(dx) >= 40) pushCrate(dx > 0 ? 'right' : 'left'); });
+    crate.addEventListener('pointercancel', () => { touchStart = null; crate.style.removeProperty('transform'); });
+  }
+  root.querySelector('[data-sample-source]')?.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', 'warehouse-powder'));
+  root.querySelectorAll('[data-test-dish]').forEach(dish => {
+    dish.addEventListener('dragover', e => e.preventDefault());
+    dish.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.getData('text/plain') === 'warehouse-powder') send(dish.querySelector('form')); });
+  });
+  let standard = ['sugar', 'flour'].includes(memory.jellyStandard) ? memory.jellyStandard : null;
+  const standards = [...root.querySelectorAll('[data-standard-choice]')], matchDrop = root.querySelector('[data-match-drop]');
+  const chooseStandard = id => { if (!['sugar', 'flour'].includes(id)) return; standard = id; standards.forEach(n => n.setAttribute('aria-pressed', String(n.dataset.standardChoice === id))); };
+  const placeStandard = id => { chooseStandard(id); if (!standard || !matchDrop) return; matchDrop.textContent = standard === 'sugar' ? '설탕 표본을 놓았어요' : '밀가루 표본을 놓았어요'; setChoice(root.querySelector('.jelly-match-form'), `match:${standard}`); memory.jellyStandard = standard; remember(); };
+  standards.forEach(n => { n.addEventListener('click', () => chooseStandard(n.dataset.standardChoice)); n.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', `standard:${n.dataset.standardChoice}`)); });
+  matchDrop?.addEventListener('click', () => placeStandard(standard));
+  matchDrop?.addEventListener('dragover', e => e.preventDefault());
+  matchDrop?.addEventListener('drop', e => { e.preventDefault(); const value = e.dataTransfer.getData('text/plain'); if (value.startsWith('standard:')) placeStandard(value.slice(9)); });
+  if (standard) placeStandard(standard);
+  root.querySelector('.jelly-match-form')?.addEventListener('submit', e => { if (!memory.jellyStandard) { e.preventDefault(); status(matchDrop, '비교할 표본을 골라 이 칸에 놓아 주세요.'); } });
+  const seal = root.querySelector('[data-jelly-seal]');
+  if (seal) {
+    seal.value = Number.isInteger(memory.jellySeal) && memory.jellySeal >= 0 && memory.jellySeal <= 6 ? String(memory.jellySeal) : '0';
+    const update = () => { const value = Number(seal.value); setChoice(seal.closest('form'), `seal:${value}`); status(root.querySelector('[data-jelly-seal-output]'), String(value)); root.querySelector('[data-jelly-seal-piece]').style.transform = `translateX(${(3 - value) * 12}px)`; memory.jellySeal = value; remember(); };
+    seal.addEventListener('input', update); update();
+  }
+  const countForm = root.querySelector('.jelly-count-form');
+  if (countForm) {
+    const boxes = [...countForm.querySelectorAll('[data-count-box]')], total = countForm.querySelector('[data-count-total]');
+    let checked = Array.isArray(memory.jellyCount) ? [...new Set(memory.jellyCount)].filter(id => boxes.some(n => n.dataset.countBox === id)) : [];
+    if (typeof memory.jellyTotal === 'string' && /^[0-9]{0,4}$/.test(memory.jellyTotal)) total.value = memory.jellyTotal;
+    const update = () => { boxes.forEach(n => n.setAttribute('aria-pressed', String(checked.includes(n.dataset.countBox)))); status(countForm.querySelector('[data-count-status]'), `${checked.length}/5상자 확인`); setChoice(countForm, `count:${checked.join(',')}:${total.value}`); memory.jellyCount = checked; memory.jellyTotal = total.value; remember(); };
+    boxes.forEach(n => n.addEventListener('click', () => { checked = checked.includes(n.dataset.countBox) ? checked.filter(id => id !== n.dataset.countBox) : [...checked, n.dataset.countBox]; update(); }));
+    total.addEventListener('input', update); update();
+    countForm.addEventListener('submit', e => { if (checked.length !== 5) { e.preventDefault(); status(countForm.querySelector('[data-count-status]'), '상자 다섯 개를 모두 직접 확인해 주세요.'); } });
+  }
   const board = root.querySelector('[data-evidence-board]');
   if (board) {
     let picked = [];

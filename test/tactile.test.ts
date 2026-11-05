@@ -3,11 +3,17 @@ import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CASE_PLAY, connected, newMap, skillReason } from '../src/tactile';
-import { advanceStory, startStory, startLegacyStory, type StoryAction, type StoryState } from '../src/story';
+import { advanceStory, startStory as startCurrentStory, startLegacyStory, type StoryAction, type StoryState } from '../src/story';
 import { STORY_CASES, REGIONS, meets } from '../src/story-content';
 import type { Crew } from '../src/expedition';
 import { actStory, activeStory, beginStory, decodeStory, getStory } from '../src/story-db';
 const crew: Crew[] = ['guard', 'scout', 'healer'].map((role, i) => ({ id: null, name: `견습${i}`, art: '/char/deco/explorer.png', role, bonus: 0, cond: 'plain' })) as Crew[];
+// 완료된 v2 사건의 기록·보상 회귀 검사를 유지합니다. 새 v3 연결 조사는 jelly-flow.test에서 검증해요.
+function startStory(...args: Parameters<typeof startCurrentStory>): StoryState {
+  const s = startCurrentStory(...args);
+  if (s.version === 3 && s.interaction?.mode === 'case') { s.version = 2; delete s.interaction.jelly; }
+  return s;
+}
 const go = (s: StoryState, action: StoryAction['action'], choice: string) => {
   const next = advanceStory(s, { action, choice }); expect(next, `${action}: ${choice}`).not.toBeNull(); return next!.state;
 };
