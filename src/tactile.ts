@@ -1,3 +1,4 @@
+import { checkMystery, readMystery, MYSTERY_ENDING } from './jelly-mystery';
 import type { StoryAction, StoryState } from './story';
 import { meets, region, storyCase, storyEvent, type Mark } from './story-content';
 import { JELLY_CASE, applyJellyAction, type JellyInvestigation } from './jelly-investigation';
@@ -159,7 +160,15 @@ export function advanceTactile(old: StoryState, a: StoryAction): { state: StoryS
     done(a.action === 'quit' ? 'quit' : 'return', a.action !== 'quit'); s.log.push('작성한 지도와 발견 기록을 챙겨 기지로 돌아왔다.');
   } else if (t.mode === 'case') {
     const def = s.version === 3 ? JELLY_CASE : storyCase(s.content)!, play = CASE_PLAY[s.content]!;
-    if (a.action === 'jelly' && s.version === 3) {
+    if (s.version === 4) {
+      if (a.action === 'jelly') { if (!readMystery(s, a.choice)) return null; }
+      else if (a.action === 'reconstruct') {
+        const result = checkMystery(s, a.choice);
+        if (!result.valid) return null;
+        s.log.push(...result.messages);
+        if (result.solved) { grant(def.grant); grant({ ribbon: '1' }); s.log.push(MYSTERY_ENDING); done('solved'); }
+      } else return null;
+    } else if (a.action === 'jelly' && s.version === 3) {
       if (!applyJellyAction(s, a.choice)) return null;
     } else if (a.action === 'inspect' && s.phase === 'play') {
       const [id, payload = ''] = a.choice.split('|'), obj = play.objects.find(o => o.clue === id), clue = def.clues.find(c => c.id === id);

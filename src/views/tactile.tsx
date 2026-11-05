@@ -1,3 +1,4 @@
+import { JellyMystery } from './jelly-mystery';
 import type { StoryRun } from '../story-db';
 import { CASE_PLAY, FIELD_SKILLS, cellPorts, connected, neighbors, skillReason, type ObjectTask } from '../tactile';
 import { meets, region, storyCase, storyEvent } from '../story-content';
@@ -40,6 +41,7 @@ function Task(props: { task: ObjectTask; clue: string; jelly: boolean }) {
   </>;
 }
 export function CaseWorkbench(props: { run: StoryRun }) {
+  if (props.run.state.version === 4) return <JellyMystery run={props.run} />;
   const { run } = props, s = run.state, play = CASE_PLAY[s.content]!, def = s.version === 3 ? JELLY_CASE : storyCase(s.content)!, t = s.interaction;
   if (!t || t.mode !== 'case') return null;
   const ready = def.evidence.every(id => s.seen.includes(id)) && t.links.length === def.evidence.length - 1;

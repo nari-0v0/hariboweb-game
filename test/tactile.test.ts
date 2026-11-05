@@ -11,7 +11,7 @@ const crew: Crew[] = ['guard', 'scout', 'healer'].map((role, i) => ({ id: null, 
 // 완료된 v2 사건의 기록·보상 회귀 검사를 유지합니다. 새 v3 연결 조사는 jelly-flow.test에서 검증해요.
 function startStory(...args: Parameters<typeof startCurrentStory>): StoryState {
   const s = startCurrentStory(...args);
-  if (s.version === 3 && s.interaction?.mode === 'case') { s.version = 2; delete s.interaction.jelly; }
+  if (s.version >= 3 && s.interaction?.mode === 'case') { s.version = 2; delete s.interaction.jelly; }
   return s;
 }
 const go = (s: StoryState, action: StoryAction['action'], choice: string) => {

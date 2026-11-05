@@ -35,15 +35,14 @@ const action = (type, choice, at = rev) => ({ run: request, at: String(at), acti
 check((await post('/api/story/act', action('inspect', 'receipt|time,porter,amount,destination'), other)).status, 404);
 check((await post('/api/story/act', action('inspect', 'receipt|time,porter,amount,destination', NaN), cookie)).status, 400);
 check((await post('/api/story/act', action('answer', '1'), cookie)).headers.get('location')?.includes('n=bad'), true);
-check((await post('/api/story/act', action('inspect', 'receipt|time,porter,amount,destination'), cookie)).status, 303); rev++;
-check((await post('/api/story/act', action('inspect', 'receipt|time,porter,amount,destination', 0), cookie)).headers.get('location')?.includes('n=stale'), true);
+check((await post('/api/story/act', action('jelly', 'read:A'), cookie)).status, 303); rev++;
+check((await post('/api/story/act', action('jelly', 'read:B', 0), cookie)).headers.get('location')?.includes('n=stale'), true);
 check((await post('/api/story/act', action('inspect', 'boxes|500'), cookie)).headers.get('location')?.includes('n=bad'), true);
-check((await post('/api/story/act', action('jelly', 'cart:S17'), cookie)).headers.get('location')?.includes('n=bad'), true);
-for (const step of ['move:right', 'trace', 'collect', 'test:sugar', 'test:flour', 'match:sugar', 'cart:S17', 'seal:3', 'count:b1,b2,b3,b4,b5:500']) {
-  check((await post('/api/story/act', action('jelly', step), cookie)).status, 303); rev++;
-}
-for (const pair of ['trail>match', 'match>boxes', 'boxes>receipt']) { check((await post('/api/story/act', action('connect', pair), cookie)).status, 303); rev++; }
-const final = await Promise.all([post('/api/story/act', action('reconstruct', 'warehouse,cart,party'), cookie), post('/api/story/act', action('reconstruct', 'warehouse,cart,party'), cookie)]);
+check((await post('/api/story/act', action('reconstruct', 'a,x,p;b,y,k;c,z,p;2,AG;3,DE;1,CG;2,IJ;1,FH'), cookie)).headers.get('location')?.includes('n=bad'), true);
+for (const id of 'BCDEFGHIJKL') { check((await post('/api/story/act', action('jelly', 'read:' + id), cookie)).status, 303); rev++; }
+check((await post('/api/story/act', action('reconstruct', 'b,x,p;b,y,k;c,z,p;2,AG;3,DE;1,CG;2,IJ;1,FH'), cookie)).status, 303); rev++;
+check((await html('/cases/story?r=' + request, cookie)).includes('첫 젤리 운반 시각이 문턱 계수기 원장'), true);
+const final = await Promise.all([post('/api/story/act', action('reconstruct', 'a,x,p;b,y,k;c,z,p;2,AG;3,DE;1,CG;2,IJ;1,FH'), cookie), post('/api/story/act', action('reconstruct', 'a,x,p;b,y,k;c,z,p;2,AG;3,DE;1,CG;2,IJ;1,FH'), cookie)]);
 check(final.filter(r => r.headers.get('location')?.includes('n=stale')).length, 1);
 const page = await html(`/cases/story?r=${request}`, cookie);
 check(page.includes('최초 완료 보상: 내 카드 경험치 +10, 도감 젤리 +1'), true);

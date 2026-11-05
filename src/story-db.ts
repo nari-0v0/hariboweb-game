@@ -13,7 +13,7 @@ export function decodeStory(row: StoryRow): StoryRun | null {
   try {
     const s = JSON.parse(row.state) as StoryState;
     const strings = (v: unknown): v is string[] => Array.isArray(v) && v.every(x => typeof x === 'string');
-    if (![1, 2, 3].includes(s.version) || s.kind !== row.kind || s.content !== row.content_id || !Array.isArray(s.crew) || !strings(s.seen) || !strings(s.route) || !strings(s.journal) || !strings(s.log)) return null;
+    if (![1, 2, 3, 4].includes(s.version) || s.kind !== row.kind || s.content !== row.content_id || !Array.isArray(s.crew) || !strings(s.seen) || !strings(s.route) || !strings(s.journal) || !strings(s.log)) return null;
     if (!s.marks || typeof s.marks !== 'object' || Array.isArray(s.marks) || !Object.values(s.marks).every(v => typeof v === 'string')) return null;
     if (![s.hp, s.tools, s.time, s.position, row.revision].every(n => Number.isSafeInteger(n) && n >= 0)) return null;
     if (!['play', 'epilogue', 'done'].includes(s.phase) || typeof s.correct !== 'boolean' || (s.ending !== null && typeof s.ending !== 'string')) return null;
@@ -23,6 +23,7 @@ export function decodeStory(row: StoryRow): StoryRun | null {
       const p = s.interaction;
       if (!p || (s.kind === 'case' ? p.mode !== 'case' : p.mode !== 'map')) return null;
       if (p.mode === 'case' && !strings(p.links)) return null;
+      if (s.version === 4 && (s.kind !== 'case' || s.content !== 'jelly500' || p.mode !== 'case' || s.seen.some(id => !/^[A-L]$/.test(id)))) return null;
       if (s.version === 3 && (s.kind !== 'case' || s.content !== 'jelly500' || p.mode !== 'case' || !isJellyState(p.jelly))) return null;
       if (p.mode === 'map' && (p.skillsUsed !== undefined && (!strings(p.skillsUsed) || p.skillsUsed.some(r => !isRole(r))))) return null;
       if (p.mode === 'map' && p.cells.some(c => (c.peeked !== undefined && typeof c.peeked !== 'boolean') || (c.traced !== undefined && typeof c.traced !== 'boolean'))) return null;
@@ -48,11 +49,11 @@ export async function activeStory(db: D1Database, user: string, kind: string): P
     await db.prepare("UPDATE story_runs SET status = 'quit', ended_at = ?, updated_at = ? WHERE id = ? AND revision = ? AND status = 'going'").bind(new Date().toISOString(), new Date().toISOString(), row.id, row.revision).run();
     return null;
   }
-  if (run.state.version === 2 && run.state.kind === 'case' && run.state.content === 'jelly500') {
+  if (run.state.version < 4 && run.state.kind === 'case' && run.state.content === 'jelly500') {
     const next = startStory('case', 'jelly500', run.state.crew, run.state.marks);
-    next.seen = run.state.seen.filter(id => ['receipt', 'promise'].includes(id));
-    next.journal = [...run.state.journal, '연결 조사로 전환했다. 기존 장부와 발견 기록은 유지하며 바닥 흔적부터 다시 확인한다.'];
-    next.log = ['조사 방식이 바뀌었어요. 기록한 장부는 남아 있고, 상자를 움직여 새 흔적을 찾을 수 있어요.'];
+    next.seen = [];
+    next.journal = [...run.state.journal, '모순 재구성 조사로 전환했다. 영구 발견과 이전 일지는 유지하고 원기록을 새로 확인한다.'];
+    next.log = ['사건의 설정과 원기록이 확장됐어요. 기존 발견 보상은 유지되며, 세 장소의 상충하는 기록을 새로 조사할 수 있어요.'];
     await db.prepare("UPDATE story_runs SET state = ?, revision = revision + 1, updated_at = ?, mutation = ? WHERE id = ? AND user_id = ? AND revision = ? AND status = 'going'")
       .bind(JSON.stringify(next), new Date().toISOString(), crypto.randomUUID(), row.id, user, row.revision).run();
     const upgraded = await getStory(db, user, row.id);

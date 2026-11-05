@@ -13,6 +13,27 @@
   if (root.dataset.investigationVersion === '3' && memory.version !== 3) { memory.version = 3; memory.room = '0'; }
   if (!memory.drafts || typeof memory.drafts !== 'object' || Array.isArray(memory.drafts)) memory.drafts = {};
   const remember = () => { cache.set(key, memory); try { localStorage.setItem(key, JSON.stringify(memory)); } catch {} };
+  const theory = root.querySelector('[data-mystery-theory]');
+  if (theory) {
+    const fields = [...theory.querySelectorAll('[data-theory-field]')];
+    if (Array.isArray(memory.theory) && memory.theory.length === fields.length) fields.forEach((field, i) => { if ([...field.options].some(o => o.value === memory.theory[i])) field.value = memory.theory[i]; });
+    const updateTheory = () => {
+      memory.theory = fields.map(f => f.value); remember();
+      for (let i = 9; i < fields.length; i += 3) {
+        const first = fields[i + 1], second = fields[i + 2];
+        second.setCustomValidity(first.value && first.value === second.value ? '서로 다른 원기록 두 장을 골라 주세요.' : '');
+      }
+    };
+    fields.forEach(f => f.addEventListener('change', updateTheory));
+    updateTheory();
+    theory.addEventListener('submit', e => {
+      updateTheory(); const v = fields.map(f => f.value);
+      if (v.some(x => !x)) { e.preventDefault(); return; }
+      const rows = [0, 3, 6].map(i => v.slice(i, i + 3).join(','));
+      for (let i = 9; i < fields.length; i += 3) rows.push(v[i] + ',' + v[i + 1] + v[i + 2]);
+      theory.querySelector('[name="choice"]').value = rows.join(';');
+    });
+  }
   const formKey = form => `${form.querySelector('[name="action"]').value}:${form.dataset.prefix || ''}`;
   const setChoice = (form, value) => { const field = form?.querySelector('input[name="choice"]'); if (field) field.value = value; };
   const status = (node, text) => { if (node) node.textContent = text; };
@@ -192,6 +213,10 @@
     const before = new Map([...old.querySelectorAll('[data-map-cell]')].map(n => [n.dataset.mapCell, n.className]));
     old.replaceWith(document.importNode(fresh, true)); history.replaceState(null, '', url.href);
     enhance(); window.scrollTo(scroll.x, scroll.y);
+    if (scroll.theory) {
+      const result = document.querySelector('.mystery-feedback') || document.querySelector('#now .exp-outcome');
+      if (result) { result.tabIndex = -1; result.focus({ preventScroll: true }); result.scrollIntoView({ block: 'center' }); }
+    }
     document.querySelectorAll('[data-map-cell]').forEach(n => { const prev = before.get(n.dataset.mapCell); if (prev && prev !== n.className) n.classList.add('tile-updated'); });
   }
   async function load(url, options, scroll) {
@@ -211,7 +236,7 @@
     e.preventDefault(); document.dispatchEvent(new Event('haribo:ready'));
     if (pending) return;
     pending = true;
-    const scroll = { x: scrollX, y: scrollY }, buttons = [...document.querySelectorAll('.story button[type="submit"]')].map(b => [b, b.disabled]);
+    const scroll = { x: scrollX, y: scrollY, theory: form.matches('[data-mystery-theory]') }, buttons = [...document.querySelectorAll('.story button[type="submit"]')].map(b => [b, b.disabled]);
     const body = new URLSearchParams(); new FormData(form).forEach((value, key) => { if (typeof value === 'string') body.append(key, value); });
     buttons.forEach(([b]) => { b.disabled = true; });
     document.querySelector('.story')?.setAttribute('aria-busy', 'true');

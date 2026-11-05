@@ -1,10 +1,9 @@
 import type { Crew } from './expedition';
 import { meets, region, storyCase, storyEvent, type Mark, type StoryOption } from './story-content';
 import { advanceTactile, newMap, type TactileState } from './tactile';
-import { newJellyInvestigation } from './jelly-investigation';
 
 export type StoryState = {
-  version: 1 | 2 | 3; kind: 'case' | 'expedition'; content: string; crew: Crew[]; marks: Mark;
+  version: 1 | 2 | 3 | 4; kind: 'case' | 'expedition'; content: string; crew: Crew[]; marks: Mark;
   interaction?: TactileState;
   seen: string[]; route: string[]; position: number; hp: number; tools: number; time: number;
   phase: 'play' | 'epilogue' | 'done'; ending: string | null; correct: boolean;
@@ -15,7 +14,7 @@ export function startStory(kind: StoryState['kind'], content: string, crew: Crew
   const s = startLegacyStory(kind, content, crew, marks);
   s.version = 2;
   s.interaction = kind === 'case' ? { mode: 'case', links: [] } : newMap(content);
-  if (kind === 'case' && content === 'jelly500' && s.interaction.mode === 'case') { s.version = 3; s.interaction.jelly = newJellyInvestigation(); }
+  if (kind === 'case' && content === 'jelly500' && s.interaction.mode === 'case') { s.version = 4; }
   return s;
 }
 export function startLegacyStory(kind: StoryState['kind'], content: string, crew: Crew[], marks: Mark): StoryState {
