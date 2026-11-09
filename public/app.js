@@ -99,3 +99,19 @@ addEventListener('pageshow', (e) => {
     } catch {}
   });
 })();
+
+// 카드 테마를 누르면 큰 내 카드에 바로 입혀 봐요(저장·구매 전 미리보기). 잠긴 테마도 볼 수 있어요.
+(() => {
+  document.addEventListener('click', (e) => {
+    const pick = e.target instanceof Element && e.target.closest('[data-preview-theme]');
+    const card = pick && document.querySelector('.stage-wrap .card');
+    const id = pick && pick.dataset.previewTheme;
+    if (!card || !id || !/^[a-z0-9-]+$/.test(id)) return;
+    [...card.classList].forEach((c) => c.startsWith('theme-') && card.classList.remove(c));
+    card.classList.add(`theme-${id}`);
+    document.querySelectorAll('.previewing').forEach((x) => x.classList.remove('previewing'));
+    pick.classList.add('previewing');
+    const r = card.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > innerHeight) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+})();

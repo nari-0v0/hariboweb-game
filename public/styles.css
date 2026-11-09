@@ -160,9 +160,10 @@ img, svg { image-rendering: pixelated; }
 .fan > .tilt:nth-child(2) { rotate: 10deg; translate: -4% -46%; }
 .fan > .tilt:nth-child(3) { translate: -50% -52%; z-index: 1; }
 @media (prefers-reduced-motion: no-preference) {
-  .fan > .tilt:nth-child(3) { animation: hop 2.4s steps(2) infinite; }
+  .fan > .tilt:nth-child(3) { animation: fan-hop 2.4s steps(2) infinite; }
 }
-@keyframes hop { 50% { translate: -50% -54%; } }
+/* 로딩 화면의 hop과 이름이 겹치면 가운데 카드가 아래로 내려가 안내 칸을 덮어요. */
+@keyframes fan-hop { 0%, 100% { translate: -50% -52%; } 50% { translate: -50% -54%; } }
 .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .step { background: var(--paper); border: 4px solid var(--ink); padding: 18px; box-shadow: inset 0 -6px 0 rgba(42, 32, 48, .08); }
 .step h3 { margin: 8px 0 4px; font-size: 1.05rem; }
@@ -172,7 +173,7 @@ img, svg { image-rendering: pixelated; }
   .hero { grid-template-columns: minmax(0, 1fr); text-align: center; padding-top: 0; }
   .hero .lead { margin-inline: auto; }
   .dev { justify-content: center; }
-  .fan { order: -1; height: 330px; }
+  .fan { order: -1; height: auto; width: min(100%, 440px); margin-inline: auto; aspect-ratio: 1 / .95; }
   .fan > .tilt { width: 40%; }
   .steps { grid-template-columns: minmax(0, 1fr); }
 }
@@ -226,7 +227,7 @@ input:not([type=radio]):focus { background: #fff6fa; border-color: var(--pink); 
 .theme input:checked + .theme-img { outline: 3px solid var(--pink); outline-offset: -9px; box-shadow: 0 0 0 3px var(--pink) inset; }
 .theme input:focus-visible + .theme-img { outline: 3px solid var(--pink); }
 .theme-name { font-size: .74rem; }
-.theme.locked { cursor: not-allowed; }
+.theme.locked { cursor: zoom-in; }
 .theme.locked:hover .theme-img { translate: none; }
 .theme.locked .theme-img { filter: saturate(.3) brightness(.85); }
 .theme.locked .theme-name { color: var(--ink-soft); }
@@ -245,7 +246,8 @@ input:not([type=radio]):focus { background: #fff6fa; border-color: var(--pink); 
 .shop-grid.deco { max-height: 520px; overflow-y: auto; padding-right: 4px; }
 .shop-item { display: grid; gap: 4px; justify-items: center; align-content: start; text-align: center; min-width: 0; }
 .shop-item form { margin: 0; }
-.shop-item .theme-img { width: 72px; }
+.shop-item .theme-img { width: 72px; cursor: pointer; padding: 14%; font: inherit; }
+.shop-item .theme-img.previewing, .theme.previewing .theme-img { outline: 3px dashed var(--pink); outline-offset: 2px; }
 .shop-item img { width: 100%; height: 84px; object-fit: contain; image-rendering: pixelated; }
 .shop-item.buy img, .shop-item.reward img, .shop-item.buy .theme-img, .shop-item.reward .theme-img { filter: saturate(.45); }
 .shop-item.using img, .shop-item.using .theme-img { outline: 3px solid var(--pink); outline-offset: 2px; }
@@ -926,7 +928,8 @@ main.wide { max-width: 1320px; }
 .furn-cell .tag { margin-left: auto; }
 .furn-icon { font-size: 1.6rem; line-height: 1; }
 .furn-name { min-width: 0; overflow-wrap: anywhere; font-size: .88rem; }
-.swatch { display: inline-block; width: 28px; height: 22px; border: 2px solid var(--ink); flex: none; }
+/* 방 벽지·바닥 견본. 카드 테마 견본(.theme-img)까지 작아지지 않게 따로 골라요. */
+.swatch:not(.theme-img) { display: inline-block; width: 28px; height: 22px; border: 2px solid var(--ink); flex: none; }
 .room-chip .swatch { width: 18px; height: 14px; }
 .room-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; margin-bottom: 8px; }
 .room-link { display: grid; justify-items: center; gap: 2px; padding: 8px 4px; border: 3px solid var(--ink); background: var(--paper); text-decoration: none; text-align: center; clip-path: var(--notch); min-width: 0; }
