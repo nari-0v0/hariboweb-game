@@ -75,6 +75,7 @@ addEventListener('pageshow', (e) => {
     if (!e.defaultPrevented && !(e.target instanceof HTMLFormElement && e.target.target)) show();
   });
   addEventListener('pageshow', hide);
+  document.addEventListener('haribo:ready', hide);
   addEventListener('pagehide', hide);
 })();
 

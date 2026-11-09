@@ -405,6 +405,7 @@ export function ExpeditionPage(props: {
           <div class="panel-head">
             <h1>하리보 원정대</h1>
           </div>
+          <p><a class="btn btn-primary" href="/expedition/story">새 원정 · 3개 지역과 18개 사건 ▶</a></p>
           <p class="muted">대원 3명과 7칸짜리 안개숲을 지나요. 고르는 길과 대가에 따라 결말이 달라져요. 실패해도 카드와 젤리는 그대로예요.</p>
           <FictionNote big={!props.run} />
         </section>

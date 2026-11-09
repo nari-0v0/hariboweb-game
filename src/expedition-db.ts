@@ -191,8 +191,8 @@ export async function act(db: D1Database, userId: string, runId: string, at: num
     db
       .prepare(
         `UPDATE exp_runs SET choices = ?3, status = 'done', ending = ?4, day = ?5, updated_at = ?6, ended_at = ?7,
-           xp = CASE WHEN (SELECT COUNT(*) FROM exp_runs WHERE user_id = ?8 AND day = ?5 AND status = 'done') < ?9 THEN ?10 ELSE 0 END,
-           jelly = CASE WHEN (SELECT COUNT(*) FROM exp_runs WHERE user_id = ?8 AND day = ?5 AND status = 'done') < ?9 THEN ?11 ELSE 0 END
+           xp = CASE WHEN (SELECT COUNT(*) FROM exp_runs WHERE user_id = ?8 AND day = ?5 AND status = 'done') + (SELECT COUNT(*) FROM story_runs WHERE user_id = ?8 AND day = ?5 AND kind = 'expedition' AND status = 'done') < ?9 THEN ?10 ELSE 0 END,
+           jelly = CASE WHEN (SELECT COUNT(*) FROM exp_runs WHERE user_id = ?8 AND day = ?5 AND status = 'done') + (SELECT COUNT(*) FROM story_runs WHERE user_id = ?8 AND day = ?5 AND kind = 'expedition' AND status = 'done') < ?9 THEN ?11 ELSE 0 END
          WHERE id = ?1 AND status = 'going' AND choices = ?2`,
       )
       .bind(run.row.id, old, next, s.ending, day, t, mark, userId, DAILY_REWARD_RUNS, RUN_XP, runJelly(s.ending!)),
@@ -223,7 +223,7 @@ export async function myRecord(db: D1Database, userId: string, now = new Date())
   const [finds, endings, today] = await db.batch([
     db.prepare('SELECT find_id, count FROM exp_finds WHERE user_id = ?').bind(userId),
     db.prepare(`SELECT ending, COUNT(*) AS n FROM exp_runs WHERE user_id = ? AND status = 'done' GROUP BY ending`).bind(userId),
-    db.prepare(`SELECT COUNT(*) AS n FROM exp_runs WHERE user_id = ? AND day = ? AND status = 'done'`).bind(userId, kstDay(now)),
+    db.prepare(`SELECT (SELECT COUNT(*) FROM exp_runs WHERE user_id = ?1 AND day = ?2 AND status = 'done') + (SELECT COUNT(*) FROM story_runs WHERE user_id = ?1 AND day = ?2 AND kind = 'expedition' AND status = 'done') AS n`).bind(userId, kstDay(now)),
   ]);
   const endRows = endings!.results as { ending: string; n: number }[];
   return {

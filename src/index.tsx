@@ -1,4 +1,5 @@
 import { Hono, type Context } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import type { AppEnv, Member } from './env';
 import { randomToken, safeEqual, signSession, verifySession } from './crypto';
@@ -70,6 +71,9 @@ import { prefetchAllowed } from './prefetch';
 import { act, currentRun, getRun, listCandidates, myRecord, myRole, quitRun, setRole, startRun } from './expedition-db';
 import { isRole } from './expedition';
 import { CasesPage } from './views/cases';
+import { StoryPage } from './views/story';
+import { activeStory, actStory, beginStory, getStory, storyMarks, uuid } from './story-db';
+import type { StoryAction } from './story';
 import { accuse, caseRecord, currentCase, getCase, lookAt, quitCase, startCase } from './cases-db';
 import { RoomPage } from './views/room';
 import { buyRoomItem, getRoom, likeRoom, likedToday, listRooms, saveRoom } from './room-db';
@@ -472,6 +476,54 @@ const sameOrigin = (c: Context<AppEnv>) => {
   const origin = c.req.header('Origin');
   return !origin || origin === new URL(c.req.url).origin;
 };
+
+// 완성 원고 모드도 기존 로그인·현재 멤버·캐릭터 선택 미들웨어 안에서만 열려요.
+members.use('/api/story/*', bodyLimit({ maxSize: 4096, onError: c => c.text('입력이 너무 길어요', 413) }));
+for (const kind of ['case', 'expedition'] as const) {
+  const url = kind === 'case' ? '/cases/story' : '/expedition/story';
+  members.get(url, async c => {
+    const viewer = c.get('viewer');
+    c.header('Cache-Control', 'no-store');
+    const [active, marks, candidates] = await Promise.all([
+      activeStory(c.env.DB, viewer.user_id, kind), storyMarks(c.env.DB, viewer.user_id), listCandidates(c.env.DB, viewer.user_id),
+    ]);
+    const id = c.req.query('r');
+    const result = !active && uuid(id) ? await getStory(c.env.DB, viewer.user_id, id) : null;
+    return page(c, <StoryPage viewer={viewer} kind={kind} run={active ?? (result?.row.kind === kind && result.state.phase === 'done' ? result : null)} candidates={candidates} marks={marks} notice={c.req.query('n')} />);
+  });
+}
+members.post('/api/story/start', async c => {
+  c.header('Cache-Control', 'no-store');
+  // 새 변경 API는 Origin 필수. 일반 브라우저의 POST form은 Origin을 보냅니다.
+  if (c.req.header('Origin') !== new URL(c.req.url).origin) return c.text('잘못된 요청이에요', 403);
+  if (!/^application\/x-www-form-urlencoded(?:;|$)/i.test(c.req.header('Content-Type') ?? '')) return c.text('잘못된 입력이에요', 400);
+  const raw = await c.req.text();
+  if (raw.length > 4096) return c.text('입력이 너무 길어요', 413);
+  const b = new URLSearchParams(raw);
+  const kind = b.get('kind'), content = b.get('content'), request = b.get('request');
+  if ((kind !== 'case' && kind !== 'expedition') || !content || !uuid(request) || ['kind', 'content', 'request'].some(k => b.getAll(k).length !== 1)) return c.text('잘못된 입력이에요', 400);
+  const url = kind === 'case' ? '/cases/story' : '/expedition/story';
+  try {
+    const id = await beginStory(c.env.DB, c.get('viewer').user_id, kind, content, b.getAll('m'), request);
+    return c.redirect(id ? `${url}?r=${id}#now` : `${url}?n=bad`, 303);
+  } catch (err) { console.error('이야기 시작 실패', err); return c.redirect(`${url}?n=error`, 303); }
+});
+members.post('/api/story/act', async c => {
+  c.header('Cache-Control', 'no-store');
+  if (c.req.header('Origin') !== new URL(c.req.url).origin) return c.text('잘못된 요청이에요', 403);
+  if (!/^application\/x-www-form-urlencoded(?:;|$)/i.test(c.req.header('Content-Type') ?? '')) return c.text('잘못된 입력이에요', 400);
+  const raw = await c.req.text();
+  if (raw.length > 4096) return c.text('입력이 너무 길어요', 413);
+  const b = new URLSearchParams(raw), id = b.get('run'), at = b.get('at'), action = b.get('action'), choice = b.get('choice');
+  if (!uuid(id) || !at || !/^(0|[1-9][0-9]{0,5})$/.test(at) || !action || !['look', 'answer', 'promise', 'choose', 'quit', 'inspect', 'connect', 'reconstruct', 'scout', 'rotate', 'survey', 'return', 'skill', 'jelly'].includes(action) || choice === null || choice.length > 100 || ['run', 'at', 'action', 'choice'].some(k => b.getAll(k).length !== 1)) return c.text('잘못된 입력이에요', 400);
+  const user = c.get('viewer').user_id, run = await getStory(c.env.DB, user, id);
+  if (!run) return c.text('이야기를 찾을 수 없어요', 404);
+  const url = run.row.kind === 'case' ? '/cases/story' : '/expedition/story';
+  try {
+    const result = await actStory(c.env.DB, user, id, Number(at), { action: action as StoryAction['action'], choice });
+    return c.redirect(`${url}?r=${id}${result === 'ok' ? '' : `&n=${result}`}#now`, 303);
+  } catch (err) { console.error('이야기 진행 실패', err); return c.redirect(`${url}?r=${id}&n=error#now`, 303); }
+});
 
 // 상점: 매점(잡다매점: 디스코드 물건·성별 바꾸기)과 꾸미기(테마·꾸밈 캐릭터) 탭. 칭호 탭은 /titles예요.
 async function shopPage(c: Context<AppEnv>, tab: 'store' | 'deco') {

@@ -155,8 +155,8 @@ export async function accuse(db: D1Database, userId: string, runId: string, at: 
     db
       .prepare(
         `UPDATE case_runs SET status = 'done', answer = ?3, grade = ?4, day = ?5, updated_at = ?6, ended_at = ?7,
-           xp = CASE WHEN (SELECT COUNT(*) FROM case_runs WHERE user_id = ?8 AND day = ?5 AND status = 'done') < ?9 THEN ?10 ELSE 0 END,
-           jelly = CASE WHEN (SELECT COUNT(*) FROM case_runs WHERE user_id = ?8 AND day = ?5 AND status = 'done') < ?9 THEN ?11 ELSE 0 END
+           xp = CASE WHEN (SELECT COUNT(*) FROM case_runs WHERE user_id = ?8 AND day = ?5 AND status = 'done') + (SELECT COUNT(*) FROM story_runs WHERE user_id = ?8 AND day = ?5 AND kind = 'case' AND status = 'done') < ?9 THEN ?10 ELSE 0 END,
+           jelly = CASE WHEN (SELECT COUNT(*) FROM case_runs WHERE user_id = ?8 AND day = ?5 AND status = 'done') + (SELECT COUNT(*) FROM story_runs WHERE user_id = ?8 AND day = ?5 AND kind = 'case' AND status = 'done') < ?9 THEN ?11 ELSE 0 END
          WHERE id = ?1 AND status = 'going' AND looked = ?2`,
       )
       .bind(run.row.id, run.row.looked, JSON.stringify(answer), g, day, t, mark, userId, DAILY_REWARD_CASES, CASE_XP, caseJelly(g)),
@@ -180,7 +180,7 @@ const ORDER: Grade[] = ['S', 'A', 'B', 'C', 'F'];
 export async function caseRecord(db: D1Database, userId: string, now = new Date()): Promise<CaseRecord> {
   const [grades, today] = await db.batch([
     db.prepare(`SELECT case_id, grade, COUNT(*) AS n FROM case_runs WHERE user_id = ? AND status = 'done' GROUP BY case_id, grade`).bind(userId),
-    db.prepare(`SELECT COUNT(*) AS n FROM case_runs WHERE user_id = ? AND day = ? AND status = 'done'`).bind(userId, kstDay(now)),
+    db.prepare(`SELECT (SELECT COUNT(*) FROM case_runs WHERE user_id = ?1 AND day = ?2 AND status = 'done') + (SELECT COUNT(*) FROM story_runs WHERE user_id = ?1 AND day = ?2 AND kind = 'case' AND status = 'done') AS n`).bind(userId, kstDay(now)),
   ]);
   const best = new Map<string, Grade>();
   let solved = 0;
