@@ -44,7 +44,7 @@
   function itemEl(p) {
     const s = sizeOf(p.k);
     const el = document.createElement('div');
-    el.className = `room-item${p.k === D.me ? ' me' : ''}${picked === p.k ? ' picked' : ''}`;
+    el.className = `room-item${p.k === D.me ? ' me' : ''}${s.zone === 'wall' ? ' z-wall' : ''}${picked === p.k ? ' picked' : ''}`;
     el.dataset.k = p.k;
     el.style.cssText = `--x:${p.x};--y:${p.y};--w:${s.w};--h:${s.h}`;
     el.title = nameOf(p.k);

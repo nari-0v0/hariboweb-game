@@ -25,7 +25,7 @@ function Item(props: { p: Placed; art: string; name: string }) {
   const w = f?.w ?? 1;
   const h = f?.h ?? 1;
   return (
-    <div class={`room-item${p.k === ME ? ' me' : ''}`} data-k={p.k} style={`--x:${p.x};--y:${p.y};--w:${w};--h:${h}`} title={f?.name ?? props.name}>
+    <div class={`room-item${p.k === ME ? ' me' : ''}${f?.zone === 'wall' ? ' z-wall' : ''}`} data-k={p.k} style={`--x:${p.x};--y:${p.y};--w:${w};--h:${h}`} title={f?.name ?? props.name}>
       {p.k === ME ? <img src={props.art} alt={props.name} /> : f?.art ? <img src={f.art} alt={f.name} /> : <span aria-hidden="true">{f?.emoji}</span>}
     </div>
   );
@@ -48,7 +48,7 @@ export function RoomScene(props: { room: Pick<Room, 'wall' | 'floor' | 'layout' 
   );
 }
 
-const CATS = ['기본', '거실', '취미', '식물', '동물', '간식', '벽 장식'] as const;
+const SHOP_CATS = ['거실', '취미', '식물', '동물', '간식', '벽 장식'] as const;
 
 function BuyButton(props: { id: string; price: number; owned: boolean; jelly: number }) {
   if (props.owned) return <span class="tag on">가짐</span>;
@@ -67,12 +67,21 @@ function Store(props: { owned: Set<string>; jelly: number }) {
   return (
     <details class="panel room-store" id="store">
       <summary>
-        <h2>🛒 가구점</h2> <span class="hint">보유 젤리 🍬 {jelly}개 · 눌러서 펼치기</span>
+        <h2>🛒 가구점</h2>
+        <span class="room-jelly">🍬 {jelly}개</span>
+        <span class="hint">눌러서 펼치기</span>
       </summary>
-      {CATS.filter((c) => c !== '기본').map((cat) => (
+      <div class="furn-tabs" role="radiogroup" aria-label="가구 종류">
+        {[...SHOP_CATS, '벽지', '바닥'].map((cat, i) => (
+          <label class="furn-tab">
+            <input type="radio" name="furn-cat" id={`fc-${i}`} checked={i === 0} />
+            {cat}
+          </label>
+        ))}
+      </div>
+      {SHOP_CATS.map((cat, i) => (
         <>
-          <h3>{cat}</h3>
-          <div class="furn-grid">
+          <div class="furn-grid" data-i={String(i)}>
             {FURNITURE.filter((x) => x.cat === cat).map((x) => (
               <div class="furn-cell">
                 <span class="furn-icon" aria-hidden="true">
@@ -80,7 +89,7 @@ function Store(props: { owned: Set<string>; jelly: number }) {
                 </span>
                 <span class="furn-name">
                   {x.name}
-                  {(x.w > 1 || x.h > 1) && <span class="hint"> ({x.w}×{x.h}칸)</span>}
+                  {(x.w > 1 || x.h > 1) && <span class="hint"> {x.w}×{x.h}칸</span>}
                 </span>
                 <BuyButton id={`furn:${x.key}`} price={x.price} owned={ownsFurniture(x.key, owned)} jelly={jelly} />
               </div>
@@ -88,8 +97,7 @@ function Store(props: { owned: Set<string>; jelly: number }) {
           </div>
         </>
       ))}
-      <h3>벽지</h3>
-      <div class="furn-grid">
+      <div class="furn-grid" data-i={String(SHOP_CATS.length)}>
         {WALLS.filter((s) => s.price > 0).map((s) => (
           <div class="furn-cell">
             <span class={`swatch wall-${s.key}`} aria-hidden="true" />
@@ -98,8 +106,7 @@ function Store(props: { owned: Set<string>; jelly: number }) {
           </div>
         ))}
       </div>
-      <h3>바닥</h3>
-      <div class="furn-grid">
+      <div class="furn-grid" data-i={String(SHOP_CATS.length + 1)}>
         {FLOORS.filter((s) => s.price > 0).map((s) => (
           <div class="furn-cell">
             <span class={`swatch floor-${s.key}`} aria-hidden="true" />
@@ -204,13 +211,12 @@ export function RoomPage(props: {
 }) {
   const { room, mine } = props;
   return (
-    <Layout title={mine ? '내 방' : `${room.name}의 방`} viewer={props.viewer} active="room" scripts={mine ? ['/room.js'] : undefined}>
+    <Layout title={mine ? '내 방' : `${room.name}의 방`} viewer={props.viewer} active="room" scripts={mine ? ['/room.js?v=2'] : undefined}>
       <Popup lines={NOTICES[props.notice ?? ''] ?? []} />
       <div class="stack" data-fresh>
         <section class="panel room-panel">
-          <span class="eyebrow">집 꾸미기</span>
-          <div class="panel-head">
-            <h1>🏠 {mine ? '내 방' : `${room.name}의 방`}</h1>
+          <div class="room-sign">
+            <h1>{mine ? '내 방' : `${room.name}의 방`}</h1>
             <span class="room-likes">♥ {room.likes}</span>
           </div>
           <RoomScene room={room} id="room" />
