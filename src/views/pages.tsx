@@ -239,6 +239,7 @@ export function DogamPage(props: {
             <p class="muted">
               지금 서버 멤버 {props.total}명 중 <b>{props.owned}명</b>의 카드를 모았어요.
             </p>
+            <p class="hint">캐릭터의 성별은 본인이 고른 것이라 실제 성별과 다를 수 있어요.</p>
             <div class="filters" role="radiogroup" aria-label="보기">
               {filter('f-all', '전체', props.entries.length, true)}
               {filter('f-owned', '모은 카드', props.entries.filter((e) => e.owned && e.active).length)}
