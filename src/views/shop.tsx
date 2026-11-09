@@ -247,14 +247,15 @@ export function ShopPage(props: {
           {head}
           <section class="panel">
             <h2>카드 테마</h2>
+            <p class="muted">테마 그림을 누르면 내 카드에 미리 입혀 볼 수 있어요.</p>
             <div class="shop-grid">
               {themes.map((item) => {
                 const state = stateOf(item, ctx);
                 return (
                   <div class={`shop-item ${state}`}>
-                    <span class={`theme-img swatch theme-${item.key}`}>
+                    <button type="button" class={`theme-img swatch theme-${item.key}`} data-preview-theme={item.key} aria-label={`${item.name} 미리 보기`}>
                       <span class="swatch-inner"></span>
-                    </span>
+                    </button>
                     <span class="shop-name">{item.name}</span>
                     <Action item={item} state={state} cards={cards} />
                   </div>

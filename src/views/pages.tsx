@@ -168,7 +168,7 @@ export function MePage(props: { viewer: Member; profile: Profile; items: Set<str
                   {THEMES.map((t) => {
                     const locked = !canUseTheme(t.id, props.items);
                     return (
-                      <label class={locked ? 'theme locked' : 'theme'}>
+                      <label class={locked ? 'theme locked' : 'theme'} data-preview-theme={t.id}>
                         <input type="radio" name="theme" value={t.id} checked={profile.theme_id === t.id} disabled={locked} />
                         <span class={`theme-img swatch theme-${t.id}`}>
                           <span class="swatch-inner"></span>
@@ -189,7 +189,7 @@ export function MePage(props: { viewer: Member; profile: Profile; items: Set<str
                   })}
                 </div>
                 <small class="hint">
-                  잠긴 테마와 꾸밈 캐릭터는 <a href="/shop/deco">젤리 상점의 꾸미기</a>에서 열 수 있어요.
+                  테마를 누르면 내 카드에 미리 입혀 봐요. 잠긴 테마와 꾸밈 캐릭터는 <a href="/shop/deco">젤리 상점의 꾸미기</a>에서 열 수 있어요.
                 </small>
               </fieldset>
               <button class="btn btn-primary" type="submit">저장하기</button>
