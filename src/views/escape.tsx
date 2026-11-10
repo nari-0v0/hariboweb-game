@@ -107,7 +107,7 @@ function Thing(props: { run: EscRun; o: EscObject }) {
     .filter(Boolean)
     .join(" ");
   return (
-    <div class="esc-spot" style={`--x:${o.x};--y:${o.y}`}>
+    <div class={`esc-cell${o.face ? " person" : ""}${locked ? " locked" : ""}`}>
       <Act run={run} a="tap" o={o.id} cls={cls} label={o.name}>
         {o.face ? (
           <span class="esc-pic esc-person" aria-hidden="true">
@@ -346,45 +346,47 @@ function Play(props: { run: EscRun; art: string; name: string }) {
                 ❌ {s.mistakes}
               </span>
             </header>
-            <div class="esc-frame">
-              <div
-                class={`esc-room${s.fx === "move" ? " fx-move" : ""}`}
-                style={`--wall:${scene.wall};--floor:${scene.floor};--room:url(${roomBg(scene.name)})`}
-              >
-                <div class="esc-wall" />
-                <div class="esc-floor" />
-                {things.map((o) => (
-                  <Thing run={run} o={o} />
-                ))}
-                {coins.map((c) => (
-                  <div class="esc-spot" style={`--x:${c.x};--y:${c.y}`}>
-                    <Act
-                      run={run}
-                      a="coin"
-                      n={c.k}
-                      cls="esc-coin"
-                      label="반짝이는 곳"
-                    >
-                      {null}
-                    </Act>
-                  </div>
-                ))}
-                {s.fx === "right" && (
-                  <b class="esc-stamp right" aria-hidden="true">
-                    정답!
-                  </b>
-                )}
-                {s.fx === "wrong" && (
-                  <b class="esc-stamp wrong" aria-hidden="true">
-                    땡!
-                  </b>
-                )}
-                {s.fx === "coin" && (
-                  <b class="esc-stamp coin" aria-hidden="true">
-                    🪙 +1
-                  </b>
-                )}
-              </div>
+            <div
+              class={`esc-scene${s.fx === "move" ? " fx-move" : ""}`}
+              style={`--room:url(${roomBg(scene.name)})`}
+            >
+              <span class="esc-scene-name">{scene.name}</span>
+              {coins.map((c) => (
+                <div class="esc-spot" style={`--x:${c.x};--y:${c.y}`}>
+                  <Act
+                    run={run}
+                    a="coin"
+                    n={c.k}
+                    cls="esc-coin"
+                    label="반짝이는 곳"
+                  >
+                    {null}
+                  </Act>
+                </div>
+              ))}
+              {s.fx === "right" && (
+                <b class="esc-stamp right" aria-hidden="true">
+                  정답!
+                </b>
+              )}
+              {s.fx === "wrong" && (
+                <b class="esc-stamp wrong" aria-hidden="true">
+                  땡!
+                </b>
+              )}
+              {s.fx === "coin" && (
+                <b class="esc-stamp coin" aria-hidden="true">
+                  🪙 +1
+                </b>
+              )}
+            </div>
+            <div class="esc-board">
+              {[
+                ...things.filter((o) => o.face),
+                ...things.filter((o) => !o.face),
+              ].map((o) => (
+                <Thing run={run} o={o} />
+              ))}
             </div>
             <div class="esc-bag">
               <b>🎒</b>
