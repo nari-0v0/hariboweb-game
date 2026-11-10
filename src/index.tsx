@@ -797,7 +797,8 @@ members.get('/expedition/go', async (c) => {
 members.post('/api/journey/start', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
   try {
-    const id = await beginJourney(c.env.DB, c.get('viewer').user_id);
+    const ch = Number((await c.req.parseBody()).ch ?? 1);
+    const id = await beginJourney(c.env.DB, c.get('viewer').user_id, Number.isSafeInteger(ch) && ch >= 1 ? ch : 1);
     return c.redirect(id ? '/expedition/go#now' : '/expedition/go?n=bad', 303);
   } catch (e) {
     console.error('원정 시작 실패', e);

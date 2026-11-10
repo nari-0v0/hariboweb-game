@@ -1383,3 +1383,13 @@ main.wide { max-width: 1320px; }
 .esc-wrong { margin: 6px 0 0; padding: 4px 8px; border: 2px solid #e05a7a; background: #ffe8ee; font-weight: 700; }
 .esc-hint-line { margin: 6px 0 0; padding: 4px 8px; border: 2px dashed var(--ink); background: #fffbe0; }
 .esc-seen-hints li { background: #fffbe0; }
+
+/* 원정대 장 고르기 */
+.jr-chapters { display: grid; gap: 10px; margin-top: 8px; }
+.jr-chapter-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+.jr-chapter { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; border: 3px solid var(--ink); background: var(--paper); text-align: center; cursor: pointer; font-size: .85rem; }
+.jr-chapter input { position: absolute; opacity: 0; pointer-events: none; }
+.jr-chapter:has(input:checked) { background: #ffe9a8; box-shadow: 0 3px 0 var(--ink); }
+.jr-chapter:has(input:focus-visible) { outline: 3px solid #7fb8ff; }
+.jr-chapter.locked { opacity: .45; cursor: not-allowed; }
+.jr-chapter .hint { font-size: .72rem; }

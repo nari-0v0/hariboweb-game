@@ -228,3 +228,37 @@ describe('journey pictures', () => {
     for (const k of ['camp', 'merchant', 'chest', 'spring', 'fairy', 'gummy', 'sign', 'trophy']) expect(SPRITES[`/journey/prop/${k}.webp`], k).toBeTruthy();
   });
 });
+
+describe('원정대 장(챕터)', () => {
+  it('장마다 몬스터 10마리 그림이 있고 이름이 겹치지 않아요', async () => {
+    const { CHAPTERS } = await import('../src/journey-chapters');
+    const { SPRITES } = await import('../src/sprites.gen');
+    const keys = CHAPTERS.flatMap((c) => [...c.foes, c.elite, c.boss].map((m) => m.key));
+    expect(CHAPTERS).toHaveLength(9);
+    expect(new Set(keys).size).toBe(90);
+    for (const k of keys) expect(SPRITES[`/journey/foe/${k}.webp`], k).toBeTruthy();
+  });
+  it('2장은 2장 몬스터가 나오고 더 세요', async () => {
+    const { CHAPTERS } = await import('../src/journey-chapters');
+    const two = new Set([...CHAPTERS[1]!.foes, CHAPTERS[1]!.elite, CHAPTERS[1]!.boss].map((m) => m.key));
+    let s: JourneyState = startJourney('ch2-seed', undefined, 2);
+    const seen: string[] = [];
+    for (let i = 0; i < 400 && !s.done; i++) {
+      s = actJourney(s, { a: 'idle' })!;
+      if (s.fx) seen.push(s.fx.foe);
+    }
+    expect(seen.length).toBeGreaterThan(0);
+    for (const k of seen) expect(two.has(k), k).toBe(true);
+    expect(decodeJourney(JSON.stringify({ ...startJourney('a'), ch: 12 }))).toBeNull();
+  });
+  it('열린 장까지만 떠날 수 있고, 장을 깨면 다음 장이 열려요', async () => {
+    const { db, sql } = database();
+    const id = (await beginJourney(db, 'me', 5))!;
+    expect((await getJourney(db, 'me', id))!.state.ch).toBe(1);
+    expect((await journeyRecord(db, 'me')).unlocked).toBe(1);
+    sql.prepare("UPDATE journey_runs SET status = 'done', cleared = 1 WHERE id = ?").run(id);
+    expect((await journeyRecord(db, 'me')).unlocked).toBe(2);
+    const id2 = (await beginJourney(db, 'me', 2))!;
+    expect((await getJourney(db, 'me', id2))!.state.ch).toBe(2);
+  });
+});
