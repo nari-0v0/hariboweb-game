@@ -169,3 +169,13 @@ addEventListener('pageshow', (e) => {
   });
   sync();
 })();
+
+// 게임 화면이 POST 응답으로 바로 올 때: 주소를 원래 화면으로 바꾸고 #now 로 내려가요(새로 고침해도 다시 보내지 않게)
+(() => {
+  const el = document.querySelector('[data-replace-url]');
+  if (!el) return;
+  const url = el.getAttribute('data-replace-url');
+  history.replaceState(null, '', url);
+  const id = url.split('#')[1];
+  if (id) document.getElementById(id)?.scrollIntoView();
+})();
