@@ -71,6 +71,8 @@ import { prefetchAllowed } from './prefetch';
 import { act, currentRun, getRun, listCandidates, myRecord, myRole, quitRun, setRole, startRun } from './expedition-db';
 import { isRole } from './expedition';
 import { CasesPage } from './views/cases';
+import { EscapePage } from './views/escape';
+import { activeEscape, actEscapeRun, beginEscape, escapeRecord, getEscape, quitEscape } from './escape-db';
 import { StoryPage } from './views/story';
 import { activeStory, actStory, beginStory, getStory, storyMarks, uuid } from './story-db';
 import type { StoryAction } from './story';
@@ -765,6 +767,58 @@ members.post('/api/expedition/role', async (c) => {
   if (!isRole(role)) return c.redirect('/expedition');
   await setRole(c.env.DB, c.get('viewer').user_id, role);
   return c.redirect('/expedition?n=role');
+});
+
+// 하리보 사건파일 (방탈출판): 물건을 눌러 찾고 퍼즐을 풀어요.
+const ESC_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+members.get('/cases/room', async (c) => {
+  const viewer = c.get('viewer');
+  c.header('Cache-Control', 'no-store');
+  const [run, best] = await Promise.all([activeEscape(c.env.DB, viewer.user_id), escapeRecord(c.env.DB, viewer.user_id)]);
+  const rid = c.req.query('r') ?? '';
+  const done = !run && ESC_ID.test(rid) ? await getEscape(c.env.DB, viewer.user_id, rid) : null;
+  return page(c, <EscapePage viewer={viewer} run={run} result={done?.row.status === 'done' ? done : null} best={best} notice={c.req.query('n')} />);
+});
+members.post('/api/escape/start', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const body = await c.req.parseBody();
+  try {
+    const id = await beginEscape(c.env.DB, c.get('viewer').user_id, String(body.case ?? ''));
+    return c.redirect(id ? '/cases/room#now' : '/cases/room?n=bad', 303);
+  } catch (e) {
+    console.error('사건 시작 실패', e);
+    return c.redirect('/cases/room?n=error', 303);
+  }
+});
+members.post('/api/escape/act', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const body = await c.req.parseBody();
+  const id = String(body.run ?? ''), rev = Number(body.rev), a = String(body.a ?? '');
+  const str = (k: string) => String(body[k] ?? '').slice(0, 40);
+  const act =
+    a === 'tap' ? { a, o: str('o') } as const
+    : a === 'use' ? { a, o: str('o'), i: str('i') } as const
+    : a === 'code' ? { a, o: str('o'), v: str('v') } as const
+    : a === 'answer' ? { a, n: Number(body.n) } as const
+    : a === 'hint' ? { a } as const
+    : null;
+  if (!ESC_ID.test(id) || !Number.isSafeInteger(rev) || rev < 0 || !act) return c.redirect('/cases/room?n=bad#now', 303);
+  try {
+    const user = c.get('viewer').user_id;
+    const r = await actEscapeRun(c.env.DB, user, id, rev, act);
+    if (r !== 'ok') return c.redirect(`/cases/room?n=${r}#now`, 303);
+    const after = await getEscape(c.env.DB, user, id);
+    return c.redirect(after?.row.status === 'done' ? `/cases/room?r=${id}#now` : '/cases/room#now', 303);
+  } catch (e) {
+    console.error('사건 진행 실패', e);
+    return c.redirect('/cases/room?n=error#now', 303);
+  }
+});
+members.post('/api/escape/quit', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const id = String((await c.req.parseBody()).run ?? '');
+  const ok = ESC_ID.test(id) && (await quitEscape(c.env.DB, c.get('viewer').user_id, id));
+  return c.redirect(ok ? '/cases/room?n=quit' : '/cases/room', 303);
 });
 
 // 하리보 사건파일
