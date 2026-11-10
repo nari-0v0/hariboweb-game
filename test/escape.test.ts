@@ -133,7 +133,7 @@ describe('사건파일 방탈출 내용', () => {
     }
   });
   it('만든 사건: 퍼즐 종류가 사건마다 섞여 있어요', () => {
-    const kinds = (c: EscCase) => new Set(c.objects.map((o) => o.id.replace(/\d+$/, '')).filter((k) => ['mm', 'cntn', 'col', 'alg', 'let', 'clkn', 'lmpn'].includes(k)));
+    const kinds = (c: EscCase) => new Set(c.objects.map((o) => o.id.replace(/\d+$/, '')).filter((k) => ['mm', 'cntn', 'col', 'alg', 'let', 'clkn', 'stkn'].includes(k)));
     const all = new Set(ESCAPE_CASES.filter((c) => c.solution && !c.id.endsWith("-talk")).flatMap((c) => [...kinds(c)]));
     expect(all.size).toBe(7);
     for (const c of ESCAPE_CASES.filter((x) => x.solution && !x.id.endsWith("-talk"))) expect(kinds(c).size, c.id).toBeGreaterThanOrEqual(3);
@@ -308,10 +308,18 @@ describe('사건파일 퍼즐 게임 방식', () => {
 });
 
 describe('사건파일 그림', () => {
-  it('모든 사건의 물건과 소지품에 나리님 그림이 있어요', async () => {
+  it('모든 물건이 방 그림 속 자리에 있고, 한 자리엔 하나만 있어요', async () => {
     const { casePics, itemPic } = await import('../src/case-art');
+    const { ROOMS } = await import('../src/case-rooms');
     for (const c of ESCAPE_CASES) {
-      for (const o of c.objects.filter((x) => !x.face)) expect(casePics(o.emoji, false, false), `${c.id}/${o.id} ${o.emoji}`).not.toBeNull();
+      for (const sc of c.scenes) {
+        expect(sc.bg, `${c.id}/${sc.id}`).toBeTruthy();
+        const ats = c.objects.filter((o) => o.scene === sc.id && o.at).map((o) => o.at!);
+        expect(new Set(ats).size, `${c.id}/${sc.id} 겹침`).toBe(ats.length);
+        for (const at of ats) expect(ROOMS[sc.bg!].spots.some((h) => h.id === at), `${c.id}/${sc.id} ${at}`).toBe(true);
+      }
+      // 자리가 없는 건 돌아가는 문, 사람, 또는 그림이 따로 있는 물건(고양이·오르골)뿐이에요.
+      for (const o of c.objects.filter((x) => !x.at && !x.face && !x.goto)) expect(casePics(o.emoji, false, false), `${c.id}/${o.id} ${o.emoji}`).not.toBeNull();
       for (const [k, it] of Object.entries(c.items)) expect(itemPic(it.emoji), `${c.id}/${k} ${it.emoji}`).not.toBeNull();
     }
   });
@@ -354,5 +362,23 @@ describe('힌트 기록', () => {
     s = actEscape(c, s, { a: 'hint' })!;
     expect(s.hints).toBe(1);
     expect(s.seenHints).toEqual([k]);
+  });
+});
+
+describe('방 그림 확대', () => {
+  it('시계는 멈춘 시각으로 바늘을 돌려요', async () => {
+    const { clockTime } = await import('../src/views/escape');
+    expect(clockTime('벽시계가 오후 3시 40분에 멈춰 있어요.')).toEqual([3, 40]);
+    expect(clockTime('괘종시계가 오후 6시 정각을 가리켜요.')).toEqual([6, 0]);
+    expect(clockTime('시계가 오전 12시 5분')).toEqual([0, 5]);
+    expect(clockTime('특별한 건 없어요.')).toBeNull();
+  });
+  it('시계 자리가 있는 방은 시계 판 위치가 그 자리 안에 있어요', async () => {
+    const { ROOMS } = await import('../src/case-rooms');
+    for (const r of Object.values(ROOMS))
+      for (const h of r.spots.filter((x) => x.face)) {
+        expect(Math.abs(h.face![0] - h.x), `${r.key}/${h.id}`).toBeLessThan(h.w / 2);
+        expect(Math.abs(h.face![1] - h.y), `${r.key}/${h.id}`).toBeLessThan(h.h / 2);
+      }
   });
 });

@@ -1,7 +1,8 @@
 import type { Member } from '../env';
 import type { EscRun } from '../escape-db';
 import { ESCAPE_CASES, ESC_XP, canAnswer, coinSpots, coinsLeft, escGrade, isLocked, puzzleNo, visible, type EscGrade, type EscObject } from '../escape';
-import { casePics, itemPic, roomBg } from '../case-art';
+import { casePics, itemPic } from '../case-art';
+import { ROOMS, roomSrc, type Hotspot, type RoomKey } from '../case-rooms';
 import { FictionNote } from './expedition';
 import { Layout } from './layout';
 import { Popup, type PopupLine } from './shop';
@@ -118,6 +119,72 @@ function Zoom(props: { src: string; msg: string; name: string }) {
   );
 }
 
+// 멈춘 시각 읽기: "오후 3시 40분", "3시 정각" → [시, 분]
+export function clockTime(msg: string): [number, number] | null {
+  const t = msg.match(/(\d{1,2})시\s?(?:(\d{1,2})분|정각)/);
+  return t ? [Number(t[1]) % 12, Number(t[2] ?? 0)] : null;
+}
+
+const box = (h: Hotspot) => `left:${h.x - h.w / 2}%;top:${h.y - h.h / 2}%;width:${h.w}%;height:${h.h}%`;
+
+// 방 그림 속 물건 자리 하나. 눌러야 반응해요(표시는 없어요).
+function Hot(props: { run: EscRun; o: EscObject; h: Hotspot }) {
+  const { run, o, h } = props;
+  const s = run.state;
+  const locked = isLocked(s, o);
+  const cls = ['esc-hot', s.focus === o.id ? 'focus' : '', s.focus === o.id && s.fx ? `fx-${s.fx}` : ''].filter(Boolean).join(' ');
+  return (
+    <div class="esc-hot-wrap" style={box(h)}>
+      <Act run={run} a="tap" o={o.id} cls={cls} label={o.name}>
+        {locked && s.seen.includes(o.id) && (
+          <span class="esc-hot-lock" aria-hidden="true">
+            🔒
+          </span>
+        )}
+      </Act>
+    </div>
+  );
+}
+
+// 눌러 본 곳을 방 그림에서 크게 확대해요. 손가락·마우스로 끌어서 둘러볼 수 있고, 시계는 멈춘 시각으로 바늘이 돌아가요.
+function Loupe(props: { bg: RoomKey; h: Hotspot; msg: string; name: string }) {
+  const { h } = props;
+  const k = Math.min(3, Math.max(1.8, Math.min(62 / h.w, 62 / h.h)));
+  const clamp = (v: number) => Math.min(0, Math.max(100 - 100 * k, v));
+  const left = clamp(50 - h.x * k);
+  const top = clamp(50 - h.y * k);
+  const time = h.face ? clockTime(props.msg) : null;
+  const tag = zoomTag(props.msg);
+  return (
+    <>
+      <input type="checkbox" id="esc-loupe-x" class="esc-loupe-x" hidden />
+      <div class="esc-loupe" data-loupe>
+        <div class="esc-loupe-img" style={`width:${k * 100}%;height:${k * 100}%;left:${left}%;top:${top}%`}>
+          <img src={roomSrc(props.bg)} alt="" draggable={false} />
+          {time && h.face && (
+            <span
+              class="esc-hands"
+              style={`left:${h.face[0]}%;top:${h.face[1]}%;width:${h.face[2] * 1.56}%;--face:${h.face[3]};--hr:${time[0] * 30 + time[1] / 2}deg;--mn:${time[1] * 6}deg`}
+              aria-hidden="true"
+            >
+              <i class="hr" />
+              <i class="mn" />
+            </span>
+          )}
+        </div>
+        <b class="esc-loupe-name">🔍 {props.name}</b>
+        {tag && <span class="esc-zoom-tag">{tag}</span>}
+        <label for="esc-loupe-x" class="esc-loupe-close" aria-label="확대 닫기">
+          ✕
+        </label>
+        <span class="esc-loupe-drag" aria-hidden="true">
+          ✋ 끌어서 둘러보기
+        </span>
+      </div>
+    </>
+  );
+}
+
 // 이 사건에 나오는 그림(열린 모습·소지품·방 배경)을 미리 받아 둬요. 열 때 그림이 늦게 뜨지 않게요.
 function CasePreload(props: { def: EscRun['def'] }) {
   const set = new Set<string>();
@@ -130,7 +197,7 @@ function CasePreload(props: { def: EscRun['def'] }) {
     const p = itemPic(it.emoji);
     if (p) set.add(p);
   }
-  for (const sc of props.def.scenes) set.add(roomBg(sc.name));
+  for (const sc of props.def.scenes) if (sc.bg) set.add(roomSrc(sc.bg));
   return (
     <div class="jr-preload" aria-hidden="true">
       {[...set].map((src) => (
@@ -152,14 +219,14 @@ function Focus(props: { run: EscRun; art: string; name: string }) {
       <div class={`esc-bubble tone-${s.tone}`} role="status">
         {o && !puzzle && (
           <b class="esc-bubble-name">
-            {casePics(o.emoji, false, false) ? '' : `${o.emoji} `}
+            {o.at || casePics(o.emoji, false, false) ? '' : `${o.emoji} `}
             {o.name}
           </b>
         )}
         {o &&
           !puzzle &&
           (() => {
-            const pics = casePics(o.emoji, o.lock ? !locked : !!o.goto, false);
+            const pics = o.at ? null : casePics(o.emoji, o.lock ? !locked : !!o.goto, false);
             return pics ? <Zoom src={pics.now.src} msg={s.msg} name={o.name} /> : null;
           })()}
         {!puzzle && <p>{s.msg}</p>}
@@ -250,6 +317,9 @@ function Focus(props: { run: EscRun; art: string; name: string }) {
   );
 }
 
+// 사건과 상관없는 물건: 눌러도 짧은 말만 해요(서버에 안 보내요).
+const idleSay = (h: Hotspot) => (h.tag?.includes('door') ? '문은 굳게 닫혀 있어요. 지금은 이 방을 살펴봐요.' : `${h.label}… 특별한 건 없어 보여요.`);
+
 function Play(props: { run: EscRun; art: string; name: string }) {
   const { run } = props;
   const { def, state: s } = run;
@@ -264,6 +334,13 @@ function Play(props: { run: EscRun; art: string; name: string }) {
   const coins = coinSpots(def, s.scene).filter((c) => !s.coins?.includes(`${s.scene}:${c.k}`));
   const left = coinsLeft(s);
   const ready = canAnswer(def, s);
+  const bg: RoomKey = scene.bg ?? 'office';
+  const room = ROOMS[bg];
+  const placed = things.filter((o) => o.at);
+  const backs = things.filter((o) => !o.at && o.goto && !o.face);
+  const standing = things.filter((o) => !o.at && !(o.goto && !o.face));
+  const focusObj = s.focus ? things.find((o) => o.id === s.focus) : undefined;
+  const lens = focusObj?.at ? room.spots.find((h) => h.id === focusObj.at) : undefined;
   return (
     <>
       <section class="jr-game esc-game" id="now">
@@ -286,21 +363,31 @@ function Play(props: { run: EscRun; art: string; name: string }) {
               </span>
             </header>
             <div class="esc-frame">
-              <div
-                class={`esc-room${s.fx === 'move' ? ' fx-move' : ''}`}
-                style={`--wall:${scene.wall};--floor:${scene.floor};--room:url(${roomBg(scene.name)})`}
-              >
-                <div class="esc-wall" />
-                <div class="esc-floor" />
-                {things.map((o) => (
-                  <Thing run={run} o={o} />
+              <div class={`esc-room esc-pic-room${s.fx === 'move' ? ' fx-move' : ''}`} data-room>
+                <img class="esc-bg" src={roomSrc(bg)} alt={`${scene.name} 그림`} width={1500} height={1050} draggable={false} />
+                {room.spots
+                  .filter((h) => !placed.some((o) => o.at === h.id))
+                  .map((h) => (
+                    <button type="button" class="esc-hot idle" style={box(h)} data-say={idleSay(h)} aria-label={h.label} />
+                  ))}
+                {placed.map((o) => (
+                  <Hot run={run} o={o} h={room.spots.find((h) => h.id === o.at)!} />
                 ))}
+                {standing.map((o, i) => {
+                  const [x, y] = room.people[i % room.people.length]!;
+                  return <Thing run={run} o={{ ...o, x, y }} />;
+                })}
                 {coins.map((c) => (
                   <div class="esc-spot" style={`--x:${c.x};--y:${c.y}`}>
                     <Act run={run} a="coin" n={c.k} cls="esc-coin" label="반짝이는 곳">
                       {null}
                     </Act>
                   </div>
+                ))}
+                {backs.map((o) => (
+                  <Act run={run} a="tap" o={o.id} cls="esc-back">
+                    ◀ {o.name}
+                  </Act>
                 ))}
                 {s.fx === 'right' && (
                   <b class="esc-stamp right" aria-hidden="true">
@@ -317,6 +404,7 @@ function Play(props: { run: EscRun; art: string; name: string }) {
                     🪙 +1
                   </b>
                 )}
+                {lens && s.fx !== 'move' && <Loupe bg={bg} h={lens} msg={s.msg} name={focusObj!.name} />}
               </div>
             </div>
             <div class="esc-bag">
@@ -509,7 +597,7 @@ export function EscapePage(props: {
 }) {
   const { run, result } = props;
   return (
-    <Layout title="하리보 사건파일" viewer={props.viewer} active="cases">
+    <Layout title="하리보 사건파일" viewer={props.viewer} active="cases" scripts={run ? ['/escape.js?v=1'] : undefined}>
       {props.url && <i hidden data-replace-url={props.url} />}
       <Popup lines={NOTICES[props.notice ?? ''] ?? []} />
       <div class="stack esc" data-fresh>
