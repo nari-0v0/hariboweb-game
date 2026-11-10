@@ -284,14 +284,20 @@ export type EscState = {
   msg: string;
   tone: 'info' | 'good' | 'bad';
   done: boolean;
+  coins?: string[]; // 방에서 찾은 힌트 동전(<방 id>:<번호>)
+  spent?: number; // 힌트에 쓴 동전
+  fx?: EscFx; // 방금 행동의 화면 움직임(다음 행동 때 지워져요)
 };
+// open = 잠긴 것을 열었어요, right/wrong = 수수께끼 정답·오답, gain = 물건·단서를 얻었어요, move = 다른 방, coin = 힌트 동전
+export type EscFx = 'open' | 'right' | 'wrong' | 'gain' | 'move' | 'coin';
 export type EscAction =
   | { a: 'tap'; o: string }
   | { a: 'use'; o: string; i: string }
   | { a: 'code'; o: string; v: string }
   | { a: 'answer'; n: number; m?: number[] }
   | { a: 'combine'; i: string; j: string }
-  | { a: 'hint' };
+  | { a: 'hint' }
+  | { a: 'coin'; k: number };
 export type EscGrade = 'S' | 'A' | 'B' | 'C';
 
 export function startEscape(c: EscCase): EscState {
@@ -308,6 +314,30 @@ export const escGrade = (s: EscState): EscGrade => {
 export const canAnswer = (c: EscCase, s: EscState) => c.question.needs.every((n) => s.clues.includes(n));
 export const nextHint = (c: EscCase, s: EscState) =>
   c.hints.find((h) => !h.until || !(s.opened.includes(h.until) || s.clues.includes(h.until) || s.seen.includes(h.until)))?.text ?? c.hints.at(-1)!.text;
+
+// ── 힌트 동전: 방마다 2개씩, 물건이 없는 자리에 숨어 있어요. 찾은 동전으로 힌트를 보면 등급이 깎이지 않아요. ──
+export const COINS_PER_ROOM = 2;
+function hash(t: string) {
+  let h = 2166136261;
+  for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+export function coinSpots(c: EscCase, scene: string): { k: number; x: number; y: number }[] {
+  const taken = c.objects.filter((o) => o.scene === scene).map((o) => [o.x, o.y] as const);
+  const out: { k: number; x: number; y: number }[] = [];
+  for (let k = 0, tries = 0; out.length < COINS_PER_ROOM && tries < 200; tries++) {
+    const h = hash(`${c.id}:${scene}:${k}:${tries}`);
+    const x = 6 + (h % 88);
+    const y = 8 + ((h >>> 8) % 84);
+    if (taken.some(([ox, oy]) => Math.abs(ox - x) < 13 && Math.abs(oy - y) < 17) || out.some((o) => Math.abs(o.x - x) < 15 && Math.abs(o.y - y) < 15)) continue;
+    out.push({ k, x, y });
+    k++;
+  }
+  return out;
+}
+export const coinsLeft = (s: EscState) => (s.coins?.length ?? 0) - (s.spent ?? 0);
+// 수수께끼 번호: 비밀번호로 여는 곳마다 사건 안에서 1번부터
+export const puzzleNo = (c: EscCase, id: string) => c.objects.filter((o) => o.lock?.kind === 'code').findIndex((o) => o.id === id) + 1;
 
 const add = (list: string[], v?: string | string[]) => {
   for (const x of v === undefined ? [] : Array.isArray(v) ? v : [v]) if (!list.includes(x)) list.push(x);
@@ -326,11 +356,24 @@ function gain(s: EscState, o: EscObject) {
 export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState | null {
   if (old.done) return null;
   const s: EscState = structuredClone(old);
+  delete s.fx;
   if (act.a === 'hint') {
-    s.hints += 1;
+    if (coinsLeft(s) > 0) s.spent = (s.spent ?? 0) + 1;
+    else s.hints += 1;
     s.focus = null;
     s.msg = `💡 ${nextHint(c, old)}`;
     s.tone = 'info';
+    return s;
+  }
+  if (act.a === 'coin') {
+    const spot = coinSpots(c, s.scene).find((x) => x.k === act.k);
+    const id = `${s.scene}:${act.k}`;
+    if (!spot || s.coins?.includes(id)) return null;
+    s.coins = [...(s.coins ?? []), id];
+    s.focus = null;
+    s.msg = `반짝! 힌트 동전을 찾았어요. (가진 동전 ${coinsLeft(s)}개) 동전으로 힌트를 보면 등급이 깎이지 않아요.`;
+    s.tone = 'good';
+    s.fx = 'coin';
     return s;
   }
   if (act.a === 'answer') {
@@ -344,8 +387,10 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
       s.done = true;
       s.msg = c.ending;
       s.tone = 'good';
+      s.fx = 'right';
     } else {
       s.mistakes += 1;
+      s.fx = 'wrong';
       s.msg = more.length ? `${more.length + 1}개 중 ${right}개만 맞았어요. 어느 것이 틀렸는지 수첩을 다시 읽어 보세요.` : '음… 모은 단서와 맞지 않아요. 수첩을 다시 읽어 보세요.';
       s.tone = 'bad';
     }
@@ -357,6 +402,7 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
     s.focus = null;
     if (!k) {
       s.mistakes += 1;
+      s.fx = 'wrong';
       s.msg = `${c.items[act.i]?.name}와(과) ${c.items[act.j]?.name}은(는) 합쳐지지 않아요.`;
       s.tone = 'bad';
       return s;
@@ -365,6 +411,7 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
     add(s.inv, k.out);
     s.msg = k.text;
     s.tone = 'good';
+    s.fx = 'gain';
     return s;
   }
   const o = c.objects.find((x) => x.id === act.o);
@@ -381,6 +428,7 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
       s.focus = null;
       s.msg = `${c.scenes.find((x) => x.id === o.goto)!.name}(으)로 왔어요.`;
       s.tone = 'info';
+      s.fx = 'move';
       add(s.seen, o.id);
       return s;
     }
@@ -388,6 +436,7 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
     gain(s, o);
     s.msg = first || !o.again ? (o.lock ? o.openText! : o.look) : o.again;
     s.tone = first && (o.take || o.clue) ? 'good' : 'info';
+    if (first && (o.take || o.clue || o.reveals)) s.fx = 'gain';
     return s;
   }
   if (!isLocked(s, o)) return null;
@@ -395,6 +444,7 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
     if (o.lock!.kind !== 'item' || !s.inv.includes(act.i)) return null;
     if (o.lock!.item !== act.i) {
       s.mistakes += 1;
+      s.fx = 'wrong';
       s.msg = `${c.items[act.i]?.name ?? '그 물건'}(으)로는 열리지 않아요.`;
       s.tone = 'bad';
       return s;
@@ -407,6 +457,7 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
     if (digits ? !/^[0-9]{1,8}$/.test(v) : !v || v.length > 12) return null;
     if (v !== normCode(o.lock!.code)) {
       s.mistakes += 1;
+      s.fx = 'wrong';
       s.msg = digits ? '삐빅! 비밀번호가 틀렸어요.' : '삐빅! 암호가 틀렸어요.';
       s.tone = 'bad';
       return s;
@@ -416,6 +467,7 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
   gain(s, o);
   s.msg = o.openText ?? o.look;
   s.tone = 'good';
+  s.fx = act.a === 'code' ? 'right' : 'open';
   return s;
 }
 
@@ -425,6 +477,7 @@ export function decodeEscape(c: EscCase, json: string): EscState | null {
     const strs = (v: unknown) => Array.isArray(v) && v.every((x) => typeof x === 'string');
     if (s.v !== 1 || !c.scenes.some((x) => x.id === s.scene) || ![s.inv, s.opened, s.seen, s.shown, s.clues].every(strs)) return null;
     if (![s.mistakes, s.hints].every((n) => Number.isSafeInteger(n) && n >= 0) || typeof s.msg !== 'string' || typeof s.done !== 'boolean') return null;
+    if ((s.coins !== undefined && !strs(s.coins)) || (s.spent !== undefined && !(Number.isSafeInteger(s.spent) && s.spent >= 0))) return null;
     return s;
   } catch {
     return null;

@@ -220,3 +220,11 @@ describe('journey training bank', () => {
     expect(await buyPerk(db, 'me', 'hp')).toBe(false);
   });
 });
+
+describe('journey pictures', () => {
+  it('has a drawn picture for every foe and road stop', async () => {
+    const { SPRITES } = await import('../src/sprites.gen');
+    for (const k of ['mushroom', 'slime', 'bat', 'hedgehog', 'wolf', 'crab', 'bees', 'ghost', 'bear', 'dragon']) expect(SPRITES[`/journey/foe/${k}.png`], k).toBeTruthy();
+    for (const k of ['camp', 'merchant', 'chest', 'spring', 'fairy', 'gummy', 'sign', 'trophy']) expect(SPRITES[`/journey/prop/${k}.png`], k).toBeTruthy();
+  });
+});

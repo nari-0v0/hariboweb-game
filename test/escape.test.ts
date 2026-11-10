@@ -270,3 +270,48 @@ describe('사건파일 방탈출 저장과 보상', () => {
     expect(await beginEscape(db, 'me', 'nope')).toBeNull();
   });
 });
+
+describe('사건파일 퍼즐 게임 방식', () => {
+  it('방마다 숨은 힌트 동전 2개는 물건과 겹치지 않고, 한 번만 주워요', async () => {
+    const { coinSpots, coinsLeft } = await import('../src/escape');
+    for (const c of ESCAPE_CASES)
+      for (const sc of c.scenes) {
+        const spots = coinSpots(c, sc.id);
+        expect(spots.length, `${c.id}/${sc.id}`).toBe(2);
+        for (const p of spots) for (const o of c.objects.filter((x) => x.scene === sc.id)) expect(Math.abs(o.x - p.x) >= 13 || Math.abs(o.y - p.y) >= 17).toBe(true);
+      }
+    const c = ESCAPE_CASES[0]!;
+    const s1 = actEscape(c, startEscape(c), { a: 'coin', k: 0 })!;
+    expect(s1.fx).toBe('coin');
+    expect(coinsLeft(s1)).toBe(1);
+    expect(actEscape(c, s1, { a: 'coin', k: 0 })).toBeNull();
+    expect(actEscape(c, s1, { a: 'coin', k: 5 })).toBeNull();
+    // 동전으로 본 힌트는 등급에 안 들어가요
+    const s2 = actEscape(c, s1, { a: 'hint' })!;
+    expect([s2.hints, s2.spent, coinsLeft(s2)]).toEqual([0, 1, 0]);
+    const s3 = actEscape(c, s2, { a: 'hint' })!;
+    expect(s3.hints).toBe(1);
+    expect(s3.fx).toBeUndefined();
+  });
+  it('비밀번호 정답·오답과 여는 순간을 화면에 알려 줘요', async () => {
+    const { puzzleNo } = await import('../src/escape');
+    const c = ESCAPE_CASES.find((x) => x.id === 'jellyjar')!;
+    expect(puzzleNo(c, 'fridge')).toBe(1);
+    const s0 = startEscape(c);
+    expect(actEscape(c, s0, { a: 'code', o: 'fridge', v: '1111' })!.fx).toBe('wrong');
+    expect(actEscape(c, s0, { a: 'code', o: 'fridge', v: '0340' })!.fx).toBe('right');
+    const withKey = actEscape(c, s0, { a: 'tap', o: 'plant' })!;
+    expect(withKey.fx).toBe('gain');
+    expect(actEscape(c, withKey, { a: 'use', o: 'drawer', i: 'smallkey' })!.fx).toBe('open');
+  });
+});
+
+describe('사건파일 그림', () => {
+  it('모든 사건의 물건과 소지품에 나리님 그림이 있어요', async () => {
+    const { casePics, itemPic } = await import('../src/case-art');
+    for (const c of ESCAPE_CASES) {
+      for (const o of c.objects) expect(casePics(o.emoji, false, false), `${c.id}/${o.id} ${o.emoji}`).not.toBeNull();
+      for (const [k, it] of Object.entries(c.items)) expect(itemPic(it.emoji), `${c.id}/${k} ${it.emoji}`).not.toBeNull();
+    }
+  });
+});

@@ -1207,7 +1207,7 @@ main.wide { max-width: 1320px; }
 .jr-hero.down img { filter: grayscale(1); rotate: -80deg; translate: 0 30px; }
 .jr-foe { position: relative; display: grid; justify-items: center; align-content: end; flex: none; padding-bottom: 6px; }
 .jr-foe > span:first-child { position: relative; z-index: 1; display: block; line-height: 0; }
-.jr-foe .jr-sprite { display: block; max-width: min(34vw, 130px); height: auto; }
+.jr-foe .jr-sprite { display: block; max-width: min(36vw, 160px); height: auto; }
 .jr-foe.flip .jr-sprite { scale: -1 1; }
 .jr-foe .jr-shadow { width: 70%; bottom: 0; }
 .jr-foe.beaten > span:first-child { opacity: .35; filter: grayscale(1); }
@@ -1306,3 +1306,66 @@ main.wide { max-width: 1320px; }
 .esc-level { color: #e0a100; letter-spacing: 2px; font-size: .85rem; }
 .esc-name { max-width: 15.5cqw; overflow: hidden; text-overflow: ellipsis; }
 .esc-thing.focus .esc-name { max-width: none; position: relative; z-index: 2; }
+
+/* 사건파일: 말하는 내 캐릭터, 수수께끼 카드, 힌트 동전, 여는 움직임 */
+.esc-talk { display: flex; align-items: flex-start; gap: 10px; max-width: 760px; margin: 14px auto 0; }
+.esc-talk .esc-bubble { flex: 1; min-width: 0; margin: 0; }
+.esc-face { flex: none; width: 72px; height: 72px; object-fit: contain; object-position: bottom; background: #eaf6ff; border: 3px solid var(--ink); image-rendering: pixelated; }
+.esc-puzzle { margin: -2px -6px 4px; border: 3px solid var(--ink); background: #fffdf5; }
+.esc-puzzle-head { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 2px 10px; background: var(--pink-soft); border-bottom: 3px solid var(--ink); }
+.esc-puzzle-head b { font-size: 1rem; }
+.esc-puzzle p { margin: 6px 10px; }
+.esc-coin { display: block; width: max(22px, 4.4cqw); height: max(22px, 4.4cqw); padding: 0; border: 0; background: radial-gradient(circle, rgba(255, 255, 255, .55) 0 18%, transparent 19%); cursor: pointer; border-radius: 50%; }
+.esc-coin:focus-visible { outline: 3px solid var(--pink); }
+.esc-stamp { position: absolute; left: 50%; top: 42%; z-index: 5; translate: -50% -50%; padding: .4cqw 3cqw; border: 1cqw solid currentColor; font-size: 9cqw; line-height: 1.2; white-space: nowrap; pointer-events: none; rotate: -12deg; background: rgba(255, 250, 242, .85); }
+.esc-stamp.right { color: #e2486e; }
+.esc-stamp.wrong { color: #5b6bd6; }
+.esc-stamp.coin { color: #c98a00; font-size: 6cqw; }
+.esc-burst { position: absolute; left: 50%; top: 40%; width: 2cqw; height: 2cqw; translate: -50% -50%; pointer-events: none; z-index: 2; }
+@media (prefers-reduced-motion: no-preference) {
+  .esc-coin { animation: esc-glint 3.2s ease-in-out infinite; }
+  .esc-spot:nth-of-type(2n) .esc-coin { animation-delay: 1.6s; }
+  .esc-stamp { animation: esc-stamp 1.6s ease-out both; }
+  .fx-stamp { animation: esc-stamp-in .6s .2s cubic-bezier(.2, 1.6, .4, 1) both; }
+  .esc-thing.fx-swing .esc-emoji { animation: esc-swing .9s ease-out both; transform-origin: 15% 50%; }
+  .esc-thing.fx-pop .esc-emoji { animation: esc-pop .7s ease-out both; }
+  .esc-thing.fx-shine .esc-emoji { animation: esc-shine 1s ease-out both; }
+  .esc-thing.fx-nope .esc-emoji, .esc-talk.fx-nope .esc-bubble { animation: esc-nope .45s ease-in-out both; }
+  .esc-burst { animation: esc-burst .9s ease-out both; }
+  .esc-room.fx-move > * { animation: esc-fadein .5s ease-out both; }
+}
+@keyframes esc-glint { 0%, 80%, 100% { background: radial-gradient(circle, rgba(255, 255, 255, .35) 0 14%, transparent 15%); } 88% { background: radial-gradient(circle, #fff 0 22%, rgba(255, 236, 150, .7) 23% 34%, transparent 35%); } }
+@keyframes esc-stamp { 0% { opacity: 0; scale: 2.2; } 18% { opacity: 1; scale: .92; } 26% { scale: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes esc-stamp-in { from { opacity: 0; scale: 2.4; rotate: -20deg; } to { opacity: 1; scale: 1; rotate: 0deg; } }
+@keyframes esc-swing { 0% { transform: perspective(300px) rotateY(0); } 55% { transform: perspective(300px) rotateY(-70deg); } 80% { transform: perspective(300px) rotateY(-55deg); } 100% { transform: perspective(300px) rotateY(-62deg); } }
+@keyframes esc-pop { 0% { scale: 1; } 25% { scale: 1.25 .8; } 50% { scale: .9 1.2; translate: 0 -1.5cqw; } 75% { scale: 1.05 .95; translate: 0 0; } 100% { scale: 1; } }
+@keyframes esc-shine { 0% { filter: drop-shadow(0 0 0 #fff6a0); } 40% { filter: drop-shadow(0 0 1.6cqw #fff6a0) brightness(1.3); } 100% { filter: drop-shadow(.3cqw .4cqw 0 rgba(42, 32, 48, .3)); } }
+@keyframes esc-nope { 20% { translate: -6px 0; } 40% { translate: 6px 0; } 60% { translate: -4px 0; } 80% { translate: 3px 0; } }
+@keyframes esc-burst { 0% { box-shadow: 0 0 0 0 #fff6a0; opacity: 1; } 100% { box-shadow: -6cqw -5cqw 0 -.4cqw #ffd35a, 6cqw -5cqw 0 -.4cqw #ff9cb8, -7cqw 3cqw 0 -.4cqw #9fd8ff, 7cqw 3cqw 0 -.4cqw #7fdcc0, 0 -8cqw 0 -.4cqw #ffd35a; opacity: 0; } }
+@keyframes esc-fadein { from { opacity: 0; } }
+@media (max-width: 520px) {
+  .esc-face { width: 52px; height: 52px; }
+}
+.esc-pic { position: relative; display: block; transition: translate .1s; filter: drop-shadow(.3cqw .5cqw 0 rgba(42, 32, 48, .25)); }
+.esc-pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; object-position: bottom; }
+.esc-thing.has-pic::after { display: none; }
+.esc-thing:hover .esc-pic, .esc-thing:focus-visible .esc-pic { translate: 0 -.6cqw; }
+.esc-thing.has-pic .esc-lock { top: auto; bottom: 2.6cqw; right: -1cqw; }
+.esc-item-pic { width: 24px; height: 24px; object-fit: contain; vertical-align: middle; }
+.esc-was { opacity: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .esc-thing.fx-pop .esc-was, .esc-thing.fx-swing .esc-was { animation: esc-was .55s ease-in both; }
+  .esc-thing.fx-swing .esc-was { transform-origin: 20% 50%; animation-name: esc-was-swing; }
+  .esc-thing.fx-pop .esc-pic, .esc-thing.fx-swing .esc-pic { animation: esc-pop .7s .35s ease-out both; }
+  .esc-thing.fx-shine .esc-pic { animation: esc-shine 1s ease-out both; }
+  .esc-thing.fx-nope .esc-pic { animation: esc-nope .45s ease-in-out both; }
+}
+@keyframes esc-was { 0% { opacity: 1; } 60% { opacity: 1; scale: 1.06 .94; } 100% { opacity: 0; } }
+@keyframes esc-was-swing { 0% { opacity: 1; transform: perspective(300px) rotateY(0); } 70% { opacity: 1; transform: perspective(300px) rotateY(-75deg); } 100% { opacity: 0; transform: perspective(300px) rotateY(-85deg); } }
+.jr-pic { width: auto; image-rendering: auto; }
+.esc-room { --k: 1.1; }
+@media (max-width: 520px) { .esc-room { --k: 1.4; } }
+/* 나리님 배경 그림 */
+.esc-room { background: var(--room) center / 100% 100% no-repeat, var(--floor); }
+.esc-room .esc-wall, .esc-room .esc-floor { display: none; }
+.jr-stage { background: var(--jr-bg) center bottom / cover no-repeat, #bfe6ff; image-rendering: auto; }

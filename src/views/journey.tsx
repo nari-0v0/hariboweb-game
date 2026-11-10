@@ -1,7 +1,8 @@
 import type { Member } from '../env';
 import type { JourneyBank, JourneyRecord, JourneyRun } from '../journey-db';
 import { DAILY_REWARD_JOURNEYS, DAYS, ELITE_DAY, EVENTS, OFFERS, PERKS, PERK_IDS, SKILLS, perkCost, stat, xpNeed, type BattleFx, type JourneyState, type SkillId } from '../journey';
-import { FOES, PROPS, ZONE_NAMES, sceneStyle, spriteSvg, zoneFor, type Zone } from '../journey-art';
+import { FOES, PROPS, ZONE_NAMES, spriteSvg, zoneFor, type Zone } from '../journey-art';
+import { SPRITES } from '../sprites.gen';
 import { FictionNote } from './expedition';
 import { Layout } from './layout';
 import { Popup, type PopupLine } from './shop';
@@ -155,7 +156,14 @@ const START = 0.35;
 const EVENT_PROP: Record<string, string> = { spring: 'spring', coin: 'fairy', bear: 'gummy', fork: 'sign' };
 const ICON_PROP: Record<string, string> = { '🏕️': 'camp', '🎁': 'chest', '⛲': 'spring', '🪙': 'fairy', '🧸': 'gummy', '🪧': 'sign', '🏆': 'trophy', '👋': 'merchant', '🛒': 'merchant' };
 for (const o of Object.values(OFFERS)) ICON_PROP[o.icon] = 'merchant';
-const FLIP = new Set(['hedgehog', 'crab', 'dragon']); // 오른쪽을 보고 그린 그림은 뒤집어서 나를 보게 해요
+const FLIP = new Set(['hedgehog', 'crab', 'dragon']); // 오른쪽을 보고 그린 임시 그림은 뒤집어서 나를 보게 해요
+// 나리님이 만든 그림이 있으면 그걸 써요(scripts/build_sprites.py). 원래 크기의 0.62배로 보여 줘요.
+const PIC_SCALE = 0.62;
+const picOf = (dir: string, key: string) => {
+  const src = `/journey/${dir}/${key}.png`;
+  const size = SPRITES[src];
+  return size ? { src, w: Math.round(size[0] * PIC_SCALE), h: Math.round(size[1] * PIC_SCALE) } : null;
+};
 
 function propFor(s: JourneyState): string | null {
   if (s.pending?.kind === 'shop') return 'merchant';
@@ -223,12 +231,13 @@ function Stage(props: { s: JourneyState; art: string; name: string; lost: boolea
   const zone: Zone = prop === 'camp' ? 'night' : fx?.foe === 'dragon' ? 'lair' : zoneFor(s.day);
   const plan = fx ? fightPlan(fx) : null;
   const foe = fx ? FOES[fx.foe] : null;
+  const img = fx ? picOf('foe', fx.foe) : prop ? picOf('prop', prop) : null;
   const pic = foe ?? (prop ? PROPS[prop] : null);
   const key = fx?.foe ?? prop ?? '';
   return (
     <div
       class={`jr-stage zone-${zone}${plan ? ' fight' : ''}${prop ? ` at-${prop}` : ''}`}
-      style={sceneStyle(zone)}
+      style={`--jr-bg:url(/journey/bg/${zone}.webp)`}
       data-wait={plan ? String(plan.ms) : undefined}
     >
       <span class="jr-place">{ZONE_NAMES[zone]}</span>
@@ -239,10 +248,16 @@ function Stage(props: { s: JourneyState; art: string; name: string; lost: boolea
       </div>
       {pic && (
         <div
-          class={`jr-foe jr-actor${fx?.won ? ' beaten' : ''}${FLIP.has(key) ? ' flip' : ''} is-${key}`}
+          class={`jr-foe jr-actor${fx?.won ? ' beaten' : ''}${!img && FLIP.has(key) ? ' flip' : ''} is-${key}`}
           style={plan ? `--a:${plan.foe};--a2:${plan.foeEnd || 'none'}` : undefined}
         >
-          <span dangerouslySetInnerHTML={{ __html: spriteSvg(pic, 5, 'jr-sprite') }} />
+          {img ? (
+            <span>
+              <img class="jr-sprite jr-pic" src={img.src} alt="" width={img.w} height={img.h} />
+            </span>
+          ) : (
+            <span dangerouslySetInnerHTML={{ __html: spriteSvg(pic, 5, 'jr-sprite') }} />
+          )}
           <span class="jr-shadow" />
           {plan && <Pops list={plan.pops.filter((p) => p.on === 1)} />}
         </div>
