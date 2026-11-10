@@ -152,3 +152,71 @@ describe('원정대 저장과 보상', () => {
     expect(await beginJourney(db, 'gone')).toBeNull();
   });
 });
+
+describe('journey battle motion', () => {
+  it('records the fight for the stage and forgets it on the next action', async () => {
+    const { fightPlan } = await import('../src/views/journey');
+    const { FOES } = await import('../src/journey-art');
+    let s = startJourney('fx-seed');
+    let seen = 0;
+    for (let i = 0; i < 200 && !s.done; i++) {
+      const next = actJourney(s, { a: 'idle' })!;
+      if (next.fx) {
+        seen++;
+        expect(FOES[next.fx.foe]).toBeTruthy();
+        expect(next.fx.hits.length).toBeGreaterThan(0);
+        expect(next.fx.hits.length).toBeLessThanOrEqual(6);
+        const last = next.fx.hits[next.fx.hits.length - 1]!;
+        expect(last[0]).toBe(next.fx.won ? 0 : 1);
+        const plan = fightPlan(next.fx);
+        expect(plan.pops.length).toBe(next.fx.hits.length + (next.fx.spark ? 1 : 0));
+        expect(plan.ms).toBeGreaterThan(1000);
+      }
+      s = next;
+    }
+    expect(seen).toBeGreaterThan(0);
+    // 싸움 뒤 스킬을 고르면 지난 싸움은 다시 보여 주지 않아요
+    const fought = { ...startJourney('x'), fx: { foe: 'slime', won: true, hits: [[0, 5]] as [0, number][] }, pending: { kind: 'skill' as const, options: ['power' as const] } };
+    expect(actJourney(fought, { a: 'pick', n: 0 })!.fx).toBeUndefined();
+  });
+});
+
+describe('journey training (permanent perks)', () => {
+  it('starts stronger with perks and costs grow each level', async () => {
+    const { PERKS, perkCost } = await import('../src/journey');
+    const s = startJourney('p', { atk: 3, hp: 2, def: 1 });
+    expect([s.atk, s.maxHp, s.hp, s.def]).toEqual([12 + 3 * PERKS.atk.per, 120, 120, 3]);
+    expect(perkCost(1)).toBeGreaterThan(perkCost(0));
+  });
+});
+
+describe('journey training bank', () => {
+  it('banks leftover coins of finished runs only, buys training, and the next run starts stronger', async () => {
+    const { buyPerk, journeyBank } = await import('../src/journey-db');
+    const { db } = database();
+    // 그만두면 동전이 모이지 않아요
+    const q = (await beginJourney(db, 'me'))!;
+    await quitJourney(db, 'me', q);
+    expect((await journeyBank(db, 'me')).coins).toBe(0);
+    // 끝까지 가면 남은 동전이 모여요
+    const id = (await beginJourney(db, 'me'))!;
+    for (let i = 0; i < 300; i++) {
+      const run = await getJourney(db, 'me', id);
+      if (run!.row.status !== 'going') break;
+      expect(await actJourneyRun(db, 'me', id, run!.row.rev, { a: 'idle' })).toBe('ok');
+    }
+    const end = (await getJourney(db, 'me', id))!;
+    expect(end.row.status).toBe('done');
+    const bank = await journeyBank(db, 'me');
+    expect(bank.coins).toBe(end.state.coins);
+    expect(bank.coins).toBeGreaterThanOrEqual(20);
+    expect(await buyPerk(db, 'me', 'atk')).toBe(true);
+    const after = await journeyBank(db, 'me');
+    expect(after).toMatchObject({ atk: 1, coins: bank.coins - 20 });
+    const next = (await getJourney(db, 'me', (await beginJourney(db, 'me'))!))!;
+    expect(next.state.atk).toBe(13);
+    // 동전이 모자라면 못 사요
+    await db.prepare('UPDATE journey_bank SET coins = 0 WHERE user_id = ?').bind('me').run();
+    expect(await buyPerk(db, 'me', 'hp')).toBe(false);
+  });
+});

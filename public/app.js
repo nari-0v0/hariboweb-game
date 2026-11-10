@@ -132,7 +132,9 @@ addEventListener('pageshow', (e) => {
     box.classList.toggle('on', on);
     document.querySelector('[data-journey-play]')?.classList.toggle('jr-idling', on);
     clearTimeout(timer);
-    if (on) timer = setTimeout(tick, 1300);
+    // 싸움 모션이 있으면 다 보여 준 뒤에 다음으로 넘어가요.
+    const wait = Number(document.querySelector('[data-wait]')?.getAttribute('data-wait')) || 0;
+    if (on) timer = setTimeout(tick, Math.max(1300, wait));
   };
   async function tick() {
     const form = document.querySelector('form[data-idle]');

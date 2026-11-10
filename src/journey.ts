@@ -25,21 +25,25 @@ export const SKILLS: Record<SkillId, { name: string; icon: string; text: (lv: nu
 };
 export const SKILL_IDS = Object.keys(SKILLS) as SkillId[];
 
-type Monster = { name: string; emoji: string };
+type Monster = { key: string; name: string; emoji: string };
 const MONSTERS: Monster[] = [
-  { name: '심술 버섯', emoji: '🍄' },
-  { name: '말랑 슬라임', emoji: '🟢' },
-  { name: '장난꾸러기 박쥐', emoji: '🦇' },
-  { name: '가시 고슴도치', emoji: '🦔' },
-  { name: '숲 늑대', emoji: '🐺' },
-  { name: '돌 게', emoji: '🦀' },
-  { name: '꿀벌 떼', emoji: '🐝' },
-  { name: '안개 유령', emoji: '👻' },
+  { key: 'mushroom', name: '심술 버섯', emoji: '🍄' },
+  { key: 'slime', name: '말랑 슬라임', emoji: '🟢' },
+  { key: 'bat', name: '장난꾸러기 박쥐', emoji: '🦇' },
+  { key: 'hedgehog', name: '가시 고슴도치', emoji: '🦔' },
+  { key: 'wolf', name: '숲 늑대', emoji: '🐺' },
+  { key: 'crab', name: '돌 게', emoji: '🦀' },
+  { key: 'bees', name: '꿀벌 떼', emoji: '🐝' },
+  { key: 'ghost', name: '안개 유령', emoji: '👻' },
 ];
-const ELITE: Monster = { name: '숲지기 곰', emoji: '🐻' };
-const BOSS: Monster = { name: '젤리 도둑 드래곤', emoji: '🐉' };
+const ELITE: Monster = { key: 'bear', name: '숲지기 곰', emoji: '🐻' };
+const BOSS: Monster = { key: 'dragon', name: '젤리 도둑 드래곤', emoji: '🐉' };
 
 export type Line = { icon: string; text: string; tone?: 'good' | 'bad' };
+// 화면 전투 모션용 기록: 누가(0 = 나, 1 = 적) 얼마나 때렸는지. 처음 몇 번과 마지막 한 번만 남겨요.
+export type Hit = [who: 0 | 1, dmg: number, crit?: 1];
+export type BattleFx = { foe: string; won: boolean; spark?: number; hits: Hit[] };
+export const FX_HITS = 6;
 export type Offer = { id: 'potion' | 'sword' | 'armor' | 'heart' | 'scroll'; price: number };
 export const OFFERS: Record<Offer['id'], { name: string; icon: string; text: string; price: number }> = {
   potion: { name: '회복 물약', icon: '🧪', text: '체력 50 회복', price: 12 },
@@ -79,14 +83,29 @@ export type JourneyState = {
   kills: number;
   done: boolean;
   cleared: boolean;
+  fx?: BattleFx; // 마지막 행동에서 싸웠으면 그 싸움
 };
 // next = 하루, auto = 고를 일이 생길 때까지, idle = 자동 선택(고를 일이 있으면 알아서 고르고, 없으면 하루 나아가요)
 export type JourneyAction = { a: 'next' } | { a: 'auto' } | { a: 'idle' } | { a: 'pick'; n: number } | { a: 'buy'; n: number } | { a: 'leave' };
 
 export const xpNeed = (lv: number) => 10 + lv * 10;
-export function startJourney(seed: string): JourneyState {
+
+// 영구 강화: 원정이 끝나면 남은 동전이 강화 주머니에 모이고, 그걸로 다음 원정의 시작 능력치를 올려요.
+export type PerkId = 'atk' | 'hp' | 'def';
+export type Perks = Record<PerkId, number>;
+export const NO_PERKS: Perks = { atk: 0, hp: 0, def: 0 };
+export const PERKS: Record<PerkId, { name: string; icon: string; per: number; max: number; text: (l: number) => string }> = {
+  atk: { name: '힘 훈련', icon: '🏋️', per: 1, max: 10, text: (l) => `시작 공격력 +${l}` },
+  hp: { name: '체력 훈련', icon: '🏃', per: 10, max: 10, text: (l) => `시작 체력 +${l * 10}` },
+  def: { name: '맷집 훈련', icon: '🧱', per: 1, max: 5, text: (l) => `시작 방어력 +${l}` },
+};
+export const PERK_IDS = Object.keys(PERKS) as PerkId[];
+export const perkCost = (lv: number) => 20 + lv * 15; // 지금 단계에서 다음 단계로 가는 값
+
+export function startJourney(seed: string, perks: Perks = NO_PERKS): JourneyState {
+  const maxHp = 100 + PERKS.hp.per * perks.hp;
   return {
-    v: 1, seed, day: 0, hp: 100, maxHp: 100, atk: 12, def: 2, lv: 1, xp: 0, coins: 10, skills: {}, pending: null, queuedLevels: 0,
+    v: 1, seed, day: 0, hp: maxHp, maxHp, atk: 12 + PERKS.atk.per * perks.atk, def: 2 + PERKS.def.per * perks.def, lv: 1, xp: 0, coins: 10, skills: {}, pending: null, queuedLevels: 0,
     today: [{ icon: '🎒', text: '가방을 메고 말랑 숲으로 출발! "다음 날"을 눌러 나아가요.' }], journal: [], kills: 0, done: false, cleared: false,
   };
 }
@@ -130,12 +149,23 @@ function battle(s: JourneyState, m: Monster, power: number, r: () => number, lin
   const start = s.hp;
   let shields = sk(s, 'shield');
   let turns = 0;
-  if (sk(s, 'spark')) mhp -= 10 * sk(s, 'spark');
+  const hits: Hit[] = [];
+  const note = (h: Hit) => {
+    if (hits.length < FX_HITS) hits.push(h);
+    else hits[FX_HITS - 1] = h; // 마지막 칸은 늘 끝난 순간
+  };
+  const fx: BattleFx = { foe: m.key, won: false, hits };
+  if (sk(s, 'spark')) {
+    mhp -= 10 * sk(s, 'spark');
+    fx.spark = 10 * sk(s, 'spark');
+  }
+  s.fx = fx;
   while (mhp > 0 && s.hp > 0 && turns < 40) {
     turns++;
     const crit = r() < 0.12 * sk(s, 'crit');
     const dmg = Math.max(1, st.atk * (crit ? 2 : 1));
     mhp -= dmg;
+    note(crit ? [0, dmg, 1] : [0, dmg]);
     if (sk(s, 'leech')) s.hp = Math.min(st.maxHp, s.hp + Math.floor((dmg * sk(s, 'leech')) / 10));
     if (mhp <= 0) break;
     let hit = Math.max(1, matk - st.def);
@@ -144,6 +174,7 @@ function battle(s: JourneyState, m: Monster, power: number, r: () => number, lin
       shields--;
     }
     s.hp -= hit;
+    note([1, hit]);
     if (sk(s, 'thorn')) mhp -= 3 * sk(s, 'thorn');
   }
   if (s.hp <= 0 || mhp > 0) {
@@ -151,6 +182,7 @@ function battle(s: JourneyState, m: Monster, power: number, r: () => number, lin
     lines.push({ icon: m.emoji, text: `${m.name}에게 지고 말았어요… (${turns}턴)`, tone: 'bad' });
     return false;
   }
+  fx.won = true;
   if (sk(s, 'mend')) s.hp = Math.min(st.maxHp, s.hp + 6 * sk(s, 'mend'));
   s.kills += 1;
   const coins = gainCoins(s, Math.round((4 + s.day) * power));
@@ -169,6 +201,7 @@ function finish(s: JourneyState, lines: Line[]) {
 // 하루 진행
 function nextDay(s: JourneyState): Line[] {
   s.day += 1;
+  delete s.fx;
   const r = rng(`${s.seed}:${s.day}`);
   const lines: Line[] = [];
   const st = stat(s);
@@ -316,6 +349,7 @@ export function actJourney(old: JourneyState, act: JourneyAction): JourneyState 
     return s;
   }
   const s: JourneyState = structuredClone(old);
+  delete s.fx; // 지난 싸움 모션은 한 번만 보여요
   const keep = (lines: Line[]) => {
     s.journal = [...old.today, ...s.journal].slice(0, 60);
     s.today = lines;
