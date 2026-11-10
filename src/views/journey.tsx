@@ -160,7 +160,7 @@ const FLIP = new Set(['hedgehog', 'crab', 'dragon']); // 오른쪽을 보고 그
 // 나리님이 만든 그림이 있으면 그걸 써요(scripts/build_sprites.py). 원래 크기의 0.62배로 보여 줘요.
 const PIC_SCALE = 0.62;
 const picOf = (dir: string, key: string) => {
-  const src = `/journey/${dir}/${key}.png`;
+  const src = `/journey/${dir}/${key}.webp`;
   const size = SPRITES[src];
   return size ? { src, w: Math.round(size[0] * PIC_SCALE), h: Math.round(size[1] * PIC_SCALE) } : null;
 };

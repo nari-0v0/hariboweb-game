@@ -70,6 +70,37 @@ function Thing(props: { run: EscRun; o: EscObject }) {
   );
 }
 
+// 눌러 본 물건을 크게 보여 주는 확대 화면. 시각·적힌 글씨는 쪽지로 붙여 눈으로 찾게 해요.
+export function zoomTag(msg: string): string | null {
+  const t = msg.match(/(오전|오후)?\s?(\d{1,2})시\s?(?:(\d{1,2})분|정각)/);
+  if (t) return `${t[1] ? `${t[1]} ` : ''}${t[2]}:${String(t[3] ?? 0).padStart(2, '0')}`;
+  const q = msg.match(/「([^」]{1,16})」/);
+  return q ? q[1]! : null;
+}
+
+function Zoom(props: { src: string; msg: string; name: string }) {
+  const tag = zoomTag(props.msg);
+  return (
+    <div class="esc-zoom" aria-hidden="true">
+      <img src={props.src} alt="" />
+      {tag && <span class="esc-zoom-tag">{tag}</span>}
+    </div>
+  );
+}
+
+// 이 사건에 나오는 그림(열린 모습·소지품·방 배경)을 미리 받아 둬요. 열 때 그림이 늦게 뜨지 않게요.
+function CasePreload(props: { def: EscRun['def'] }) {
+  const set = new Set<string>();
+  for (const o of props.def.objects) for (const open of [false, true]) { const p = casePics(o.emoji, open, false); if (p) set.add(p.now.src); }
+  for (const it of Object.values(props.def.items)) { const p = itemPic(it.emoji); if (p) set.add(p); }
+  for (const sc of props.def.scenes) set.add(roomBg(sc.name));
+  return (
+    <div class="jr-preload" aria-hidden="true">
+      {[...set].map((src) => <img src={src} alt="" width={1} height={1} />)}
+    </div>
+  );
+}
+
 function Focus(props: { run: EscRun; art: string; name: string }) {
   const { run } = props;
   const s = run.state;
@@ -86,6 +117,10 @@ function Focus(props: { run: EscRun; art: string; name: string }) {
           {o.name}
         </b>
       )}
+      {o && !puzzle && (() => {
+        const pics = casePics(o.emoji, o.lock ? !locked : !!o.goto, false);
+        return pics ? <Zoom src={pics.now.src} msg={s.msg} name={o.name} /> : null;
+      })()}
       {!puzzle && <p>{s.msg}</p>}
       {puzzle && (
         <div class="esc-puzzle">
@@ -183,6 +218,7 @@ function Play(props: { run: EscRun; art: string; name: string }) {
           </div>
         </div>
         <Focus run={run} art={props.art} name={props.name} />
+        <CasePreload def={run.def} />
         <div class="esc-bag">
           <b>🎒 가방</b>
           {s.inv.length ? (

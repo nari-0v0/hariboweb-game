@@ -315,3 +315,13 @@ describe('사건파일 그림', () => {
     }
   });
 });
+
+import { zoomTag } from '../src/views/escape';
+describe('확대 화면 쪽지', () => {
+  it('시각과 적힌 글씨를 뽑아요', () => {
+    expect(zoomTag('벽시계가 3시 40분에 멈춰 있어요.')).toBe('3:40');
+    expect(zoomTag('시계가 오후 7시 정각에 멈춰 있어요.')).toBe('오후 7:00');
+    expect(zoomTag('쪽지에 「냉장고 = 0340」')).toBe('냉장고 = 0340');
+    expect(zoomTag('그냥 빗자루예요.')).toBeNull();
+  });
+});

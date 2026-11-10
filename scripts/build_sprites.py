@@ -24,7 +24,7 @@ def fit(src: Path, dst: Path, limit: int) -> None:
     if s < 1:
         img = img.resize((max(1, round(img.width * s)), max(1, round(img.height * s))), Image.LANCZOS)
     dst.parent.mkdir(parents=True, exist_ok=True)
-    img.save(dst, optimize=True)
+    img.save(dst, quality=88, method=6)
 
 
 def pictures(folder: Path) -> None:
@@ -34,8 +34,8 @@ def pictures(folder: Path) -> None:
         if len(files) != len(g["names"]):
             raise SystemExit(f"{g['dir']}: 그림 {len(files)}개, 이름 {len(g['names'])}개")
         for f, name in zip(files, g["names"]):
-            fit(f, PUBLIC / g["out"] / f"{name}.png", g.get("big", {}).get(name, g["max"]))
-            print(f"{g['out']}/{name}.png <- {f.name}")
+            fit(f, PUBLIC / g["out"] / f"{name}.webp", g.get("big", {}).get(name, g["max"]))
+            print(f"{g['out']}/{name}.webp <- {f.name}")
 
 
 def backgrounds(pairs: list[str]) -> None:
@@ -53,7 +53,7 @@ def backgrounds(pairs: list[str]) -> None:
 def size_map() -> None:
     sizes = {}
     for d in ("journey/foe", "journey/prop", "case/obj", "case/item"):
-        for f in sorted((PUBLIC / d).glob("*.png")):
+        for f in sorted((PUBLIC / d).glob("*.webp")):
             sizes[f"/{d}/{f.name}"] = Image.open(f).size
     lines = ["// scripts/build_sprites.py 가 만든 파일이에요. 손으로 고치지 마세요.", "// 그림 경로 → [가로, 세로] 픽셀", "export const SPRITES: Record<string, [number, number]> = {"]
     lines += [f"  '{k}': [{w}, {h}]," for k, (w, h) in sorted(sizes.items())]

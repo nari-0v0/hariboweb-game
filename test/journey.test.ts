@@ -224,7 +224,7 @@ describe('journey training bank', () => {
 describe('journey pictures', () => {
   it('has a drawn picture for every foe and road stop', async () => {
     const { SPRITES } = await import('../src/sprites.gen');
-    for (const k of ['mushroom', 'slime', 'bat', 'hedgehog', 'wolf', 'crab', 'bees', 'ghost', 'bear', 'dragon']) expect(SPRITES[`/journey/foe/${k}.png`], k).toBeTruthy();
-    for (const k of ['camp', 'merchant', 'chest', 'spring', 'fairy', 'gummy', 'sign', 'trophy']) expect(SPRITES[`/journey/prop/${k}.png`], k).toBeTruthy();
+    for (const k of ['mushroom', 'slime', 'bat', 'hedgehog', 'wolf', 'crab', 'bees', 'ghost', 'bear', 'dragon']) expect(SPRITES[`/journey/foe/${k}.webp`], k).toBeTruthy();
+    for (const k of ['camp', 'merchant', 'chest', 'spring', 'fairy', 'gummy', 'sign', 'trophy']) expect(SPRITES[`/journey/prop/${k}.webp`], k).toBeTruthy();
   });
 });
