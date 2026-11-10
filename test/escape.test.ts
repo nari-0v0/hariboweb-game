@@ -289,8 +289,9 @@ describe('사건파일 퍼즐 게임 방식', () => {
     // 동전으로 본 힌트는 등급에 안 들어가요
     const s2 = actEscape(c, s1, { a: 'hint' })!;
     expect([s2.hints, s2.spent, coinsLeft(s2)]).toEqual([0, 1, 0]);
+    // 같은 힌트를 다시 보면 감점 없어요(이미 본 힌트는 계속 보여요)
     const s3 = actEscape(c, s2, { a: 'hint' })!;
-    expect(s3.hints).toBe(1);
+    expect(s3.hints).toBe(0);
     expect(s3.fx).toBeUndefined();
   });
   it('비밀번호 정답·오답과 여는 순간을 화면에 알려 줘요', async () => {
@@ -337,5 +338,21 @@ describe('인물 수수께끼 사건', () => {
     for (const a of c.solution!) { const n = actEscape(c, t, a); expect(n, JSON.stringify(a)).not.toBeNull(); t = n!; }
     expect(t.done).toBeTruthy();
     expect(escGrade(t)).toBe('S');
+  });
+});
+
+describe('힌트 기록', () => {
+  it('수수께끼 카드에서 본 힌트는 그 문제 힌트이고, 다시 봐도 감점 없이 계속 남아요', async () => {
+    const { TALK_CASES } = await import('../src/escape-talk');
+    const c = TALK_CASES[0]!;
+    let s = actEscape(c, startEscape(c), { a: 'tap', o: 'door1' })!;
+    s = actEscape(c, s, { a: 'hint' })!;
+    const k = c.hints.findIndex((h) => h.until === 'door1');
+    expect(s.seenHints).toEqual([k]);
+    expect(s.focus).toBe('door1');
+    expect(s.hints).toBe(1);
+    s = actEscape(c, s, { a: 'hint' })!;
+    expect(s.hints).toBe(1);
+    expect(s.seenHints).toEqual([k]);
   });
 });
