@@ -128,6 +128,7 @@ describe('sync batch records stay small', () => {
 describe('character pick retries after a clash', () => {
   it('reads again and picks again when someone took the same character at the same time', async () => {
     const { sql, db } = fakeD1();
+    sql.prepare("INSERT OR REPLACE INTO members (user_id, display_name, active, updated_at) VALUES (?, 'a', 1, 'x')").run(A);
     const realBatch = db.batch.bind(db);
     let calls = 0;
     (db as unknown as { batch: typeof db.batch }).batch = (async (list: D1PreparedStatement[]) => {
@@ -140,5 +141,27 @@ describe('character pick retries after a clash', () => {
     expect(calls).toBe(2);
     const row = sql.prepare('SELECT character_id FROM profiles WHERE user_id = ?').get(A) as { character_id: string };
     expect(row.character_id).toBeTruthy();
+  });
+  it('does not recreate a profile for someone who left in the same batch', async () => {
+    const { sql, db } = fakeD1();
+    sql.prepare("INSERT OR REPLACE INTO members (user_id, display_name, active, updated_at) VALUES (?, 'a', 0, 'x')").run(A);
+    const { assignCharacters } = await import('../src/db');
+    await assignCharacters(db, [A]);
+    expect(sql.prepare('SELECT 1 FROM profiles WHERE user_id = ?').get(A)).toBeUndefined();
+  });
+});
+
+describe('rejoined member titles', () => {
+  it('counts only personal records made after the member left', async () => {
+    const { sql, db } = fakeD1();
+    sql.prepare("INSERT OR REPLACE INTO members (user_id, display_name, active, reset_at, updated_at) VALUES (?, 'a', 1, '2026-10-10T00:00:00.000Z', 'x')").run(A);
+    sql.prepare("INSERT INTO praises (day, from_id, to_id, created_at) VALUES ('2026-10-01', 'z', ?1, '2026-10-01T00:00:00.000Z'), ('2026-10-02', ?1, 'z', '2026-10-02T00:00:00.000Z'), ('2026-10-20', 'z', ?1, '2026-10-20T00:00:00.000Z')").run(A);
+    sql.prepare("INSERT INTO bingo_lines (week, user_id, line, mark, created_at) VALUES ('w1', ?, 0, 'x', '2026-10-01T00:00:00.000Z')").run(A);
+    sql.prepare("INSERT INTO season_titles (season_id, user_id, title, created_at) VALUES ('s1', ?, 't', '2026-10-01T00:00:00.000Z')").run(A);
+    (db as unknown as { batch: unknown }).batch = async (list: { query: string; args: never[] }[]) =>
+      list.map((x) => ({ results: /^\s*SELECT/i.test(x.query) ? sql.prepare(x.query).all(...x.args) : [], meta: {} }));
+    const { loadTitleStats } = await import('../src/title-db');
+    const st = await loadTitleStats(db, A, '2026-11-01T00:00:00.000Z');
+    expect([st.praiseGot, st.praiseGave, st.bingoLines, st.fullClears]).toEqual([1, 0, 0, 0]);
   });
 });

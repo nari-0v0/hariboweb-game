@@ -493,7 +493,7 @@ for (const [n, diff] of [[10, 'easy'], [20, 'easy'], [30, 'normal'], [50, 'norma
 for (const [lv, n, diff] of [[5, 3, 'easy'], [5, 8, 'normal'], [10, 1, 'easy'], [10, 3, 'normal'], [10, 6, 'hard'], [15, 2, 'normal'], [20, 1, 'hard'], [20, 3, 'hard'], [30, 1, 'hard']] as [number, number, QuestDiff][])
   add({
     id: `reach${lv}:${n}`, name: `Lv.${lv} 달성 ${n}쌍`, cat: '카드', diff,
-    text: (t) => `모둠 안 짝 카드가 시즌 중 Lv.${lv}에 닿은 짝 ${t}쌍`, target: fixed(n),
+    text: (t) => `모둠 안 짝 카드가 시즌 중 Lv.${lv}에 닿은 짝 ${t}쌍`, target: (c) => Math.min(n, maxPairs(c)),
     value: (c) => c.pairLevels.filter((p) => p.from < lv && p.now >= lv).length,
   });
 for (const [who, diff] of [[5, 'easy'], [7, 'normal'], [0, 'hard']] as [number, QuestDiff][])

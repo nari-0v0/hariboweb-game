@@ -154,7 +154,9 @@ async function assignCharactersOnce(db: D1Database, userIds: string[]) {
     stmts.push(
       db
         .prepare(
-          `INSERT INTO profiles (user_id, character_id, character_sig, updated_at) VALUES (?1, ?2, ?3, ?4)
+          // 지금 있는 멤버에게만 줘요(같은 묶음에서 나간 사람은 프로필을 다시 만들지 않아요)
+          `INSERT INTO profiles (user_id, character_id, character_sig, updated_at)
+           SELECT ?1, ?2, ?3, ?4 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
            ON CONFLICT (user_id) DO UPDATE SET character_id = ?2, character_sig = ?3, updated_at = ?4
            WHERE profiles.character_id IS ?5`,
         )

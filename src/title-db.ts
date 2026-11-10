@@ -19,13 +19,14 @@ export async function loadTitleStats(db: D1Database, userId: string, nowIso: str
          GROUP BY sm.season_id`,
       )
       .bind(userId, nowIso),
-    db.prepare('SELECT COUNT(*) AS n FROM season_titles WHERE user_id = ?').bind(userId),
+    // 다시 들어온 멤버는 나간 뒤 기록만 세요
+    db.prepare("SELECT COUNT(*) AS n FROM season_titles WHERE user_id = ?1 AND created_at >= COALESCE((SELECT reset_at FROM members WHERE user_id = ?1), '')").bind(userId),
     // 다 채운 판 보너스(FULL_LINE)는 줄이 아니라서 따로 세요
     db
-      .prepare('SELECT SUM(line != ?2) AS n, SUM(line = ?2) AS full FROM bingo_lines WHERE user_id = ?1')
+      .prepare("SELECT SUM(line != ?2) AS n, SUM(line = ?2) AS full FROM bingo_lines WHERE user_id = ?1 AND created_at >= COALESCE((SELECT reset_at FROM members WHERE user_id = ?1), '')")
       .bind(userId, FULL_LINE),
-    db.prepare('SELECT COUNT(*) AS n FROM praises WHERE to_id = ?').bind(userId),
-    db.prepare('SELECT COUNT(*) AS n FROM praises WHERE from_id = ?').bind(userId),
+    db.prepare("SELECT COUNT(*) AS n FROM praises WHERE to_id = ?1 AND created_at >= COALESCE((SELECT reset_at FROM members WHERE user_id = ?1), '')").bind(userId),
+    db.prepare("SELECT COUNT(*) AS n FROM praises WHERE from_id = ?1 AND created_at >= COALESCE((SELECT reset_at FROM members WHERE user_id = ?1), '')").bind(userId),
     db.prepare('SELECT solo_xp AS n FROM profiles WHERE user_id = ?').bind(userId),
   ]);
   const cardRows = cards!.results as { xp: number; voice_seconds: number }[];
