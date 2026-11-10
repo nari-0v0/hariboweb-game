@@ -115,3 +115,55 @@ addEventListener('pageshow', (e) => {
     if (r.bottom < 0 || r.top > innerHeight) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
   });
 })();
+
+// 원정대 자동 선택(방치): 켜 두면 잠깐마다 "알아서 하기"를 보내고 화면 속 원정 부분만 바꿔 끼워요.
+(() => {
+  const KEY = 'jr-auto';
+  const get = () => { try { return localStorage.getItem(KEY) === '1'; } catch { return false; } };
+  const set = (on) => { try { on ? localStorage.setItem(KEY, '1') : localStorage.removeItem(KEY); } catch {} };
+  let timer = 0;
+  let busy = false;
+  const sync = () => {
+    const box = document.querySelector('[data-auto-toggle]');
+    if (!box) return;
+    box.hidden = false;
+    const on = get();
+    box.querySelector('input').checked = on;
+    box.classList.toggle('on', on);
+    document.querySelector('[data-journey-play]')?.classList.toggle('jr-idling', on);
+    clearTimeout(timer);
+    if (on) timer = setTimeout(tick, 1300);
+  };
+  async function tick() {
+    const form = document.querySelector('form[data-idle]');
+    if (!form || !get() || busy) return;
+    busy = true;
+    try {
+      const res = await fetch(form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin' });
+      const url = new URL(res.url);
+      if (!res.ok || url.searchParams.has('n') && url.searchParams.get('n') !== 'stale') throw new Error('stop');
+      const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+      const next = doc.getElementById('journey');
+      const cur = document.getElementById('journey');
+      if (!next || !cur || url.searchParams.has('r')) {
+        location.href = res.url; // 원정이 끝나면 결과 화면으로
+        return;
+      }
+      const open = cur.querySelector('details')?.open;
+      cur.replaceWith(next);
+      if (open) next.querySelector('details')?.setAttribute('open', '');
+    } catch {
+      set(false);
+    } finally {
+      busy = false;
+      sync();
+    }
+  }
+  document.addEventListener('change', (e) => {
+    const box = e.target instanceof Element && e.target.closest('[data-auto-toggle]');
+    if (!box) return;
+    set(e.target.checked);
+    sync();
+  });
+  sync();
+})();

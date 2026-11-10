@@ -72,6 +72,8 @@ import { act, currentRun, getRun, listCandidates, myRecord, myRole, quitRun, set
 import { isRole } from './expedition';
 import { CasesPage } from './views/cases';
 import { EscapePage } from './views/escape';
+import { JourneyPage } from './views/journey';
+import { activeJourney, actJourneyRun, beginJourney, getJourney, journeyRecord, quitJourney } from './journey-db';
 import { activeEscape, actEscapeRun, beginEscape, escapeRecord, getEscape, quitEscape } from './escape-db';
 import { StoryPage } from './views/story';
 import { activeStory, actStory, beginStory, getStory, storyMarks, uuid } from './story-db';
@@ -767,6 +769,54 @@ members.post('/api/expedition/role', async (c) => {
   if (!isRole(role)) return c.redirect('/expedition');
   await setRole(c.env.DB, c.get('viewer').user_id, role);
   return c.redirect('/expedition?n=role');
+});
+
+// 하리보 원정대 (하루 모험판): 하루씩 나아가며 싸우고 스킬을 골라요. 자동 선택(방치)도 돼요.
+const JR_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+members.get('/expedition/go', async (c) => {
+  const viewer = c.get('viewer');
+  c.header('Cache-Control', 'no-store');
+  const [run, record, profile] = await Promise.all([activeJourney(c.env.DB, viewer.user_id), journeyRecord(c.env.DB, viewer.user_id), getProfile(c.env.DB, viewer.user_id)]);
+  const rid = c.req.query('r') ?? '';
+  const done = !run && JR_ID.test(rid) ? await getJourney(c.env.DB, viewer.user_id, rid) : null;
+  const art = characterUrl(profile.character_id, viewer.user_id, profile.deco_id);
+  return page(c, <JourneyPage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} record={record} notice={c.req.query('n')} />);
+});
+members.post('/api/journey/start', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  try {
+    const id = await beginJourney(c.env.DB, c.get('viewer').user_id);
+    return c.redirect(id ? '/expedition/go#now' : '/expedition/go?n=bad', 303);
+  } catch (e) {
+    console.error('원정 시작 실패', e);
+    return c.redirect('/expedition/go?n=error', 303);
+  }
+});
+members.post('/api/journey/act', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const body = await c.req.parseBody();
+  const id = String(body.run ?? ''), rev = Number(body.rev), a = String(body.a ?? ''), n = Number(body.n);
+  const act =
+    a === 'next' || a === 'auto' || a === 'idle' || a === 'leave' ? ({ a } as const)
+    : (a === 'pick' || a === 'buy') && Number.isInteger(n) && n >= 0 && n < 10 ? ({ a, n } as const)
+    : null;
+  if (!JR_ID.test(id) || !Number.isSafeInteger(rev) || rev < 0 || !act) return c.redirect('/expedition/go?n=bad#now', 303);
+  try {
+    const user = c.get('viewer').user_id;
+    const r = await actJourneyRun(c.env.DB, user, id, rev, act);
+    if (r !== 'ok') return c.redirect(`/expedition/go?n=${r}#now`, 303);
+    const after = await getJourney(c.env.DB, user, id);
+    return c.redirect(after?.row.status === 'done' ? `/expedition/go?r=${id}#now` : '/expedition/go#now', 303);
+  } catch (e) {
+    console.error('원정 진행 실패', e);
+    return c.redirect('/expedition/go?n=error#now', 303);
+  }
+});
+members.post('/api/journey/quit', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const id = String((await c.req.parseBody()).run ?? '');
+  const ok = JR_ID.test(id) && (await quitJourney(c.env.DB, c.get('viewer').user_id, id));
+  return c.redirect(ok ? '/expedition/go?n=quit' : '/expedition/go', 303);
 });
 
 // 하리보 사건파일 (방탈출판): 물건을 눌러 찾고 퍼즐을 풀어요.
