@@ -135,6 +135,14 @@ function Focus(props: { run: EscRun; art: string; name: string }) {
           <p>{o.look}</p>
           {s.fx === 'wrong' && <p class="esc-wrong">❌ {s.msg}</p>}
           <p class="hint">{o.lock!.kind === 'code' && o.lock!.ask}{o.face ? '' : ' · 수첩의 📌 메모가 실마리예요.'}</p>
+          {(s.seenHints ?? []).filter((k) => run.def.hints[k]?.until === o.id).map((k) => (
+            <p class="esc-hint-line">💡 {run.def.hints[k]!.text}</p>
+          ))}
+          {run.def.hints.some((h, k) => h.until === o.id && !(s.seenHints ?? []).includes(k)) && (
+            <Act run={run} a="hint" cls="btn btn-small esc-hint-btn">
+              {coinsLeft(s) > 0 ? '💡 이 문제 힌트 (동전 1개)' : '💡 이 문제 힌트 (등급 감점)'}
+            </Act>
+          )}
         </div>
       )}
       {puzzle && (
@@ -296,6 +304,13 @@ function Play(props: { run: EscRun; art: string; name: string }) {
           </ul>
         ) : (
           <p class="hint">찾은 단서가 여기 적혀요.</p>
+        )}
+        {(run.state.seenHints ?? []).length > 0 && (
+          <ul class="esc-clues esc-seen-hints">
+            {(run.state.seenHints ?? []).map((k) => (
+              <li>💡 {run.def.hints[k]?.text}</li>
+            ))}
+          </ul>
         )}
         {memos.length > 0 && (
           <details class="esc-memos" open>

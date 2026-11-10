@@ -1381,3 +1381,5 @@ main.wide { max-width: 1320px; }
 .esc-choices { display: flex; flex-wrap: wrap; gap: 6px; }
 .esc-choices .btn { flex: 1 1 4.5em; }
 .esc-wrong { margin: 6px 0 0; padding: 4px 8px; border: 2px solid #e05a7a; background: #ffe8ee; font-weight: 700; }
+.esc-hint-line { margin: 6px 0 0; padding: 4px 8px; border: 2px dashed var(--ink); background: #fffbe0; }
+.esc-seen-hints li { background: #fffbe0; }
