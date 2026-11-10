@@ -1375,3 +1375,8 @@ main.wide { max-width: 1320px; }
 .esc-zoom-tag { position: absolute; bottom: 14%; left: 50%; translate: -50% 0; max-width: 86%; padding: 3px 10px; border: 2px solid var(--ink); background: #fff8c9; font-size: 1.25rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; rotate: -3deg; box-shadow: 2px 2px 0 var(--ink); }
 @keyframes esc-zoom-in { from { scale: .3; opacity: 0; } to { scale: 1; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .esc-zoom { animation: none; } }
+/* 인물 수수께끼 */
+.esc-person { width: calc(var(--k) * 12cqw) !important; height: calc(var(--k) * 12cqw) !important; }
+.esc-person img { image-rendering: pixelated; }
+.esc-choices { display: flex; flex-wrap: wrap; gap: 6px; }
+.esc-choices .btn { flex: 1 1 4.5em; }
