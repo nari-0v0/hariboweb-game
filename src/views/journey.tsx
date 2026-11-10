@@ -1,6 +1,7 @@
 import type { Member } from '../env';
 import type { JourneyBank, JourneyRecord, JourneyRun } from '../journey-db';
-import { DAILY_REWARD_JOURNEYS, DAYS, ELITE_DAY, EVENTS, OFFERS, PERKS, PERK_IDS, SKILLS, perkCost, stat, xpNeed, type BattleFx, type JourneyState, type SkillId } from '../journey';
+import { BOSS_KEYS, CHAPTERS, chapterLevels, chapterOf } from '../journey-chapters';
+import { DAILY_REWARD_JOURNEYS, DAYS, ELITE_DAY, EVENTS, OFFERS, PERKS, PERK_IDS, SKILLS, perkCost, perkMax, stat, xpNeed, type BattleFx, type JourneyState, type SkillId } from '../journey';
 import { FOES, PROPS, ZONE_NAMES, spriteSvg, zoneFor, type Zone } from '../journey-art';
 import { SPRITES } from '../sprites.gen';
 import { FictionNote } from './expedition';
@@ -54,7 +55,7 @@ function Road(props: { s: JourneyState }) {
     <ol class="jr-road" aria-label={`${s.day}/${DAYS}일`}>
       {Array.from({ length: DAYS }, (_, i) => {
         const d = i + 1;
-        const mark = d === DAYS ? '🐉' : d === ELITE_DAY ? '🐻' : '';
+        const mark = d === DAYS ? chapterOf(s.ch).boss.emoji : d === ELITE_DAY ? chapterOf(s.ch).elite.emoji : '';
         const cls = ['jr-step', d <= s.day ? 'past' : '', d === s.day ? 'here' : '', mark ? 'mark' : ''].filter(Boolean).join(' ');
         return (
           <li class={cls} title={`${d}일째`}>
@@ -166,11 +167,17 @@ const picOf = (dir: string, key: string) => {
 };
 
 // 몬스터·만남 그림과 배경을 미리 받아 둬요. 싸움이 시작될 때 빈 화면이 보이지 않게요.
-const PRELOAD = Object.keys(SPRITES).filter((k) => k.startsWith('/journey/'))
-  .concat(['meadow', 'deep', 'dusk', 'lair', 'night'].map((z) => `/journey/bg/${z}.webp`));
-const Preload = () => (
+// 지금 장의 몬스터만 받아요(장마다 10마리).
+const preloadFor = (ch: number | undefined) => {
+  const c = chapterOf(ch);
+  return [...c.foes, c.elite, c.boss].map((m) => `/journey/foe/${m.key}.webp`)
+    .concat(Object.keys(SPRITES).filter((k) => k.startsWith('/journey/prop/')))
+    .concat(['meadow', 'deep', 'dusk', 'lair', 'night'].map((z) => `/journey/bg/${z}.webp`))
+    .filter((src) => src.startsWith('/journey/bg/') || SPRITES[src]);
+};
+const Preload = (props: { ch?: number }) => (
   <div class="jr-preload" aria-hidden="true">
-    {PRELOAD.map((src) => <img src={src} alt="" width={1} height={1} />)}
+    {preloadFor(props.ch).map((src) => <img src={src} alt="" width={1} height={1} />)}
   </div>
 );
 
@@ -237,7 +244,7 @@ function Stage(props: { s: JourneyState; art: string; name: string; lost: boolea
   const { s } = props;
   const fx = s.fx;
   const prop = fx ? null : propFor(s);
-  const zone: Zone = prop === 'camp' ? 'night' : fx?.foe === 'dragon' ? 'lair' : zoneFor(s.day);
+  const zone: Zone = prop === 'camp' ? 'night' : fx && BOSS_KEYS.has(fx.foe) ? 'lair' : zoneFor(s.day);
   const plan = fx ? fightPlan(fx) : null;
   const foe = fx ? FOES[fx.foe] : null;
   const img = fx ? picOf('foe', fx.foe) : prop ? picOf('prop', prop) : null;
@@ -249,7 +256,7 @@ function Stage(props: { s: JourneyState; art: string; name: string; lost: boolea
       style={`--jr-bg:url(/journey/bg/${zone}.webp)`}
       data-wait={plan ? String(plan.ms) : undefined}
     >
-      <span class="jr-place">{ZONE_NAMES[zone]}</span>
+      <span class="jr-place">{(s.ch ?? 1) > 1 && zone !== 'night' ? `${chapterOf(s.ch).name} · ${s.ch}장` : ZONE_NAMES[zone]}</span>
       <div class={`jr-hero jr-actor${props.lost ? ' down' : ''}`} style={plan ? `--a:${plan.hero};--a2:${plan.heroEnd || 'none'}` : undefined}>
         <img src={props.art} alt={props.name} width={96} height={96} />
         <span class="jr-shadow" />
@@ -285,13 +292,13 @@ function Play(props: { run: JourneyRun; art: string; name: string }) {
       <div id="journey" data-journey-play>
         <div class="jr-top">
           <b class="jr-day">
-            📅 {s.day}일째 <span class="hint">/ {DAYS}일</span>
+            📅 {s.day}일째 <span class="hint">/ {DAYS}일 · 몬스터 Lv.{((s.ch ?? 1) - 1) * DAYS + Math.max(1, s.day)}</span>
           </b>
           <span class="jr-coins">🪙 {s.coins}</span>
         </div>
         <Road s={s} />
         <Stage s={s} art={props.art} name={props.name} lost={lost} />
-        <Preload />
+        <Preload ch={s.ch} />
         <Bar now={s.hp} max={st.maxHp} cls="hp" label="❤️ 체력" />
         <Bar now={s.xp} max={xpNeed(s.lv)} cls="xp" label={`⭐ Lv.${s.lv}`} />
         <div class="jr-stats">
@@ -353,7 +360,31 @@ function Play(props: { run: JourneyRun; art: string; name: string }) {
   );
 }
 
-function Result(props: { run: JourneyRun; art: string; name: string }) {
+// 장 고르기: 열린 장만 누를 수 있어요. 기본은 가장 높은 장.
+function ChapterPick(props: { unlocked: number; again?: boolean }) {
+  return (
+    <form method="post" action="/api/journey/start" class="jr-chapters">
+      <div class="jr-chapter-list">
+        {CHAPTERS.map((c) => {
+          const open = c.n <= props.unlocked;
+          return (
+            <label class={`jr-chapter${open ? '' : ' locked'}`}>
+              <input type="radio" name="ch" value={c.n} checked={c.n === props.unlocked} disabled={!open} />
+              <b>{open ? `${c.n}장` : '🔒'}</b>
+              <span>{c.name}</span>
+              <span class="hint">{chapterLevels(c.n)}</span>
+            </label>
+          );
+        })}
+      </div>
+      <button class="btn btn-primary" type="submit">
+        🎒 {props.again ? '다시 떠나기' : '원정 떠나기'}
+      </button>
+    </form>
+  );
+}
+
+function Result(props: { run: JourneyRun; art: string; name: string; unlocked: number }) {
   const { run } = props;
   const s = run.state;
   return (
@@ -362,7 +393,7 @@ function Result(props: { run: JourneyRun; art: string; name: string }) {
       <Stage s={s} art={props.art} name={props.name} lost={!s.cleared} />
       <div class="jr-result-head">
         <div>
-          <h2>{s.cleared ? '🏆 드래곤을 물리쳤어요!' : `🏳️ ${s.day}일째에서 멈췄어요`}</h2>
+          <h2>{s.cleared ? `🏆 ${chapterOf(s.ch).boss.name}${(chapterOf(s.ch).boss.name.charCodeAt(chapterOf(s.ch).boss.name.length - 1) - 0xac00) % 28 > 0 ? '을' : '를'} 물리쳤어요!` : `🏳️ ${chapterOf(s.ch).name} ${s.day}일째에서 멈췄어요`}</h2>
           <p class="hint">
             Lv.{s.lv} · 물리친 적 {s.kills} · 스킬 {Object.keys(s.skills).length}개
           </p>
@@ -381,17 +412,13 @@ function Result(props: { run: JourneyRun; art: string; name: string }) {
           ? `보상: 내 카드 경험치 +${run.row.xp}${run.row.jelly ? `, 도감 젤리 +${run.row.jelly}` : ''}`
           : `오늘 보상은 이미 ${DAILY_REWARD_JOURNEYS}번 받았어요. 내일 다시 받을 수 있어요.`}
       </p>
-      <form method="post" action="/api/journey/start">
-        <button class="btn btn-primary" type="submit">
-          🎒 다시 떠나기
-        </button>
-      </form>
+      <ChapterPick unlocked={props.unlocked} again />
     </section>
   );
 }
 
 // 영구 강화: 원정이 끝날 때 남은 동전으로 다음 원정의 시작 능력치를 올려요.
-function PerkPanel(props: { bank: JourneyBank; going: boolean }) {
+function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number }) {
   const { bank } = props;
   return (
     <section class="panel jr-perks" id="perks">
@@ -406,7 +433,8 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean }) {
         {PERK_IDS.map((id) => {
           const info = PERKS[id];
           const lv = bank[id];
-          const full = lv >= info.max;
+          const max = perkMax(id, props.unlocked);
+          const full = lv >= max;
           const cost = perkCost(lv);
           return (
             <form method="post" action="/api/journey/perk" class="jr-perk">
@@ -417,7 +445,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean }) {
                 </span>
                 <b>{info.name}</b>
                 <span class="tag">
-                  Lv.{lv}/{info.max}
+                  Lv.{lv}/{max}
                 </span>
                 <span class="jr-card-text">{lv > 0 ? info.text(lv) : '아직 안 했어요'}</span>
                 <span class="jr-card-text">{full ? '끝까지 올렸어요' : `다음: ${info.text(lv + 1)} · 🪙 ${cost}`}</span>
@@ -441,14 +469,14 @@ export function JourneyPage(props: { viewer: Member; art: string; run: JourneyRu
           <span class="eyebrow">🧭 하루하루 모험</span>
           <h1>하리보 원정대</h1>
           <p class="muted">
-            내 캐릭터가 말랑 숲을 하루씩 걸어가요. 싸움은 알아서 하고, 레벨이 오르면 스킬 3개 중 하나를 골라요. {ELITE_DAY}일째 숲지기 곰, {DAYS}일째 젤리 도둑 드래곤을 이기면 성공!
+            내 캐릭터가 하루씩 걸어가요. 싸움은 알아서 하고, 레벨이 오르면 스킬 3개 중 하나를 골라요. {ELITE_DAY}일째 강한 적, {DAYS}일째 대장을 이기면 그 장을 깨고 다음 장이 열려요. 장이 올라갈수록 몬스터 레벨이 20씩 올라가요(1장 Lv.1~20, 2장 Lv.21~40…).
           </p>
           <p class="hint">
-            하루 첫 {DAILY_REWARD_JOURNEYS}판은 끝날 때 내 카드 경험치(멀리 갈수록 많이)를 받고, 드래곤을 이기면 도감 젤리 1개도 받아요. 오늘 받은 보상 {Math.min(record.rewardedToday, DAILY_REWARD_JOURNEYS)}/{DAILY_REWARD_JOURNEYS}
+            하루 첫 {DAILY_REWARD_JOURNEYS}판은 끝날 때 내 카드 경험치(멀리 갈수록, 높은 장일수록 많이)를 받고, 대장을 이기면 도감 젤리 1개도 받아요. 장을 깰 때마다 훈련소 한도도 늘어요. 오늘 받은 보상 {Math.min(record.rewardedToday, DAILY_REWARD_JOURNEYS)}/{DAILY_REWARD_JOURNEYS}
           </p>
           <FictionNote />
         </section>
-        {run ? <Play run={run} art={props.art} name={name} /> : result ? <Result run={result} art={props.art} name={name} /> : null}
+        {run ? <Play run={run} art={props.art} name={name} /> : result ? <Result run={result} art={props.art} name={name} unlocked={record.unlocked} /> : null}
         {!run && !result && (
           <section class="panel jr-start">
             <div class="jr-hero">
@@ -458,17 +486,13 @@ export function JourneyPage(props: { viewer: Member; art: string; run: JourneyRu
             <div>
               <h2>떠날 준비 됐나요?</h2>
               <p class="hint">
-                가장 멀리 간 날 {record.best}일 · 드래곤 물리친 횟수 {record.clears}번
+                가장 높이 간 몬스터 Lv.{record.best} · 대장 물리친 횟수 {record.clears}번
               </p>
-              <form method="post" action="/api/journey/start">
-                <button class="btn btn-primary" type="submit">
-                  🎒 원정 떠나기
-                </button>
-              </form>
+              <ChapterPick unlocked={record.unlocked} />
             </div>
           </section>
         )}
-        <PerkPanel bank={props.bank} going={!!run} />
+        <PerkPanel bank={props.bank} going={!!run} unlocked={record.unlocked} />
         <p class="hint">
           예전 방식도 할 수 있어요: <a href="/expedition">대원 원정</a> · <a href="/expedition/story">지도 탐사</a>
         </p>

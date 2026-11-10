@@ -3,11 +3,12 @@
 // 레벨이 오르면 스킬 3개 중 하나를 고르고, 10일째 강한 적, 20일째 보스를 이기면 원정 성공이에요.
 // 모든 무작위는 판 씨앗(seed)과 날짜로 정해져서, 서버가 같은 입력에 늘 같은 결과를 내요.
 import { rng } from './expedition';
+import { chapterOf, chapterPower, type Monster } from './journey-chapters';
 
 export const DAYS = 20;
 export const ELITE_DAY = 10;
 export const DAILY_REWARD_JOURNEYS = 2; // 하루 첫 2판만 보상
-export const journeyXp = (day: number, cleared: boolean) => (cleared ? 12 : Math.min(10, 2 + Math.floor(day / 2)));
+export const journeyXp = (day: number, cleared: boolean, ch = 1) => (cleared ? 12 + 3 * (ch - 1) : Math.min(10, 2 + Math.floor(day / 2)) + (ch - 1));
 export const journeyJelly = (cleared: boolean) => (cleared ? 1 : 0);
 
 export type SkillId = 'power' | 'vital' | 'guard' | 'leech' | 'crit' | 'spark' | 'shield' | 'mend' | 'thorn' | 'lucky';
@@ -25,19 +26,6 @@ export const SKILLS: Record<SkillId, { name: string; icon: string; text: (lv: nu
 };
 export const SKILL_IDS = Object.keys(SKILLS) as SkillId[];
 
-type Monster = { key: string; name: string; emoji: string };
-const MONSTERS: Monster[] = [
-  { key: 'mushroom', name: '심술 버섯', emoji: '🍄' },
-  { key: 'slime', name: '말랑 슬라임', emoji: '🟢' },
-  { key: 'bat', name: '장난꾸러기 박쥐', emoji: '🦇' },
-  { key: 'hedgehog', name: '가시 고슴도치', emoji: '🦔' },
-  { key: 'wolf', name: '숲 늑대', emoji: '🐺' },
-  { key: 'crab', name: '돌 게', emoji: '🦀' },
-  { key: 'bees', name: '꿀벌 떼', emoji: '🐝' },
-  { key: 'ghost', name: '안개 유령', emoji: '👻' },
-];
-const ELITE: Monster = { key: 'bear', name: '숲지기 곰', emoji: '🐻' };
-const BOSS: Monster = { key: 'dragon', name: '젤리 도둑 드래곤', emoji: '🐉' };
 
 export type Line = { icon: string; text: string; tone?: 'good' | 'bad' };
 // 화면 전투 모션용 기록: 누가(0 = 나, 1 = 적) 얼마나 때렸는지. 처음 몇 번과 마지막 한 번만 남겨요.
@@ -67,6 +55,7 @@ export const EVENTS: Record<EventId, { icon: string; title: string; text: string
 export type JourneyState = {
   v: 1;
   seed: string;
+  ch?: number; // 장(챕터). 없으면 1장
   day: number; // 지난 날 수
   hp: number;
   maxHp: number;
@@ -101,12 +90,14 @@ export const PERKS: Record<PerkId, { name: string; icon: string; per: number; ma
 };
 export const PERK_IDS = Object.keys(PERKS) as PerkId[];
 export const perkCost = (lv: number) => 20 + lv * 15; // 지금 단계에서 다음 단계로 가는 값
+// 장을 깰수록 훈련 한도가 늘어요(열린 장 하나마다 처음 한도의 절반씩).
+export const perkMax = (id: PerkId, unlocked: number) => PERKS[id].max + Math.floor(PERKS[id].max / 2) * (Math.max(1, unlocked) - 1);
 
-export function startJourney(seed: string, perks: Perks = NO_PERKS): JourneyState {
+export function startJourney(seed: string, perks: Perks = NO_PERKS, ch = 1): JourneyState {
   const maxHp = 100 + PERKS.hp.per * perks.hp;
   return {
-    v: 1, seed, day: 0, hp: maxHp, maxHp, atk: 12 + PERKS.atk.per * perks.atk, def: 2 + PERKS.def.per * perks.def, lv: 1, xp: 0, coins: 10, skills: {}, pending: null, queuedLevels: 0,
-    today: [{ icon: '🎒', text: '가방을 메고 말랑 숲으로 출발! "다음 날"을 눌러 나아가요.' }], journal: [], kills: 0, done: false, cleared: false,
+    v: 1, seed, ch, day: 0, hp: maxHp, maxHp, atk: 12 + PERKS.atk.per * perks.atk, def: 2 + PERKS.def.per * perks.def, lv: 1, xp: 0, coins: 10, skills: {}, pending: null, queuedLevels: 0,
+    today: [{ icon: '🎒', text: `${ch}장 ${chapterOf(ch).name}! 가방을 메고 출발해요. "다음 날"을 눌러 나아가요.` }], journal: [], kills: 0, done: false, cleared: false,
   };
 }
 
@@ -144,8 +135,9 @@ function gainCoins(s: JourneyState, n: number) {
 // 자동 전투. 결과 요약만 적어요.
 function battle(s: JourneyState, m: Monster, power: number, r: () => number, lines: Line[]) {
   const st = stat(s);
-  let mhp = Math.round((20 + s.day * 5) * power);
-  const matk = Math.round((4 + s.day * 0.9) * (power > 1 ? 1 + (power - 1) * 0.3 : 1));
+  const cp = chapterPower(s.ch);
+  let mhp = Math.round((20 + s.day * 5) * power * cp);
+  const matk = Math.round((4 + s.day * 0.9) * (power > 1 ? 1 + (power - 1) * 0.3 : 1) * cp);
   const start = s.hp;
   let shields = sk(s, 'shield');
   let turns = 0;
@@ -185,7 +177,7 @@ function battle(s: JourneyState, m: Monster, power: number, r: () => number, lin
   fx.won = true;
   if (sk(s, 'mend')) s.hp = Math.min(st.maxHp, s.hp + 6 * sk(s, 'mend'));
   s.kills += 1;
-  const coins = gainCoins(s, Math.round((4 + s.day) * power));
+  const coins = gainCoins(s, Math.round((4 + s.day) * power * cp));
   lines.push({ icon: m.emoji, text: `${m.name}${obj(m.name)} ${turns}턴 만에 물리쳤어요! 체력 ${s.hp - start >= 0 ? '+' : ''}${s.hp - start}, 동전 +${coins}`, tone: 'good' });
   gainXp(s, Math.round((12 + s.day * 2) * power), lines);
   return true;
@@ -208,24 +200,26 @@ function nextDay(s: JourneyState): Line[] {
   // 아침마다 조금 회복(걷기 간식)
   s.hp = Math.min(st.maxHp, s.hp + Math.round(st.maxHp * 0.08));
   if (s.day === DAYS) {
-    lines.push({ icon: '🌋', text: '마지막 날! 젤리 도둑 드래곤이 나타났어요!' });
-    if (battle(s, BOSS, 1.75, r, lines)) {
+    const boss = chapterOf(s.ch).boss;
+    lines.push({ icon: '🌋', text: `마지막 날! ${boss.name}${(boss.name.charCodeAt(boss.name.length - 1) - 0xac00) % 28 > 0 ? '이' : '가'} 나타났어요!` });
+    if (battle(s, boss, 1.75, r, lines)) {
       s.done = true;
       s.cleared = true;
-      lines.push({ icon: '🏆', text: '드래곤을 물리치고 빼앗긴 젤리를 되찾았어요! 원정 성공!', tone: 'good' });
+      lines.push({ icon: '🏆', text: `${boss.name}${obj(boss.name)} 물리쳤어요! 원정 성공!`, tone: 'good' });
     }
     finish(s, lines);
     return lines;
   }
   if (s.day === ELITE_DAY) {
     lines.push({ icon: '⚠️', text: '숲 한가운데서 커다란 그림자가…' });
-    battle(s, ELITE, 1.6, r, lines);
+    battle(s, chapterOf(s.ch).elite, 1.6, r, lines);
     finish(s, lines);
     return lines;
   }
   const roll = r();
   if (roll < 0.46) {
-    battle(s, MONSTERS[Math.floor(r() * MONSTERS.length)]!, 1, r, lines);
+    const foes = chapterOf(s.ch).foes;
+    battle(s, foes[Math.floor(r() * foes.length)]!, 1, r, lines);
   } else if (roll < 0.6) {
     const c = r();
     if (c < 0.4) lines.push({ icon: '🎁', text: `보물 상자! 동전 +${gainCoins(s, 8 + s.day)}`, tone: 'good' });
@@ -292,7 +286,7 @@ function resolveEvent(s: JourneyState, id: EventId, n: number, lines: Line[]) {
       lines.push({ icon: '🧸', text: '젤리곰이 고맙다며 힘 젤리를 줬어요. 공격력 +5', tone: 'good' });
     }
   } else if (id === 'fork') {
-    if (n === 0) battle(s, MONSTERS[Math.floor(r() * MONSTERS.length)]!, 1.3, r, lines);
+    if (n === 0) battle(s, chapterOf(s.ch).foes[Math.floor(r() * chapterOf(s.ch).foes.length)]!, 1.3, r, lines);
     else {
       const heal = Math.min(st.maxHp - s.hp, Math.round(st.maxHp * 0.45));
       s.hp += heal;
@@ -417,6 +411,7 @@ export function decodeJourney(json: string): JourneyState | null {
     const s = JSON.parse(json) as JourneyState;
     const n = (v: unknown) => Number.isSafeInteger(v) && (v as number) >= 0;
     if (s.v !== 1 || typeof s.seed !== 'string' || ![s.day, s.hp, s.maxHp, s.atk, s.def, s.lv, s.xp, s.coins, s.queuedLevels, s.kills].every(n)) return null;
+    if (s.ch !== undefined && !(Number.isSafeInteger(s.ch) && s.ch >= 1 && s.ch <= 9)) return null;
     if (!Array.isArray(s.today) || !Array.isArray(s.journal) || typeof s.done !== 'boolean' || !s.skills || typeof s.skills !== 'object') return null;
     return s;
   } catch {
