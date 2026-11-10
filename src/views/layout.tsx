@@ -26,8 +26,8 @@ export function Layout(props: {
         {props.refresh && <meta http-equiv="refresh" content={`${props.refresh.seconds}; url=${props.refresh.url}`} />}
         <title>{props.title} · 하리보 멤버 도감</title>
         <link rel="preload" href="/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin="" />
-        <link rel="stylesheet" href="/styles.css?v=escape-1" />
-        <script src="/app.js?v=theme-preview-1" defer></script>
+        <link rel="stylesheet" href="/styles.css?v=journey-1" />
+        <script src="/app.js?v=journey-1" defer></script>
         {props.scripts?.map((src) => <script src={src} defer></script>)}
         {props.viewer && <script type="speculationrules" dangerouslySetInnerHTML={{ __html: PREFETCH_RULES }} />}
       </head>
@@ -59,7 +59,7 @@ export function Layout(props: {
               {nav('group', '/group', '모둠', '👥')}
               {nav('bingo', '/bingo', '빙고', '🎯')}
               {nav('plaza', '/plaza', '광장', '🏞️')}
-              {nav('expedition', '/expedition/story', '원정대', '🧭')}
+              {nav('expedition', '/expedition/go', '원정대', '🧭')}
               {nav('cases', '/cases/room', '사건파일', '🔎')}
               {nav('room', '/room', '내 방', '🏠')}
               {nav('shop', '/shop', '상점', '🍬')}
