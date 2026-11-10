@@ -87,8 +87,6 @@ import { StoryPage } from './views/story';
 import { activeStory, actStory, beginStory, getStory, storyMarks, uuid } from './story-db';
 import type { StoryAction } from './story';
 import { accuse, caseRecord, currentCase, getCase, lookAt, quitCase, startCase } from './cases-db';
-import { RoomPage } from './views/room';
-import { buyRoomItem, getRoom, likeRoom, likedToday, listRooms, saveRoom } from './room-db';
 
 export { PlazaRoom } from './plaza-room';
 
@@ -1021,81 +1019,6 @@ members.post('/api/cases/quit', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
   const quit = await quitCase(c.env.DB, c.get('viewer').user_id, String((await c.req.parseBody()).run ?? ''));
   return c.redirect(quit ? '/cases?n=quit' : '/cases');
-});
-
-// 내 방 꾸미기
-async function roomPage(c: Context<AppEnv>, userId: string) {
-  const viewer = c.get('viewer');
-  const db = c.env.DB;
-  const mine = userId === viewer.user_id;
-  const [room, owned, profile, liked, recent, popular] = await Promise.all([
-    getRoom(db, userId),
-    mine ? getOwnedItems(db, userId) : Promise.resolve(new Set<string>()),
-    mine ? getProfile(db, userId) : Promise.resolve(null),
-    mine ? Promise.resolve(false) : likedToday(db, viewer.user_id, userId),
-    listRooms(db, 'recent'),
-    listRooms(db, 'likes', 6),
-  ]);
-  if (!room) return page(c, <MessagePage viewer={viewer} title="방이 없어요" message="지금 서버에 있는 멤버의 방만 구경할 수 있어요." />, 404);
-  // 꾸미고 저장한 뒤 뒤로 가기로 옛 방이 보이지 않게 늘 새로 받아요
-  c.header('Cache-Control', 'no-store');
-  return page(
-    c,
-    <RoomPage
-      viewer={viewer}
-      room={room}
-      mine={mine}
-      owned={owned}
-      jelly={profile?.dogam_jelly ?? 0}
-      liked={liked}
-      recent={recent}
-      popular={popular}
-      notice={c.req.query('n')}
-    />,
-  );
-}
-
-members.get('/room', (c) => roomPage(c, c.get('viewer').user_id));
-members.get('/room/:userId', (c) => {
-  const id = c.req.param('userId');
-  return id === c.get('viewer').user_id ? c.redirect('/room') : roomPage(c, id);
-});
-
-members.post('/api/room/save', async (c) => {
-  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  const body = await c.req.parseBody();
-  try {
-    const r = await saveRoom(c.env.DB, c.get('viewer').user_id, String(body.wall ?? ''), String(body.floor ?? ''), String(body.layout ?? ''));
-    return c.redirect(`/room?n=${r}`);
-  } catch (e) {
-    console.error('방 저장 실패', e);
-    return c.redirect('/room?n=error');
-  }
-});
-
-members.post('/api/room/buy', async (c) => {
-  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  const body = await c.req.parseBody();
-  try {
-    const r = await buyRoomItem(c.env.DB, c.get('viewer').user_id, body.item);
-    return c.redirect(`/room?n=${r === 'done' ? 'bought' : r}#store`);
-  } catch (e) {
-    console.error('방 물건 결제 실패', e);
-    return c.redirect('/room?n=error');
-  }
-});
-
-members.post('/api/room/:userId/like', async (c) => {
-  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  const to = c.req.param('userId');
-  try {
-    const r = await likeRoom(c.env.DB, c.get('viewer').user_id, to);
-    if (r === 'bad') return c.redirect('/room');
-    return c.redirect(`/room/${encodeURIComponent(to)}?n=${r}`);
-  } catch (e) {
-    console.error('방 좋아요 실패', e);
-    return c.redirect(`/room/${encodeURIComponent(to)}?n=error`);
-  }
 });
 
 members.get('/dogam', async (c) => {

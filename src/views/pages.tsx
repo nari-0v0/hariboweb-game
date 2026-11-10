@@ -358,11 +358,6 @@ export function CardPage(props: { viewer: Member; owner: Member; target: Member;
             </div>
           </div>
           {!target.active && <p class="notice">서버를 떠난 멤버예요. 다시 들어오면 카드가 살아나요.</p>}
-          {target.active && target.user_id !== props.viewer.user_id && (
-            <a class="btn" href={`/room/${encodeURIComponent(target.user_id)}`}>
-              🏠 {target.display_name}님 방 구경하기
-            </a>
-          )}
         </div>
       </div>
     </Layout>
