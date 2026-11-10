@@ -18,6 +18,8 @@ import {
   listDogam,
   buyWithJelly,
   listPendingServices,
+  listCheers,
+  markCheer,
   listNickJobs,
   nickState,
   settleNickJob,
@@ -226,6 +228,27 @@ app.post('/api/bot/services/:id', async (c) => {
   if (!ok && !(SERVICE_FAIL_REASONS as readonly unknown[]).includes(reason)) return c.json({ error: 'bad_reason' }, 400);
   const changed = await settleService(c.env.DB, c.req.param('id'), ok, ok ? null : (reason as string));
   return c.json({ ok: true, changed });
+});
+
+// 도감 축하: 두 사람 카드가 10레벨마다. 봇이 디스코드에 올리고 알려요.
+app.get('/api/bot/cheers', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  const rows = await listCheers(c.env.DB);
+  return c.json({ cheers: rows.map((r) => ({ ...r, name: levelName(r.level) })) });
+});
+app.post('/api/bot/cheers', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'bad_json' }, 400);
+  }
+  const { a, b, level } = (body ?? {}) as { a?: unknown; b?: unknown; level?: unknown };
+  const id = /^\d{5,20}$/;
+  if (typeof a !== 'string' || typeof b !== 'string' || !id.test(a) || !id.test(b) || !Number.isInteger(level) || (level as number) < 10 || (level as number) > 100)
+    return c.json({ error: 'bad_body' }, 400);
+  return c.json({ ok: true, changed: await markCheer(c.env.DB, a, b, level as number) });
 });
 
 // 도감 닉네임 변경권: 봇이 가져가 닉네임을 바꾸고 결과를 알려요. 실패면 변경권이 그대로 남아요.
