@@ -1,6 +1,7 @@
 import type { Member } from '../env';
-import type { JourneyRecord, JourneyRun } from '../journey-db';
-import { DAILY_REWARD_JOURNEYS, DAYS, ELITE_DAY, EVENTS, OFFERS, SKILLS, stat, xpNeed, type JourneyState, type SkillId } from '../journey';
+import type { JourneyBank, JourneyRecord, JourneyRun } from '../journey-db';
+import { DAILY_REWARD_JOURNEYS, DAYS, ELITE_DAY, EVENTS, OFFERS, PERKS, PERK_IDS, SKILLS, perkCost, stat, xpNeed, type BattleFx, type JourneyState, type SkillId } from '../journey';
+import { FOES, PROPS, ZONE_NAMES, sceneStyle, spriteSvg, zoneFor, type Zone } from '../journey-art';
 import { FictionNote } from './expedition';
 import { Layout } from './layout';
 import { Popup, type PopupLine } from './shop';
@@ -9,6 +10,8 @@ const NOTICES: Record<string, PopupLine[]> = {
   stale: [{ title: '알림', text: '다른 화면에서 이미 진행했어요. 지금 상태를 보여 드려요.' }],
   bad: [{ title: '알림', text: '지금은 그렇게 할 수 없어요.' }],
   quit: [{ title: '알림', text: '원정을 그만두고 돌아왔어요.' }],
+  perk: [{ title: '강화 완료', text: '다음 원정부터 더 강해져요.' }],
+  noperk: [{ title: '알림', text: '동전이 모자라거나 이미 끝까지 올렸어요.' }],
   error: [
     { title: '오류', text: '오류가 발생하였습니다.', bad: true },
     { title: '오류', text: '방장에게 문의해주세요.', bad: true, contact: true },
@@ -146,11 +149,112 @@ function Choice(props: { run: JourneyRun }) {
   );
 }
 
+// ── 무대: 배경 + 내 캐릭터 + 상대(적이나 길에서 만난 것) ──
+const STEP = 0.5; // 주고받는 한 번에 걸리는 시간(초)
+const START = 0.35;
+const EVENT_PROP: Record<string, string> = { spring: 'spring', coin: 'fairy', bear: 'gummy', fork: 'sign' };
+const ICON_PROP: Record<string, string> = { '🏕️': 'camp', '🎁': 'chest', '⛲': 'spring', '🪙': 'fairy', '🧸': 'gummy', '🪧': 'sign', '🏆': 'trophy', '👋': 'merchant', '🛒': 'merchant' };
+for (const o of Object.values(OFFERS)) ICON_PROP[o.icon] = 'merchant';
+const FLIP = new Set(['hedgehog', 'crab', 'dragon']); // 오른쪽을 보고 그린 그림은 뒤집어서 나를 보게 해요
+
+function propFor(s: JourneyState): string | null {
+  if (s.pending?.kind === 'shop') return 'merchant';
+  if (s.pending?.kind === 'event') return EVENT_PROP[s.pending.id] ?? null;
+  for (const l of [...s.today].reverse()) {
+    if (l.icon === '⭐' || l.icon === '📅' || l.icon === '🤖' || l.icon === '·') continue;
+    return ICON_PROP[l.icon] ?? null;
+  }
+  return null;
+}
+
+// 전투 시간표: 누가 언제 달려들고, 언제 맞고, 피해 숫자가 언제 뜨는지
+export function fightPlan(fx: BattleFx) {
+  const hero: string[] = [];
+  const foe: string[] = [];
+  const pops: { on: 0 | 1; at: number; text: string; cls: string }[] = [];
+  let t = START;
+  if (fx.spark) {
+    foe.push(`jr-zap .4s ${t}s`);
+    pops.push({ on: 1, at: t, text: `⚡${fx.spark}`, cls: 'zap' });
+    t += STEP;
+  }
+  for (const [who, dmg, crit] of fx.hits) {
+    const hit = (t + 0.14).toFixed(2);
+    if (who === 0) {
+      hero.push(`jr-lunge-r .34s ${t.toFixed(2)}s`);
+      foe.push(`jr-hit .3s ${hit}s`);
+      pops.push({ on: 1, at: +hit, text: crit ? `${dmg}!` : `${dmg}`, cls: crit ? 'crit' : '' });
+    } else {
+      foe.push(`jr-lunge-l .34s ${t.toFixed(2)}s`);
+      hero.push(`jr-hit .3s ${hit}s`);
+      pops.push({ on: 0, at: +hit, text: `-${dmg}`, cls: 'ouch' });
+    }
+    t += STEP;
+  }
+  const end = t.toFixed(2);
+  if (fx.won) hero.push(`jr-cheer .5s ${end}s 2`);
+  else foe.push(`jr-cheer .5s ${end}s 2`);
+  return {
+    hero: hero.join(', '),
+    foe: foe.join(', '),
+    heroEnd: fx.won ? '' : `jr-fall .6s ${end}s both`,
+    foeEnd: fx.won ? `jr-die .7s ${end}s both` : '',
+    pops,
+    ms: Math.round((t + 0.9) * 1000),
+  };
+}
+
+function Pops(props: { list: { at: number; text: string; cls: string }[] }) {
+  return (
+    <>
+      {props.list.map((p) => (
+        <b class={`jr-pop ${p.cls}`} style={`--d:${p.at}s`} aria-hidden="true">
+          {p.text}
+        </b>
+      ))}
+    </>
+  );
+}
+
+function Stage(props: { s: JourneyState; art: string; name: string; lost: boolean }) {
+  const { s } = props;
+  const fx = s.fx;
+  const prop = fx ? null : propFor(s);
+  const zone: Zone = prop === 'camp' ? 'night' : fx?.foe === 'dragon' ? 'lair' : zoneFor(s.day);
+  const plan = fx ? fightPlan(fx) : null;
+  const foe = fx ? FOES[fx.foe] : null;
+  const pic = foe ?? (prop ? PROPS[prop] : null);
+  const key = fx?.foe ?? prop ?? '';
+  return (
+    <div
+      class={`jr-stage zone-${zone}${plan ? ' fight' : ''}${prop ? ` at-${prop}` : ''}`}
+      style={sceneStyle(zone)}
+      data-wait={plan ? String(plan.ms) : undefined}
+    >
+      <span class="jr-place">{ZONE_NAMES[zone]}</span>
+      <div class={`jr-hero jr-actor${props.lost ? ' down' : ''}`} style={plan ? `--a:${plan.hero};--a2:${plan.heroEnd || 'none'}` : undefined}>
+        <img src={props.art} alt={props.name} width={96} height={96} />
+        <span class="jr-shadow" />
+        {plan && <Pops list={plan.pops.filter((p) => p.on === 0)} />}
+      </div>
+      {pic && (
+        <div
+          class={`jr-foe jr-actor${fx?.won ? ' beaten' : ''}${FLIP.has(key) ? ' flip' : ''} is-${key}`}
+          style={plan ? `--a:${plan.foe};--a2:${plan.foeEnd || 'none'}` : undefined}
+        >
+          <span dangerouslySetInnerHTML={{ __html: spriteSvg(pic, 5, 'jr-sprite') }} />
+          <span class="jr-shadow" />
+          {plan && <Pops list={plan.pops.filter((p) => p.on === 1)} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Play(props: { run: JourneyRun; art: string; name: string }) {
   const { run } = props;
   const s = run.state;
   const st = stat(s);
-  const foe = [...s.today].reverse().find((l) => l.icon !== '📅' && l.icon !== '🤖' && l.icon !== '⭐');
   const lost = s.hp <= 0;
   return (
     <section class="panel jr-play" id="now">
@@ -162,15 +266,7 @@ function Play(props: { run: JourneyRun; art: string; name: string }) {
           <span class="jr-coins">🪙 {s.coins}</span>
         </div>
         <Road s={s} />
-        <div class="jr-stage">
-          <div class={`jr-hero${lost ? ' down' : ''}`}>
-            <img src={props.art} alt={props.name} width={96} height={96} />
-            <span class="jr-shadow" />
-          </div>
-          <div class="jr-vs" aria-hidden="true">
-            {foe?.icon ?? '🌲'}
-          </div>
-        </div>
+        <Stage s={s} art={props.art} name={props.name} lost={lost} />
         <Bar now={s.hp} max={st.maxHp} cls="hp" label="❤️ 체력" />
         <Bar now={s.xp} max={xpNeed(s.lv)} cls="xp" label={`⭐ Lv.${s.lv}`} />
         <div class="jr-stats">
@@ -238,10 +334,8 @@ function Result(props: { run: JourneyRun; art: string; name: string }) {
   return (
     <section class="panel jr-result" id="now">
       <span class="eyebrow">{s.cleared ? '원정 성공' : '원정 끝'}</span>
+      <Stage s={s} art={props.art} name={props.name} lost={!s.cleared} />
       <div class="jr-result-head">
-        <div class={`jr-hero${s.cleared ? ' win' : ' down'}`}>
-          <img src={props.art} alt={props.name} width={96} height={96} />
-        </div>
         <div>
           <h2>{s.cleared ? '🏆 드래곤을 물리쳤어요!' : `🏳️ ${s.day}일째에서 멈췄어요`}</h2>
           <p class="hint">
@@ -256,6 +350,7 @@ function Result(props: { run: JourneyRun; art: string; name: string }) {
           </li>
         ))}
       </ul>
+      <p class="jr-bank">남은 동전 🪙 {s.coins}개를 <a href="#perks">원정 훈련소</a>에 모았어요.</p>
       <p>
         {run.row.xp > 0
           ? `보상: 내 카드 경험치 +${run.row.xp}${run.row.jelly ? `, 도감 젤리 +${run.row.jelly}` : ''}`
@@ -270,7 +365,47 @@ function Result(props: { run: JourneyRun; art: string; name: string }) {
   );
 }
 
-export function JourneyPage(props: { viewer: Member; art: string; run: JourneyRun | null; result: JourneyRun | null; record: JourneyRecord; notice?: string }) {
+// 영구 강화: 원정이 끝날 때 남은 동전으로 다음 원정의 시작 능력치를 올려요.
+function PerkPanel(props: { bank: JourneyBank; going: boolean }) {
+  const { bank } = props;
+  return (
+    <section class="panel jr-perks" id="perks">
+      <h2>🏋️ 원정 훈련소</h2>
+      <p class="hint">
+        원정이 끝나면 남은 동전이 여기 모여요(그만두기는 빼고). 훈련은 영원히 남고, {props.going ? '지금 원정이 끝난 뒤 ' : ''}다음 원정부터 적용돼요.
+      </p>
+      <p class="jr-bank">
+        모은 동전 <b>🪙 {bank.coins}</b>
+      </p>
+      <div class="jr-cards">
+        {PERK_IDS.map((id) => {
+          const info = PERKS[id];
+          const lv = bank[id];
+          const full = lv >= info.max;
+          const cost = perkCost(lv);
+          return (
+            <form method="post" action="/api/journey/perk" class="jr-perk">
+              <input type="hidden" name="k" value={id} />
+              <button type="submit" class="jr-card" disabled={full || bank.coins < cost}>
+                <span class="jr-card-icon" aria-hidden="true">
+                  {info.icon}
+                </span>
+                <b>{info.name}</b>
+                <span class="tag">
+                  Lv.{lv}/{info.max}
+                </span>
+                <span class="jr-card-text">{lv > 0 ? info.text(lv) : '아직 안 했어요'}</span>
+                <span class="jr-card-text">{full ? '끝까지 올렸어요' : `다음: ${info.text(lv + 1)} · 🪙 ${cost}`}</span>
+              </button>
+            </form>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+export function JourneyPage(props: { viewer: Member; art: string; run: JourneyRun | null; result: JourneyRun | null; record: JourneyRecord; bank: JourneyBank; notice?: string }) {
   const { run, result, record } = props;
   const name = props.viewer.display_name;
   return (
@@ -308,6 +443,7 @@ export function JourneyPage(props: { viewer: Member; art: string; run: JourneyRu
             </div>
           </section>
         )}
+        <PerkPanel bank={props.bank} going={!!run} />
         <p class="hint">
           예전 방식도 할 수 있어요: <a href="/expedition">대원 원정</a> · <a href="/expedition/story">지도 탐사</a>
         </p>

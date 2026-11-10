@@ -1,5 +1,5 @@
 import { kstDay } from './db';
-import { DAILY_REWARD_JOURNEYS, actJourney, decodeJourney, journeyJelly, journeyXp, startJourney, type JourneyAction, type JourneyState } from './journey';
+import { DAILY_REWARD_JOURNEYS, NO_PERKS, PERKS, actJourney, decodeJourney, journeyJelly, journeyXp, perkCost, startJourney, type JourneyAction, type JourneyState, type PerkId, type Perks } from './journey';
 
 export type JourneyRow = { id: string; user_id: string; state: string; rev: number; status: string; day: number; cleared: number; xp: number; jelly: number; reward_day: string | null };
 export type JourneyRun = { row: JourneyRow; state: JourneyState };
@@ -29,18 +29,39 @@ export async function journeyRecord(db: D1Database, user: string, day = kstDay()
   return { best: r?.best ?? 0, clears: r?.clears ?? 0, rewardedToday: r?.today ?? 0 };
 }
 
+// 강화 주머니(모은 동전 + 강화 단계)
+export type JourneyBank = Perks & { coins: number };
+export async function journeyBank(db: D1Database, user: string): Promise<JourneyBank> {
+  const r = await db.prepare('SELECT coins, atk, hp, def FROM journey_bank WHERE user_id = ?').bind(user).first<JourneyBank>();
+  return r ?? { coins: 0, ...NO_PERKS };
+}
+
+// 강화 한 단계. 동전이 모자라거나 끝까지 올렸거나 다른 화면에서 먼저 샀으면 false.
+export async function buyPerk(db: D1Database, user: string, id: PerkId, now = new Date()): Promise<boolean> {
+  const bank = await journeyBank(db, user);
+  const lv = bank[id];
+  const cost = perkCost(lv);
+  if (lv >= PERKS[id].max || bank.coins < cost) return false;
+  const r = await db
+    .prepare(`UPDATE journey_bank SET coins = coins - ?3, ${id} = ${id} + 1, updated_at = ?5 WHERE user_id = ?1 AND ${id} = ?2 AND coins >= ?3 AND ${id} < ?4`)
+    .bind(user, lv, cost, PERKS[id].max, now.toISOString())
+    .run();
+  return (r.meta.changes ?? 0) > 0;
+}
+
 // 새 원정. 하던 원정이 있으면 그걸 이어가요. 지금 있는 멤버만 떠날 수 있어요.
 export async function beginJourney(db: D1Database, user: string, now = new Date()): Promise<string | null> {
   const going = await activeJourney(db, user);
   if (going) return going.row.id;
   const id = crypto.randomUUID();
   const t = now.toISOString();
+  const bank = await journeyBank(db, user);
   await db
     .prepare(
       `INSERT OR IGNORE INTO journey_runs (id, user_id, state, started_at, updated_at)
        SELECT ?1, ?2, ?3, ?4, ?4 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)`,
     )
-    .bind(id, user, JSON.stringify(startJourney(id)), t)
+    .bind(id, user, JSON.stringify(startJourney(id, bank)), t)
     .run();
   return (await activeJourney(db, user))?.row.id ?? null;
 }
@@ -76,6 +97,16 @@ export async function actJourneyRun(db: D1Database, user: string, id: string, re
       .bind(id, user, token, JSON.stringify(s), t, s.done ? 1 : 0, day, journeyXp(s.day, s.cleared), journeyJelly(s.cleared), s.day, s.cleared ? 1 : 0, rev),
   ];
   if (s.done) {
+    // 남은 동전은 보상 횟수와 상관없이 강화 주머니로 (이번 저장이 성공했을 때만)
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO journey_bank (user_id, coins, updated_at)
+           SELECT user_id, ?3, ?4 FROM journey_runs WHERE id = ?1 AND mutation = ?2 AND status = 'done'
+           ON CONFLICT (user_id) DO UPDATE SET coins = journey_bank.coins + excluded.coins, updated_at = excluded.updated_at`,
+        )
+        .bind(id, token, s.coins, t),
+    );
     stmts.push(
       db
         .prepare(

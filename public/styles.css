@@ -1198,14 +1198,39 @@ main.wide { max-width: 1320px; }
 .jr-step.mark { background: var(--pink-soft); font-size: .8rem; }
 .jr-step.here { background: var(--yellow); box-shadow: 0 0 0 2px var(--yellow); position: relative; }
 .jr-step.here::after { content: '🚩'; font-size: .8rem; }
-.jr-stage { position: relative; display: flex; align-items: flex-end; justify-content: space-between; height: 150px; padding: 0 12%; margin-bottom: 10px; border: 4px solid var(--ink); clip-path: var(--notch);
-  background: linear-gradient(#bfe6ff 0 62%, #8fd17a 62% 70%, #6fb35c 70%); overflow: hidden; }
-.jr-stage::before { content: '🌳  🌲     🌳   🌲'; position: absolute; left: 0; right: 0; top: 38%; font-size: 1.6rem; white-space: pre; opacity: .55; text-align: center; }
+.jr-stage { position: relative; display: flex; align-items: flex-end; justify-content: space-between; height: 168px; padding: 0 9% 10px; margin-bottom: 10px; border: 4px solid var(--ink); clip-path: var(--notch); overflow: hidden; image-rendering: pixelated;
+  background: var(--jr-ground) 0 100% / 192px 48px repeat-x, var(--jr-tree) 0 calc(100% - 40px) / 192px 60px repeat-x, var(--jr-hill) 0 calc(100% - 44px) / 192px 48px repeat-x, var(--jr-sky) 0 0 / 100% 100% no-repeat, #bfe6ff; }
+.jr-place { position: absolute; top: 6px; left: 8px; padding: 0 6px; border: 2px solid var(--ink); background: rgba(255, 250, 242, .85); font-size: .7rem; line-height: 1.5; z-index: 2; }
 .jr-hero { position: relative; width: 96px; height: 110px; display: grid; justify-items: center; align-content: end; flex: none; }
 .jr-hero img { width: 96px; height: 96px; object-fit: contain; object-position: bottom; position: relative; z-index: 1; }
 .jr-shadow { position: absolute; bottom: 2px; width: 60px; height: 10px; background: rgba(0, 0, 0, .18); border-radius: 50%; }
 .jr-hero.down img { filter: grayscale(1); rotate: -80deg; translate: 0 30px; }
-.jr-vs { font-size: 3.2rem; line-height: 1; padding-bottom: 14px; position: relative; z-index: 1; }
+.jr-foe { position: relative; display: grid; justify-items: center; align-content: end; flex: none; padding-bottom: 6px; }
+.jr-foe > span:first-child { position: relative; z-index: 1; display: block; line-height: 0; }
+.jr-foe .jr-sprite { display: block; max-width: min(34vw, 130px); height: auto; }
+.jr-foe.flip .jr-sprite { scale: -1 1; }
+.jr-foe .jr-shadow { width: 70%; bottom: 0; }
+.jr-foe.beaten > span:first-child { opacity: .35; filter: grayscale(1); }
+.jr-stage.at-camp { justify-content: center; gap: 4%; }
+.jr-pop { position: absolute; top: 0; left: 50%; z-index: 3; translate: -50% 0; padding: 0 5px; border: 2px solid var(--ink); background: #fff; color: var(--ink); font-size: .85rem; line-height: 1.4; white-space: nowrap; opacity: 0; pointer-events: none; }
+.jr-pop.crit { background: var(--yellow); font-size: 1rem; }
+.jr-pop.ouch { background: var(--pink-soft); }
+.jr-pop.zap { background: #e8f6ff; }
+@media (prefers-reduced-motion: no-preference) {
+  .jr-actor { animation: var(--a, none); }
+  .jr-hero.jr-actor img, .jr-foe.jr-actor > span:first-child { animation: var(--a2, none); }
+  .jr-pop { animation: jr-pop .75s var(--d, 0s) both; }
+  .jr-idling .jr-stage:not(.fight) { animation: jr-scroll 8s linear infinite; }
+}
+@keyframes jr-lunge-r { 40% { translate: 34px -6px; } }
+@keyframes jr-lunge-l { 40% { translate: -34px -6px; } }
+@keyframes jr-hit { 0%, 100% { translate: 0 0; filter: none; } 20% { translate: 6px 0; filter: brightness(2.2); } 45% { translate: -5px 0; } 70% { translate: 3px 0; } }
+@keyframes jr-zap { 0%, 100% { filter: none; } 25%, 75% { filter: brightness(2.5) hue-rotate(160deg); } 50% { filter: none; } }
+@keyframes jr-cheer { 50% { translate: 0 -10px; } }
+@keyframes jr-fall { from { rotate: 0deg; translate: 0 0; filter: none; } to { rotate: -80deg; translate: 0 30px; filter: grayscale(1); } }
+@keyframes jr-die { 0% { opacity: 1; filter: none; scale: 1; } 30% { filter: brightness(3); } 100% { opacity: .35; filter: grayscale(1); scale: .85 .7; translate: 0 10px; } }
+@keyframes jr-pop { 0% { opacity: 0; translate: -50% 6px; } 15% { opacity: 1; translate: -50% -10px; } 75% { opacity: 1; translate: -50% -22px; } 100% { opacity: 0; translate: -50% -28px; } }
+@keyframes jr-scroll { to { background-position: -192px 100%, -192px calc(100% - 40px), -96px calc(100% - 44px), 0 0, 0 0; } }
 .jr-bar { position: relative; height: 24px; margin: 6px 0; border: 3px solid var(--ink); background: #fff; }
 .jr-bar span { position: absolute; inset: 0 auto 0 0; background: var(--pink); transition: width .4s; }
 .jr-bar.xp span { background: var(--sky); }
@@ -1222,7 +1247,8 @@ main.wide { max-width: 1320px; }
 .jr-choice p { margin: 0 0 8px; }
 .jr-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; }
 .jr-form { margin: 0; }
-.jr-cards .jr-form, .jr-cards .jr-card { height: 100%; }
+.jr-cards .jr-form, .jr-cards .jr-perk, .jr-cards .jr-card { height: 100%; margin: 0; }
+.jr-bank { font-weight: 700; }
 .jr-card { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border: 3px solid var(--ink); background: var(--paper); color: var(--ink); font: inherit; text-align: center; cursor: pointer; box-shadow: 0 4px 0 var(--ink); }
 .jr-card:hover:not(:disabled) { background: var(--yellow); }
 .jr-card:active:not(:disabled) { translate: 0 3px; box-shadow: 0 1px 0 var(--ink); }
@@ -1251,7 +1277,7 @@ main.wide { max-width: 1320px; }
 .jr-start h2, .jr-result-head h2 { margin: 0; }
 .jr-hero.win img { filter: drop-shadow(0 0 6px var(--yellow)); }
 @media (prefers-reduced-motion: no-preference) {
-  .jr-idling .jr-hero img { animation: jr-walk .6s steps(2) infinite; }
+  .jr-idling .jr-stage:not(.fight) .jr-hero img { animation: jr-walk .6s steps(2) infinite; }
 }
 @keyframes jr-walk { 50% { translate: 0 -4px; } }
 @media (max-width: 520px) {
@@ -1261,7 +1287,7 @@ main.wide { max-width: 1320px; }
   .jr-card-text { flex-basis: 100%; }
   .jr-road { gap: 2px; }
   .jr-step { font-size: .5rem; border-width: 1px; }
-  .jr-stage { padding: 0 6%; }
+  .jr-stage { padding: 0 4% 10px; }
 }
 
 /* 사건파일: 합치기·메모·세 질문 */

@@ -73,7 +73,8 @@ import { isRole } from './expedition';
 import { CasesPage } from './views/cases';
 import { EscapePage } from './views/escape';
 import { JourneyPage } from './views/journey';
-import { activeJourney, actJourneyRun, beginJourney, getJourney, journeyRecord, quitJourney } from './journey-db';
+import { activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney } from './journey-db';
+import { PERKS, type PerkId } from './journey';
 import { activeEscape, actEscapeRun, beginEscape, escapeRecord, getEscape, quitEscape } from './escape-db';
 import { StoryPage } from './views/story';
 import { activeStory, actStory, beginStory, getStory, storyMarks, uuid } from './story-db';
@@ -776,11 +777,16 @@ const JR_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 members.get('/expedition/go', async (c) => {
   const viewer = c.get('viewer');
   c.header('Cache-Control', 'no-store');
-  const [run, record, profile] = await Promise.all([activeJourney(c.env.DB, viewer.user_id), journeyRecord(c.env.DB, viewer.user_id), getProfile(c.env.DB, viewer.user_id)]);
+  const [run, record, profile, bank] = await Promise.all([
+    activeJourney(c.env.DB, viewer.user_id),
+    journeyRecord(c.env.DB, viewer.user_id),
+    getProfile(c.env.DB, viewer.user_id),
+    journeyBank(c.env.DB, viewer.user_id),
+  ]);
   const rid = c.req.query('r') ?? '';
   const done = !run && JR_ID.test(rid) ? await getJourney(c.env.DB, viewer.user_id, rid) : null;
   const art = characterUrl(profile.character_id, viewer.user_id, profile.deco_id);
-  return page(c, <JourneyPage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} record={record} notice={c.req.query('n')} />);
+  return page(c, <JourneyPage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} record={record} bank={bank} notice={c.req.query('n')} />);
 });
 members.post('/api/journey/start', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
@@ -810,6 +816,18 @@ members.post('/api/journey/act', async (c) => {
   } catch (e) {
     console.error('원정 진행 실패', e);
     return c.redirect('/expedition/go?n=error#now', 303);
+  }
+});
+members.post('/api/journey/perk', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const k = String((await c.req.parseBody()).k ?? '');
+  if (!Object.hasOwn(PERKS, k)) return c.redirect('/expedition/go?n=bad#perks', 303);
+  try {
+    const ok = await buyPerk(c.env.DB, c.get('viewer').user_id, k as PerkId);
+    return c.redirect(`/expedition/go?n=${ok ? 'perk' : 'noperk'}#perks`, 303);
+  } catch (e) {
+    console.error('원정 강화 실패', e);
+    return c.redirect('/expedition/go?n=error#perks', 303);
   }
 });
 members.post('/api/journey/quit', async (c) => {
