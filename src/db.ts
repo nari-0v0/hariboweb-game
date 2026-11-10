@@ -1,3 +1,4 @@
+import { levelFromXp } from './levels';
 import type { Member } from './env';
 import { stripTitle } from './titles';
 import type { LoginProfile } from './discord';
@@ -485,6 +486,31 @@ export async function settleNickJob(db: D1Database, id: string, ok: boolean, rea
     .prepare("UPDATE nick_jobs SET status = ?2, reason = ?3, settled_at = ?4 WHERE id = ?1 AND status = 'pending'")
     .bind(id, ok ? 'done' : 'failed', reason, now())
     .run();
+  return (r.meta.changes ?? 0) > 0;
+}
+
+// ── 도감 축하(두 사람 카드가 10레벨마다) ─────────────
+// 두 사람 카드는 양쪽에 하나씩 있어서, 작은 ID 쪽 카드 한 장만 봐요. 둘 다 지금 멤버일 때만.
+export type Cheer = { a: string; b: string; level: number };
+export async function listCheers(db: D1Database, limit = 10): Promise<Cheer[]> {
+  const next = '((cheer_level / 10) * 10 + 9)'; // 다음 축하 레벨 - 1
+  const { results } = await db
+    .prepare(
+      `SELECT c.owner_id AS a, c.target_id AS b, c.xp, c.cheer_level FROM cards c
+       JOIN members ma ON ma.user_id = c.owner_id AND ma.active = 1
+       JOIN members mb ON mb.user_id = c.target_id AND mb.active = 1
+       WHERE c.owner_id < c.target_id AND c.cheer_level < 100 AND c.xp >= 2.25 * ${next} * ${next}
+       ORDER BY c.updated_at LIMIT ?`,
+    )
+    .bind(limit)
+    .all<{ a: string; b: string; xp: number; cheer_level: number }>();
+  return results
+    .map((r) => ({ a: r.a, b: r.b, level: Math.floor(levelFromXp(r.xp) / 10) * 10, was: r.cheer_level }))
+    .filter((r) => r.level > r.was && r.level >= 10)
+    .map(({ a, b, level }) => ({ a, b, level }));
+}
+export async function markCheer(db: D1Database, a: string, b: string, level: number): Promise<boolean> {
+  const r = await db.prepare('UPDATE cards SET cheer_level = ?3 WHERE owner_id = ?1 AND target_id = ?2 AND cheer_level < ?3').bind(a, b, level).run();
   return (r.meta.changes ?? 0) > 0;
 }
 
