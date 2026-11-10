@@ -1,0 +1,23 @@
+# 캐릭터 그림과 글꼴은 잘 안 바뀌어서 브라우저에 오래 두고 다시 받지 않아요(화면 옮길 때 빨라져요).
+/char/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+# 화면 꾸밈 파일은 배포 때 바뀌니 짧게 두고, 그 사이에는 갖고 있던 걸 먼저 보여 주며 뒤에서 새로 받아요.
+/styles.css
+  Cache-Control: public, max-age=60, stale-while-revalidate=604800
+/app.js
+  Cache-Control: public, max-age=60, stale-while-revalidate=604800
+/plaza.js
+  Cache-Control: public, max-age=60, stale-while-revalidate=604800
+/cases.js
+  Cache-Control: public, max-age=60, stale-while-revalidate=604800
+/room.js
+  Cache-Control: public, max-age=60, stale-while-revalidate=604800
+/tactile.js
+  Cache-Control: public, max-age=60, stale-while-revalidate=604800
+# 원정대·사건파일 그림과 배경도 잘 안 바뀌어서 하루 동안 다시 묻지 않고 바로 써요.
+/case/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/journey/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
