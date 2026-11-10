@@ -132,7 +132,8 @@ function Focus(props: { run: EscRun; art: string; name: string }) {
             <b>수수께끼 No.{puzzleNo(run.def, o.id)}</b>
             <span>{o.face ? `${o.name}의 문제` : o.name}</span>
           </div>
-          <p>{s.fx === 'wrong' ? s.msg : o.look}</p>
+          <p>{o.look}</p>
+          {s.fx === 'wrong' && <p class="esc-wrong">❌ {s.msg}</p>}
           <p class="hint">{o.lock!.kind === 'code' && o.lock!.ask}{o.face ? '' : ' · 수첩의 📌 메모가 실마리예요.'}</p>
         </div>
       )}
