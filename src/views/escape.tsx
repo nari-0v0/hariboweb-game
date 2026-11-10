@@ -52,7 +52,11 @@ function Thing(props: { run: EscRun; o: EscObject }) {
   return (
     <div class="esc-spot" style={`--x:${o.x};--y:${o.y}`}>
       <Act run={run} a="tap" o={o.id} cls={cls} label={o.name}>
-        {pics ? (
+        {o.face ? (
+          <span class="esc-pic esc-person" aria-hidden="true">
+            <img src={`/char/${o.face}.png`} alt="" />
+          </span>
+        ) : pics ? (
           <span class="esc-pic" aria-hidden="true" style={`width:calc(var(--k) * ${pics.now.w}cqw);height:calc(var(--k) * ${pics.now.h}cqw)`}>
             <img src={pics.now.src} alt="" />
             {pics.was && (motion === 'pop' || motion === 'swing') && <img class="esc-was" src={pics.was.src} alt="" />}
@@ -62,7 +66,7 @@ function Thing(props: { run: EscRun; o: EscObject }) {
             {o.emoji}
           </span>
         )}
-        {locked && <span class="esc-lock" aria-hidden="true">🔒</span>}
+        {locked && <span class="esc-lock" aria-hidden="true">{o.face ? '❓' : '🔒'}</span>}
         {(motion === 'pop' || motion === 'swing' || motion === 'shine') && <span class="esc-burst" aria-hidden="true" />}
         <span class="esc-name">{o.name}</span>
       </Act>
@@ -109,7 +113,7 @@ function Focus(props: { run: EscRun; art: string; name: string }) {
   const puzzle = locked && o.lock!.kind === 'code';
   return (
     <div class={`esc-talk${s.fx === 'wrong' ? ' fx-nope' : ''}`}>
-      <img class="esc-face" src={props.art} alt={props.name} width={72} height={72} />
+      <img class="esc-face" src={o?.face ? `/char/${o.face}.png` : props.art} alt={o?.face ? o.name : props.name} width={72} height={72} />
     <div class={`esc-bubble tone-${s.tone}`} role="status">
       {o && !puzzle && (
         <b class="esc-bubble-name">
@@ -126,10 +130,10 @@ function Focus(props: { run: EscRun; art: string; name: string }) {
         <div class="esc-puzzle">
           <div class="esc-puzzle-head">
             <b>수수께끼 No.{puzzleNo(run.def, o.id)}</b>
-            <span>{o.name}</span>
+            <span>{o.face ? `${o.name}의 문제` : o.name}</span>
           </div>
           <p>{s.fx === 'wrong' ? s.msg : o.look}</p>
-          <p class="hint">{o.lock!.kind === 'code' && o.lock!.ask} · 수첩의 📌 메모가 실마리예요.</p>
+          <p class="hint">{o.lock!.kind === 'code' && o.lock!.ask}{o.face ? '' : ' · 수첩의 📌 메모가 실마리예요.'}</p>
         </div>
       )}
       {puzzle && (
@@ -138,14 +142,24 @@ function Focus(props: { run: EscRun; art: string; name: string }) {
           <input type="hidden" name="rev" value={String(run.row.rev)} />
           <input type="hidden" name="a" value="code" />
           <input type="hidden" name="o" value={o.id} />
-          {o.lock!.kind === 'code' && /^[0-9]+$/.test(o.lock!.code) ? (
+          {o.lock!.kind === 'code' && o.lock!.choices ? (
+            <div class="esc-choices">
+              {o.lock!.choices.map((ch) => (
+                <button class="btn" type="submit" name="v" value={ch}>
+                  {ch}
+                </button>
+              ))}
+            </div>
+          ) : o.lock!.kind === 'code' && /^[0-9]+$/.test(o.lock!.code) ? (
             <input name="v" inputmode="numeric" pattern="[0-9]*" maxlength={8} autocomplete="off" placeholder={o.lock!.ask} aria-label={`${o.name} 비밀번호`} required />
           ) : (
             <input name="v" maxlength={12} autocomplete="off" placeholder={o.lock!.kind === 'code' ? o.lock!.ask : ''} aria-label={`${o.name} 암호`} required />
           )}
-          <button class="btn btn-primary" type="submit">
-            ✍️ 정답 내기
-          </button>
+          {!(o.lock!.kind === 'code' && o.lock!.choices) && (
+            <button class="btn btn-primary" type="submit">
+              ✍️ 정답 내기
+            </button>
+          )}
         </form>
       )}
       {locked && o.lock!.kind === 'item' && (

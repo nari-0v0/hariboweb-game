@@ -4,8 +4,9 @@
 
 import { buildCase } from './escape-gen';
 import { STORY_SEEDS } from './escape-stories';
+import { TALK_CASES } from './escape-talk';
 
-export type Lock = { kind: 'item'; item: string } | { kind: 'code'; code: string; ask: string };
+export type Lock = { kind: 'item'; item: string } | { kind: 'code'; code: string; ask: string; choices?: string[] };
 export type EscObject = {
   id: string;
   scene: string;
@@ -24,6 +25,7 @@ export type EscObject = {
   reveals?: string[]; // 열면 새로 보이는 물건
   hidden?: boolean; // 다른 물건을 열어야 보여요
   goto?: string; // 문: 다른 방으로 이동
+  face?: string; // 인물: 캐릭터 그림(public/char/<face>.png). 잠금은 그 사람이 내는 수수께끼예요
 };
 export type EscCase = {
   id: string;
@@ -267,7 +269,7 @@ const HANDMADE: EscCase[] = [
 
 // 손으로 만든 입문 사건 3개(★) + 이야기 씨앗으로 만든 사건 47개(★★★)
 // 어려운 사건(★★★)이 먼저, 손으로 만든 입문 사건(★)은 맨 뒤에 둬요.
-export const ESCAPE_CASES: EscCase[] = [...STORY_SEEDS.map((x) => buildCase(x)), ...HANDMADE.map((c) => ({ ...c, level: 1 }))];
+export const ESCAPE_CASES: EscCase[] = [...TALK_CASES, ...STORY_SEEDS.map((x) => buildCase(x)), ...HANDMADE.map((c) => ({ ...c, level: 1 }))];
 
 export const escCase = (id: string) => ESCAPE_CASES.find((c) => c.id === id);
 

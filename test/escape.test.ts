@@ -76,9 +76,9 @@ function play(c: EscCase): { s: EscState; steps: EscAction[] } {
 }
 
 describe('사건파일 방탈출 내용', () => {
-  it('사건이 50개예요', () => {
-    expect(ESCAPE_CASES).toHaveLength(50);
-    expect(new Set(ESCAPE_CASES.map((c) => c.id)).size).toBe(50);
+  it("사건이 51개예요", () => {
+    expect(ESCAPE_CASES).toHaveLength(51);
+    expect(new Set(ESCAPE_CASES.map((c) => c.id)).size).toBe(51);
   });
   it.each(ESCAPE_CASES.map((c) => [c.id, c] as const))('%s: 실수 없이 끝까지 풀리고 S등급', (_, c) => {
     const { s } = play(c);
@@ -114,7 +114,7 @@ describe('사건파일 방탈출 내용', () => {
     }
   });
   it('만든 사건: 용의자 특징 단서 세 개를 모두 맞춰야 범인이 한 명 남아요', () => {
-    for (const c of ESCAPE_CASES.filter((x) => x.solution)) {
+    for (const c of ESCAPE_CASES.filter((x) => x.solution && !x.id.endsWith("-talk"))) {
       const file = c.objects.find((o) => o.id === 'file')!.look.split('\n').slice(1);
       expect(file).toHaveLength(4);
       // 단서 문장 끝 "범인은 …다." 의 핵심어가 특징표에 있는 사람만 남겨요
@@ -134,9 +134,9 @@ describe('사건파일 방탈출 내용', () => {
   });
   it('만든 사건: 퍼즐 종류가 사건마다 섞여 있어요', () => {
     const kinds = (c: EscCase) => new Set(c.objects.map((o) => o.id.replace(/\d+$/, '')).filter((k) => ['mm', 'cntn', 'col', 'alg', 'let', 'clkn', 'lmpn'].includes(k)));
-    const all = new Set(ESCAPE_CASES.filter((c) => c.solution).flatMap((c) => [...kinds(c)]));
+    const all = new Set(ESCAPE_CASES.filter((c) => c.solution && !c.id.endsWith("-talk")).flatMap((c) => [...kinds(c)]));
     expect(all.size).toBe(7);
-    for (const c of ESCAPE_CASES.filter((x) => x.solution)) expect(kinds(c).size, c.id).toBeGreaterThanOrEqual(3);
+    for (const c of ESCAPE_CASES.filter((x) => x.solution && !x.id.endsWith("-talk"))) expect(kinds(c).size, c.id).toBeGreaterThanOrEqual(3);
   });
   it('합치기: 맞는 짝은 도구가 되고, 안 맞는 짝은 실수예요', () => {
     const c = ESCAPE_CASES.find((x) => x.combos)!;
@@ -310,7 +310,7 @@ describe('사건파일 그림', () => {
   it('모든 사건의 물건과 소지품에 나리님 그림이 있어요', async () => {
     const { casePics, itemPic } = await import('../src/case-art');
     for (const c of ESCAPE_CASES) {
-      for (const o of c.objects) expect(casePics(o.emoji, false, false), `${c.id}/${o.id} ${o.emoji}`).not.toBeNull();
+      for (const o of c.objects.filter((x) => !x.face)) expect(casePics(o.emoji, false, false), `${c.id}/${o.id} ${o.emoji}`).not.toBeNull();
       for (const [k, it] of Object.entries(c.items)) expect(itemPic(it.emoji), `${c.id}/${k} ${it.emoji}`).not.toBeNull();
     }
   });
@@ -323,5 +323,19 @@ describe('확대 화면 쪽지', () => {
     expect(zoomTag('시계가 오후 7시 정각에 멈춰 있어요.')).toBe('오후 7:00');
     expect(zoomTag('쪽지에 「냉장고 = 0340」')).toBe('냉장고 = 0340');
     expect(zoomTag('그냥 빗자루예요.')).toBeNull();
+  });
+});
+
+describe('인물 수수께끼 사건', () => {
+  it('모범 풀이로 S 등급, 객관식 오답은 실수로 세요', async () => {
+    const { TALK_CASES } = await import('../src/escape-talk');
+    const c = TALK_CASES[0]!;
+    let s = startEscape(c);
+    s = actEscape(c, s, { a: 'code', o: 'door1', v: '목요일' })!;
+    expect(s.fx).toBe('wrong');
+    let t = startEscape(c);
+    for (const a of c.solution!) { const n = actEscape(c, t, a); expect(n, JSON.stringify(a)).not.toBeNull(); t = n!; }
+    expect(t.done).toBeTruthy();
+    expect(escGrade(t)).toBe('S');
   });
 });
