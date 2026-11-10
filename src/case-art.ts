@@ -9,7 +9,7 @@ const OPENABLE: Record<string, string> = {
 const SINGLE: Record<string, string> = {
   '🕰️': 'clock', '⏰': 'alarm', '⌚': 'watch', '⏱️': 'metronome', '📅': 'calendar', '📋': 'board',
   '📝': 'crumpled', '🗒️': 'pinned', '📌': 'pinned', '🃏': 'card', '📁': 'folder', '📜': 'scroll', '🎼': 'sheet', '📘': 'folder',
-  '🖼️': 'frame', '🌌': 'starframe', '🎨': 'chart', '🧮': 'blackboard', '🪟': 'window', '🪞': 'mirror',
+  '🖼️': 'frame', '🌌': 'starframe', '🎨': 'chart', '🖌️': 'chart', '🧮': 'blackboard', '🪟': 'window', '🪞': 'mirror',
   '🪴': 'plant', '💐': 'flowers', '🐠': 'fishbowl', '🔘': 'buttons', '🧺': 'basket', '🌍': 'globe',
   '📚': 'shelf', '🎹': 'piano', '🖥️': 'computer', '💡': 'lamp-on', '🔌': 'lamp-off', '🛏️': 'bed',
   '🪑': 'chair', '🛋️': 'cushion', '👟': 'shoes', '☂️': 'umbrella', '🧹': 'broom', '🕯️': 'candle',

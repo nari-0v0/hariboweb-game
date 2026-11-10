@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ESCAPE_CASES, actEscape, canAnswer, escGrade, isLocked, startEscape, visible, type EscAction, type EscCase, type EscState } from '../src/escape';
+import { ESCAPE_CASES, escCase, actEscape, canAnswer, escGrade, isLocked, startEscape, visible, type EscAction, type EscCase, type EscState } from '../src/escape';
 import { actEscapeRun, activeEscape, beginEscape, escapeRecord, getEscape, quitEscape } from '../src/escape-db';
 
 function database() {
@@ -169,7 +169,7 @@ describe('사건파일 방탈출 내용', () => {
 });
 
 describe('사건파일 방탈출 규칙', () => {
-  const c = ESCAPE_CASES[0]!;
+  const c = escCase('jellyjar')!;
   it('잠긴 곳은 눌러도 안 열리고, 틀린 비밀번호·물건은 실수로 세요', () => {
     let s = startEscape(c);
     s = actEscape(c, s, { a: 'tap', o: 'fridge' })!;
@@ -228,7 +228,7 @@ describe('사건파일 방탈출 규칙', () => {
 });
 
 describe('사건파일 방탈출 저장과 보상', () => {
-  const c = ESCAPE_CASES[0]!;
+  const c = escCase('jellyjar')!;
   async function play(db: D1Database) {
     const id = (await beginEscape(db, 'me', c.id))!;
     const { steps } = solve(c);
@@ -280,7 +280,7 @@ describe('사건파일 퍼즐 게임 방식', () => {
         expect(spots.length, `${c.id}/${sc.id}`).toBe(2);
         for (const p of spots) for (const o of c.objects.filter((x) => x.scene === sc.id)) expect(Math.abs(o.x - p.x) >= 13 || Math.abs(o.y - p.y) >= 17).toBe(true);
       }
-    const c = ESCAPE_CASES[0]!;
+    const c = escCase('jellyjar')!;
     const s1 = actEscape(c, startEscape(c), { a: 'coin', k: 0 })!;
     expect(s1.fx).toBe('coin');
     expect(coinsLeft(s1)).toBe(1);
