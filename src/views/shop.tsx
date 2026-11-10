@@ -1,4 +1,4 @@
-import type { Profile, Purchase } from '../db';
+import type { NickJob, Profile, Purchase } from '../db';
 import type { Member } from '../env';
 import { PRICES, SERVICES, SHOP_ITEMS, canUse, serviceItem, servicePrice, type ShopItem } from '../shop';
 import { poolOf } from '../character';
@@ -18,11 +18,21 @@ const NOTICES: Record<string, PopupLine[]> = {
   service_pending: [{ title: '구매 완료', text: '구매가 완료되었습니다. 하리보봇이 곧 디스코드에 적용해요(1분 안쪽).' }],
   gender_same: [{ title: '알림', text: '이미 그 성별 캐릭터예요.' }],
   price_changed: [{ title: '알림', text: '그 사이 값이 바뀌었어요. 새 값을 확인하고 다시 사 주세요.' }],
+  nick_pending: [{ title: '변경 신청 완료', text: '하리보봇이 곧 디스코드 닉네임을 바꿔요(1분 안쪽). 칭호와 생년은 그대로예요.' }],
+  nick_none: [{ title: '알림', text: '닉네임 변경권이 없거나, 앞서 신청한 변경을 아직 적용하는 중이에요.' }],
+  nick_bad: [{ title: '알림', text: '닉네임은 띄어쓰기 없이 16자 안으로 적어 주세요. 「」는 쓸 수 없어요.', bad: true }],
   service_busy: [{ title: '알림', text: '앞서 산 것을 하리보봇이 아직 적용하는 중이에요. 끝나면 다시 살 수 있어요.' }],
   error: [
     { title: '오류', text: '오류가 발생하였습니다.', bad: true },
     { title: '오류', text: '방장에게 문의해주세요.', bad: true, contact: true },
   ],
+};
+
+const NICK_FAIL_TEXT: Record<string, string> = {
+  invalid: '서버 닉네임 규칙(글자 수·자음모음만 쓰기 등)에 맞지 않아 바꾸지 못했어요.',
+  banned: '쓸 수 없는 단어가 들어 있어 바꾸지 못했어요.',
+  forbidden: '하리보봇 권한이 모자라 바꾸지 못했어요. 방장에게 알려 주세요.',
+  left: '서버에 없어서 바꾸지 못했어요.',
 };
 
 // 도감 젤리 모으는 법(나리가 정한 규칙이 바뀌면 같이 바꿔요)
@@ -158,6 +168,7 @@ export function ShopPage(props: {
   cards: number;
   results: Purchase[];
   services: { bought: Map<string, number>; pending: Set<string> };
+  nick: { left: number; last: NickJob | null };
   notice?: string;
 }) {
   const { viewer, profile, owned, cards } = props;
@@ -204,6 +215,30 @@ export function ShopPage(props: {
                   </div>
                 );
               })}
+                <div class="service-item service-nick" id="nick">
+                  <div>
+                    <span class="shop-name">내 닉네임 변경권 {props.nick.left}장</span>
+                    <p class="hint">닉네임 앞부분만 바뀌어요. 칭호·생년은 그대로예요.</p>
+                    {props.nick.last && props.nick.last.status !== 'pending' && (
+                      <p class="hint">
+                        지난 변경 「{props.nick.last.front}」:{' '}
+                        {props.nick.last.status === 'done' ? '적용됐어요' : `${NICK_FAIL_TEXT[props.nick.last.reason ?? ''] ?? '적용하지 못했어요'} 변경권은 그대로 남아 있어요.`}
+                      </p>
+                    )}
+                  </div>
+                  {props.nick.last?.status === 'pending' ? (
+                    <span class="tag">적용 중</span>
+                  ) : props.nick.left > 0 ? (
+                    <form method="post" action="/api/shop/nick" class="nick-form">
+                      <input name="front" maxlength={16} required placeholder="새 닉네임" aria-label="새 닉네임" />
+                      <button class="btn btn-small btn-buy" type="submit">
+                        바꾸기
+                      </button>
+                    </form>
+                  ) : (
+                    <span class="hint">위에서 사면 여기서 써요</span>
+                  )}
+                </div>
                 <div class="service-item" id="gender">
                   <div>
                     <span class="shop-name">성별 바꾸기</span>

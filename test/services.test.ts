@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { listPendingServices, requestService, serviceState, settleService } from '../src/db';
+import { listNickJobs, listPendingServices, nickState, requestService, serviceState, settleNickJob, settleService, useNickTicket } from '../src/db';
 import { SERVICES, serviceItem, servicePrice } from '../src/shop';
 import { resultLines } from '../src/views/shop';
 
@@ -88,5 +88,35 @@ describe('디스코드 물건(벌점·경고 지우기, 닉네임 변경권)', (
     expect((await serviceState(db, A)).bought.size).toBe(0);
     expect(resultLines({ status: 'failed', reason: 'no_warning', item_id: 'svc:warning' }, '경고 1점 지우기')[0]!.text).toContain('젤리를 돌려드렸습니다');
     expect(resultLines({ status: 'done', reason: null, item_id: 'svc:nickname' }, '닉네임 변경권')[0]!.text).toContain('닉네임 변경권 1장');
+  });
+});
+
+describe('도감 닉네임 변경권(겜블장 변경권과 따로)', () => {
+  it('사면 바로 도감에 1장 생기고 봇 목록엔 안 가요', async () => {
+    const { db, jellyOf } = setup(20);
+    expect(await requestService(db, A, 'svc:nickname', 5, 0, true)).toBe('done');
+    expect(await requestService(db, A, 'svc:nickname', 5, 1, true)).toBe('done');
+    expect(jellyOf()).toBe(10);
+    expect(await listPendingServices(db)).toEqual([]);
+    expect((await nickState(db, A)).left).toBe(2);
+  });
+  it('쓰면 봇이 가져가고, 실패하면 변경권이 그대로 남아요', async () => {
+    const { db } = setup(20);
+    expect(await useNickTicket(db, A, '하리')).toBe(false); // 아직 없음
+    await requestService(db, A, 'svc:nickname', 5, 0, true);
+    expect(await useNickTicket(db, A, '하리')).toBe(true);
+    expect(await useNickTicket(db, A, '하리2')).toBe(false); // 적용 중엔 또 못 씀
+    const [job] = await listNickJobs(db);
+    expect(job!.front).toBe('하리');
+    expect((await nickState(db, A)).left).toBe(0);
+    expect(await settleNickJob(db, job!.id, false, 'invalid')).toBe(true);
+    expect(await settleNickJob(db, job!.id, true, null)).toBe(false); // 두 번 처리 안 함
+    expect((await nickState(db, A)).left).toBe(1);
+    expect(await useNickTicket(db, A, '보리')).toBe(true);
+    const [job2] = await listNickJobs(db);
+    await settleNickJob(db, job2!.id, true, null);
+    const st = await nickState(db, A);
+    expect(st.left).toBe(0);
+    expect(st.last?.status).toBe('done');
   });
 });

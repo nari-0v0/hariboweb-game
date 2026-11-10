@@ -387,25 +387,26 @@ export async function requestService(
   itemId: string,
   price: number,
   bought: number,
-): Promise<'pending' | 'busy' | 'not_enough_jelly' | 'changed'> {
+  instant = false, // 도감 안에서 끝나는 물건(닉네임 변경권)은 봇 없이 바로 완료
+): Promise<'pending' | 'done' | 'busy' | 'not_enough_jelly' | 'changed'> {
   const id = crypto.randomUUID();
   const t = now();
   await db.batch([
     db
       .prepare(
-        `INSERT INTO purchases (id, user_id, item_id, price, status, created_at)
-         SELECT ?1, ?2, ?3, ?4, 'pending', ?5
+        `INSERT INTO purchases (id, user_id, item_id, price, status, created_at, settled_at)
+         SELECT ?1, ?2, ?3, ?4, ?7, ?5, CASE WHEN ?7 = 'done' THEN ?5 END
          WHERE EXISTS (SELECT 1 FROM profiles WHERE user_id = ?2 AND dogam_jelly >= ?4)
            AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)
            AND NOT EXISTS (SELECT 1 FROM purchases WHERE user_id = ?2 AND item_id = ?3 AND status = 'pending')
            AND (SELECT COUNT(*) FROM purchases WHERE user_id = ?2 AND item_id = ?3 AND status = 'done') = ?6`,
       )
-      .bind(id, userId, itemId, price, t, bought),
+      .bind(id, userId, itemId, price, t, bought, instant ? 'done' : 'pending'),
     db
       .prepare('UPDATE profiles SET dogam_jelly = dogam_jelly - ?3, updated_at = ?4 WHERE user_id = ?2 AND EXISTS (SELECT 1 FROM purchases WHERE id = ?1)')
       .bind(id, userId, price, t),
   ]);
-  if (await db.prepare('SELECT 1 FROM purchases WHERE id = ?').bind(id).first()) return 'pending';
+  if (await db.prepare('SELECT 1 FROM purchases WHERE id = ?').bind(id).first()) return instant ? 'done' : 'pending';
   const busy = await db.prepare("SELECT 1 FROM purchases WHERE user_id = ? AND item_id = ? AND status = 'pending'").bind(userId, itemId).first();
   if (busy) return 'busy';
   // 값을 계산한 뒤에 봇이 앞 구매를 끝냈으면 값이 올랐어요. 새 값으로 다시 계산하게 알려요.
@@ -418,7 +419,7 @@ export async function requestService(
 
 export async function listPendingServices(db: D1Database, limit = 20): Promise<{ id: string; user_id: string; item_id: string }[]> {
   const { results } = await db
-    .prepare(`SELECT id, user_id, item_id FROM purchases WHERE status = 'pending' AND item_id LIKE 'svc:%' ORDER BY created_at LIMIT ?`)
+    .prepare(`SELECT id, user_id, item_id FROM purchases WHERE status = 'pending' AND item_id LIKE 'svc:%' AND item_id != 'svc:nickname' ORDER BY created_at LIMIT ?`)
     .bind(limit)
     .all<{ id: string; user_id: string; item_id: string }>();
   return results;
@@ -445,6 +446,46 @@ export async function settleService(db: D1Database, id: string, ok: boolean, rea
       .bind(id, mark, now()),
   ]);
   return !!(await db.prepare('SELECT 1 FROM purchases WHERE id = ? AND settled_at = ?').bind(id, mark).first());
+}
+
+// ── 도감 닉네임 변경권(겜블장 변경권과 따로) ─────────────
+const NICK_LEFT = `(SELECT COUNT(*) FROM purchases WHERE user_id = ?1 AND item_id = 'svc:nickname' AND status = 'done')
+  - (SELECT COUNT(*) FROM nick_jobs WHERE user_id = ?1 AND status IN ('pending', 'done'))`;
+export type NickJob = { id: string; user_id: string; front: string; status: string; reason: string | null; created_at: string };
+export async function nickState(db: D1Database, userId: string): Promise<{ left: number; last: NickJob | null }> {
+  const [left, last] = await Promise.all([
+    db.prepare(`SELECT ${NICK_LEFT} AS n`).bind(userId).first<{ n: number }>(),
+    db.prepare('SELECT * FROM nick_jobs WHERE user_id = ? ORDER BY created_at DESC LIMIT 1').bind(userId).first<NickJob>(),
+  ]);
+  return { left: Math.max(0, left?.n ?? 0), last: last ?? null };
+}
+// 쓰기: 남은 장수가 있고 하리보봇이 앞의 것을 적용 중이 아닐 때만
+export async function useNickTicket(db: D1Database, userId: string, front: string): Promise<boolean> {
+  const id = crypto.randomUUID();
+  const r = await db
+    .prepare(
+      `INSERT INTO nick_jobs (id, user_id, front, status, created_at)
+       SELECT ?2, ?1, ?3, 'pending', ?4
+       WHERE ${NICK_LEFT} > 0
+         AND NOT EXISTS (SELECT 1 FROM nick_jobs WHERE user_id = ?1 AND status = 'pending')
+         AND EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)`,
+    )
+    .bind(userId, id, front, now())
+    .run();
+  return (r.meta.changes ?? 0) > 0;
+}
+export async function listNickJobs(db: D1Database, limit = 20): Promise<NickJob[]> {
+  const { results } = await db.prepare("SELECT * FROM nick_jobs WHERE status = 'pending' ORDER BY created_at LIMIT ?").bind(limit).all<NickJob>();
+  return results;
+}
+export const NICK_FAIL_REASONS = ['invalid', 'banned', 'forbidden', 'left'] as const;
+// 실패하면 'failed'가 되어 남은 장수에서 빠지지 않아요(변경권이 그대로 남아요).
+export async function settleNickJob(db: D1Database, id: string, ok: boolean, reason: string | null): Promise<boolean> {
+  const r = await db
+    .prepare("UPDATE nick_jobs SET status = ?2, reason = ?3, settled_at = ?4 WHERE id = ?1 AND status = 'pending'")
+    .bind(id, ok ? 'done' : 'failed', reason, now())
+    .run();
+  return (r.meta.changes ?? 0) > 0;
 }
 
 // 처음 젤리 선물(계정당 한 번). 이번 호출이 표시를 직접 남겼을 때만 젤리를 더해요.
