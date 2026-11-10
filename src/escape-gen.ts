@@ -110,28 +110,29 @@ function mastermind(ctx: Ctx): Built {
 }
 
 // 2) 개수 세기: 쪽지에 적힌 순서대로 방 안 물건의 개수를 세요.
-const COUNTABLE: { name: string; emoji: string; say: (n: number) => string; what: string }[] = [
-  { name: '어항', emoji: '🐠', what: '물고기', say: (n) => `어항 속에 물고기 ${n}마리가 헤엄쳐요.` },
-  { name: '촛대', emoji: '🕯️', what: '초', say: (n) => `촛대에 초가 ${n}개 꽂혀 있어요.` },
-  { name: '꽃병', emoji: '💐', what: '꽃', say: (n) => `꽃병에 꽃 ${n}송이가 꽂혀 있어요.` },
-  { name: '별 그림', emoji: '🌌', what: '별', say: (n) => `밤하늘 그림에 별이 ${n}개 그려져 있어요.` },
-  { name: '과일 바구니', emoji: '🧺', what: '사과', say: (n) => `바구니에 사과 ${n}개와 배 몇 개가 있어요.` },
-  { name: '책꽂이', emoji: '📚', what: '빨간 책', say: (n) => `책꽂이에 빨간 책이 ${n}권 꽂혀 있어요.` },
-  { name: '화분 선반', emoji: '🪴', what: '선인장', say: (n) => `선반 위에 작은 선인장 ${n}개가 나란히 있어요.` },
-  { name: '단추 통', emoji: '🔘', what: '단추', say: (n) => `통 안에 단추가 ${n}개 들어 있어요.` },
+const COUNTABLE: { name: string; emoji: string; say: (a: number, b: number) => string; what: string }[] = [
+  { name: '어항', emoji: '🐠', what: '물고기', say: (a, b) => `빨간 물고기 ${a}마리가 수초 사이를 돌고, 노란 물고기 ${b}마리는 바닥 돌 틈에 숨어 있어요.` },
+  { name: '촛대', emoji: '🕯️', what: '초', say: (a, b) => `불 켜진 초 ${a}개, 다 타서 심지만 남은 초 ${b}개가 꽂혀 있어요.` },
+  { name: '꽃병', emoji: '💐', what: '꽃', say: (a, b) => `활짝 핀 꽃 ${a}송이 옆에 아직 봉오리인 꽃 ${b}송이가 있어요.` },
+  { name: '별 그림', emoji: '🌌', what: '별', say: (a, b) => `밤하늘 그림 위쪽에 큰 별 ${a}개, 구석에 작은 별 ${b}개가 그려져 있어요.` },
+  { name: '과일 바구니', emoji: '🧺', what: '사과', say: (a, b) => `빨간 사과 ${a}개와 풋사과 ${b}개, 그리고 배 몇 개가 섞여 있어요.` },
+  { name: '책꽂이', emoji: '📚', what: '책', say: (a, b) => `윗칸에 책 ${a}권, 아랫칸에 책 ${b}권이 꽂혀 있어요. 맨 아래 칸은 비었어요.` },
+  { name: '화분 선반', emoji: '🪴', what: '선인장', say: (a, b) => `선반 위에 선인장 ${a}개, 바닥에 내려놓은 선인장 ${b}개가 있어요.` },
+  { name: '단추 통', emoji: '🔘', what: '단추', say: (a, b) => `구멍 두 개짜리 단추 ${a}개와 구멍 네 개짜리 단추 ${b}개가 섞여 있어요.` },
 ];
 function counting(ctx: Ctx): Built {
   const { r } = ctx;
   const kinds = shuffle(r, COUNTABLE).slice(0, 4);
-  const nums = kinds.map(() => 1 + Math.floor(r() * 9));
+  const nums = kinds.map(() => 2 + Math.floor(r() * 8));
+  const parts = nums.map((n) => { const a = 1 + Math.floor(r() * (n - 1)); return [a, n - a] as const; });
   const order = kinds.slice(0, 3);
   const code = order.map((_, i) => nums[i]).join('');
-  const spots: Spot[] = kinds.map((k, i) => ({ id: ctx.id(`cnt${i}`), name: k.name, emoji: k.emoji, look: k.say(nums[i]!), memo: true, wall: k.name.includes('그림') }));
-  const paper = note(ctx.id('cntn'), '수수께끼 메모', '📌', `「${order.map((k) => k.what).join(' → ')}」\n이 순서대로 개수를 세어 이어 쓰면 비밀번호.`);
+  const spots: Spot[] = kinds.map((k, i) => ({ id: ctx.id(`cnt${i}`), name: k.name, emoji: k.emoji, look: k.say(parts[i]![0], parts[i]![1]), memo: true, wall: k.name.includes('그림') }));
+  const paper = note(ctx.id('cntn'), '수수께끼 메모', '📌', `「${order.map((k) => k.what).join(' → ')}」\n「모두 세어라」`);
   const lock = box(ctx, code, '숫자 3자리', '숫자 세 개를 넣어야 해요.');
   return {
     spots: [paper, ...spots, lock], lockId: lock.id,
-    hint: '메모에 적힌 것들이 방 어디에 있는지 찾아서 하나씩 눌러 개수를 세어 보세요. 순서가 중요해요. 메모에 없는 물건은 함정이에요.',
+    hint: '메모에 적힌 것들을 방에서 찾아 종류에 상관없이 모두 더해 세어 보세요. 순서가 중요하고, 메모에 없는 물건은 함정이에요.',
     steps: [{ a: 'tap', o: paper.id }, ...spots.map((s) => ({ a: 'tap', o: s.id }) as const), { a: 'code', o: lock.id, v: code }],
   };
 }
@@ -144,10 +145,11 @@ function colors(ctx: Ctx): Built {
   const digits = shuffle(r, [1, 2, 3, 4, 5, 6, 7, 8, 9]).slice(0, 5);
   const band = shuffle(r, cs).slice(0, 4);
   const code = band.map((c) => digits[cs.indexOf(c)]).join('');
-  const legend = note(ctx.id('col1'), '색깔 숫자표', '🎨', `「${cs.map((c, i) => `${c}=${digits[i]}`).join(', ')}」`);
-  const art = note(ctx.id('col2'), '줄무늬 그림', '🖼️', `왼쪽부터 색 띠가 이렇게 칠해져 있어요: ${band.join(', ')}. 액자 아래 「색은 숫자를 숨긴다」라고 적혀 있어요.`);
+  const legend = note(ctx.id('col1'), '물감 통', '🎨', `물감 통 뚜껑마다 숫자가 적혀 있어요: ${cs.slice(0, 3).map((c, i) => `${c} ${digits[i]}`).join(', ')}.`);
+  const legend2 = note(ctx.id('col3'), '팔레트', '🖌️', `마른 팔레트 칸 아래에 숫자가 적혀 있어요: ${cs.slice(3).map((c, i) => `${c} ${digits[i + 3]}`).join(', ')}.`);
+  const art = note(ctx.id('col2'), '줄무늬 그림', '🖼️', `오른쪽부터 색 띠가 이렇게 칠해져 있어요: ${[...band].reverse().join(', ')}. 서명은 왼쪽 아래에 있어요.`);
   const lock = box(ctx, code, '숫자 4자리', '네 자리 숫자를 넣어야 해요.');
-  return { spots: [legend, art, lock], lockId: lock.id, hint: '줄무늬 그림의 색을 왼쪽부터 색깔 숫자표로 바꿔 보세요.', steps: [{ a: 'tap', o: legend.id }, { a: 'tap', o: art.id }, { a: 'code', o: lock.id, v: code }] };
+  return { spots: [legend, legend2, art, lock], lockId: lock.id, hint: '물감 통과 팔레트에서 색마다 숫자를 모으고, 줄무늬 그림은 서명이 있는 왼쪽부터 읽어요.', steps: [{ a: 'tap', o: legend.id }, { a: 'tap', o: legend2.id }, { a: 'tap', o: art.id }, { a: 'code', o: lock.id, v: code }] };
 }
 
 // 4) 저울 계산: 그림 세 개의 값을 식 세 줄로 구해요.
@@ -178,9 +180,9 @@ function letters(ctx: Ctx): Built {
   const chars = [...word];
   const hides = shuffle(r, HIDES).slice(0, chars.length);
   const spots: Spot[] = shuffle(r, chars.map((ch, i) => ({ ch, i })))
-    .map(({ ch, i }, k) => ({ id: ctx.id(`let${k}`), name: hides[k]![0], emoji: hides[k]![1], look: `${hides[k]![2]} 「${'①②③④⑤'[i]} ${ch}」라고 적혀 있어요.`, memo: true, wall: hides[k]![0] === '액자 뒤' || hides[k]![0] === '달력' }));
-  const lock = box(ctx, word, `글자 ${chars.length}자`, `글자 ${chars.length}자 암호를 넣어야 해요.`);
-  return { spots: [...spots, lock], lockId: lock.id, hint: `방 안 물건 곳곳에 번호 붙은 글자가 숨어 있어요. ${chars.length}개를 모아 번호 순서로 이어 보세요.`, steps: [...spots.map((s) => ({ a: 'tap', o: s.id }) as const), { a: 'code', o: lock.id, v: word }] };
+    .map(({ ch, i }, k) => ({ id: ctx.id(`let${k}`), name: hides[k]![0], emoji: hides[k]![1], look: `${hides[k]![2]} 「${ch}」 한 글자가 적혀 있어요.`, memo: true, wall: hides[k]![0] === '액자 뒤' || hides[k]![0] === '달력' }));
+  const lock = box(ctx, word, `글자 ${chars.length}자`, `글자 ${chars.length}자 낱말을 넣어야 해요. 자물쇠에 「흩어진 글자는 하나의 낱말」이라고 새겨져 있어요.`);
+  return { spots: [...spots, lock], lockId: lock.id, hint: `방 곳곳에 글자 ${chars.length}개가 숨어 있어요. 모두 모아 순서를 바꿔 가며 뜻이 있는 낱말을 만들어 보세요.`, steps: [...spots.map((s) => ({ a: 'tap', o: s.id }) as const), { a: 'code', o: lock.id, v: word }] };
 }
 
 // 6) 시계 순서: 오전·오후가 섞인 시계들을 이른 시각부터 줄 세워요.
@@ -195,7 +197,7 @@ function clocks(ctx: Ctx): Built {
   const code = order.map((i) => hours[i]).join('');
   const names: [string, string][] = [['벽시계', '🕰️'], ['손목시계', '⌚'], ['자명종', '⏰']];
   const spots: Spot[] = [0, 1, 2].map((i) => ({ id: ctx.id(`clk${i}`), name: names[i]![0], emoji: names[i]![1], look: `${names[i]![0]}${josa(names[i]![0], '이', '가')} ${pm[i] ? '오후' : '오전'} ${hours[i]}시 ${mins[i] ? `${mins[i]}분` : '정각'}에 멈춰 있어요.`, memo: true, wall: i === 0 }));
-  const paper = note(ctx.id('clkn'), '시간표 쪽지', '🗒️', '「가장 이른 시각에 멈춘 시계부터, 각 시계의 \'시\' 숫자를 이어 써요.」');
+  const paper = note(ctx.id('clkn'), '시간표 쪽지', '🗒️', '「이른 것부터. 시(時)만.」');
   const lock = box(ctx, code, '숫자 3자리', '세 자리 숫자를 넣어야 해요.');
   return { spots: [paper, ...spots, lock], lockId: lock.id, hint: '오전이 오후보다 이르다는 걸 잊지 마세요. 멈춘 시계 세 개의 시각을 이른 순서로 줄 세워 보세요.', steps: [{ a: 'tap', o: paper.id }, ...spots.map((s) => ({ a: 'tap', o: s.id }) as const), { a: 'code', o: lock.id, v: code }] };
 }
@@ -210,13 +212,13 @@ function lamps(ctx: Ctx): Built {
   const sum = (b: boolean) => nums.filter((_, i) => on[i] === b).reduce((a, n) => a + n, 0);
   const code = `${String(sum(true)).padStart(2, '0')}${String(sum(false)).padStart(2, '0')}`;
   const spots: Spot[] = nums.map((n, i) => ({ id: ctx.id(`lmp${i}`), name: `${i + 1}번 전등`, emoji: on[i] ? '💡' : '🔌', look: `전등에 「${n}」이 새겨져 있어요. 불이 ${on[i] ? '켜져' : '꺼져'} 있어요.`, memo: true, wall: true }));
-  const paper = note(ctx.id('lmpn'), '전기 설명서', '📘', '「켜진 전등 숫자의 합, 꺼진 전등 숫자의 합을 두 자리씩 이어 써요. (예: 7이면 07)」', false);
+  const paper = note(ctx.id('lmpn'), '전기 설명서', '📘', '「빛의 합, 그다음 어둠의 합. 둘 다 두 자리로.」', false);
   const lock = box(ctx, code, '숫자 4자리', '네 자리 숫자를 넣어야 해요.');
   return { spots: [paper, ...spots, lock], lockId: lock.id, hint: '전등을 하나씩 눌러 숫자와 켜짐·꺼짐을 확인하고, 두 묶음으로 나눠 더해 보세요.', steps: [{ a: 'tap', o: paper.id }, ...spots.map((s) => ({ a: 'tap', o: s.id }) as const), { a: 'code', o: lock.id, v: code }] };
 }
 
 const CODE_MODULES = [mastermind, counting, colors, algebra, letters, clocks, lamps];
-const SIZE = new Map<(c: Ctx) => Built, number>([[mastermind, 2], [counting, 6], [colors, 3], [algebra, 2], [letters, 5], [clocks, 5], [lamps, 6]]);
+const SIZE = new Map<(c: Ctx) => Built, number>([[mastermind, 2], [counting, 6], [colors, 4], [algebra, 2], [letters, 5], [clocks, 5], [lamps, 6]]);
 
 // 수수께끼: 답이 되는 물건을 눌러야 숨긴 물건이 나와요(틀린 물건은 그냥 비어 있어요).
 const RIDDLES: { name: string; emoji: string; text: string }[] = [

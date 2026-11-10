@@ -266,7 +266,8 @@ const HANDMADE: EscCase[] = [
 ];
 
 // 손으로 만든 입문 사건 3개(★) + 이야기 씨앗으로 만든 사건 47개(★★★)
-export const ESCAPE_CASES: EscCase[] = [...HANDMADE.map((c) => ({ ...c, level: 1 })), ...STORY_SEEDS.map((x) => buildCase(x))];
+// 어려운 사건(★★★)이 먼저, 손으로 만든 입문 사건(★)은 맨 뒤에 둬요.
+export const ESCAPE_CASES: EscCase[] = [...STORY_SEEDS.map((x) => buildCase(x)), ...HANDMADE.map((c) => ({ ...c, level: 1 }))];
 
 export const escCase = (id: string) => ESCAPE_CASES.find((c) => c.id === id);
 

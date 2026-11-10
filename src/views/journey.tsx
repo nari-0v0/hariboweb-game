@@ -160,10 +160,19 @@ const FLIP = new Set(['hedgehog', 'crab', 'dragon']); // 오른쪽을 보고 그
 // 나리님이 만든 그림이 있으면 그걸 써요(scripts/build_sprites.py). 원래 크기의 0.62배로 보여 줘요.
 const PIC_SCALE = 0.62;
 const picOf = (dir: string, key: string) => {
-  const src = `/journey/${dir}/${key}.png`;
+  const src = `/journey/${dir}/${key}.webp`;
   const size = SPRITES[src];
   return size ? { src, w: Math.round(size[0] * PIC_SCALE), h: Math.round(size[1] * PIC_SCALE) } : null;
 };
+
+// 몬스터·만남 그림과 배경을 미리 받아 둬요. 싸움이 시작될 때 빈 화면이 보이지 않게요.
+const PRELOAD = Object.keys(SPRITES).filter((k) => k.startsWith('/journey/'))
+  .concat(['meadow', 'deep', 'dusk', 'lair', 'night'].map((z) => `/journey/bg/${z}.webp`));
+const Preload = () => (
+  <div class="jr-preload" aria-hidden="true">
+    {PRELOAD.map((src) => <img src={src} alt="" width={1} height={1} />)}
+  </div>
+);
 
 function propFor(s: JourneyState): string | null {
   if (s.pending?.kind === 'shop') return 'merchant';
@@ -282,6 +291,7 @@ function Play(props: { run: JourneyRun; art: string; name: string }) {
         </div>
         <Road s={s} />
         <Stage s={s} art={props.art} name={props.name} lost={lost} />
+        <Preload />
         <Bar now={s.hp} max={st.maxHp} cls="hp" label="❤️ 체력" />
         <Bar now={s.xp} max={xpNeed(s.lv)} cls="xp" label={`⭐ Lv.${s.lv}`} />
         <div class="jr-stats">
