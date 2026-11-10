@@ -2,6 +2,9 @@
 // 비밀번호를 풀어 단서를 모은 뒤 범인을 맞혀요. 사건 내용은 이 파일에 고정돼 있고, 진행 상태만 DB에 저장해요.
 // 등장인물은 모두 가상 인물이에요(실제 멤버와 관계없어요).
 
+import { buildCase } from './escape-gen';
+import { STORY_SEEDS } from './escape-stories';
+
 export type Lock = { kind: 'item'; item: string } | { kind: 'code'; code: string; ask: string };
 export type EscObject = {
   id: string;
@@ -16,7 +19,8 @@ export type EscObject = {
   lock?: Lock;
   openText?: string; // 열었을 때
   take?: string[]; // 살피거나 열면 가방에 들어오는 물건
-  clue?: string; // 살피거나 열면 수첩에 적히는 단서
+  clue?: string | string[]; // 살피거나 열면 수첩에 적히는 단서
+  memo?: boolean; // 한 번 살피면 수첩 '메모'에 내용이 남아요(퍼즐 쪽지 등)
   reveals?: string[]; // 열면 새로 보이는 물건
   hidden?: boolean; // 다른 물건을 열어야 보여요
   goto?: string; // 문: 다른 방으로 이동
@@ -32,6 +36,10 @@ export type EscCase = {
   clues: Record<string, string>;
   objects: EscObject[];
   question: { text: string; options: string[]; correct: number; needs: string[] };
+  more?: { text: string; options: string[]; correct: number }[]; // 함께 맞혀야 하는 질문(어떻게·왜)
+  combos?: { a: string; b: string; out: string; text: string }[]; // 가방 속 두 물건 합치기
+  level?: number; // 난이도(별 개수)
+  solution?: EscAction[]; // 만든 사건의 모범 풀이(테스트용)
   hints: { until: string; text: string }[]; // until = 열린 물건 id 또는 찾은 단서 id
   ending: string;
 };
@@ -39,7 +47,7 @@ export type EscCase = {
 export const ESC_XP = 10; // 사건마다 처음 해결할 때 한 번
 export const escJelly = (g: EscGrade) => (g === 'S' || g === 'A' ? 1 : 0);
 
-export const ESCAPE_CASES: EscCase[] = [
+const HANDMADE: EscCase[] = [
   {
     id: 'jellyjar',
     title: '사라진 젤리 단지',
@@ -257,6 +265,9 @@ export const ESCAPE_CASES: EscCase[] = [
   },
 ];
 
+// 손으로 만든 입문 사건 3개(★) + 이야기 씨앗으로 만든 사건 47개(★★★)
+export const ESCAPE_CASES: EscCase[] = [...HANDMADE.map((c) => ({ ...c, level: 1 })), ...STORY_SEEDS.map((x) => buildCase(x))];
+
 export const escCase = (id: string) => ESCAPE_CASES.find((c) => c.id === id);
 
 export type EscState = {
@@ -278,7 +289,8 @@ export type EscAction =
   | { a: 'tap'; o: string }
   | { a: 'use'; o: string; i: string }
   | { a: 'code'; o: string; v: string }
-  | { a: 'answer'; n: number }
+  | { a: 'answer'; n: number; m?: number[] }
+  | { a: 'combine'; i: string; j: string }
   | { a: 'hint' };
 export type EscGrade = 'S' | 'A' | 'B' | 'C';
 
@@ -287,6 +299,7 @@ export function startEscape(c: EscCase): EscState {
 }
 
 export const visible = (c: EscCase, s: EscState, o: EscObject) => o.scene === s.scene && (!o.hidden || s.shown.includes(o.id));
+export const normCode = (v: string) => v.normalize('NFC').replace(/\s/g, '').toUpperCase();
 export const isLocked = (s: EscState, o: EscObject) => !!o.lock && !s.opened.includes(o.id);
 export const escGrade = (s: EscState): EscGrade => {
   const p = s.mistakes + s.hints;
@@ -322,16 +335,36 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
   }
   if (act.a === 'answer') {
     if (!Number.isInteger(act.n) || act.n < 0 || act.n >= c.question.options.length || !canAnswer(c, s)) return null;
+    const more = c.more ?? [];
+    const m = act.m ?? [];
+    if (m.length !== more.length || m.some((x, k) => !Number.isInteger(x) || x < 0 || x >= more[k]!.options.length)) return null;
     s.focus = null;
-    if (act.n === c.question.correct) {
+    const right = (act.n === c.question.correct ? 1 : 0) + more.filter((q, k) => m[k] === q.correct).length;
+    if (right === more.length + 1) {
       s.done = true;
       s.msg = c.ending;
       s.tone = 'good';
     } else {
       s.mistakes += 1;
-      s.msg = '음… 모은 단서와 맞지 않아요. 수첩을 다시 읽어 보세요.';
+      s.msg = more.length ? `${more.length + 1}개 중 ${right}개만 맞았어요. 어느 것이 틀렸는지 수첩을 다시 읽어 보세요.` : '음… 모은 단서와 맞지 않아요. 수첩을 다시 읽어 보세요.';
       s.tone = 'bad';
     }
+    return s;
+  }
+  if (act.a === 'combine') {
+    if (act.i === act.j || !s.inv.includes(act.i) || !s.inv.includes(act.j)) return null;
+    const k = (c.combos ?? []).find((x) => (x.a === act.i && x.b === act.j) || (x.a === act.j && x.b === act.i));
+    s.focus = null;
+    if (!k) {
+      s.mistakes += 1;
+      s.msg = `${c.items[act.i]?.name}와(과) ${c.items[act.j]?.name}은(는) 합쳐지지 않아요.`;
+      s.tone = 'bad';
+      return s;
+    }
+    s.inv = s.inv.filter((x) => x !== act.i && x !== act.j);
+    add(s.inv, k.out);
+    s.msg = k.text;
+    s.tone = 'good';
     return s;
   }
   const o = c.objects.find((x) => x.id === act.o);
@@ -369,11 +402,12 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
     s.inv = s.inv.filter((x) => x !== act.i);
   } else {
     if (o.lock!.kind !== 'code' || typeof act.v !== 'string') return null;
-    const v = act.v.replace(/\s/g, '');
-    if (!/^[0-9]{1,8}$/.test(v)) return null;
-    if (v !== o.lock!.code) {
+    const v = normCode(act.v);
+    const digits = /^[0-9]+$/.test(o.lock!.code);
+    if (digits ? !/^[0-9]{1,8}$/.test(v) : !v || v.length > 12) return null;
+    if (v !== normCode(o.lock!.code)) {
       s.mistakes += 1;
-      s.msg = '삐빅! 비밀번호가 틀렸어요.';
+      s.msg = digits ? '삐빅! 비밀번호가 틀렸어요.' : '삐빅! 암호가 틀렸어요.';
       s.tone = 'bad';
       return s;
     }
