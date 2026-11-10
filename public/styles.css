@@ -1401,3 +1401,102 @@ main.wide { max-width: 1320px; }
 .service-nick > div { flex: 1 1 14em; min-width: 0; }
 .service-nick .nick-form { flex: 1 1 100%; justify-content: flex-start; }
 .service-nick .nick-form input { flex: 1 1 8em; }
+
+/* ── 원정대 게임 화면 (2026-11-10 새 디자인) ──
+   도감 문서 상자 대신 게임기 화면처럼: 위 HUD, 큰 무대(체력·레벨은 무대 위에), 아래 대화창 + 큰 버튼. */
+.jr-title { display: flex; align-items: center; gap: 10px; margin: 4px 0 -4px; }
+.jr-title h1 { margin: 0; flex: 1; font-size: clamp(1.3rem, 3vw, 1.7rem); text-shadow: 2px 2px 0 #fff; }
+.jr-reward { padding: 0 8px; border: 3px solid var(--ink); background: #fff; font-size: .85rem; font-weight: 700; }
+.jr-help { position: relative; }
+.jr-help summary { list-style: none; display: grid; place-items: center; width: 34px; height: 34px; border: 3px solid var(--ink); background: var(--yellow); font-weight: 700; cursor: pointer; clip-path: var(--notch); }
+.jr-help summary::-webkit-details-marker { display: none; }
+.jr-help > div { position: absolute; right: 0; top: 42px; z-index: 20; width: min(340px, calc(100vw - 32px)); padding: 12px 14px; border: 4px solid var(--ink); background: var(--paper); font-size: .85rem; line-height: 1.6; box-shadow: 4px 4px 0 var(--ink); }
+.jr-help p { margin: 0 0 6px; }
+
+.jr-game { position: relative; padding: 12px; border: 4px solid var(--ink); background: #2f2a44; color: var(--paper); clip-path: var(--notch); box-shadow: inset 0 0 0 4px #4a4466; }
+.jr-game .hint { color: #cfc6e6; }
+.jr-game a { color: var(--yellow); }
+.jr-hud { display: flex; align-items: center; gap: 8px; }
+.jr-hud-ch { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .85rem; color: #cfc6e6; }
+.jr-hud-day { padding: 0 10px; border: 3px solid var(--ink); background: var(--paper); color: var(--ink); font-size: 1.05rem; }
+.jr-hud-day small { font-size: .7rem; color: var(--ink-soft); }
+.jr-game .jr-coins { color: var(--ink); }
+.jr-game .jr-road { margin: 8px 0; }
+.jr-game .jr-step { border-color: #1d1930; background: #4a4466; color: #cfc6e6; }
+.jr-game .jr-step.past { background: var(--mint); color: var(--ink); }
+.jr-game .jr-step.mark { background: var(--pink-soft); }
+.jr-game .jr-step.here { background: var(--yellow); }
+
+.jr-screen { position: relative; }
+.jr-game .jr-stage { height: clamp(230px, 46vw, 340px); margin: 0; border-color: #1d1930; padding-bottom: 54px; }
+.jr-game .jr-hero, .jr-game .jr-hero img { width: 112px; }
+.jr-game .jr-hero { height: 128px; }
+.jr-game .jr-hero img { height: 112px; }
+.jr-game .jr-foe .jr-pic { max-height: 150px; }
+.jr-meters { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 3; display: grid; grid-template-columns: 1.3fr 1fr; gap: 6px; }
+.jr-meters .jr-bar { margin: 0; height: 22px; border-color: #1d1930; background: rgba(255, 250, 242, .92); color: var(--ink); }
+.jr-meters .jr-bar b { line-height: 16px; font-size: .72rem; white-space: nowrap; }
+.jr-screen .jr-stats { position: absolute; top: 6px; right: 6px; z-index: 3; display: flex; gap: 4px; margin: 0; }
+.jr-screen .jr-stats span { padding: 0 6px; border: 2px solid #1d1930; background: rgba(255, 250, 242, .9); color: var(--ink); font-size: .72rem; line-height: 1.6; }
+
+.jr-console { display: grid; gap: 10px; margin-top: 10px; }
+.jr-talk { position: relative; margin: 0; min-height: 76px; max-height: 168px; overflow-y: auto; padding: 10px 12px; border: 4px solid var(--paper); background: #1d1930; color: var(--paper); font-size: .9rem; line-height: 1.6; }
+.jr-talk li.day { color: var(--yellow); }
+.jr-talk li.tone-good { color: #8ff0c4; }
+.jr-talk li.tone-bad { color: #ff9db5; }
+.jr-pad .jr-choice { margin: 0; border-color: var(--paper); background: var(--paper); color: var(--ink); }
+.jr-pad .jr-choice .hint { color: var(--ink-soft); }
+.jr-pad .jr-go { margin: 0; display: grid; grid-template-columns: 1.4fr 1fr; gap: 8px; }
+.jr-pad .jr-go .jr-form, .jr-pad .jr-go button { width: 100%; }
+.jr-pad .jr-next { font-size: 1.15rem; padding: 14px 10px; }
+.jr-pad .jr-skip { padding: 14px 6px; font-size: .9rem; }
+.jr-pad .jr-auto { margin-top: 8px; color: var(--paper); border-color: #6b6390; background: transparent; }
+.jr-pad .jr-auto.on { background: #4a4466; }
+.jr-drawer { margin-top: 10px; border: 3px solid #6b6390; }
+.jr-drawer summary { padding: 6px 10px; cursor: pointer; font-size: .85rem; color: #cfc6e6; }
+.jr-drawer > *:not(summary) { margin: 0 10px 10px; }
+.jr-drawer .jr-skills li { color: var(--ink); }
+.jr-journal-list { list-style: none; padding: 0; max-height: 240px; overflow-y: auto; font-size: .82rem; }
+.jr-journal-list li.tone-good { color: #8ff0c4; }
+.jr-journal-list li.tone-bad { color: #ff9db5; }
+.jr-journal-list li.day { color: var(--yellow); }
+.jr-game .jr-quit { margin-top: 10px; text-align: right; }
+
+.jr-lobby-stage { position: relative; display: flex; align-items: flex-end; gap: 12px; height: clamp(190px, 36vw, 260px); padding: 0 12px 12px; border: 4px solid #1d1930; background: var(--jr-bg) center bottom / cover no-repeat, #bfe6ff; clip-path: var(--notch); }
+.jr-lobby-stage .jr-hero { margin-left: 6%; }
+.jr-lobby-stats { margin-left: auto; display: grid; gap: 4px; justify-items: end; }
+.jr-lobby-stats span { padding: 0 8px; border: 2px solid #1d1930; background: rgba(255, 250, 242, .92); color: var(--ink); font-size: .78rem; }
+.jr-pick-title { margin: 14px 0 8px; }
+.jr-game .jr-chapter-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.jr-game .jr-chapter { position: relative; display: grid; justify-items: center; gap: 0; padding: 8px 4px 6px; border: 3px solid #6b6390; background: #3b3556; color: var(--paper); text-align: center; cursor: pointer; }
+.jr-game .jr-chapter input { position: absolute; opacity: 0; pointer-events: none; }
+.jr-game .jr-chapter:has(input:checked) { border-color: var(--yellow); background: #57507a; box-shadow: 0 0 0 2px var(--yellow); }
+.jr-game .jr-chapter.locked { cursor: not-allowed; opacity: .55; }
+.jr-game .jr-chapter.locked .jr-chapter-pic img { filter: brightness(0); opacity: .6; }
+.jr-chapter-pic { display: grid; place-items: center; height: 64px; width: 100%; }
+.jr-chapter-pic img { max-height: 64px; max-width: 90%; width: auto; image-rendering: auto; }
+.jr-chapter-pic span { font-size: 2rem; }
+.jr-chapter-name { font-size: .78rem; line-height: 1.4; }
+.jr-game .jr-chapter .hint { font-size: .68rem; }
+.jr-depart { width: 100%; margin-top: 10px; font-size: 1.15rem; padding: 14px; }
+.jr-result .jr-stage { margin-bottom: 10px; }
+.jr-result h2 { color: var(--paper); }
+.jr-result .jr-talk { margin: 10px 0; }
+.jr-perks .jr-cards { grid-template-columns: repeat(3, 1fr); }
+@media (min-width: 900px) {
+  .jr-game #journey { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); column-gap: 14px; align-items: start; }
+  .jr-game #journey > .jr-console { margin-top: 0; }
+  .jr-game #journey > .jr-drawer { grid-column: 1 / -1; }
+  .jr-talk { max-height: 220px; min-height: 140px; }
+  .jr-game .jr-chapter-list { grid-template-columns: repeat(9, 1fr); }
+}
+@media (max-width: 520px) {
+  .jr-perks .jr-cards { grid-template-columns: 1fr; }
+  .jr-game { padding: 8px; }
+  .jr-game .jr-hero, .jr-game .jr-hero img { width: 92px; }
+  .jr-game .jr-hero { height: 106px; }
+  .jr-game .jr-hero img { height: 92px; }
+  .jr-game .jr-foe .jr-pic { max-height: 120px; }
+}
+.jr-game .jr-place { color: var(--ink); border-color: #1d1930; }
+.jr-screen .jr-place { display: none; }
