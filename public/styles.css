@@ -1545,3 +1545,28 @@ main.wide { max-width: 1320px; }
 .jr-game .jr-stage[class*=" at-"] .jr-foe .jr-pic { max-height: min(104px, calc(var(--jr-h, 260px) * .38)); }
 .jr-game a.btn { color: var(--ink); }
 .jr-game a.btn.btn-primary { color: #fff; }
+
+/* ── 사건파일 방: 그림 한 장처럼 (2026-11-10) ──
+   이름표는 누르거나 올렸을 때만, 아직 안 본 곳엔 작은 돋보기 표시, 바닥 그림자·원근(안쪽은 작게), 방 전체에 같은 빛을 덮어 색감을 맞춰요. */
+.esc-game .esc-room { cursor: zoom-in; }
+.esc-game .esc-name { opacity: 0; translate: 0 -4px; transition: opacity .15s, translate .15s; pointer-events: none; position: absolute; left: 50%; top: 100%; margin-left: 0; transform: translateX(-50%); z-index: 3; }
+.esc-game .esc-thing:hover .esc-name, .esc-game .esc-thing:focus-visible .esc-name, .esc-game .esc-thing.focus .esc-name { opacity: 1; translate: 0 0; }
+.esc-game .esc-thing.new::before { content: '🔍'; position: absolute; top: -.6cqw; left: 50%; translate: -50% -100%; font-size: max(12px, 2.4cqw); line-height: 1; z-index: 2; filter: drop-shadow(0 1px 0 #fff); }
+.esc-game .esc-pic { filter: none; }
+.esc-game .esc-thing:not(.on-wall) .esc-pic::before { content: ''; position: absolute; left: 8%; right: 8%; bottom: -1cqw; height: 2.4cqw; background: radial-gradient(closest-side, rgba(60, 35, 20, .38), transparent); }
+.esc-game .esc-spot:has(.esc-thing:not(.on-wall)) { scale: calc(.72 + var(--y) * .0065); transform-origin: 50% 100%; }
+.esc-game .esc-room img { filter: saturate(.88) sepia(.06) contrast(.97); }
+.esc-game .esc-room::after { content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none; background: radial-gradient(120% 90% at 50% 28%, rgba(255, 236, 200, .18), transparent 55%), radial-gradient(140% 120% at 50% 55%, transparent 55%, rgba(40, 22, 10, .32)); }
+.esc-game .esc-room .esc-stamp { z-index: 6; }
+@media (prefers-reduced-motion: no-preference) {
+  .esc-game .esc-thing.new::before { animation: esc-peek 1.8s ease-in-out infinite; }
+}
+@keyframes esc-peek { 0%, 100% { translate: -50% -100%; } 50% { translate: -50% -130%; } }
+
+/* 수수께끼는 종이 한 장을 펼친 것처럼 */
+.esc-game .esc-puzzle { margin: 0; border: 4px solid #6b4a2b; background: repeating-linear-gradient(0deg, transparent 0 27px, rgba(107, 74, 43, .12) 27px 28px), #fbf1dc; box-shadow: inset 0 0 0 3px #f3e3bf; }
+.esc-game .esc-puzzle-head { background: #6b4a2b; color: #fbf1dc; border-bottom: 0; padding: 4px 12px; }
+.esc-game .esc-puzzle-head b { font-size: 1.1rem; letter-spacing: .04em; }
+.esc-game .esc-puzzle p { font-size: .95rem; }
+.esc-game .esc-talk:has(.esc-puzzle) .esc-bubble { background: transparent; border: 0; padding: 0; clip-path: none; }
+.esc-game .esc-talk:has(.esc-puzzle) .esc-face { display: none; }
