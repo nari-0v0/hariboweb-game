@@ -70,7 +70,11 @@ function Focus(props: { run: EscRun }) {
           <input type="hidden" name="rev" value={String(run.row.rev)} />
           <input type="hidden" name="a" value="code" />
           <input type="hidden" name="o" value={o.id} />
-          <input name="v" inputmode="numeric" pattern="[0-9]*" maxlength={8} autocomplete="off" placeholder={o.lock!.ask} aria-label={`${o.name} 비밀번호`} required />
+          {/^[0-9]+$/.test(o.lock!.code) ? (
+            <input name="v" inputmode="numeric" pattern="[0-9]*" maxlength={8} autocomplete="off" placeholder={o.lock!.ask} aria-label={`${o.name} 비밀번호`} required />
+          ) : (
+            <input name="v" maxlength={12} autocomplete="off" placeholder={o.lock!.ask} aria-label={`${o.name} 암호`} required />
+          )}
           <button class="btn btn-primary" type="submit">
             🔓 열어 보기
           </button>
@@ -103,6 +107,8 @@ function Play(props: { run: EscRun }) {
   const things = def.objects.filter((o) => visible(def, s, o));
   const allClues = Object.keys(def.clues);
   const need = def.question.needs.filter((n) => s.clues.includes(n)).length;
+  const memos = def.objects.filter((o) => o.memo && s.seen.includes(o.id));
+  const qs = [def.question, ...(def.more ?? [])];
   return (
     <>
       <section class="panel esc-play" id="now">
@@ -135,6 +141,30 @@ function Play(props: { run: EscRun }) {
             <span class="hint">아직 비었어요</span>
           )}
         </div>
+        {def.combos && s.inv.length >= 2 && (
+          <form method="post" action="/api/escape/act" class="esc-combine">
+            <input type="hidden" name="run" value={run.row.id} />
+            <input type="hidden" name="rev" value={String(run.row.rev)} />
+            <input type="hidden" name="a" value="combine" />
+            <b>🔧 합치기</b>
+            <select name="i" aria-label="합칠 물건 1">
+              {s.inv.map((i) => (
+                <option value={i}>{def.items[i]?.name}</option>
+              ))}
+            </select>
+            <span aria-hidden="true">+</span>
+            <select name="j" aria-label="합칠 물건 2">
+              {s.inv.map((i, k) => (
+                <option value={i} selected={k === 1}>
+                  {def.items[i]?.name}
+                </option>
+              ))}
+            </select>
+            <button class="btn btn-small" type="submit">
+              합쳐 보기
+            </button>
+          </form>
+        )}
         <div class="esc-tools">
           <Act run={run} a="hint" cls="btn btn-small">
             💡 힌트 보기
@@ -162,11 +192,49 @@ function Play(props: { run: EscRun }) {
         ) : (
           <p class="hint">찾은 단서가 여기 적혀요.</p>
         )}
+        {memos.length > 0 && (
+          <details class="esc-memos" open>
+            <summary>📌 메모 ({memos.length})</summary>
+            <ul>
+              {memos.map((o) => (
+                <li>
+                  <b>
+                    {o.emoji} {o.name}
+                  </b>
+                  <span>{o.look}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
       </section>
 
       <section class="panel esc-answer">
-        <h2>🕵️ {def.question.text}</h2>
-        {canAnswer(def, s) ? (
+        <h2>🕵️ {def.more ? '진실 맞히기: 누가, 어떻게, 왜?' : def.question.text}</h2>
+        {canAnswer(def, s) && def.more ? (
+          <form method="post" action="/api/escape/act" class="esc-quiz">
+            <input type="hidden" name="run" value={run.row.id} />
+            <input type="hidden" name="rev" value={String(run.row.rev)} />
+            <input type="hidden" name="a" value="answer" />
+            {qs.map((q, k) => (
+              <fieldset>
+                <legend>
+                  {k + 1}. {q.text}
+                </legend>
+                {q.options.map((text, n) => (
+                  <label class="esc-pick">
+                    <input type="radio" name={k === 0 ? 'n' : `m${k - 1}`} value={String(n)} required />
+                    <span>{text}</span>
+                  </label>
+                ))}
+              </fieldset>
+            ))}
+            <button class="btn btn-primary" type="submit">
+              🕵️ 이걸로 사건 해결!
+            </button>
+            <p class="hint">셋 다 맞아야 해결돼요. 틀리면 몇 개 맞았는지만 알려 줘요.</p>
+          </form>
+        ) : canAnswer(def, s) ? (
           <div class="esc-options">
             {def.question.options.map((text, n) => (
               <Act run={run} a="answer" n={n} cls="btn esc-option">
@@ -232,7 +300,10 @@ export function EscapePage(props: { viewer: Member; run: EscRun | null; result: 
         {run ? <Play run={run} /> : result ? <Result run={result} /> : null}
         {!run && (
           <section class="panel">
-            <h2>사건 고르기</h2>
+            <h2>
+              사건 고르기 <span class="tag">해결 {props.best.size}/{ESCAPE_CASES.length}</span>
+            </h2>
+            <p class="hint">★ 입문 사건은 짧고 쉬워요. ★★★ 사건은 방 3개, 퍼즐 4~5개, 물건 합치기, 그리고 범인·방법·동기를 모두 맞혀야 해요.</p>
             <div class="esc-cases">
               {ESCAPE_CASES.map((c) => {
                 const best = props.best.get(c.id);
@@ -242,6 +313,9 @@ export function EscapePage(props: { viewer: Member; run: EscRun | null; result: 
                       {c.emoji}
                     </span>
                     <h3>{c.title}</h3>
+                    <span class="esc-level" aria-label={`난이도 ${c.level ?? 1}`}>
+                      {'★'.repeat(c.level ?? 1)}
+                    </span>
                     <span class="hint">📍 {c.place}</span>
                     <p>{c.intro}</p>
                     {best ? <span class={`tag esc-best g-${best}`}>최고 {best}</span> : <span class="tag wait">아직 안 풀었어요</span>}

@@ -62,9 +62,26 @@ function solve(c: EscCase): { s: EscState; steps: EscAction[] } {
   return { s, steps };
 }
 
+// 만든 사건은 모범 풀이로, 손으로 만든 사건은 차례로 눌러 보는 풀이로 풀어요.
+function play(c: EscCase): { s: EscState; steps: EscAction[] } {
+  if (!c.solution) return solve(c);
+  let s = startEscape(c);
+  for (const a of c.solution) {
+    const next = actEscape(c, s, a);
+    expect(next, `${c.id} ${JSON.stringify(a)}`).not.toBeNull();
+    s = next!;
+    expect(s.mistakes, `${c.id} ${JSON.stringify(a)} ${s.msg}`).toBe(0);
+  }
+  return { s, steps: c.solution };
+}
+
 describe('사건파일 방탈출 내용', () => {
+  it('사건이 50개예요', () => {
+    expect(ESCAPE_CASES).toHaveLength(50);
+    expect(new Set(ESCAPE_CASES.map((c) => c.id)).size).toBe(50);
+  });
   it.each(ESCAPE_CASES.map((c) => [c.id, c] as const))('%s: 실수 없이 끝까지 풀리고 S등급', (_, c) => {
-    const { s } = solve(c);
+    const { s } = play(c);
     expect(s.done).toBe(true);
     expect(s.mistakes).toBe(0);
     expect(escGrade(s)).toBe('S');
@@ -76,7 +93,7 @@ describe('사건파일 방탈출 내용', () => {
       expect(ids.size).toBe(c.objects.length);
       for (const o of c.objects) {
         for (const t of o.take ?? []) expect(c.items[t], `${c.id}.${o.id}.take`).toBeTruthy();
-        if (o.clue) expect(c.clues[o.clue], `${c.id}.${o.id}.clue`).toBeTruthy();
+        for (const k of [o.clue ?? []].flat()) expect(c.clues[k], `${c.id}.${o.id}.clue`).toBeTruthy();
         if (o.lock?.kind === 'item') expect(c.items[o.lock.item]).toBeTruthy();
         if (o.lock) expect(o.openText).toBeTruthy();
         for (const r of o.reveals ?? []) expect(ids.has(r)).toBe(true);
@@ -85,7 +102,69 @@ describe('사건파일 방탈출 내용', () => {
       }
       for (const n of c.question.needs) expect(c.clues[n]).toBeTruthy();
       expect(c.question.options[c.question.correct]).toBeTruthy();
+      for (const q of c.more ?? []) expect(q.options[q.correct]).toBeTruthy();
+      for (const k of c.combos ?? []) for (const i of [k.a, k.b, k.out]) expect(c.items[i], `${c.id} combo ${i}`).toBeTruthy();
+      // 한 방에 물건이 너무 많으면 겹쳐 보여요
+      for (const sc of c.scenes) expect(c.objects.filter((o) => o.scene === sc.id).length, `${c.id} ${sc.id}`).toBeLessThanOrEqual(15);
+      // 같은 방 같은 자리에 두 물건이 겹치지 않아요
+      for (const sc of c.scenes) {
+        const spots = c.objects.filter((o) => o.scene === sc.id).map((o) => `${o.x},${o.y}`);
+        expect(new Set(spots).size, `${c.id} ${sc.id} 겹침`).toBe(spots.length);
+      }
     }
+  });
+  it('만든 사건: 용의자 특징 단서 세 개를 모두 맞춰야 범인이 한 명 남아요', () => {
+    for (const c of ESCAPE_CASES.filter((x) => x.solution)) {
+      const file = c.objects.find((o) => o.id === 'file')!.look.split('\n').slice(1);
+      expect(file).toHaveLength(4);
+      // 단서 문장 끝 "범인은 …다." 의 핵심어가 특징표에 있는 사람만 남겨요
+      const keys = ['ev1', 'ev2', 'ev3'].map((k) => c.clues[k]!);
+      const match = (line: string, ev: string) => {
+        const pairs: [string, string][] = [['왼손', '왼손잡이'], ['오른손', '오른손잡이'], ['운동화를', '운동화'], ['구두를', '구두'], ['키가 크', '키가 큼'], ['키가 작', '키가 작음'], ['박하', '박하 향'], ['바닐라', '바닐라 향'], ['고양이를', '고양이를 키움'], ['강아지를', '강아지를 키움'], ['머리가 길', '긴 머리'], ['머리가 짧', '짧은 머리'], ['파란 펜', '파란 펜'], ['빨간 펜', '빨간 펜'], ['커피를', '커피파'], ['녹차를', '녹차파']];
+        const p = pairs.find(([e]) => ev.split('범인은')[1]!.includes(e))!;
+        expect(p, ev).toBeTruthy();
+        return line.includes(p[1]);
+      };
+      const left = (n: number) => file.filter((l) => keys.slice(0, n).every((ev) => match(l, ev)));
+      expect(left(1).length).toBeGreaterThan(1);
+      expect(left(2).length).toBeGreaterThan(1);
+      expect(left(3)).toHaveLength(1);
+      expect(left(3)[0]).toContain(c.question.options[c.question.correct]!.split(' (')[0]);
+    }
+  });
+  it('만든 사건: 퍼즐 종류가 사건마다 섞여 있어요', () => {
+    const kinds = (c: EscCase) => new Set(c.objects.map((o) => o.id.replace(/\d+$/, '')).filter((k) => ['mm', 'cntn', 'col', 'alg', 'let', 'clkn', 'lmpn'].includes(k)));
+    const all = new Set(ESCAPE_CASES.filter((c) => c.solution).flatMap((c) => [...kinds(c)]));
+    expect(all.size).toBe(7);
+    for (const c of ESCAPE_CASES.filter((x) => x.solution)) expect(kinds(c).size, c.id).toBeGreaterThanOrEqual(3);
+  });
+  it('합치기: 맞는 짝은 도구가 되고, 안 맞는 짝은 실수예요', () => {
+    const c = ESCAPE_CASES.find((x) => x.combos)!;
+    const s = { ...startEscape(c), inv: ['partA', 'partB', 'key12'] };
+    expect(actEscape(c, s, { a: 'combine', i: 'partA', j: 'partA' })).toBeNull();
+    expect(actEscape(c, s, { a: 'combine', i: 'partA', j: 'nope' })).toBeNull();
+    expect(actEscape(c, s, { a: 'combine', i: 'partA', j: 'key12' })!.mistakes).toBe(1);
+    expect(actEscape(c, s, { a: 'combine', i: 'partB', j: 'partA' })!.inv).toEqual(['key12', 'tool']);
+  });
+  it('세 질문 중 하나라도 틀리면 몇 개 맞았는지만 알려 줘요', () => {
+    const c = ESCAPE_CASES.find((x) => x.solution)!;
+    let s = startEscape(c);
+    const sol = c.solution!;
+    for (const a of sol.slice(0, -1)) s = actEscape(c, s, a)!;
+    const right = sol.at(-1) as Extract<EscAction, { a: 'answer' }>;
+    expect(actEscape(c, s, { a: 'answer', n: right.n })).toBeNull(); // 세 개 다 골라야 해요
+    const wrong = actEscape(c, s, { a: 'answer', n: right.n, m: [right.m![0]!, (right.m![1]! + 1) % 3] })!;
+    expect(wrong.done).toBe(false);
+    expect(wrong.msg).toContain('3개 중 2개');
+    expect(actEscape(c, wrong, right)!.done).toBe(true);
+  });
+  it('글자 암호는 띄어쓰기와 상관없이 맞아요', () => {
+    const c = ESCAPE_CASES.find((x) => x.objects.some((o) => o.lock?.kind === 'code' && !/^\d+$/.test(o.lock.code)))!;
+    const o = c.objects.find((x) => x.lock?.kind === 'code' && !/^\d+$/.test(x.lock.code))!;
+    const code = (o.lock as { code: string }).code;
+    const s = { ...startEscape(c), scene: o.scene, shown: [] };
+    const r = actEscape(c, s, { a: 'code', o: o.id, v: ` ${[...code].join(' ')} ` })!;
+    expect(r.opened).toContain(o.id);
   });
 });
 

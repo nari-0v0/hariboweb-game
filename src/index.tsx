@@ -849,7 +849,8 @@ members.post('/api/escape/act', async (c) => {
     a === 'tap' ? { a, o: str('o') } as const
     : a === 'use' ? { a, o: str('o'), i: str('i') } as const
     : a === 'code' ? { a, o: str('o'), v: str('v') } as const
-    : a === 'answer' ? { a, n: Number(body.n) } as const
+    : a === 'answer' ? { a, n: Number(body.n), ...(body.m0 !== undefined ? { m: [0, 1, 2].map((k) => body[`m${k}`]).filter((v) => v !== undefined).map(Number) } : {}) } as const
+    : a === 'combine' ? { a, i: str('i'), j: str('j') } as const
     : a === 'hint' ? { a } as const
     : null;
   if (!ESC_ID.test(id) || !Number.isSafeInteger(rev) || rev < 0 || !act) return c.redirect('/cases/room?n=bad#now', 303);
