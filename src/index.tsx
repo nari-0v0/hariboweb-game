@@ -411,7 +411,13 @@ members.use('*', async (c, next) => {
   c.set('viewer', viewer);
   // 브라우저가 미리 받기만 하는 요청은 읽기만 하는 화면에만 답해요(열기만 해도 기록이 바뀌는 화면은 실제로 열 때만)
   if (isPrefetch(c) && !prefetchAllowed(c.req.path)) return c.body(null, 503);
-  await touchVisit(c.env.DB, viewer, Date.now());
+  // 방문 시각 기록은 응답을 기다리게 하지 않고 뒤에서 해요
+  const touch = touchVisit(c.env.DB, viewer, Date.now()).catch((e) => console.error('방문 기록 실패', e));
+  try {
+    c.executionCtx.waitUntil(touch);
+  } catch {
+    await touch;
+  }
   // 처음 들어온 멤버는 여자·남자 캐릭터를 골라야 다른 화면으로 갈 수 있어요
   if (!viewer.gender_chosen_at && c.req.path !== '/choose' && c.req.path !== '/api/me/gender') {
     if (c.req.method !== 'GET') return c.text('먼저 캐릭터를 골라 주세요', 403);
@@ -878,8 +884,13 @@ members.post('/api/escape/act', async (c) => {
     const user = c.get('viewer').user_id;
     const r = await actEscapeRun(c.env.DB, user, id, rev, act);
     if (r !== 'ok') return c.redirect(`/cases/room?n=${r}#now`, 303);
-    const after = await getEscape(c.env.DB, user, id);
-    return c.redirect(after?.row.status === 'done' ? `/cases/room?r=${id}#now` : '/cases/room#now', 303);
+    // 다시 불러오기(리다이렉트) 없이 바로 화면을 그려 보내요. 한 번 왕복이 줄어서 빨라요.
+    const [after, best, profile] = await Promise.all([getEscape(c.env.DB, user, id), escapeRecord(c.env.DB, user), getProfile(c.env.DB, user)]);
+    const done = after?.row.status === 'done';
+    c.header('Cache-Control', 'no-store');
+    const viewer = c.get('viewer');
+    const art = characterUrl(profile.character_id, user, profile.deco_id);
+    return page(c, <EscapePage viewer={viewer} art={art} run={done ? null : after} result={done ? after : null} best={best} url={done ? `/cases/room?r=${id}#now` : '/cases/room#now'} />);
   } catch (e) {
     console.error('사건 진행 실패', e);
     return c.redirect('/cases/room?n=error#now', 303);

@@ -387,10 +387,11 @@ function Result(props: { run: EscRun }) {
   );
 }
 
-export function EscapePage(props: { viewer: Member; art: string; run: EscRun | null; result: EscRun | null; best: Map<string, EscGrade>; notice?: string }) {
+export function EscapePage(props: { viewer: Member; art: string; run: EscRun | null; result: EscRun | null; best: Map<string, EscGrade>; notice?: string; url?: string }) {
   const { run, result } = props;
   return (
     <Layout title="하리보 사건파일" viewer={props.viewer} active="cases">
+      {props.url && <i hidden data-replace-url={props.url} />}
       <Popup lines={NOTICES[props.notice ?? ''] ?? []} />
       <div class="stack esc" data-fresh>
         <section class="panel">
