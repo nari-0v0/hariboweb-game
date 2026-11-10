@@ -1,6 +1,7 @@
 import type { Member } from '../env';
 import type { EscRun } from '../escape-db';
-import { ESCAPE_CASES, ESC_XP, canAnswer, escGrade, isLocked, visible, type EscGrade, type EscObject } from '../escape';
+import { ESCAPE_CASES, ESC_XP, canAnswer, coinSpots, coinsLeft, escGrade, isLocked, puzzleNo, visible, type EscGrade, type EscObject } from '../escape';
+import { casePics, itemPic, roomBg } from '../case-art';
 import { Layout } from './layout';
 import { Popup, type PopupLine } from './shop';
 
@@ -33,50 +34,82 @@ function Act(props: { run: EscRun; a: string; o?: string; i?: string; n?: number
   );
 }
 
+// 소지품: 그림이 있으면 그림, 없으면 이모지
+function ItemIcon(props: { emoji?: string }) {
+  const src = itemPic(props.emoji);
+  return src ? <img class="esc-item-pic" src={src} alt="" width={24} height={24} /> : <span aria-hidden="true">{props.emoji}</span>;
+}
+
 function Thing(props: { run: EscRun; o: EscObject }) {
   const { run, o } = props;
   const s = run.state;
   const locked = isLocked(s, o);
-  const cls = ['esc-thing', o.big ? 'big' : '', o.y < 30 ? 'on-wall' : '', s.focus === o.id ? 'focus' : '', s.seen.includes(o.id) && !locked ? 'seen' : ''].filter(Boolean).join(' ');
+  const now = s.focus === o.id ? s.fx : undefined;
+  const motion = now === 'open' || now === 'right' ? (o.emoji === '🚪' ? 'swing' : 'pop') : now === 'gain' ? 'shine' : now === 'wrong' ? 'nope' : '';
+  // 열리는 물건: 잠금을 풀었거나, 잠금 없는 문(돌아가는 문)은 열린 모습
+  const pics = casePics(o.emoji, !!o.lock ? !locked : !!o.goto, !!o.big);
+  const cls = ['esc-thing', pics ? 'has-pic' : '', o.big ? 'big' : '', o.y < 30 ? 'on-wall' : '', s.focus === o.id ? 'focus' : '', s.seen.includes(o.id) && !locked ? 'seen' : '', motion ? `fx-${motion}` : ''].filter(Boolean).join(' ');
   return (
     <div class="esc-spot" style={`--x:${o.x};--y:${o.y}`}>
       <Act run={run} a="tap" o={o.id} cls={cls} label={o.name}>
-        <span class="esc-emoji" aria-hidden="true">
-          {o.emoji}
-        </span>
+        {pics ? (
+          <span class="esc-pic" aria-hidden="true" style={`width:calc(var(--k) * ${pics.now.w}cqw);height:calc(var(--k) * ${pics.now.h}cqw)`}>
+            <img src={pics.now.src} alt="" />
+            {pics.was && (motion === 'pop' || motion === 'swing') && <img class="esc-was" src={pics.was.src} alt="" />}
+          </span>
+        ) : (
+          <span class="esc-emoji" aria-hidden="true">
+            {o.emoji}
+          </span>
+        )}
         {locked && <span class="esc-lock" aria-hidden="true">🔒</span>}
+        {(motion === 'pop' || motion === 'swing' || motion === 'shine') && <span class="esc-burst" aria-hidden="true" />}
         <span class="esc-name">{o.name}</span>
       </Act>
     </div>
   );
 }
 
-function Focus(props: { run: EscRun }) {
+function Focus(props: { run: EscRun; art: string; name: string }) {
   const { run } = props;
   const s = run.state;
   const o = s.focus ? run.def.objects.find((x) => x.id === s.focus) : null;
   const locked = o && isLocked(s, o);
+  const puzzle = locked && o.lock!.kind === 'code';
   return (
+    <div class={`esc-talk${s.fx === 'wrong' ? ' fx-nope' : ''}`}>
+      <img class="esc-face" src={props.art} alt={props.name} width={72} height={72} />
     <div class={`esc-bubble tone-${s.tone}`} role="status">
-      {o && (
+      {o && !puzzle && (
         <b class="esc-bubble-name">
-          {o.emoji} {o.name}
+          {casePics(o.emoji, false, false) ? '' : `${o.emoji} `}
+          {o.name}
         </b>
       )}
-      <p>{s.msg}</p>
-      {locked && o.lock!.kind === 'code' && (
+      {!puzzle && <p>{s.msg}</p>}
+      {puzzle && (
+        <div class="esc-puzzle">
+          <div class="esc-puzzle-head">
+            <b>수수께끼 No.{puzzleNo(run.def, o.id)}</b>
+            <span>{o.name}</span>
+          </div>
+          <p>{s.fx === 'wrong' ? s.msg : o.look}</p>
+          <p class="hint">{o.lock!.kind === 'code' && o.lock!.ask} · 수첩의 📌 메모가 실마리예요.</p>
+        </div>
+      )}
+      {puzzle && (
         <form method="post" action="/api/escape/act" class="esc-code">
           <input type="hidden" name="run" value={run.row.id} />
           <input type="hidden" name="rev" value={String(run.row.rev)} />
           <input type="hidden" name="a" value="code" />
           <input type="hidden" name="o" value={o.id} />
-          {/^[0-9]+$/.test(o.lock!.code) ? (
+          {o.lock!.kind === 'code' && /^[0-9]+$/.test(o.lock!.code) ? (
             <input name="v" inputmode="numeric" pattern="[0-9]*" maxlength={8} autocomplete="off" placeholder={o.lock!.ask} aria-label={`${o.name} 비밀번호`} required />
           ) : (
-            <input name="v" maxlength={12} autocomplete="off" placeholder={o.lock!.ask} aria-label={`${o.name} 암호`} required />
+            <input name="v" maxlength={12} autocomplete="off" placeholder={o.lock!.kind === 'code' ? o.lock!.ask : ''} aria-label={`${o.name} 암호`} required />
           )}
           <button class="btn btn-primary" type="submit">
-            🔓 열어 보기
+            ✍️ 정답 내기
           </button>
         </form>
       )}
@@ -87,7 +120,7 @@ function Focus(props: { run: EscRun }) {
               <span class="hint">가방에서 쓸 물건을 골라요</span>
               {s.inv.map((i) => (
                 <Act run={run} a="use" o={o.id} i={i} cls="btn btn-small">
-                  {run.def.items[i]?.emoji} {run.def.items[i]?.name} 쓰기
+                  <ItemIcon emoji={run.def.items[i]?.emoji} /> {run.def.items[i]?.name} 쓰기
                 </Act>
               ))}
             </>
@@ -97,10 +130,11 @@ function Focus(props: { run: EscRun }) {
         </div>
       )}
     </div>
+    </div>
   );
 }
 
-function Play(props: { run: EscRun }) {
+function Play(props: { run: EscRun; art: string; name: string }) {
   const { run } = props;
   const { def, state: s } = run;
   const scene = def.scenes.find((x) => x.id === s.scene)!;
@@ -109,32 +143,52 @@ function Play(props: { run: EscRun }) {
   const need = def.question.needs.filter((n) => s.clues.includes(n)).length;
   const memos = def.objects.filter((o) => o.memo && s.seen.includes(o.id));
   const qs = [def.question, ...(def.more ?? [])];
+  const puzzles = def.objects.filter((o) => o.lock?.kind === 'code');
+  const solved = puzzles.filter((o) => s.opened.includes(o.id)).length;
+  const coins = coinSpots(def, s.scene).filter((c) => !s.coins?.includes(`${s.scene}:${c.k}`));
+  const left = coinsLeft(s);
   return (
     <>
       <section class="panel esc-play" id="now">
         <div class="esc-top">
           <span class="esc-place">📍 {def.place} · {scene.name}</span>
           <span class="esc-stats">
+            {puzzles.length > 0 && (
+              <span title="푼 수수께끼">
+                🧩 {solved}/{puzzles.length}
+              </span>
+            )}
+            <span title="힌트 동전">🪙 {left}</span>
             <span title="실수">❌ {s.mistakes}</span>
-            <span title="힌트">💡 {s.hints}</span>
+            <span title="동전 없이 본 힌트">💡 {s.hints}</span>
           </span>
         </div>
         <div class="esc-frame">
-          <div class="esc-room" style={`--wall:${scene.wall};--floor:${scene.floor}`}>
+          <div class={`esc-room${s.fx === 'move' ? ' fx-move' : ''}`} style={`--wall:${scene.wall};--floor:${scene.floor};--room:url(${roomBg(scene.name)})`}>
             <div class="esc-wall" />
             <div class="esc-floor" />
             {things.map((o) => (
               <Thing run={run} o={o} />
             ))}
+            {coins.map((c) => (
+              <div class="esc-spot" style={`--x:${c.x};--y:${c.y}`}>
+                <Act run={run} a="coin" n={c.k} cls="esc-coin" label="반짝이는 곳">
+                  {null}
+                </Act>
+              </div>
+            ))}
+            {s.fx === 'right' && <b class="esc-stamp right" aria-hidden="true">정답!</b>}
+            {s.fx === 'wrong' && <b class="esc-stamp wrong" aria-hidden="true">땡!</b>}
+            {s.fx === 'coin' && <b class="esc-stamp coin" aria-hidden="true">🪙 +1</b>}
           </div>
         </div>
-        <Focus run={run} />
+        <Focus run={run} art={props.art} name={props.name} />
         <div class="esc-bag">
           <b>🎒 가방</b>
           {s.inv.length ? (
             s.inv.map((i) => (
               <span class="esc-item">
-                <span aria-hidden="true">{def.items[i]?.emoji}</span> {def.items[i]?.name}
+                <ItemIcon emoji={def.items[i]?.emoji} /> {def.items[i]?.name}
               </span>
             ))
           ) : (
@@ -167,7 +221,7 @@ function Play(props: { run: EscRun }) {
         )}
         <div class="esc-tools">
           <Act run={run} a="hint" cls="btn btn-small">
-            💡 힌트 보기
+            {left > 0 ? '💡 힌트 보기 (동전 1개)' : '💡 힌트 보기 (등급 감점)'}
           </Act>
           <form method="post" action="/api/escape/quit">
             <input type="hidden" name="run" value={run.row.id} />
@@ -176,7 +230,7 @@ function Play(props: { run: EscRun }) {
             </button>
           </form>
         </div>
-        <p class="hint">물건을 눌러 살펴보세요. 잠긴 곳은 찾은 물건이나 비밀번호로 열어요. 실수와 힌트가 적을수록 등급이 높아요.</p>
+        <p class="hint">물건을 눌러 살펴보세요. 잠긴 곳은 찾은 물건이나 수수께끼 정답으로 열어요. 방 곳곳 빈 자리를 눌러 보면 숨은 힌트 동전이 있어요. 실수와 동전 없이 본 힌트가 적을수록 등급이 높아요.</p>
       </section>
 
       <section class="panel esc-notes">
@@ -262,11 +316,11 @@ function Result(props: { run: EscRun }) {
         {run.def.emoji} {run.def.title}
       </h2>
       <div class="esc-grade">
-        <span class={`esc-grade-badge g-${g}`}>{g}</span>
+        <span class={`esc-grade-badge g-${g} fx-stamp`}>{g}</span>
         <div>
           <b>{GRADE_TEXT[g]}</b>
           <p class="hint">
-            실수 {run.state.mistakes}번 · 힌트 {run.state.hints}번
+            실수 {run.state.mistakes}번 · 동전 없이 본 힌트 {run.state.hints}번 · 찾은 힌트 동전 {run.state.coins?.length ?? 0}개
           </p>
         </div>
       </div>
@@ -283,7 +337,7 @@ function Result(props: { run: EscRun }) {
   );
 }
 
-export function EscapePage(props: { viewer: Member; run: EscRun | null; result: EscRun | null; best: Map<string, EscGrade>; notice?: string }) {
+export function EscapePage(props: { viewer: Member; art: string; run: EscRun | null; result: EscRun | null; best: Map<string, EscGrade>; notice?: string }) {
   const { run, result } = props;
   return (
     <Layout title="하리보 사건파일" viewer={props.viewer} active="cases">
@@ -297,7 +351,7 @@ export function EscapePage(props: { viewer: Member; run: EscRun | null; result: 
             사건마다 처음 해결하면 내 카드 경험치 {ESC_XP}, S·A 등급이면 도감 젤리 1개도 받아요. 등장인물은 모두 가상 인물이에요.
           </p>
         </section>
-        {run ? <Play run={run} /> : result ? <Result run={result} /> : null}
+        {run ? <Play run={run} art={props.art} name={props.viewer.display_name} /> : result ? <Result run={result} /> : null}
         {!run && (
           <section class="panel">
             <h2>

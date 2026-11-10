@@ -842,10 +842,11 @@ const ESC_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 members.get('/cases/room', async (c) => {
   const viewer = c.get('viewer');
   c.header('Cache-Control', 'no-store');
-  const [run, best] = await Promise.all([activeEscape(c.env.DB, viewer.user_id), escapeRecord(c.env.DB, viewer.user_id)]);
+  const [run, best, profile] = await Promise.all([activeEscape(c.env.DB, viewer.user_id), escapeRecord(c.env.DB, viewer.user_id), getProfile(c.env.DB, viewer.user_id)]);
+  const art = characterUrl(profile.character_id, viewer.user_id, profile.deco_id);
   const rid = c.req.query('r') ?? '';
   const done = !run && ESC_ID.test(rid) ? await getEscape(c.env.DB, viewer.user_id, rid) : null;
-  return page(c, <EscapePage viewer={viewer} run={run} result={done?.row.status === 'done' ? done : null} best={best} notice={c.req.query('n')} />);
+  return page(c, <EscapePage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} best={best} notice={c.req.query('n')} />);
 });
 members.post('/api/escape/start', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
@@ -870,6 +871,7 @@ members.post('/api/escape/act', async (c) => {
     : a === 'answer' ? { a, n: Number(body.n), ...(body.m0 !== undefined ? { m: [0, 1, 2].map((k) => body[`m${k}`]).filter((v) => v !== undefined).map(Number) } : {}) } as const
     : a === 'combine' ? { a, i: str('i'), j: str('j') } as const
     : a === 'hint' ? { a } as const
+    : a === 'coin' && /^[0-9]$/.test(String(body.n ?? '')) ? { a, k: Number(body.n) } as const
     : null;
   if (!ESC_ID.test(id) || !Number.isSafeInteger(rev) || rev < 0 || !act) return c.redirect('/cases/room?n=bad#now', 303);
   try {
