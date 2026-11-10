@@ -1367,3 +1367,5 @@ main.wide { max-width: 1320px; }
 .esc-room { background: var(--room) center / 100% 100% no-repeat, var(--floor); }
 .esc-room .esc-wall, .esc-room .esc-floor { display: none; }
 .jr-stage { background: var(--jr-bg) center bottom / cover no-repeat, #bfe6ff; image-rendering: auto; }
+.jr-foe .jr-pic { max-height: 118px; width: auto; }
+.jr-preload { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
