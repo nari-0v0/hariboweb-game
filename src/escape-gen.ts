@@ -4,7 +4,7 @@
 // 같은 씨앗이면 늘 같은 사건이 나와요(무작위는 사건 id로 정해져요).
 import { rng } from './expedition';
 import type { EscAction, EscCase, EscObject } from './escape';
-import { ROOMS, ROOM_KEYS, ROOM_TWINS, roomByName, type Hotspot, type RoomKey } from './case-rooms';
+import { ROOMS, ROOM_KEYS, roomByName, type Hotspot, type RoomKey } from './case-rooms';
 
 export type StorySeed = {
   id: string;
@@ -271,9 +271,7 @@ function pickRooms(r: R, names: readonly string[]): RoomKey[] {
   const out: RoomKey[] = [];
   for (const name of names) {
     const want = roomByName(name);
-    // 그림이 두 장인 방은 둘 중 하나를 골라요.
-    const ok = want ? [want, ROOM_TWINS[want]].filter((k): k is RoomKey => !!k && !out.includes(k)) : [];
-    out.push(ok.length ? pick(r, ok) : pick(r, ROOM_KEYS.filter((k) => !out.includes(k))));
+    out.push(want && !out.includes(want) ? want : pick(r, ROOM_KEYS.filter((k) => !out.includes(k))));
   }
   return out;
 }

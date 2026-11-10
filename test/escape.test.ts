@@ -382,3 +382,30 @@ describe('방 그림 확대', () => {
       }
   });
 });
+
+describe('방 그림 56장', () => {
+  it('그림 파일이 다 있고, 방마다 문·잠긴 곳·서로 다른 수수께끼가 있어요', async () => {
+    const { readdirSync } = await import('node:fs');
+    const files = new Set(readdirSync('public/case/room'));
+    const { ROOMS, ROOM_KEYS, roomByName } = await import('../src/case-rooms');
+    expect(ROOM_KEYS.length).toBe(56);
+    for (const k of ROOM_KEYS) {
+      const r = ROOMS[k];
+      expect(files.has(`${k}.webp`), k).toBe(true);
+      expect(r.spots.filter((h) => h.tag?.includes('door')).length, `${k} 문`).toBe(1);
+      expect(r.spots.filter((h) => h.tag?.includes('lock')).length, `${k} 잠긴 곳`).toBeGreaterThanOrEqual(2);
+      const rids = r.spots.flatMap((h) => (h.rid && !h.tag?.includes('lock') ? [h.rid] : []));
+      expect(rids.length, `${k} 수수께끼`).toBeGreaterThanOrEqual(3);
+      expect(new Set(rids).size, `${k} 같은 답`).toBe(rids.length);
+      expect(new Set(r.spots.map((h) => h.id)).size, `${k} 같은 id`).toBe(r.spots.length);
+      for (const h of r.spots) {
+        expect(h.x - h.w / 2, `${k}/${h.id}`).toBeGreaterThanOrEqual(-1);
+        expect(h.x + h.w / 2, `${k}/${h.id}`).toBeLessThanOrEqual(101);
+      }
+    }
+    // 모든 그림이 적어도 한 사건 방 이름에 쓰여요.
+    const used = new Set(ESCAPE_CASES.flatMap((c) => c.scenes.map((s) => s.bg)));
+    for (const k of ROOM_KEYS) expect(used.has(k), `${k} 안 쓰임`).toBe(true);
+    expect(roomByName('편집실')).toBe('newsroom');
+  });
+});
