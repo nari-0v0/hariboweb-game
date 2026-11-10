@@ -86,8 +86,14 @@ Content-Type: application/json
 도감 젤리로 사면 웹이 젤리를 먼저 빼고, 봇이 디스코드(겜블 계정의 벌점·경고·가방)에 적용해요. 겜블 젤리는 쓰지 않아요.
 
 - `GET /api/bot/services` → `{"services":[{"id":"<결제번호>","user":"<디스코드 ID>","kind":"penalty"|"warning"|"nickname"}]}` (한 번에 20개까지)
-  - `penalty`: 벌점 1점 빼기, `warning`: 경고 1점 빼기, `nickname`: 가방에 `nickname_change` 1장 넣기
+  - `penalty`: 벌점 1점 빼기, `warning`: 경고 1점 빼기 (봇의 벌점·경고 저장소에서 빼요. 겜블 계정과 상관없어요)
+  - `nickname`은 이제 오지 않아요. 도감 닉네임 변경권은 웹에 남고, 쓸 때 아래 `/api/bot/nicks`로 와요(겜블 변경권과 따로)
 - 봇이 적용한 뒤 `POST /api/bot/services/<결제번호>` `{"ok":true}` → 끝남. 지울 게 없으면 `{"ok":false,"reason":"no_penalty"|"no_warning"}` → 웹이 도감 젤리를 돌려줘요.
+
+### 도감 닉네임 변경권
+- `GET /api/bot/nicks` → `{"nicks":[{"id":"<신청번호>","user":"<디스코드 ID>","front":"<새 닉네임 앞부분>"}]}` (20개까지)
+- 봇은 서버 닉네임 규칙으로 앞부분만 바꾸고(칭호·생년 그대로) `POST /api/bot/nicks/<신청번호>` `{"ok":true}`.
+  못 바꾸면 `{"ok":false,"reason":"invalid"|"banned"|"forbidden"|"left"}` → 변경권은 그대로 남아요.
 - 두 번 불러도 한 번만 처리돼요. 봇은 거래번호 `dogam-svc:<결제번호>`로 같은 결제를 두 번 적용하지 않아요. 잠깐 못 하는 경우(겜블 점검 등)는 결과를 보내지 않고 다음에 다시 해요.
 - 값: 벌점 100, 경고 200(살 때마다 1.5배, 올림), 닉네임 변경권 5. 웹 `src/shop.ts`의 `SERVICES`.
 

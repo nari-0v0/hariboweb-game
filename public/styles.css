@@ -1393,3 +1393,11 @@ main.wide { max-width: 1320px; }
 .jr-chapter:has(input:focus-visible) { outline: 3px solid #7fb8ff; }
 .jr-chapter.locked { opacity: .45; cursor: not-allowed; }
 .jr-chapter .hint { font-size: .72rem; }
+
+/* 도감 닉네임 변경권 쓰기 */
+.nick-form { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.nick-form input { width: 9em; max-width: 100%; padding: 6px 8px; border: 3px solid var(--ink); font: inherit; background: #fff; }
+.service-nick { flex-wrap: wrap; }
+.service-nick > div { flex: 1 1 14em; min-width: 0; }
+.service-nick .nick-form { flex: 1 1 100%; justify-content: flex-start; }
+.service-nick .nick-form input { flex: 1 1 8em; }

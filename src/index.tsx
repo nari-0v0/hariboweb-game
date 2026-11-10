@@ -18,6 +18,11 @@ import {
   listDogam,
   buyWithJelly,
   listPendingServices,
+  listNickJobs,
+  nickState,
+  settleNickJob,
+  useNickTicket,
+  NICK_FAIL_REASONS,
   requestService,
   serviceState,
   settleService,
@@ -220,6 +225,27 @@ app.post('/api/bot/services/:id', async (c) => {
   if (typeof ok !== 'boolean') return c.json({ error: 'bad_ok' }, 400);
   if (!ok && !(SERVICE_FAIL_REASONS as readonly unknown[]).includes(reason)) return c.json({ error: 'bad_reason' }, 400);
   const changed = await settleService(c.env.DB, c.req.param('id'), ok, ok ? null : (reason as string));
+  return c.json({ ok: true, changed });
+});
+
+// 도감 닉네임 변경권: 봇이 가져가 닉네임을 바꾸고 결과를 알려요. 실패면 변경권이 그대로 남아요.
+app.get('/api/bot/nicks', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  const rows = await listNickJobs(c.env.DB);
+  return c.json({ nicks: rows.map((r) => ({ id: r.id, user: r.user_id, front: r.front })) });
+});
+app.post('/api/bot/nicks/:id', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'bad_json' }, 400);
+  }
+  const { ok, reason } = (body ?? {}) as { ok?: unknown; reason?: unknown };
+  if (typeof ok !== 'boolean') return c.json({ error: 'bad_ok' }, 400);
+  if (!ok && !(NICK_FAIL_REASONS as readonly unknown[]).includes(reason)) return c.json({ error: 'bad_reason' }, 400);
+  const changed = await settleNickJob(c.env.DB, c.req.param('id'), ok, ok ? null : (reason as string));
   return c.json({ ok: true, changed });
 });
 
@@ -539,18 +565,19 @@ members.post('/api/story/act', async c => {
 // 상점: 매점(잡다매점: 디스코드 물건·성별 바꾸기)과 꾸미기(테마·꾸밈 캐릭터) 탭. 칭호 탭은 /titles예요.
 async function shopPage(c: Context<AppEnv>, tab: 'store' | 'deco') {
   const viewer = c.get('viewer');
-  const [profile, owned, cards, results, services] = await Promise.all([
+  const [profile, owned, cards, results, services, nick] = await Promise.all([
     getProfile(c.env.DB, viewer.user_id),
     getOwnedItems(c.env.DB, viewer.user_id),
     countOwnedCards(c.env.DB, viewer.user_id),
     listUnseenPurchases(c.env.DB, viewer.user_id),
     serviceState(c.env.DB, viewer.user_id),
+    nickState(c.env.DB, viewer.user_id),
   ]);
   // 아직 결과를 안 본 결제는 이번에 팝업으로 보여 주고 본 것으로 표시해요
   await markPurchasesSeen(c.env.DB, viewer.user_id, results.map((p) => p.id));
   return page(
     c,
-    <ShopPage tab={tab} viewer={viewer} profile={profile} owned={owned} cards={cards} results={results} services={services} notice={c.req.query('n')} />,
+    <ShopPage tab={tab} viewer={viewer} profile={profile} owned={owned} cards={cards} results={results} services={services} nick={nick} notice={c.req.query('n')} />,
   );
 }
 
@@ -611,13 +638,23 @@ members.post('/api/shop/service', async (c) => {
     const n = (await serviceState(c.env.DB, viewer.user_id)).bought.get(item.id) ?? 0;
     const price = servicePrice(item, n);
     if (String(body.price ?? '') !== String(price)) return c.redirect('/shop?n=price_changed');
-    result = await requestService(c.env.DB, viewer.user_id, item.id, price, n);
+    result = await requestService(c.env.DB, viewer.user_id, item.id, price, n, item.key === 'nickname');
   } catch (e) {
     console.error('도감 서비스 결제 실패', e);
     return c.redirect('/shop?n=error');
   }
   if (result === 'changed') return c.redirect('/shop?n=price_changed');
+  if (result === 'done') return c.redirect('/shop#nick');
   return c.redirect(`/shop?n=${result === 'pending' ? 'service_pending' : result === 'busy' ? 'service_busy' : 'not_enough_jelly'}`);
+});
+
+// 도감 닉네임 변경권 쓰기: 하리보봇이 1분 안쪽에 디스코드 닉네임 앞부분을 바꿔요(칭호·생년은 그대로).
+members.post('/api/shop/nick', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const front = String((await c.req.parseBody()).front ?? '').trim();
+  if (!front || front.length > 16 || /\s/.test(front) || /[「」]/.test(front)) return c.redirect('/shop?n=nick_bad#nick');
+  const ok = await useNickTicket(c.env.DB, c.get('viewer').user_id, front);
+  return c.redirect(`/shop?n=${ok ? 'nick_pending' : 'nick_none'}#nick`);
 });
 
 members.post('/api/me/deco', async (c) => {
