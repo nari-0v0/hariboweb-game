@@ -132,11 +132,21 @@ describe('사건파일 방탈출 내용', () => {
       expect(left(3)[0]).toContain(c.question.options[c.question.correct]!.split(' (')[0]);
     }
   });
-  it('만든 사건: 퍼즐 종류가 사건마다 섞여 있어요', () => {
-    const kinds = (c: EscCase) => new Set(c.objects.map((o) => o.id.replace(/\d+$/, '')).filter((k) => ['mm', 'cntn', 'col', 'alg', 'let', 'clkn', 'stkn'].includes(k)));
-    const all = new Set(ESCAPE_CASES.filter((c) => c.solution && !c.id.endsWith("-talk")).flatMap((c) => [...kinds(c)]));
-    expect(all.size).toBe(7);
-    for (const c of ESCAPE_CASES.filter((x) => x.solution && !x.id.endsWith("-talk"))) expect(kinds(c).size, c.id).toBeGreaterThanOrEqual(3);
+  it('만든 사건: 사건마다 수수께끼 네 개가 모두 다르고, 수수께끼 카드 답도 겹치지 않아요', () => {
+    const made = ESCAPE_CASES.filter((c) => c.solution && !c.id.endsWith('-talk') && (c.level ?? 1) > 1);
+    expect(made.length).toBeGreaterThanOrEqual(45);
+    const qs = made.flatMap((c) => c.objects.filter((o) => o.lock?.kind === 'code' && o.look.includes('수수께끼 No.')).map((o) => o.look.split('\n').slice(-1)[0]));
+    expect(qs.length).toBe(made.length * 4);
+    expect(new Set(qs).size).toBe(qs.length);
+    const cards = made.map((c) => c.objects.find((o) => o.id.startsWith('rdn'))!.look.split('\n')[1]);
+    expect(new Set(cards).size).toBe(cards.length);
+  });
+  it('수수께끼 은행: 고르기 문제는 정답이 보기 안에 있어요', async () => {
+    const { TEASERS } = await import('../src/escape-teasers');
+    for (const t of TEASERS) {
+      if (t.choices) expect(t.choices, t.q).toContain(t.a);
+      else expect(t.a.replace(/\s/g, '').length, t.q).toBeLessThanOrEqual(/^[0-9]+$/.test(t.a) ? 8 : 12);
+    }
   });
   it('합치기: 맞는 짝은 도구가 되고, 안 맞는 짝은 실수예요', () => {
     const c = ESCAPE_CASES.find((x) => x.combos)!;

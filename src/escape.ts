@@ -289,7 +289,7 @@ function placeRooms(c: EscCase): EscCase {
   return { ...c, scenes, objects };
 }
 
-export const ESCAPE_CASES: EscCase[] = [...TALK_CASES, ...STORY_SEEDS.map((x) => buildCase(x)), ...HANDMADE.map((c) => ({ ...c, level: 1 }))].map(placeRooms);
+export const ESCAPE_CASES: EscCase[] = [...TALK_CASES, ...STORY_SEEDS.map((x, i) => buildCase(x, 3, i)), ...HANDMADE.map((c) => ({ ...c, level: 1 }))].map(placeRooms);
 
 export const escCase = (id: string) => ESCAPE_CASES.find((c) => c.id === id);
 
@@ -494,7 +494,7 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
     if (o.lock!.kind !== 'code' || typeof act.v !== 'string') return null;
     const v = normCode(act.v);
     const digits = /^[0-9]+$/.test(o.lock!.code);
-    if (digits ? !/^[0-9]{1,8}$/.test(v) : !v || v.length > 12) return null;
+    if (digits ? !/^[0-9]{1,8}$/.test(v) : !v || v.length > (o.lock!.choices ? 40 : 12)) return null;
     if (v !== normCode(o.lock!.code)) {
       s.mistakes += 1;
       s.fx = 'wrong';

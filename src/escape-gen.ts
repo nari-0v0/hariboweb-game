@@ -3,7 +3,8 @@
 // 사건마다 다르게 섞고, 마지막엔 용의자 특징표와 증거 세 개를 맞춰 범인·방법·동기를 모두 맞혀야 해요.
 // 같은 씨앗이면 늘 같은 사건이 나와요(무작위는 사건 id로 정해져요).
 import { rng } from './expedition';
-import type { EscAction, EscCase, EscObject } from './escape';
+import type { EscAction, EscCase, EscObject, Lock } from './escape';
+import { TEASERS, type Teaser } from './escape-teasers';
 import { ROOMS, ROOM_KEYS, roomByName, type Hotspot, type RoomKey } from './case-rooms';
 
 export type StorySeed = {
@@ -72,13 +73,14 @@ type Reward = { take?: string[]; clue?: string | string[]; text: string };
 type Ctx = { r: R; id: (k: string) => string; reward: Reward; lock?: Spot; pool: Pool; safe?: Hotspot };
 
 // 잠긴 곳 하나(혹은 문). 비밀번호를 맞히면 보상이 나와요.
-function box(ctx: Ctx, code: string, ask: string, look: string): Spot {
-  if (ctx.lock) return { ...ctx.lock, lock: { kind: 'code', code, ask }, look: `${ctx.lock.look} ${look}` };
+function box(ctx: Ctx, code: string, ask: string, look: string, choices?: string[]): Spot {
+  const lk: Lock = choices ? { kind: 'code', code, ask, choices } : { kind: 'code', code, ask };
+  if (ctx.lock) return { ...ctx.lock, lock: lk, look: `${ctx.lock.look} ${look}` };
   const h = ctx.safe!;
   const n = h.label;
   return {
     id: ctx.id('box'), at: h.id, name: n, emoji: '🔐', look: `${n}${josa(n, '이', '가')} 자물쇠로 잠겨 있어요. ${look}`,
-    lock: { kind: 'code', code, ask }, openText: `철컥! ${n}${josa(n, '이', '가')} 열렸어요. ${ctx.reward.text}`, again: `${n}${josa(n, '은', '는')} 이제 비어 있어요.`,
+    lock: lk, openText: `철컥! ${n}${josa(n, '이', '가')} 열렸어요. ${ctx.reward.text}`, again: `${n}${josa(n, '은', '는')} 이제 비어 있어요.`,
     take: ctx.reward.take, clue: ctx.reward.clue,
   };
 }
@@ -92,160 +94,22 @@ const hide = (ctx: Ctx, key: string, emoji: string, text: (h: Hotspot) => string
   return { id: ctx.id(key), at: h.id, name: h.label, emoji, look: text(h), memo: true };
 };
 
-// 1) 논리 숫자 맞히기: 세 자리 숫자를 줄마다 "맞는 숫자 n개(제자리 m개)"로 좁혀요.
-function mastermind(ctx: Ctx): Built {
-  const { r } = ctx;
-  const all: string[] = [];
-  for (let n = 0; n < 1000; n++) {
-    const t = String(n).padStart(3, '0');
-    if (new Set(t).size === 3) all.push(t);
-  }
-  const fb = (g: string, s: string) => {
-    let hit = 0, both = 0;
-    for (let i = 0; i < 3; i++) {
-      if (s.includes(g[i]!)) hit++;
-      if (s[i] === g[i]) both++;
-    }
-    return [hit, both] as const;
-  };
-  for (;;) {
-    const secret = pick(r, all);
-    let cand = all;
-    const rows: string[] = [];
-    for (let k = 0; k < 40 && cand.length > 1 && rows.length < 6; k++) {
-      const g = pick(r, all);
-      if (g === secret) continue;
-      const f = fb(g, secret);
-      const next = cand.filter((c) => { const h = fb(g, c); return h[0] === f[0] && h[1] === f[1]; });
-      if (next.length === cand.length) continue;
-      cand = next;
-      rows.push(`${g.split('').join(' ')} → 맞는 숫자 ${f[0]}개 (그중 제자리 ${f[1]}개)`);
-    }
-    if (cand.length !== 1 || rows.length < 4) continue;
-    const paper = note(ctx, 'mm', '구겨진 쪽지', '📝', `「세 자리 비밀번호, 숫자는 모두 달라요.」\n${rows.join('\n')}`);
-    const lock = box(ctx, secret, '숫자 3자리', '세 자리 숫자를 넣어야 해요.');
-    return { spots: [paper, lock], lockId: lock.id, hint: '구겨진 쪽지의 줄들을 비교해요. "맞는 숫자 0개"인 줄이 있으면 그 숫자부터 지우고, 제자리 개수로 자리를 좁혀 보세요.', steps: [{ a: 'tap', o: paper.id }, { a: 'code', o: lock.id, v: secret }] };
-  }
+// 레이튼식 수수께끼: 잠긴 곳을 누르면 문제가 나오고, 답을 넣으면 열려요. 문제는 사건마다 다 달라요.
+function teaser(ctx: Ctx, t: Teaser, no: number): Built {
+  const head = `「수수께끼 No.${String(no).padStart(3, '0')}」`;
+  const lock = box(ctx, t.a, t.choices ? '답 고르기' : t.ask, `자물쇠에 수수께끼가 새겨져 있어요.\n${head}\n${t.q}`, t.choices);
+  return { spots: [lock], lockId: lock.id, hint: t.hint, steps: [{ a: 'code', o: lock.id, v: t.a }] };
 }
 
-// 2) 개수 세기: 쪽지에 적힌 순서대로 방 곳곳에 흩어진 작은 물건의 개수를 세요.
-const COUNTABLE: { what: string; emoji: string; say: (a: number, b: number) => string }[] = [
-  { what: '구슬', emoji: '🔮', say: (a, b) => `빨간 구슬 ${a}개와 파란 구슬 ${b}개가 굴러다녀요.` },
-  { what: '단추', emoji: '🔘', say: (a, b) => `구멍 두 개짜리 단추 ${a}개와 구멍 네 개짜리 단추 ${b}개가 섞여 있어요.` },
-  { what: '동전', emoji: '🪙', say: (a, b) => `100원짜리 동전 ${a}개와 500원짜리 동전 ${b}개가 떨어져 있어요.` },
-  { what: '사탕', emoji: '🍬', say: (a, b) => `딸기 사탕 ${a}개와 포도 사탕 ${b}개가 숨겨져 있어요.` },
-  { what: '성냥개비', emoji: '🔥', say: (a, b) => `새 성냥개비 ${a}개와 다 탄 성냥개비 ${b}개가 흩어져 있어요.` },
-  { what: '클립', emoji: '📎', say: (a, b) => `은색 클립 ${a}개와 금색 클립 ${b}개가 엉켜 있어요.` },
-  { what: '도토리', emoji: '🌰', say: (a, b) => `큰 도토리 ${a}개와 작은 도토리 ${b}개가 모여 있어요.` },
-  { what: '조개껍데기', emoji: '🐚', say: (a, b) => `하얀 조개껍데기 ${a}개와 분홍 조개껍데기 ${b}개가 놓여 있어요.` },
-];
-function counting(ctx: Ctx): Built {
-  const { r } = ctx;
-  const kinds = shuffle(r, COUNTABLE).slice(0, 4);
-  const nums = kinds.map(() => 2 + Math.floor(r() * 8));
-  const parts = nums.map((n) => { const a = 1 + Math.floor(r() * (n - 1)); return [a, n - a] as const; });
-  const order = kinds.slice(0, 3);
-  const code = order.map((_, i) => nums[i]).join('');
-  const spots: Spot[] = kinds.map((k, i) => hide(ctx, `cnt${i}`, k.emoji, (h) => `${h.at} ${k.say(parts[i]![0], parts[i]![1])}`));
-  const paper = note(ctx, 'cntn', '수수께끼 메모', '📌', `「${order.map((k) => k.what).join(' → ')}」\n「모두 세어라」`);
-  const lock = box(ctx, code, '숫자 3자리', '숫자 세 개를 넣어야 해요.');
-  return {
-    spots: [paper, ...spots, lock], lockId: lock.id,
-    hint: '메모에 적힌 것들을 방에서 찾아 종류에 상관없이 모두 더해 세어 보세요. 순서가 중요하고, 메모에 없는 물건은 함정이에요.',
-    steps: [{ a: 'tap', o: paper.id }, ...spots.map((s) => ({ a: 'tap', o: s.id }) as const), { a: 'code', o: lock.id, v: code }],
-  };
-}
-
-// 3) 색 암호: 색깔 숫자표 두 조각 + 색 띠
-const COLORS = ['빨강', '파랑', '노랑', '초록', '보라', '주황'];
-function colors(ctx: Ctx): Built {
-  const { r } = ctx;
-  const cs = shuffle(r, COLORS).slice(0, 5);
-  const digits = shuffle(r, [1, 2, 3, 4, 5, 6, 7, 8, 9]).slice(0, 5);
-  const band = shuffle(r, cs).slice(0, 4);
-  const code = band.map((c) => digits[cs.indexOf(c)]).join('');
-  const legend = hide(ctx, 'col1', '🎨', (h) => `${h.at} 물감 자국이 묻어 있고 색마다 숫자가 적혀 있어요: ${cs.slice(0, 3).map((c, i) => `${c} ${digits[i]}`).join(', ')}.`);
-  const legend2 = hide(ctx, 'col3', '🖌️', (h) => `${h.at} 마른 팔레트 조각이 있어요. 칸 아래에 숫자가 적혀 있어요: ${cs.slice(3).map((c, i) => `${c} ${digits[i + 3]}`).join(', ')}.`);
-  const art = hide(ctx, 'col2', '🖼️', (h) => `${h.at} 줄무늬 색 띠 스티커가 붙어 있어요. 오른쪽부터 이렇게 칠해져 있어요: ${[...band].reverse().join(', ')}. 서명은 왼쪽 아래에 있어요.`, has('wall'));
-  const lock = box(ctx, code, '숫자 4자리', '네 자리 숫자를 넣어야 해요.');
-  return { spots: [legend, legend2, art, lock], lockId: lock.id, hint: '물감 자국과 팔레트 조각에서 색마다 숫자를 모으고, 줄무늬 색 띠는 서명이 있는 왼쪽부터 읽어요.', steps: [{ a: 'tap', o: legend.id }, { a: 'tap', o: legend2.id }, { a: 'tap', o: art.id }, { a: 'code', o: lock.id, v: code }] };
-}
-
-// 4) 저울 계산: 그림 세 개의 값을 식 세 줄로 구해요.
-const SETS: [string, string, string][] = [['🍎', '🍌', '🍇'], ['🍬', '🍭', '🍫'], ['🐱', '🐶', '🐰'], ['⭐', '🌙', '☀️'], ['🍩', '🍪', '🧁']];
-function algebra(ctx: Ctx): Built {
-  const { r } = ctx;
-  const [x, y, z] = pick(r, SETS);
-  for (;;) {
-    const a = 1 + Math.floor(r() * 9), b = 1 + Math.floor(r() * 9), c = 1 + Math.floor(r() * 9);
-    if (new Set([a, b, c]).size < 3) continue;
-    const code = `${a}${b}${c}`;
-    const lines = [`${x} + ${x} + ${y} = ${2 * a + b}`, `${y} + ${z} = ${b + c}`, `${x} + ${z} = ${a + c}`];
-    const board = hide(ctx, 'alg', '🧮', (h) => `${h.at} 분필로 그림 식이 적혀 있어요.\n${lines.join('\n')}\n아래에 「${x}${y}${z} 순서로」`, has('wall'));
-    const lock = box(ctx, code, '숫자 3자리', '세 자리 숫자를 넣어야 해요.');
-    return { spots: [board, lock], lockId: lock.id, hint: `분필 식 두 개를 빼 보면 ${y}와 ${x}의 차이를 알 수 있어요. 그걸 첫 줄에 넣어 보세요.`, steps: [{ a: 'tap', o: board.id }, { a: 'code', o: lock.id, v: code }] };
-  }
-}
-
-// 5) 글자 조각: 여기저기 숨은 글자를 모아 낱말을 만들어요.
-const WORDS = ['젤리곰', '무지개', '별사탕', '솜사탕', '도토리', '말랑이', '하리보', '눈사람', '해바라기', '고양이', '보물상자', '초콜릿', '비눗방울', '오르골'];
-function letters(ctx: Ctx): Built {
-  const { r } = ctx;
-  const word = pick(r, WORDS);
-  const chars = [...word];
-  const spots: Spot[] = shuffle(r, chars).map((ch, k) => hide(ctx, `let${k}`, '🔤', (h) => `${h.at} 「${ch}」 한 글자가 적혀 있어요.`));
-  const lock = box(ctx, word, `글자 ${chars.length}자`, `글자 ${chars.length}자 낱말을 넣어야 해요. 자물쇠에 「흩어진 글자는 하나의 낱말」이라고 새겨져 있어요.`);
-  return { spots: [...spots, lock], lockId: lock.id, hint: `방 곳곳에 글자 ${chars.length}개가 숨어 있어요. 모두 모아 순서를 바꿔 가며 뜻이 있는 낱말을 만들어 보세요.`, steps: [...spots.map((s) => ({ a: 'tap', o: s.id }) as const), { a: 'code', o: lock.id, v: word }] };
-}
-
-// 6) 시계 순서: 오전·오후가 섞인 시계들을 이른 시각부터 줄 세워요. 방에 걸린 시계는 그 시각에 멈춰 있어요.
-function clocks(ctx: Ctx): Built {
-  const { r } = ctx;
-  const hours = shuffle(r, [1, 2, 3, 4, 5, 6, 7, 8, 9]).slice(0, 3);
-  const pm = hours.map(() => r() < 0.5);
-  if (pm.every((x) => x === pm[0])) pm[0] = !pm[0];
-  const mins = hours.map(() => Math.floor(r() * 12) * 5);
-  const t = (i: number) => (pm[i] ? 12 : 0) + hours[i]! + mins[i]! / 60;
-  const order = [0, 1, 2].sort((a, b) => t(a) - t(b));
-  const code = order.map((i) => hours[i]).join('');
-  const time = (i: number) => `${pm[i] ? '오후' : '오전'} ${hours[i]}시 ${mins[i] ? `${mins[i]}분` : '정각'}`;
-  const wallClock = ctx.pool.free.some(has('clock'));
-  const spots: Spot[] = [0, 1, 2].map((i) => {
-    if (i === 0 && wallClock) {
-      const h = take(ctx.r, ctx.pool, has('clock'));
-      return { id: ctx.id('clk0'), at: h.id, name: h.label, emoji: '🕰️', look: `${h.label}${josa(h.label, '이', '가')} ${time(0)}에 멈춰 있어요.`, memo: true };
-    }
-    const n = ['탁상시계', '손목시계', '회중시계'][i]!;
-    return hide(ctx, `clk${i}`, '⌚', (h) => `${h.at} ${n}${josa(n, '이', '가')} 있어요. ${time(i)}에 멈춰 있어요.`);
-  });
-  const paper = note(ctx, 'clkn', '시간표 쪽지', '🗒️', '「이른 것부터. 시(時)만.」');
-  const lock = box(ctx, code, '숫자 3자리', '세 자리 숫자를 넣어야 해요.');
-  return { spots: [paper, ...spots, lock], lockId: lock.id, hint: '오전이 오후보다 이르다는 걸 잊지 마세요. 멈춘 시계 세 개의 시각을 이른 순서로 줄 세워 보세요.', steps: [{ a: 'tap', o: paper.id }, ...spots.map((s) => ({ a: 'tap', o: s.id }) as const), { a: 'code', o: lock.id, v: code }] };
-}
-
-// 7) 스티커 합: 빨간 스티커 숫자 합과 파란 스티커 숫자 합을 두 자리씩
-function stickers(ctx: Ctx): Built {
-  const { r } = ctx;
-  const nums = shuffle(r, [1, 2, 3, 4, 5, 6, 7, 8, 9]).slice(0, 4);
-  const red = nums.map(() => r() < 0.5);
-  if (red.every(Boolean)) red[0] = false;
-  if (!red.some(Boolean)) red[0] = true;
-  const sum = (b: boolean) => nums.filter((_, i) => red[i] === b).reduce((a, n) => a + n, 0);
-  const code = `${String(sum(true)).padStart(2, '0')}${String(sum(false)).padStart(2, '0')}`;
-  const spots: Spot[] = nums.map((n, i) => hide(ctx, `stk${i}`, red[i] ? '🟥' : '🟦', (h) => `${h.at} 숫자 「${n}」이 적힌 ${red[i] ? '빨간' : '파란'} 스티커가 붙어 있어요.`));
-  const paper = note(ctx, 'stkn', '스티커 설명서', '📘', '「빨강의 합, 그다음 파랑의 합. 둘 다 두 자리로.」');
-  const lock = box(ctx, code, '숫자 4자리', '네 자리 숫자를 넣어야 해요.');
-  return { spots: [paper, ...spots, lock], lockId: lock.id, hint: '방 곳곳의 숫자 스티커를 모두 찾아 빨강과 파랑 두 묶음으로 나눠 더해 보세요.', steps: [{ a: 'tap', o: paper.id }, ...spots.map((s) => ({ a: 'tap', o: s.id }) as const), { a: 'code', o: lock.id, v: code }] };
-}
-
-const CODE_MODULES = [mastermind, counting, colors, algebra, letters, clocks, stickers];
-const SIZE = new Map<(c: Ctx) => Built, number>([[mastermind, 2], [counting, 6], [colors, 4], [algebra, 2], [letters, 5], [clocks, 5], [stickers, 6]]);
-
+// 사건마다 수수께끼 카드의 답이 겹치지 않게, 이미 쓴 수수께끼를 기억해 둬요.
+const USED_RID = new Set<string>();
 // 수수께끼: 방 그림 속 물건 중 답이 되는 것을 눌러야 숨긴 물건이 나와요(틀린 물건은 그냥 비어 있어요).
 function riddle(ctx: Ctx): Built {
   const { r } = ctx;
-  const opts = [0, 1, 2].map(() => take(r, ctx.pool, (h) => !!h.rid && !h.tag?.includes('lock')));
-  const ans = opts[0]!;
+  const fresh = ctx.pool.free.some((h) => !!h.rid && !h.tag?.includes('lock') && !USED_RID.has(h.rid));
+  const ans = take(r, ctx.pool, (h) => !!h.rid && !h.tag?.includes('lock') && (!fresh || !USED_RID.has(h.rid)));
+  USED_RID.add(ans.rid!);
+  const opts = [ans, ...[0, 1].map(() => take(r, ctx.pool, (h) => !!h.rid && !h.tag?.includes('lock')))];
   const paper = note(ctx, 'rdn', '수수께끼 카드', '🃏', `「${ans.rid} 나는 무엇일까요? 내 곁을 살펴봐요.」`);
   const spots: Spot[] = opts.map((o, i) =>
     i === 0
@@ -276,7 +140,7 @@ function pickRooms(r: R, names: readonly string[]): RoomKey[] {
   return out;
 }
 
-export function buildCase(seed: StorySeed, level = 3): EscCase {
+export function buildCase(seed: StorySeed, level = 3, no = 0): EscCase {
   const r = rng(`escape:${seed.id}`);
   const bgs = pickRooms(r, seed.rooms);
   const pools: Pool[] = bgs.map((key) => ({ key, free: [...ROOMS[key].spots] }));
@@ -310,9 +174,10 @@ export function buildCase(seed: StorySeed, level = 3): EscCase {
   items.partB = { name: combo.b[0], emoji: combo.b[1] };
   items.tool = { name: combo.out[0], emoji: combo.out[1] };
 
-  // 퍼즐 장치 고르기: 서로 다른 4개, 방 2(장치 2개)는 너무 붐비지 않게
-  let mods = shuffle(r, CODE_MODULES).slice(0, 4);
-  for (let k = 0; k < 50 && (SIZE.get(mods[1]!)! + SIZE.get(mods[2]!)! > 9 || SIZE.get(mods[0]!)! > 6 || SIZE.get(mods[3]!)! > 6); k++) mods = shuffle(r, CODE_MODULES).slice(0, 4);
+  // 수수께끼 네 개: 사건 번호 순서대로 은행에서 네 개씩 가져와요(사건끼리 겹치지 않아요).
+  const tz = [0, 1, 2, 3].map((k) => TEASERS[no * 4 + k]);
+  if (tz.some((t) => !t)) throw new Error(`수수께끼가 모자라요: ${seed.id}`);
+  const mods = tz.map((t, k) => (c: Ctx) => teaser(c, t!, no * 4 + k + 1));
   let n = 0;
   // 잠긴 곳은 장치마다 먼저 하나 맡아 둬요(다른 쪽지가 자물쇠 자리를 차지하지 않게).
   const ctx = (scene: number, reward: Reward, lock?: Spot | 'none'): Ctx => ({ r, reward, lock: lock === 'none' ? undefined : lock, pool: pools[scene]!, safe: lock ? undefined : take(r, pools[scene]!, has('lock')), id: (k) => `${k}${++n}` });
