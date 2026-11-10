@@ -3,7 +3,7 @@
 // 등장인물은 모두 가상 인물이에요(실제 멤버와 관계없어요).
 
 import { buildCase } from './escape-gen';
-import { ROOMS, ROOM_KEYS, roomByName, type RoomKey } from './case-rooms';
+import { ROOMS, ROOM_KEYS, ROOM_TWINS, roomByName, type RoomKey } from './case-rooms';
 import { STORY_SEEDS } from './escape-stories';
 import { TALK_CASES } from './escape-talk';
 
@@ -276,7 +276,8 @@ function placeRooms(c: EscCase): EscCase {
   const used: RoomKey[] = [];
   const scenes = c.scenes.map((sc) => {
     const want = sc.bg ?? roomByName(sc.name);
-    const bg = want && !used.includes(want) ? want : ROOM_KEYS.find((k) => !used.includes(k))!;
+    const twin = want ? ROOM_TWINS[want] : undefined;
+    const bg = want && !used.includes(want) ? want : twin && !used.includes(twin) ? twin : ROOM_KEYS.find((k) => !used.includes(k))!;
     used.push(bg);
     return { ...sc, bg };
   });
