@@ -262,3 +262,24 @@ describe('원정대 장(챕터)', () => {
     expect((await getJourney(db, 'me', id2))!.state.ch).toBe(2);
   });
 });
+
+describe('원정대 무대 그림', () => {
+  it('2장 이후 몬스터도 무대에 그림이 나와요', async () => {
+    const { Stage } = await import('../src/views/journey');
+    const s = startJourney('1', undefined, 2);
+    s.fx = { foe: 'c2-dew-slime', won: false, hits: [], skills: [] } as unknown as JourneyState['fx'];
+    const html = String(await Stage({ s, art: '/a.png', name: 'n', lost: false }).toString());
+    expect(html).toContain('/journey/foe/c2-dew-slime.webp');
+  });
+});
+
+describe('닉네임 변경권 옮기기', () => {
+  it('기다리던 예전 구매는 변경권 1장이 돼요', () => {
+    const sql = new DatabaseSync(':memory:');
+    const files = readdirSync(join(process.cwd(), 'migrations')).filter((f) => f.endsWith('.sql')).sort();
+    for (const f of files.filter((f) => f < '0024')) sql.exec(readFileSync(join(process.cwd(), 'migrations', f), 'utf8'));
+    sql.exec("INSERT INTO purchases (id, user_id, item_id, price, status, created_at) VALUES ('p1', 'u1', 'svc:nickname', 5, 'pending', 'x')");
+    for (const f of files.filter((f) => f >= '0024')) sql.exec(readFileSync(join(process.cwd(), 'migrations', f), 'utf8'));
+    expect(sql.prepare("SELECT status FROM purchases WHERE id = 'p1'").get()).toEqual({ status: 'done' });
+  });
+});

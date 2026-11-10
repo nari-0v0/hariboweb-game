@@ -240,7 +240,7 @@ function Pops(props: { list: { at: number; text: string; cls: string }[] }) {
   );
 }
 
-function Stage(props: { s: JourneyState; art: string; name: string; lost: boolean }) {
+export function Stage(props: { s: JourneyState; art: string; name: string; lost: boolean }) {
   const { s } = props;
   const fx = s.fx;
   const prop = fx ? null : propFor(s);
@@ -262,7 +262,7 @@ function Stage(props: { s: JourneyState; art: string; name: string; lost: boolea
         <span class="jr-shadow" />
         {plan && <Pops list={plan.pops.filter((p) => p.on === 0)} />}
       </div>
-      {pic && (
+      {(img || pic) && (
         <div
           class={`jr-foe jr-actor${fx?.won ? ' beaten' : ''}${!img && FLIP.has(key) ? ' flip' : ''} is-${key}`}
           style={plan ? `--a:${plan.foe};--a2:${plan.foeEnd || 'none'}` : undefined}
@@ -271,9 +271,9 @@ function Stage(props: { s: JourneyState; art: string; name: string; lost: boolea
             <span>
               <img class="jr-sprite jr-pic" src={img.src} alt="" width={img.w} height={img.h} />
             </span>
-          ) : (
+          ) : pic ? (
             <span dangerouslySetInnerHTML={{ __html: spriteSvg(pic, 5, 'jr-sprite') }} />
-          )}
+          ) : null}
           <span class="jr-shadow" />
           {plan && <Pops list={plan.pops.filter((p) => p.on === 1)} />}
         </div>
