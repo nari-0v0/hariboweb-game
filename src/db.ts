@@ -565,6 +565,12 @@ export async function setDeco(db: D1Database, userId: string, decoId: string | n
     .run();
 }
 
+// 지금 서버에 있는 멤버 수(떠난 멤버 빼고). 판타지 캐릭터 보상 기준에 써요.
+export async function countActiveMembers(db: D1Database): Promise<number> {
+  const row = await db.prepare('SELECT COUNT(*) AS n FROM members WHERE active = 1').first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
 export async function countOwnedCards(db: D1Database, userId: string): Promise<number> {
   const row = await db
     .prepare(

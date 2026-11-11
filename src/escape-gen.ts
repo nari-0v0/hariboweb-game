@@ -203,7 +203,7 @@ function clockQuiz(ctx: Ctx, kind: number, no: number): Built {
   }
   const face: Spot = { id: ctx.id('clk'), at: h.id, name: wall ? n : h.label, emoji: '🕰️', look: wall ? `${n}${josa(n, '이', '가')} ${hm(shown)}${tail}` : `${h.at} 멈춘 손목시계가 떨어져 있어요. ${hm(shown)}${tail}`, memo: true };
   const lock = { ...box(ctx, code, ask, `자물쇠에 문제가 새겨져 있어요.\n「시계 수수께끼」\n${q}`), ref: no };
-  return { spots: [face, lock], lockId: lock.id, hint: `${wall ? n : '떨어진 손목시계'}${josa(n, '을', '를')} 눌러 보세요. ${hint}`, steps: [{ a: 'tap', o: face.id }, { a: 'code', o: lock.id, v: code }] };
+  return { spots: [face, lock], lockId: lock.id, hint: wall ? `방 그림 속 ${n}${josa(n, '을', '를')} 눌러 보세요. ${hint}` : `방 그림 속 ${h.label}${josa(h.label, '을', '를')} 눌러 보세요. 거기에 멈춘 손목시계가 떨어져 있어요. ${hint}`, steps: [{ a: 'tap', o: face.id }, { a: 'code', o: lock.id, v: code }] };
 }
 
 // 줄 세우기: 문장 여러 개로 순서를 추리해서, 자리마다 이름을 골라요.
@@ -440,7 +440,7 @@ export function buildCase(seed: StorySeed, level = 3, no = 0): EscCase {
   const back32: Spot = { id: 'door32', name: `${seed.rooms[1]}(으)로`, emoji: '🚪', look: `${seed.rooms[1]}(으)로 돌아가요.`, goto: 'r2' };
   const tl = toolSpot.label;
   const tool: Spot = { id: 'toolspot', at: toolSpot.id, name: tl, emoji: '🔎', look: combo.look(tl), lock: { kind: 'item', item: 'tool' }, openText: `${combo.use(tl)} 증거가 나왔어요! (수첩에 적었어요)`, again: '더 찾을 건 없어요.', clue: ['ev2', 'method'] };
-  hints.push({ until: 'toolspot', text: `가방 속 ${combo.a[0]}와(과) ${combo.b[0]}을(를) 「합치기」로 합쳐서 ${combo.out[0]}${josa(combo.out[0], '을', '를')} 만들고, ${seed.rooms[2]}의 ${tl}에 써 보세요.` });
+  hints.push({ until: 'toolspot', text: `가방 속 ${combo.a[0]}${josa(combo.a[0], '과', '와')} ${combo.b[0]}${josa(combo.b[0], '을', '를')} 「합치기」로 합쳐서 ${combo.out[0]}${josa(combo.out[0], '을', '를')} 만들고, ${seed.rooms[2]}의 ${tl}에 써 보세요.` });
   steps.push({ a: 'use', o: 'toolspot', i: 'tool' });
   const D = make(4, 2, { clue: ['ev3', 'motive'], text: '안에 중요한 증거가 들어 있어요! (수첩에 적었어요)', got: '중요한 증거를 손에 넣었어요! (수첩에 적었어요)' });
   add(2, D);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DECO_CHARACTERS } from '../src/characters';
-import { PRICES, REWARD_STEP, SHOP_ITEMS, canUse, canUseTheme, shopItem } from '../src/shop';
+import { PRICES, REWARD_COUNT, REWARD_STEP, SHOP_ITEMS, canUse, canUseTheme, rewardNeed, shopItem } from '../src/shop';
 import { THEMES } from '../src/themes';
 
 describe('jelly shop items', () => {
@@ -16,7 +16,7 @@ describe('jelly shop items', () => {
   it('makes the 25 fantasy characters 도감 rewards at 3, 6, 9… cards', () => {
     const rewards = SHOP_ITEMS.filter((i) => i.price === null);
     expect(rewards.length).toBe(25);
-    expect(rewards.map((i) => i.rewardCards)).toEqual(rewards.map((_, n) => (n + 1) * REWARD_STEP));
+    expect(rewards.map((i) => i.rewardRank)).toEqual(rewards.map((_, n) => n + 1));
     expect(SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price !== null).every((i) => i.price === PRICES.deco)).toBe(true);
   });
 
@@ -29,11 +29,16 @@ describe('jelly shop items', () => {
 
   it('lets members use bought items and earned rewards only', () => {
     const bought = shopItem('deco:maid')!;
-    const reward = SHOP_ITEMS.find((i) => i.rewardCards === REWARD_STEP)!;
-    expect(canUse(bought, new Set(), 999)).toBe(false);
-    expect(canUse(bought, new Set([bought.id]), 0)).toBe(true);
-    expect(canUse(reward, new Set(), REWARD_STEP - 1)).toBe(false);
-    expect(canUse(reward, new Set(), REWARD_STEP)).toBe(true);
+    const reward = SHOP_ITEMS.find((i) => i.rewardRank === 1)!;
+    expect(canUse(bought, new Set(), 999, 10)).toBe(false);
+    expect(canUse(bought, new Set([bought.id]), 0, 10)).toBe(true);
+    expect(canUse(reward, new Set(), REWARD_STEP - 1, 10)).toBe(false);
+    expect(canUse(reward, new Set(), REWARD_STEP, 10)).toBe(true);
+    // 서버 인원이 많으면 더 모아야 하고, 마지막 캐릭터는 도감을 다 채워야 열려요
+    expect(rewardNeed(1, 101)).toBe(4);
+    expect(rewardNeed(REWARD_COUNT, 101)).toBe(100);
+    expect(canUse(reward, new Set(), REWARD_STEP, 101)).toBe(false);
+    for (let r = 2; r <= REWARD_COUNT; r++) expect(rewardNeed(r, 96)).toBeGreaterThan(rewardNeed(r - 1, 96));
   });
 
   it('keeps the basic theme free and locks the rest until bought', () => {

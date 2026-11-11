@@ -1,6 +1,6 @@
 import type { Member } from '../env';
 import type { EscRun } from '../escape-db';
-import { ESCAPE_CASES, ESC_XP, canAnswer, coinSpots, coinsLeft, escGrade, isLocked, puzzleNo, visible, type EscGrade, type EscObject } from '../escape';
+import { ESCAPE_CASES, ESC_XP, bigHint, canAnswer, coinSpots, coinsLeft, escGrade, isLocked, puzzleNo, visible, type EscGrade, type EscObject } from '../escape';
 import { casePics, itemPic } from '../case-art';
 import { ROOMS, roomSrc, type Hotspot, type RoomKey } from '../case-rooms';
 import { FictionNote } from './expedition';
@@ -254,6 +254,12 @@ function Focus(props: { run: EscRun; art: string; name: string }) {
               .map((k) => (
                 <p class="esc-hint-line">💡 {run.def.hints[k]!.text}</p>
               ))}
+            {(s.bigHints ?? []).includes(o.id) && bigHint(o) && <p class="esc-hint-line">💡💡 {bigHint(o)}</p>}
+            {bigHint(o) && !(s.bigHints ?? []).includes(o.id) && run.def.hints.some((h, k) => h.until === o.id && (s.seenHints ?? []).includes(k)) && (
+              <Act run={run} a="hint2" o={o.id} cls="btn btn-small esc-hint-btn">
+                {coinsLeft(s) > 0 ? '💡💡 더 쉬운 힌트 (동전 1개)' : '💡💡 더 쉬운 힌트 (등급 감점)'}
+              </Act>
+            )}
             {run.def.hints.some((h, k) => h.until === o.id && !(s.seenHints ?? []).includes(k)) && (
               <Act run={run} a="hint" cls="btn btn-small esc-hint-btn">
                 {coinsLeft(s) > 0 ? '💡 이 문제 힌트 (동전 1개)' : '💡 이 문제 힌트 (등급 감점)'}

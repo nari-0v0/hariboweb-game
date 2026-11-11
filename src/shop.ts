@@ -10,7 +10,13 @@ export const PRICES = {
 } as const;
 
 // 판타지 캐릭터는 도감 카드 3장, 6장, 9장… 모을 때마다 하나씩 열려요(순서는 그림 순서).
-export const REWARD_STEP = 3;
+export const REWARD_STEP = 3; // 멤버가 적을 때도 캐릭터마다 최소 이만큼은 모아야 해요
+// 판타지 캐릭터 N번째가 열리는 도감 카드 수: 지금 서버 인원(나 빼고)을 판타지 캐릭터 수로 나눠 고르게 늘어나요.
+// 마지막 캐릭터는 도감을 다 채워야 열려요. 사람이 늘거나 줄면 같이 바뀌어요.
+export function rewardNeed(rank: number, members: number): number {
+  const others = Math.max(0, members - 1);
+  return Math.max(rank * REWARD_STEP, Math.ceil((rank * others) / REWARD_COUNT));
+}
 
 export type ShopItem = {
   id: string; // theme:rose, deco:maid
@@ -18,7 +24,7 @@ export type ShopItem = {
   key: string;
   name: string;
   price: number | null; // null이면 살 수 없고 보상으로만 열려요
-  rewardCards: number | null; // 도감 카드 몇 장이면 열리는지
+  rewardRank: number | null; // 판타지 캐릭터 몇 번째인지(1부터). 필요한 카드 수는 rewardNeed로 계산해요
 };
 
 const FANTASY = new Set([
@@ -28,10 +34,11 @@ const FANTASY = new Set([
 ]);
 
 const fantasyOrder = DECO_CHARACTERS.filter((d) => FANTASY.has(d.id)).map((d) => d.id as string);
+export const REWARD_COUNT = fantasyOrder.length;
 
 export const SHOP_ITEMS: ShopItem[] = [
   ...THEMES.filter((t) => t.id !== 'basic').map(
-    (t): ShopItem => ({ id: `theme:${t.id}`, kind: 'theme', key: t.id, name: t.name, price: PRICES.theme, rewardCards: null }),
+    (t): ShopItem => ({ id: `theme:${t.id}`, kind: 'theme', key: t.id, name: t.name, price: PRICES.theme, rewardRank: null }),
   ),
   ...DECO_CHARACTERS.map((d): ShopItem => {
     const reward = fantasyOrder.indexOf(d.id);
@@ -41,7 +48,7 @@ export const SHOP_ITEMS: ShopItem[] = [
       key: d.id,
       name: d.name,
       price: reward >= 0 ? null : PRICES.deco,
-      rewardCards: reward >= 0 ? (reward + 1) * REWARD_STEP : null,
+      rewardRank: reward >= 0 ? reward + 1 : null,
     };
   }),
 ];
@@ -56,9 +63,9 @@ export const decoItemId = (key: string) => `deco:${key}`;
 export const themeItemId = (key: string) => `theme:${key}`;
 
 // 이 멤버가 쓸 수 있는지: 산 물건이거나, 도감 카드를 충분히 모은 보상
-export function canUse(item: ShopItem, owned: Set<string>, cardsOwned: number): boolean {
+export function canUse(item: ShopItem, owned: Set<string>, cardsOwned: number, members: number): boolean {
   if (owned.has(item.id)) return true;
-  return item.rewardCards !== null && cardsOwned >= item.rewardCards;
+  return item.rewardRank !== null && cardsOwned >= rewardNeed(item.rewardRank, members);
 }
 
 export function canUseTheme(theme: string, owned: Set<string>): boolean {

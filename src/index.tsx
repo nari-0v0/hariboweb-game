@@ -10,6 +10,7 @@ import {
   chooseFirstGender,
   planCharacterPool,
   completion,
+  countActiveMembers,
   countOwnedCards,
   getMember,
   getOwnedCard,
@@ -587,10 +588,11 @@ members.post('/api/story/act', async c => {
 // 상점: 매점(잡다매점: 디스코드 물건·성별 바꾸기)과 꾸미기(테마·꾸밈 캐릭터) 탭. 칭호 탭은 /titles예요.
 async function shopPage(c: Context<AppEnv>, tab: 'store' | 'deco') {
   const viewer = c.get('viewer');
-  const [profile, owned, cards, results, services, nick] = await Promise.all([
+  const [profile, owned, cards, memberCount, results, services, nick] = await Promise.all([
     getProfile(c.env.DB, viewer.user_id),
     getOwnedItems(c.env.DB, viewer.user_id),
     countOwnedCards(c.env.DB, viewer.user_id),
+    countActiveMembers(c.env.DB),
     listUnseenPurchases(c.env.DB, viewer.user_id),
     serviceState(c.env.DB, viewer.user_id),
     nickState(c.env.DB, viewer.user_id),
@@ -599,7 +601,7 @@ async function shopPage(c: Context<AppEnv>, tab: 'store' | 'deco') {
   await markPurchasesSeen(c.env.DB, viewer.user_id, results.map((p) => p.id));
   return page(
     c,
-    <ShopPage tab={tab} viewer={viewer} profile={profile} owned={owned} cards={cards} results={results} services={services} nick={nick} notice={c.req.query('n')} />,
+    <ShopPage tab={tab} viewer={viewer} profile={profile} owned={owned} cards={cards} members={memberCount} results={results} services={services} nick={nick} notice={c.req.query('n')} />,
   );
 }
 
@@ -689,8 +691,8 @@ members.post('/api/me/deco', async (c) => {
   }
   const item = shopItem(decoItemId(key));
   if (!item) return c.redirect('/shop/deco?n=error');
-  const [owned, cards] = await Promise.all([getOwnedItems(c.env.DB, viewer.user_id), countOwnedCards(c.env.DB, viewer.user_id)]);
-  if (!canUse(item, owned, cards)) return c.redirect('/shop/deco?n=locked');
+  const [owned, cards, memberCount] = await Promise.all([getOwnedItems(c.env.DB, viewer.user_id), countOwnedCards(c.env.DB, viewer.user_id), countActiveMembers(c.env.DB)]);
+  if (!canUse(item, owned, cards, memberCount)) return c.redirect('/shop/deco?n=locked');
   await setDeco(c.env.DB, viewer.user_id, key);
   return c.redirect('/shop/deco?n=equipped');
 });
@@ -953,6 +955,7 @@ members.post('/api/escape/act', async (c) => {
     : a === 'answer' ? { a, n: Number(body.n), ...(body.m0 !== undefined ? { m: [0, 1, 2].map((k) => body[`m${k}`]).filter((v) => v !== undefined).map(Number) } : {}) } as const
     : a === 'combine' ? { a, i: str('i'), j: str('j') } as const
     : a === 'hint' ? { a } as const
+    : a === 'hint2' ? { a, o: str('o') } as const
     : a === 'coin' && /^[0-9]$/.test(String(body.n ?? '')) ? { a, k: Number(body.n) } as const
     : null;
   if (!ESC_ID.test(id) || !Number.isSafeInteger(rev) || rev < 0 || !act) return c.redirect('/cases/room?n=bad#now', 303);
