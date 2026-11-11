@@ -1914,4 +1914,21 @@ main.wide { max-width: 1320px; }
 .gb-play-button:hover:not(:disabled) { background: #6e1a1f; }
 .gb-bet-steps .gb-button[data-gb-bet="all"]:active:not(:disabled), .gb-bet-steps .gb-button[data-gb-bet="clear"]:active:not(:disabled), .gb-play-button:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #000, inset 0 0 0 1px #5a3a1a; }
 .gb-play-button:disabled { background: #4a4446; border-color: #8d8678; color: #b8b0a0; }
+/* 카드 21의 한 장 더·멈추기도 같은 카지노풍 네모 버튼 */
+[data-gb-card-actions] { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.gb-move-button {
+  padding: .75rem .5rem .65rem;
+  background: #24161a;
+  border: 2px solid #c9a227;
+  border-top: 5px solid var(--gb-amount-color, #c9a227);
+  box-shadow: 0 3px 0 #000, inset 0 0 0 1px #5a3a1a;
+  color: #ffd75e;
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-shadow: 0 1px #000;
+}
+.gb-move-hit { --gb-amount-color: #27a050; }
+.gb-move-stand { --gb-amount-color: #d8342b; }
+.gb-move-button:hover:not(:disabled) { background: #3a2026; }
+.gb-move-button:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #000, inset 0 0 0 1px #5a3a1a; }
 @media (max-width: 520px) { .gb-bet-steps .gb-amount-button { grid-column: span 2; } }

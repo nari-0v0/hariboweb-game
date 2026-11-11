@@ -313,8 +313,8 @@ export function GambleRoom(props: {
               <form class="gb-form" method="post" action="/gamble/cards" data-gb-card-actions="">
                 <input type="hidden" name="token" value={hand.token} />
                 <input type="hidden" name="revision" value={hand.revision} />
-                <button class="gb-button" name="move" value="hit" type="submit">한 장 더</button>
-                <button class="gb-button" name="move" value="stand" type="submit">멈추기</button>
+                <button class="gb-button gb-move-button gb-move-hit" name="move" value="hit" type="submit">한 장 더</button>
+                <button class="gb-button gb-move-button gb-move-stand" name="move" value="stand" type="submit">멈추기</button>
               </form>
             </>
           ) : (
