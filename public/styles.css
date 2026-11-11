@@ -1111,7 +1111,7 @@ main.wide { max-width: 1320px; }
 .jr-foe .jr-sprite { display: block; max-width: min(36vw, 160px); height: auto; }
 .jr-foe.flip .jr-sprite { scale: -1 1; }
 .jr-foe .jr-shadow { width: 70%; bottom: 0; }
-.jr-foe.beaten > span:first-child { opacity: .35; filter: grayscale(1); }
+.jr-foe.beaten > span:first-child, .jr-foe.beaten .jr-shadow { opacity: 0; }
 .jr-stage.at-camp { justify-content: center; gap: 4%; }
 .jr-pop { position: absolute; top: 0; left: 50%; z-index: 3; translate: -50% 0; padding: 0 5px; border: 2px solid var(--ink); background: #fff; color: var(--ink); font-size: .85rem; line-height: 1.4; white-space: nowrap; opacity: 0; pointer-events: none; }
 .jr-pop.crit { background: var(--yellow); font-size: 1rem; }
@@ -1119,7 +1119,7 @@ main.wide { max-width: 1320px; }
 .jr-pop.zap { background: #e8f6ff; }
 @media (prefers-reduced-motion: no-preference) {
   .jr-actor { animation: var(--a, none); }
-  .jr-hero.jr-actor img, .jr-foe.jr-actor > span:first-child { animation: var(--a2, none); }
+  .jr-hero.jr-actor img, .jr-foe.jr-actor > span:first-child, .jr-foe.jr-actor .jr-shadow { animation: var(--a2, none); }
   .jr-pop { animation: jr-pop .75s var(--d, 0s) both; }
 }
 @keyframes jr-lunge-r { 40% { translate: 34px -6px; } }
@@ -1128,12 +1128,23 @@ main.wide { max-width: 1320px; }
 @keyframes jr-zap { 0%, 100% { filter: none; } 25%, 75% { filter: brightness(2.5) hue-rotate(160deg); } 50% { filter: none; } }
 @keyframes jr-cheer { 50% { translate: 0 -10px; } }
 @keyframes jr-fall { from { rotate: 0deg; translate: 0 0; filter: none; } to { rotate: -80deg; translate: 0 30px; filter: grayscale(1); } }
-@keyframes jr-die { 0% { opacity: 1; filter: none; scale: 1; } 30% { filter: brightness(3); } 100% { opacity: .35; filter: grayscale(1); scale: .85 .7; translate: 0 10px; } }
+@keyframes jr-die { 0% { opacity: 1; filter: none; scale: 1; } 25% { opacity: .8; filter: brightness(3); } 100% { opacity: 0; filter: grayscale(1); scale: .6 .4; translate: 0 10px; } }
 @keyframes jr-pop { 0% { opacity: 0; translate: -50% 6px; } 15% { opacity: 1; translate: -50% -10px; } 75% { opacity: 1; translate: -50% -22px; } 100% { opacity: 0; translate: -50% -28px; } }
 .jr-bar { position: relative; height: 24px; margin: 6px 0; border: 3px solid var(--ink); background: #fff; }
 .jr-bar span { position: absolute; inset: 0 auto 0 0; background: var(--pink); transition: width .4s; }
 .jr-bar.xp span { background: var(--sky); }
 .jr-bar b { position: relative; display: block; padding: 0 8px; font-size: .78rem; line-height: 18px; }
+.jr-bar .jr-before { display: none; position: absolute; inset: 0; }
+/* 싸움 모션이 있는 날: 결과(대화창·버튼·체력·경험치)는 쓰러지는 모션이 끝난 뒤(--reveal)에 나와요 */
+@media (prefers-reduced-motion: no-preference) {
+  .jr-fighting .jr-today, .jr-fighting .jr-pad, .jr-fighting .jr-bar.xp > * { animation: jr-reveal .3s var(--reveal, 0s) both; }
+  .jr-fighting .jr-bar.later > span { animation: jr-bar .4s var(--reveal, 0s) both; }
+  .jr-fighting .jr-bar .jr-before { display: block; animation: jr-hide 0s var(--reveal, 0s) both; }
+  .jr-fighting .jr-bar .jr-after { animation: jr-reveal 0s var(--reveal, 0s) both; }
+}
+@keyframes jr-reveal { from { opacity: 0; visibility: hidden; } to { opacity: 1; visibility: visible; } }
+@keyframes jr-hide { to { visibility: hidden; } }
+@keyframes jr-bar { from { width: var(--from); } }
 .jr-stats { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
 .jr-stats span { padding: 0 8px; border: 3px solid var(--ink); background: #fff; font-weight: 700; }
 .jr-today { list-style: none; margin: 10px 0; padding: 8px 10px; border: 3px solid var(--ink); background: var(--paper-2); }
@@ -1427,6 +1438,7 @@ main.wide { max-width: 1320px; }
   .esc-side { margin-top: 0; }
 }
 .esc-shelf .esc-cases { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.esc-going { margin: 6px 0 12px; padding: 8px 10px; border: 3px solid var(--ink); background: var(--paper-2); line-height: 2; }
 .esc-file { margin: 0; }
 .esc-file button { position: relative; display: grid; justify-items: center; gap: 2px; width: 100%; height: 100%; padding: 22px 8px 10px; border: 3px solid var(--ink); background: #f3d9a4; color: var(--ink); font: inherit; text-align: center; cursor: pointer; clip-path: polygon(0 10px, 38% 10px, 44% 0, 100% 0, 100% 100%, 0 100%); box-shadow: inset 0 -5px 0 #d8b67a; }
 .esc-file button:hover { translate: 0 -2px; }
@@ -1452,17 +1464,12 @@ main.wide { max-width: 1320px; }
 .esc-game .esc-room { cursor: zoom-in; }
 .esc-game .esc-name { opacity: 0; translate: 0 -4px; transition: opacity .15s, translate .15s; pointer-events: none; position: absolute; left: 50%; top: 100%; margin-left: 0; transform: translateX(-50%); z-index: 3; }
 .esc-game .esc-thing:hover .esc-name, .esc-game .esc-thing:focus-visible .esc-name, .esc-game .esc-thing.focus .esc-name { opacity: 1; translate: 0 0; }
-.esc-game .esc-thing.new::before { content: '🔍'; position: absolute; top: -.6cqw; left: 50%; translate: -50% -100%; font-size: max(12px, 2.4cqw); line-height: 1; z-index: 2; filter: drop-shadow(0 1px 0 #fff); }
 .esc-game .esc-pic { filter: none; }
 .esc-game .esc-thing:not(.on-wall) .esc-pic::before { content: ''; position: absolute; left: 8%; right: 8%; bottom: -1cqw; height: 2.4cqw; background: radial-gradient(closest-side, rgba(60, 35, 20, .38), transparent); }
 .esc-game .esc-spot:has(.esc-thing:not(.on-wall)) { scale: calc(.72 + var(--y) * .0065); transform-origin: 50% 100%; }
 .esc-game .esc-room img { filter: saturate(.88) sepia(.06) contrast(.97); }
 .esc-game .esc-room::after { content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none; background: radial-gradient(120% 90% at 50% 28%, rgba(255, 236, 200, .18), transparent 55%), radial-gradient(140% 120% at 50% 55%, transparent 55%, rgba(40, 22, 10, .32)); }
 .esc-game .esc-room .esc-stamp { z-index: 6; }
-@media (prefers-reduced-motion: no-preference) {
-  .esc-game .esc-thing.new::before { animation: esc-peek 1.8s ease-in-out infinite; }
-}
-@keyframes esc-peek { 0%, 100% { translate: -50% -100%; } 50% { translate: -50% -130%; } }
 
 /* 수수께끼는 종이 한 장을 펼친 것처럼 */
 .esc-game .esc-puzzle { margin: 0; border: 4px solid #6b4a2b; background: repeating-linear-gradient(0deg, transparent 0 27px, rgba(107, 74, 43, .12) 27px 28px), #fbf1dc; box-shadow: inset 0 0 0 3px #f3e3bf; }
@@ -1479,19 +1486,13 @@ main.wide { max-width: 1320px; }
 .esc-hot-wrap .esc-form { width: 100%; height: 100%; }
 .esc-hot { position: relative; display: block; width: 100%; height: 100%; padding: 0; margin: 0; background: transparent; border: 0; border-radius: 14px; cursor: zoom-in; -webkit-tap-highlight-color: transparent; }
 .esc-hot.idle { position: absolute; z-index: 2; }
-@media (hover: hover) and (pointer: fine) { .esc-hot:hover { background: rgba(255, 255, 255, .13); } }
 .esc-hot:focus-visible { outline: 3px dashed #fff; outline-offset: -3px; }
-.esc-hot.focus { box-shadow: inset 0 0 0 3px rgba(255, 255, 255, .75); }
-.esc-hot.fx-open, .esc-hot.fx-right, .esc-hot.fx-gain { animation: esc-hot-flash .9s ease-out; }
-@keyframes esc-hot-flash { 0% { background: rgba(255, 246, 200, .7); } 100% { background: transparent; } }
 .esc-hot-lock { position: absolute; right: 2px; top: 2px; font-size: clamp(11px, 2.2cqw, 18px); filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .35)); }
 .esc-pic-room .esc-back { position: absolute; left: 1.5%; top: 2%; z-index: 5; color: #4a2a2a !important; padding: .3em .7em; font: inherit; font-size: clamp(11px, 2.2cqw, 15px); color: var(--ink); background: #fffaf2; border: 2px solid var(--ink); border-radius: 999px; box-shadow: 0 2px 0 var(--ink); cursor: pointer; }
-/* 누르는 느낌: 톡 퍼지는 동그라미 + 돋보기 */
+/* 누르는 느낌: 톡 퍼지는 동그라미 */
 .esc-tap { position: absolute; z-index: 9; width: 0; height: 0; pointer-events: none; }
 .esc-tap::before { content: ''; position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 2px rgba(74, 42, 42, .35); animation: esc-ring .55s ease-out forwards; }
-.esc-tap::after { content: '🔍'; position: absolute; left: -2px; top: -30px; font-size: 22px; animation: esc-glass .6s ease-out forwards; }
 @keyframes esc-ring { from { transform: scale(.25); opacity: 1; } to { transform: scale(1.35); opacity: 0; } }
-@keyframes esc-glass { 0% { transform: scale(.4) rotate(-20deg); opacity: 0; } 35% { transform: scale(1.15) rotate(6deg); opacity: 1; } 100% { transform: scale(1) rotate(0); opacity: 0; } }
 .esc-say { position: absolute; z-index: 9; color: #4a2a2a !important; translate: -50% -135%; max-width: 70%; padding: .35em .7em; font-size: clamp(11px, 2.3cqw, 15px); line-height: 1.35; background: #fffaf2; color: var(--ink); border: 2px solid var(--ink); border-radius: 10px; box-shadow: 0 2px 0 var(--ink); pointer-events: none; animation: esc-say 1.8s ease-out forwards; white-space: nowrap; }
 @keyframes esc-say { 0% { opacity: 0; transform: translateY(6px); } 12%, 80% { opacity: 1; transform: none; } 100% { opacity: 0; } }
 /* 확대 화면: 그림을 크게, 끌어서 둘러보기 */

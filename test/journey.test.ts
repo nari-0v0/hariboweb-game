@@ -283,3 +283,19 @@ describe('닉네임 변경권 옮기기', () => {
     expect(sql.prepare("SELECT status FROM purchases WHERE id = 'p1'").get()).toEqual({ status: 'done' });
   });
 });
+
+describe('원정대 스킬 고르는 날', () => {
+  it('레벨업한 날은 싸움만, 스킬은 다음 날 싸우지 않고 골라요', () => {
+    let s: JourneyState = startJourney('skill-day');
+    let seen = 0;
+    for (let i = 0; i < 400 && !s.done && seen < 3; i++) {
+      if (s.pending?.kind === 'skill') {
+        seen++;
+        expect(s.fx).toBeUndefined();
+        expect(s.today.some((l) => l.text.includes('물리쳤') || l.text.includes('지고'))).toBe(false);
+      } else if (s.fx) expect(s.pending?.kind).not.toBe('skill');
+      s = actJourney(s, s.pending ? autoChoice(s)! : { a: 'next' })!;
+    }
+    expect(seen).toBeGreaterThan(0);
+  });
+});
