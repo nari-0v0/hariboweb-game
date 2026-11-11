@@ -437,17 +437,14 @@ function Play(props: { run: EscRun; art: string; name: string }) {
                   height={1050}
                   draggable={false}
                 />
-                {room.spots
-                  .filter((h) => !placed.some((o) => o.at === h.id))
-                  .map((h) => (
+                {/* 창구 안의 종처럼 겹친 곳은 작은 지점을 나중에 그려 눌릴 수 있게 해요. */}
+                {[...room.spots].sort((a, b) => b.w * b.h - a.w * a.h).map((h) => {
+                  const o = placed.find((o) => o.at === h.id);
+                  return o ? (
+                    <Hot run={run} o={o} h={h} sign={o.goto ? def.scenes.find((x) => x.id === o.goto)?.name : undefined} />
+                  ) : (
                     <button type="button" class="esc-hot idle" style={box(h)} data-say={idleSay(h)} aria-label={h.label} />
-                  ))}
-                {placed.map((o) => (
-                  <Hot run={run} o={o} h={room.spots.find((h) => h.id === o.at)!} sign={o.goto ? def.scenes.find((x) => x.id === o.goto)?.name : undefined} />
-                ))}
-                {standing.map((o, i) => {
-                  const [x, y] = room.people[i % room.people.length]!;
-                  return <Thing run={run} o={{ ...o, x, y }} />;
+                  );
                 })}
                 {coins.map((c) => (
                   <div class="esc-spot esc-coin-spot" style={`--x:${c.x};--y:${c.y}`}>
@@ -474,6 +471,11 @@ function Play(props: { run: EscRun; art: string; name: string }) {
                 {lens && s.fx !== 'move' && <Loupe bg={bg} h={lens} msg={s.msg} name={focusObj!.name} />}
               </div>
             </div>
+            {standing.length > 0 && (
+              <div class="esc-actors" aria-label="대화와 발견한 물건">
+                {standing.map((o) => <Thing run={run} o={o} />)}
+              </div>
+            )}
             <div class="esc-bag">
               <b>🎒</b>
               {s.inv.length ? (
@@ -673,7 +675,7 @@ export function EscapePage(props: {
 }) {
   const { run, result } = props;
   return (
-    <Layout title="하리보 사건파일" viewer={props.viewer} active="cases" scripts={run ? ['/escape.js?v=1', '/escape-ui.js?v=3'] : undefined}>
+    <Layout title="하리보 사건파일" viewer={props.viewer} active="cases" scripts={run ? ['/escape.js?v=playtest-3', '/escape-ui.js?v=3'] : undefined}>
       {props.url && <i hidden data-replace-url={props.url} />}
       <Popup lines={NOTICES[props.notice ?? ''] ?? []} />
       <div class="stack esc" data-fresh>
