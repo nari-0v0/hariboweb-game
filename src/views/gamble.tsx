@@ -14,7 +14,7 @@ const NOTICES: Record<string, string> = {
   bet: '가진 칩 안에서 1개 이상 걸어 주세요.',
   active: '진행 중인 카드 21을 먼저 끝내 주세요.',
   rescue: '다시 시작할 칩 1000개를 받았어요.',
-  'no-rescue': '오늘 이미 다시 시작했거나, 아직 칩이 있어요.',
+  'no-rescue': '오늘 이미 다시 시작했거나, 아직 칩이나 진행 중인 카드 21이 있어요.',
 };
 const chips = (n: number) => n.toLocaleString('ko-KR');
 
@@ -252,7 +252,7 @@ export function GambleLobby(props: {
           <ChipBalance balance={balance} />
           {props.daily && <p role="status">오늘 칩 1000개 받았어요.</p>}
           {notice && <p role="status">{notice}</p>}
-          {balance === 0 && props.account?.rescue_day !== gambleDay(props.now) && (
+          {balance === 0 && !props.inProgress && props.account?.rescue_day !== gambleDay(props.now) && (
             <form method="post" action="/gamble/rescue">
               <input type="hidden" name="day" value={gambleDay(props.now)} />
               <button class="gb-button" type="submit">다시 시작</button>
@@ -313,8 +313,8 @@ export function GambleRoom(props: {
               <form class="gb-form" method="post" action="/gamble/cards" data-gb-card-actions="">
                 <input type="hidden" name="token" value={hand.token} />
                 <input type="hidden" name="revision" value={hand.revision} />
-                <button class="gb-button" name="move" value="hit" type="submit">한 장 더</button>
-                <button class="gb-button" name="move" value="stand" type="submit">멈추기</button>
+                <button class="gb-button gb-move-button gb-move-hit" name="move" value="hit" type="submit">한 장 더</button>
+                <button class="gb-button gb-move-button gb-move-stand" name="move" value="stand" type="submit">멈추기</button>
               </form>
             </>
           ) : (

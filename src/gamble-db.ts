@@ -43,8 +43,10 @@ export async function rescueChips(db: D1Database, user: string, now: string): Pr
   const day = gambleDay(now);
   const result = await db.prepare(`UPDATE gamble_accounts SET chips = ?, rescue_day = ?
     WHERE user_id = ? AND chips = 0 AND (rescue_day IS NULL OR rescue_day < ?)
-      AND EXISTS (SELECT 1 FROM members WHERE user_id = ? AND active = 1)`)
-    .bind(DAILY_CHIPS, day, user, day, user).run();
+      AND EXISTS (SELECT 1 FROM members WHERE user_id = ? AND active = 1)
+      -- 칩을 다 건 카드 21이 아직 안 끝났으면 진짜 파산이 아니라서 구제하지 않아요.
+      AND NOT EXISTS (SELECT 1 FROM gamble_rounds WHERE user_id = ? AND settled_at IS NULL)`)
+    .bind(DAILY_CHIPS, day, user, day, user, user).run();
   return result.meta.changes === 1;
 }
 
