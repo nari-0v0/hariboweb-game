@@ -396,7 +396,10 @@ function Play(props: { run: EscRun; art: string; name: string }) {
   const room = ROOMS[bg];
   const placed = things.filter((o) => o.at);
   const backs = things.filter((o) => !o.at && o.goto && !o.face);
-  const standing = things.filter((o) => !o.at && !(o.goto && !o.face));
+  const loose = things.filter((o) => !o.at && !(o.goto && !o.face));
+  // 사람은 처음엔 방 안에 서 있다가, 그 사람 문제를 풀면 방 아래 카드 줄로 내려가요(방 안을 덜 가려요).
+  const met = loose.filter((o) => o.face && (o.lock ? !isLocked(s, o) : s.seen.includes(o.id)));
+  const standing = loose.filter((o) => !met.includes(o));
   const focusObj = s.focus ? things.find((o) => o.id === s.focus) : undefined;
   // 확대(끌어서 둘러보기)는 눈으로 읽어야 할 게 있을 때만: 멈춘 시계 바늘, 적힌 시각·글씨.
   const spot = focusObj?.at ? room.spots.find((h) => h.id === focusObj.at) : undefined;
@@ -437,14 +440,15 @@ function Play(props: { run: EscRun; art: string; name: string }) {
                   height={1050}
                   draggable={false}
                 />
-                {room.spots
-                  .filter((h) => !placed.some((o) => o.at === h.id))
-                  .map((h) => (
+                {/* 창구 안의 종처럼 겹친 곳은 작은 지점을 나중에 그려 눌릴 수 있게 해요. */}
+                {[...room.spots].sort((a, b) => b.w * b.h - a.w * a.h).map((h) => {
+                  const o = placed.find((o) => o.at === h.id);
+                  return o ? (
+                    <Hot run={run} o={o} h={h} sign={o.goto ? def.scenes.find((x) => x.id === o.goto)?.name : undefined} />
+                  ) : (
                     <button type="button" class="esc-hot idle" style={box(h)} data-say={idleSay(h)} aria-label={h.label} />
-                  ))}
-                {placed.map((o) => (
-                  <Hot run={run} o={o} h={room.spots.find((h) => h.id === o.at)!} sign={o.goto ? def.scenes.find((x) => x.id === o.goto)?.name : undefined} />
-                ))}
+                  );
+                })}
                 {standing.map((o, i) => {
                   const [x, y] = room.people[i % room.people.length]!;
                   return <Thing run={run} o={{ ...o, x, y }} />;
@@ -474,6 +478,11 @@ function Play(props: { run: EscRun; art: string; name: string }) {
                 {lens && s.fx !== 'move' && <Loupe bg={bg} h={lens} msg={s.msg} name={focusObj!.name} />}
               </div>
             </div>
+            {met.length > 0 && (
+              <div class="esc-actors" aria-label="이야기를 나눈 사람">
+                {met.map((o) => <Thing run={run} o={o} />)}
+              </div>
+            )}
             <div class="esc-bag">
               <b>🎒</b>
               {s.inv.length ? (
@@ -673,7 +682,7 @@ export function EscapePage(props: {
 }) {
   const { run, result } = props;
   return (
-    <Layout title="하리보 사건파일" viewer={props.viewer} active="cases" scripts={run ? ['/escape.js?v=1', '/escape-ui.js?v=3'] : undefined}>
+    <Layout title="하리보 사건파일" viewer={props.viewer} active="cases" scripts={run ? ['/escape.js?v=playtest-3', '/escape-ui.js?v=3'] : undefined}>
       {props.url && <i hidden data-replace-url={props.url} />}
       <Popup lines={NOTICES[props.notice ?? ''] ?? []} />
       <div class="stack esc" data-fresh>
