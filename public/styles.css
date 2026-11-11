@@ -1711,7 +1711,7 @@ main.wide { max-width: 1320px; }
   color: #202944;
 }
 
-.gb-wheel-stage { position: relative; width: min(100%, 20rem); margin: 1rem auto .75rem; }
+.gb-wheel-stage { position: relative; width: min(100%, 20rem); margin: 1rem auto .75rem; container-type: inline-size; }
 .gb-wheel-viewport { overflow: hidden; }
 .gb-wheel-disc {
   position: relative;
@@ -1722,12 +1722,7 @@ main.wide { max-width: 1320px; }
   background: var(--gb-wheel-fill);
   transform: rotate(var(--gb-wheel-stop));
 }
-.gb-wheel-sectors {
-  position: absolute;
-  inset: 0;
-  background: repeating-conic-gradient(from calc(var(--gb-wheel-sector) / -2),
-    #27355160 0 .4deg, transparent .4deg var(--gb-wheel-sector));
-}
+
 .gb-wheel-pointer {
   position: absolute;
   z-index: 1;
@@ -1742,19 +1737,25 @@ main.wide { max-width: 1320px; }
 }
 .gb-wheel-label {
   position: absolute;
-  left: calc(50% + 41% * sin(var(--gb-wheel-angle)));
-  top: calc(50% - 41% * cos(var(--gb-wheel-angle)));
+  left: calc(50% + 34% * sin(var(--gb-wheel-angle)));
+  top: calc(50% - 34% * cos(var(--gb-wheel-angle)));
   translate: -50% -50%;
-  rotate: var(--gb-wheel-angle);
-  color: #202944;
-  font-size: clamp(.43rem, 2vw, .63rem);
+  /* 글자를 바깥쪽으로 눕혀서 좁은 칸에도 겹치지 않게 해요. */
+  rotate: calc(var(--gb-wheel-angle) - 90deg);
+  padding: .1em .25em;
+  color: #fff8e6;
+  text-shadow: 0 1px #000, 0 0 3px #000;
+  font-size: 4.2cqw;
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
 }
+.gb-wheel-label--big { font-size: 4.6cqw; }
 .gb-wheel-label[aria-current="true"] { border-radius: 2px; }
 .gb-room:not(.gb-motion-running) .gb-wheel-label[aria-current="true"] {
   background: #fff8d2;
+  color: #202944;
+  text-shadow: none;
   outline: 2px solid #782845;
 }
 
@@ -1823,3 +1824,94 @@ main.wide { max-width: 1320px; }
 .gb-dropping-coin, .gb-coin-target { position: absolute; left: 50%; translate: -50% 0; }
 .gb-dropping-coin { bottom: .25rem; font-size: 1.55rem; line-height: 1; }
 .gb-coin-target { bottom: .15rem; width: 2.8rem; height: .55rem; background: #273551; border: 1px solid #fff; }
+
+/* 나리가 준 그림: 슬롯머신 틀(창 3칸 자리에 릴을 맞춰 넣어요), 룰렛 테두리·바늘 */
+.gb-slot--framed {
+  display: block;
+  width: min(100%, 26rem);
+  aspect-ratio: 2 / 1;
+  padding: 0;
+  border: 0;
+  background: none;
+  container-type: inline-size;
+}
+.gb-slot--framed .gb-reel {
+  --gb-reel-size: 20.55cqw;
+  position: absolute;
+  top: 31.7%;
+  height: var(--gb-reel-size);
+  width: 14.1%;
+  border: 0;
+  background: #fffaf0;
+}
+.gb-slot--framed .gb-reel:nth-of-type(1) { left: 25.4%; }
+.gb-slot--framed .gb-reel:nth-of-type(2) { left: 42.7%; }
+.gb-slot--framed .gb-reel:nth-of-type(3) { left: 60%; }
+.gb-slot--framed .gb-reel-symbol .gb-art { width: 82%; height: 82%; }
+.gb-slot--framed .gb-art-layer { z-index: 1; object-fit: contain; }
+.gb-wheel-stage--rim { aspect-ratio: 1; }
+.gb-wheel-stage--rim .gb-wheel-viewport { position: absolute; inset: 11%; border-radius: 50%; }
+.gb-wheel-stage--rim .gb-wheel-disc { border: 0; }
+.gb-wheel-stage--rim > .gb-art-layer { z-index: 1; object-fit: contain; }
+.gb-wheel-stage--rim .gb-wheel-pointer { z-index: 2; top: -.4rem; }
+.gb-wheel-pointer .gb-art { width: 1.6rem; height: 3.4rem; }
+.gb-reel-symbol .gb-art { width: 1.3em; height: 1.3em; }
+/* 겜블장 배경 그림: 게임 판은 초록 테이블 위에, 로비 첫 상자는 어둡게 덮어 글씨가 잘 보이게 */
+.gb-game-surface[style*="--gb-bg"] {
+  background: var(--gb-bg) center 75% / cover no-repeat;
+  border: 3px solid #273551;
+  padding: .9rem .6rem;
+  color: #fff8e6;
+  text-shadow: 0 1px 2px #000;
+}
+.gb-game-surface[style*="--gb-bg"] .gb-playing-card, .gb-game-surface[style*="--gb-bg"] .gb-tile { text-shadow: none; }
+.gb-lobby-intro:has(> .gb-art-layer) { color: #fff8e6; text-shadow: 0 1px 2px #000; overflow: hidden; }
+.gb-lobby-intro > .gb-art-layer { object-fit: cover; object-position: center 30%; filter: brightness(.55); }
+.gb-lobby-intro:has(> .gb-art-layer) .gb-button { text-shadow: none; }
+
+/* 칩 거는 버튼: 카지노 테이블 느낌의 네모 버튼(금액마다 위쪽 띠 색만 달라요) */
+.gb-bet-display { padding: .55rem .8rem; background: #123d26; border: 3px solid #c9a227; color: #f6e7b0; box-shadow: inset 0 0 0 2px #0b2416; }
+.gb-bet-display .gb-bet-amount { color: #ffd75e; font-size: 1.6rem; text-shadow: 0 2px #000; }
+.gb-bet-steps { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .4rem; }
+.gb-bet-steps .gb-amount-button {
+  padding: .55rem .1rem .45rem;
+  background: #24161a;
+  border: 2px solid #c9a227;
+  border-top: 5px solid var(--gb-amount-color, #c9a227);
+  box-shadow: 0 3px 0 #000, inset 0 0 0 1px #5a3a1a;
+  color: #ffd75e;
+  font-size: clamp(.8rem, 3.2vw, .95rem);
+  font-weight: 700;
+  text-shadow: 0 1px #000;
+  transition: transform .08s, background .08s;
+}
+.gb-bet-steps .gb-amount-button:hover:not(:disabled) { background: #3a2026; }
+.gb-bet-steps .gb-amount-button:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #000, inset 0 0 0 1px #5a3a1a; }
+.gb-amount-button[data-gb-bet="1"] { --gb-amount-color: #d9d4c7; }
+.gb-amount-button[data-gb-bet="5"] { --gb-amount-color: #d8342b; }
+.gb-amount-button[data-gb-bet="10"] { --gb-amount-color: #2f6fd0; }
+.gb-amount-button[data-gb-bet="100"] { --gb-amount-color: #27a050; }
+.gb-amount-button[data-gb-bet="1000"] { --gb-amount-color: #8a45c4; }
+.gb-amount-button[data-gb-bet="10000"] { --gb-amount-color: #ffcc33; }
+/* 올인·지우기·돌리기도 같은 네모 버튼 모양, 띠 색과 크기만 달라요 */
+.gb-bet-steps .gb-button[data-gb-bet="all"], .gb-bet-steps .gb-button[data-gb-bet="clear"], .gb-play-button {
+  padding: .6rem .5rem .5rem;
+  background: #24161a;
+  border: 2px solid #c9a227;
+  border-top: 5px solid var(--gb-amount-color, #c9a227);
+  box-shadow: 0 3px 0 #000, inset 0 0 0 1px #5a3a1a;
+  color: #ffd75e;
+  font-size: .95rem;
+  font-weight: 700;
+  text-shadow: 0 1px #000;
+  transition: transform .08s, background .08s;
+}
+.gb-bet-steps .gb-button[data-gb-bet="all"], .gb-bet-steps .gb-button[data-gb-bet="clear"] { grid-column: span 3; }
+.gb-bet-steps .gb-button[data-gb-bet="all"] { --gb-amount-color: #ffcc33; }
+.gb-bet-steps .gb-button[data-gb-bet="clear"] { --gb-amount-color: #8d8678; color: #e9e2d0; }
+.gb-play-button { --gb-amount-color: #d8342b; padding: .8rem; font-size: 1.15rem; background: #5a1418; border-color: #ffcc33; border-top-color: var(--gb-amount-color); color: #fff1c2; letter-spacing: .1em; }
+.gb-bet-steps .gb-button[data-gb-bet="all"]:hover:not(:disabled), .gb-bet-steps .gb-button[data-gb-bet="clear"]:hover:not(:disabled) { background: #3a2026; }
+.gb-play-button:hover:not(:disabled) { background: #6e1a1f; }
+.gb-bet-steps .gb-button[data-gb-bet="all"]:active:not(:disabled), .gb-bet-steps .gb-button[data-gb-bet="clear"]:active:not(:disabled), .gb-play-button:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #000, inset 0 0 0 1px #5a3a1a; }
+.gb-play-button:disabled { background: #4a4446; border-color: #8d8678; color: #b8b0a0; }
+@media (max-width: 520px) { .gb-bet-steps .gb-amount-button { grid-column: span 2; } }

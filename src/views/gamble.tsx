@@ -42,7 +42,7 @@ function BetForm({ game, balance, previousBet }: { game: Game; balance: number; 
         <span>걸 칩</span><output class="gb-bet-amount" aria-label="걸 칩">{chips(bet)}개</output>
       </div>
       <div class="gb-bet-steps" role="group" aria-label="걸 칩 고르기">
-        {BET_STEPS.map((step) => <button class="gb-button" type="button" data-gb-bet={step} disabled={!balance}>+{step}</button>)}
+        {BET_STEPS.map((step) => <button class="gb-button gb-amount-button" type="button" data-gb-bet={step} disabled={!balance}><span>+{step >= 1000 ? `${step / 1000}천`.replace('10천', '1만') : step}</span></button>)}
         <button class="gb-button" type="button" data-gb-bet="all" disabled={!balance}>올인</button>
         <button class="gb-button" type="button" data-gb-bet="clear" disabled={!balance}>지우기</button>
       </div>
@@ -55,7 +55,7 @@ function SlotReels({ reels }: { reels?: number[] }) {
   const strip = Array.from({ length: 6 }, () => SLOT_ART).flat();
   const jackpot = reels?.every((i) => SLOT_ART[i] === 'seven');
   return (
-    <div class="gb-slot" data-gb-jackpot={jackpot ? 'yes' : undefined}>
+    <div class={`gb-slot${GAMBLE_ART.slotFrame?.image ? ' gb-slot--framed' : ''}`} data-gb-jackpot={jackpot ? 'yes' : undefined}>
       {(reels ?? [null, null, null]).map((symbol) => {
         const name = symbol === null ? null : SLOT_ART[symbol]!;
         return (
@@ -71,28 +71,60 @@ function SlotReels({ reels }: { reels?: number[] }) {
   );
 }
 
-const WHEEL_COLORS: Record<number, string> = {
-  0: '#e0eaff', 1: '#addef8', 2: '#bceada', 3: '#f7d9a0', 5: '#e7cffa', 10: '#f5baca',
-};
+// 룰렛판은 40칸(서버 WHEEL 번호, 확률 그대로)을 같은 배수끼리 묶어 넓은 칸 19개로 그려요.
+// [배수, 칸 수]: 0배 22 · 1배 8 · 2배 6 · 3배 2 · 5배 1 · 10배 1 = 40칸. 같은 배수끼리는 붙지 않게 놓아요.
+const WHEEL_RUNS: [number, number][] = [
+  [0, 3], [1, 2], [0, 3], [2, 2], [0, 3], [1, 2], [0, 3], [3, 1], [0, 3], [2, 2],
+  [0, 3], [1, 2], [0, 2], [5, 1], [1, 2], [2, 2], [0, 2], [10, 1], [3, 1],
+];
 const SECTOR = 360 / WHEEL.length;
-const WHEEL_FILL = `conic-gradient(from -${SECTOR / 2}deg, ${WHEEL.map((payout, i) =>
-  `${WHEEL_COLORS[payout]} ${i * SECTOR}deg ${(i + 1) * SECTOR}deg`).join(', ')})`;
+// WHEEL 번호 i가 판의 몇 번째 자리(k)에 그려지는지, 그리고 그 자리가 어느 묶음(run)인지
+const { WHEEL_POS, RUN_OF } = (() => {
+  const free = new Map<number, number[]>();
+  WHEEL.forEach((p, i) => free.set(p, [...(free.get(p) ?? []), i]));
+  const pos: number[] = [];
+  const runOf: number[] = [];
+  let k = 0;
+  WHEEL_RUNS.forEach(([payout, count], r) => {
+    for (let j = 0; j < count; j++, k++) {
+      const i = free.get(payout)!.shift()!;
+      pos[i] = k;
+      runOf[i] = r;
+    }
+  });
+  if (k !== WHEEL.length || [...free.values()].some((l) => l.length)) throw new Error('룰렛 칸 묶음이 WHEEL과 안 맞아요');
+  return { WHEEL_POS: pos, RUN_OF: runOf };
+})();
+const RUN_COLORS: Record<number, string> = {
+  1: '#1f6b3a', 2: '#2f5fa8', 3: '#7b3fa0', 5: '#c26a12', 10: '#d4a017',
+};
+let zeroNo = 0;
+const RUN_DRAW = WHEEL_RUNS.reduce<{ from: number; to: number; payout: number; color: string }[]>((list, [payout, count]) => {
+  const from = list.length ? list[list.length - 1]!.to : 0;
+  const color = payout === 0 ? (zeroNo++ % 2 ? '#7a1420' : '#1d1d24') : RUN_COLORS[payout]!;
+  return [...list, { from, to: from + count * SECTOR, payout, color }];
+}, []);
+// 칸 사이에 금색 줄을 그어요.
+const WHEEL_FILL = `conic-gradient(from -${SECTOR / 2}deg, ${RUN_DRAW.map(({ from, to, color }) =>
+  `#e8c25a ${from}deg ${from + 0.8}deg, ${color} ${from + 0.8}deg ${to}deg`).join(', ')})`;
 
 function RouletteWheel({ landed }: { landed?: number }) {
+  const landedRun = landed === undefined ? -1 : RUN_OF[landed];
   return (
-    <div class="gb-wheel-stage">
+    <div class={`gb-wheel-stage${GAMBLE_ART.wheel?.image ? ' gb-wheel-stage--rim' : ''}`}>
       <div class="gb-wheel-pointer" aria-hidden="true"><Art name="pointer" /></div>
       <div class="gb-wheel-viewport">
         <div class="gb-wheel-disc" data-gb-landed={landed}
-          style={`--gb-wheel-fill:${WHEEL_FILL};--gb-wheel-sector:${SECTOR}deg;--gb-wheel-stop:${-(landed ?? 0) * SECTOR}deg`}
+          style={`--gb-wheel-fill:${WHEEL_FILL};--gb-wheel-stop:${-WHEEL_POS[landed ?? 0]! * SECTOR}deg`}
           aria-hidden="true">
-          <ArtLayer name="wheel" />
-          <div class="gb-wheel-sectors" />
-          {WHEEL.map((payout, i) => (
-            <span class="gb-wheel-label" data-gb-sector={i} aria-current={i === landed ? 'true' : undefined} style={`--gb-wheel-angle:${i * SECTOR}deg`}>{payout}배</span>
+          {RUN_DRAW.map(({ from, to, payout }, r) => (
+            <span class={`gb-wheel-label${payout >= 5 ? ' gb-wheel-label--big' : ''}`} aria-current={r === landedRun ? 'true' : undefined}
+              style={`--gb-wheel-angle:${(from + to) / 2 - SECTOR / 2}deg`}>{payout}배</span>
           ))}
         </div>
       </div>
+      {/* 테두리 그림은 판과 같이 돌지 않게 판 바깥에 덮어요. */}
+      <ArtLayer name="wheel" />
     </div>
   );
 }
@@ -146,7 +178,7 @@ function CardDeck() {
 
 function GameSurface({ game, round, canBet }: { game: Game; round: Round | null; canBet: boolean }) {
   return (
-    <div class={`gb-game-surface gb-surface-${game}`}>
+    <div class={`gb-game-surface gb-surface-${game}`} style={GAMBLE_ART.background?.image ? `--gb-bg:url(${GAMBLE_ART.background.image})` : undefined}>
       {game === 'slot' && <SlotReels reels={round ? JSON.parse(round.state) as number[] : undefined} />}
       {game === 'roulette' && <RouletteWheel landed={round ? Number(round.state) : undefined} />}
       {game === 'cards' && (round ? <Cards round={round} /> : <CardDeck />)}
