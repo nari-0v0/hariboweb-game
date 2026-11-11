@@ -1,5 +1,5 @@
 import { cardScore, DAILY_CHIPS, natural, openingPayout, playHand, slotPayout, spinSlots, spinWheel, startHand, WHEEL, type CardMove, type Hand } from './gamble';
-import { GAMBLE_TITLES, GAMBLE_WINNER_ID, stripTitle, titleItemId } from './titles';
+import { GAMBLE_TITLES, GAMBLE_WINNER_ID, stripTitle, titleById, titleItemId } from './titles';
 
 export type Game = 'slot' | 'roulette' | 'cards';
 export type GambleAccount = {
@@ -115,21 +115,27 @@ export function publicHand(round: Round) {
   return { player, dealer: round.multiplier === null ? dealer.slice(0, 1) : dealer, score: cardScore(player) };
 }
 
-type RankRow = { name: string; value: number };
+type RankRow = { name: string; value: number; title_id: string | null };
 const RANK_FIELDS = ['chips', 'best_win', 'all_in_wins'] as const;
 
 export async function gambleRanks(db: D1Database, now: string) {
   const ranks = await db.batch([
-    ...RANK_FIELDS.map((field) => db.prepare(`SELECT m.display_name AS name, a.${field} AS value
+    ...RANK_FIELDS.map((field) => db.prepare(`SELECT m.display_name AS name, a.${field} AS value, p.title_id
       FROM gamble_accounts a JOIN members m ON m.user_id = a.user_id AND m.active = 1
+      LEFT JOIN profiles p ON p.user_id = a.user_id
       WHERE a.${field} > 0 ORDER BY a.${field} DESC, a.user_id LIMIT 10`)),
-    db.prepare(`SELECT m.display_name AS name, SUM(r.bet * (r.multiplier - 1)) AS value
+    db.prepare(`SELECT m.display_name AS name, SUM(r.bet * (r.multiplier - 1)) AS value, p.title_id
       FROM gamble_rounds r JOIN members m ON m.user_id = r.user_id AND m.active = 1
+      LEFT JOIN profiles p ON p.user_id = r.user_id
       JOIN seasons s ON s.id = (SELECT id FROM seasons WHERE starts_at <= ? AND ends_at > ? ORDER BY id DESC LIMIT 1)
       WHERE r.settled_at >= s.starts_at AND r.settled_at < s.ends_at AND r.multiplier > 1
       GROUP BY r.user_id ORDER BY value DESC, r.user_id LIMIT 1`).bind(now, now),
   ]);
-  return ranks.map(({ results }) => (results as RankRow[]).map((row) => ({ ...row, name: stripTitle(row.name) })));
+  // 디스코드는 방장 닉네임을 못 바꾸니, 고른 칭호는 닉네임 대신 여기서 「칭호」로 붙여 보여 줘요.
+  return ranks.map(({ results }) => (results as RankRow[]).map(({ name, value, title_id }) => {
+    const title = titleById(title_id);
+    return { value, name: (title ? `「${title.name}」 ` : '') + stripTitle(name) };
+  }));
 }
 
 export async function awardGambleSeason(db: D1Database, seasonId: string, end: string, now: string) {
