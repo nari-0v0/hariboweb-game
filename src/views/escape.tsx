@@ -129,13 +129,18 @@ export function clockTime(msg: string): [number, number] | null {
 const box = (h: Hotspot) => `left:${h.x - h.w / 2}%;top:${h.y - h.h / 2}%;width:${h.w}%;height:${h.h}%`;
 
 // 방 그림 속 물건 자리 하나. 눌러야 반응해요(표시는 없어요).
-function Hot(props: { run: EscRun; o: EscObject; h: Hotspot }) {
-  const { run, o, h } = props;
+function Hot(props: { run: EscRun; o: EscObject; h: Hotspot; sign?: string }) {
+  const { run, o, h, sign } = props;
   const s = run.state;
   const locked = isLocked(s, o);
   const cls = ['esc-hot', s.focus === o.id ? 'focus' : '', s.focus === o.id && s.fx ? `fx-${s.fx}` : ''].filter(Boolean).join(' ');
   return (
     <div class="esc-hot-wrap" style={box(h)}>
+      {sign && (
+        <span class={`esc-sign ${h.x < 50 ? 'l' : 'r'}`} aria-hidden="true">
+          ▶ {sign}
+        </span>
+      )}
       <Act run={run} a="tap" o={o.id} cls={cls} label={o.name}>
         {locked && s.seen.includes(o.id) && (
           <span class="esc-hot-lock" aria-hidden="true">
@@ -415,7 +420,7 @@ function Play(props: { run: EscRun; art: string; name: string }) {
                     <button type="button" class="esc-hot idle" style={box(h)} data-say={idleSay(h)} aria-label={h.label} />
                   ))}
                 {placed.map((o) => (
-                  <Hot run={run} o={o} h={room.spots.find((h) => h.id === o.at)!} />
+                  <Hot run={run} o={o} h={room.spots.find((h) => h.id === o.at)!} sign={o.goto ? def.scenes.find((x) => x.id === o.goto)?.name : undefined} />
                 ))}
                 {standing.map((o, i) => {
                   const [x, y] = room.people[i % room.people.length]!;
