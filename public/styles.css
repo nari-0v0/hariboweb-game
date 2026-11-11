@@ -1711,7 +1711,7 @@ main.wide { max-width: 1320px; }
   color: #202944;
 }
 
-.gb-wheel-stage { position: relative; width: min(100%, 20rem); margin: 1rem auto .75rem; }
+.gb-wheel-stage { position: relative; width: min(100%, 20rem); margin: 1rem auto .75rem; container-type: inline-size; }
 .gb-wheel-viewport { overflow: hidden; }
 .gb-wheel-disc {
   position: relative;
@@ -1722,12 +1722,7 @@ main.wide { max-width: 1320px; }
   background: var(--gb-wheel-fill);
   transform: rotate(var(--gb-wheel-stop));
 }
-.gb-wheel-sectors {
-  position: absolute;
-  inset: 0;
-  background: repeating-conic-gradient(from calc(var(--gb-wheel-sector) / -2),
-    #27355160 0 .4deg, transparent .4deg var(--gb-wheel-sector));
-}
+
 .gb-wheel-pointer {
   position: absolute;
   z-index: 1;
@@ -1742,17 +1737,20 @@ main.wide { max-width: 1320px; }
 }
 .gb-wheel-label {
   position: absolute;
-  left: calc(50% + 41% * sin(var(--gb-wheel-angle)));
-  top: calc(50% - 41% * cos(var(--gb-wheel-angle)));
+  left: calc(50% + 34% * sin(var(--gb-wheel-angle)));
+  top: calc(50% - 34% * cos(var(--gb-wheel-angle)));
   translate: -50% -50%;
-  rotate: var(--gb-wheel-angle);
+  /* 글자를 바깥쪽으로 눕혀서 좁은 칸에도 겹치지 않게 해요. */
+  rotate: calc(var(--gb-wheel-angle) - 90deg);
+  padding: .1em .25em;
   color: #fff8e6;
-  text-shadow: 0 1px #000;
-  font-size: clamp(.43rem, 2vw, .63rem);
+  text-shadow: 0 1px #000, 0 0 3px #000;
+  font-size: 4.2cqw;
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
 }
+.gb-wheel-label--big { font-size: 4.6cqw; }
 .gb-wheel-label[aria-current="true"] { border-radius: 2px; }
 .gb-room:not(.gb-motion-running) .gb-wheel-label[aria-current="true"] {
   background: #fff8d2;
@@ -1870,3 +1868,45 @@ main.wide { max-width: 1320px; }
 .gb-lobby-intro:has(> .gb-art-layer) { color: #fff8e6; text-shadow: 0 1px 2px #000; overflow: hidden; }
 .gb-lobby-intro > .gb-art-layer { object-fit: cover; object-position: center 30%; filter: brightness(.55); }
 .gb-lobby-intro:has(> .gb-art-layer) .gb-button { text-shadow: none; }
+
+/* 칩 거는 버튼: 카지노 칩 모양(칩 그림을 금액마다 색만 돌려 써요) */
+.gb-bet-display { padding: .55rem .8rem; background: #123d26; border: 3px solid #c9a227; color: #f6e7b0; box-shadow: inset 0 0 0 2px #0b2416; }
+.gb-bet-display .gb-bet-amount { color: #ffd75e; font-size: 1.6rem; text-shadow: 0 2px #000; }
+.gb-bet-steps { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .4rem; }
+.gb-bet-steps .gb-chip-button {
+  position: relative;
+  isolation: isolate;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  box-shadow: 0 3px 0 #00000055;
+  color: #fff;
+  font-size: clamp(.68rem, 2.8vw, .85rem);
+  font-weight: 700;
+  text-shadow: 0 1px 2px #000, 0 0 2px #000;
+  transition: transform .08s;
+}
+.gb-bet-steps .gb-chip-button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: url(/gamble/chip.webp?v=1) center / contain no-repeat;
+  filter: hue-rotate(var(--gb-chip-hue, 0deg)) saturate(var(--gb-chip-sat, 1));
+}
+.gb-bet-steps .gb-chip-button span { position: relative; }
+.gb-bet-steps .gb-chip-button:active:not(:disabled) { transform: translateY(2px) scale(.96); }
+.gb-chip-button[data-gb-bet="1"] { --gb-chip-sat: 0; }
+.gb-chip-button[data-gb-bet="5"] { --gb-chip-hue: 0deg; }
+.gb-chip-button[data-gb-bet="10"] { --gb-chip-hue: 220deg; }
+.gb-chip-button[data-gb-bet="100"] { --gb-chip-hue: 120deg; }
+.gb-chip-button[data-gb-bet="1000"] { --gb-chip-hue: 270deg; }
+.gb-chip-button[data-gb-bet="10000"] { --gb-chip-hue: 40deg; --gb-chip-sat: 1.4; }
+.gb-bet-steps .gb-button[data-gb-bet="all"], .gb-bet-steps .gb-button[data-gb-bet="clear"] { grid-column: span 3; padding: .5rem; font-size: .9rem; }
+.gb-bet-steps .gb-button[data-gb-bet="all"] { background: linear-gradient(#ffe27a, #d4a017); color: #3a2600; border-color: #6b4a00; }
+.gb-bet-steps .gb-button[data-gb-bet="clear"] { background: #2a2a33; color: #f3f0e6; border-color: #111; }
+.gb-play-button { padding: .8rem; font-size: 1.1rem; background: linear-gradient(#e0412f, #a3161f); color: #fff8e6; border-color: #5a0b10; text-shadow: 0 1px #000; }
+.gb-play-button:disabled { background: #9a8f8f; }
+@media (max-width: 520px) { .gb-bet-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); } .gb-bet-steps .gb-chip-button { width: min(100%, 4.4rem); justify-self: center; } }
