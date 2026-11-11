@@ -131,8 +131,8 @@ async function currentViewer(c: Context<AppEnv>): Promise<Member | null> {
 
 app.get('/', async (c) => {
   if (await currentViewer(c)) return c.redirect('/me');
-  const error = c.req.query('error') === 'not_member' ? '하리보 서버 멤버만 들어올 수 있어요.' : undefined;
-  return page(c, <LandingPage error={error} devLogin={c.env.DEV_LOGIN === '1'} />);
+  const notMember = c.req.query('error') === 'not_member';
+  return page(c, <LandingPage notMember={notMember} devLogin={c.env.DEV_LOGIN === '1'} />);
 });
 
 // 사용설명서는 로그인하지 않아도 볼 수 있어요(디스코드 패널의 도움말 링크로도 들어와요).
