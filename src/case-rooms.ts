@@ -308,33 +308,36 @@ function room(key: RoomKey, rows: Row[]): Room {
 export function personBox(cx: number, cy: number) {
   const s = 0.72 + cy * 0.0065;
   // 여유를 넉넉히 둬요(퍼즐을 연 화면처럼 방 그림이 조금 달라 보일 때도 가리지 않게).
-  return { l: cx - 9.5 * s - 1, r: cx + 9.5 * s + 1, t: cy + 12 - 32 * s - 1, b: Math.min(100, cy + 12) };
+  return { l: cx - 9.5 * s - 1, r: cx + 9.5 * s + 1, t: cy + 12 - 32 * s - 1, b: cy + 12 };
 }
 function placePeople(spots: Hotspot[]): [number, number][] {
   const cands: { x: number; y: number; cost: number; b: ReturnType<typeof personBox> }[] = [];
-  for (let y = 92; y >= 66; y -= 2)
+  // 발끝(y+12)이 방 그림 아래로 잘리지 않게 y는 84까지만 써요.
+  for (let y = 84; y >= 60; y -= 2)
     for (let x = 12; x <= 88; x += 2) {
       const b = personBox(x, y);
-      let cost = (92 - y) * 0.15;
+      let cost = (84 - y) * 0.15;
       let full = false;
       for (const h of spots) {
         const hit = [0.15, 0.5, 0.85].flatMap((a) => [0.15, 0.5, 0.85].map((c) => [h.x - h.w / 2 + h.w * a, h.y - h.h / 2 + h.h * c] as const)).filter(([px, py]) => px > b.l && px < b.r && py > b.t && py < b.b).length;
         if (hit >= 7) full = true;
         cost += hit + (h.x > b.l && h.x < b.r && h.y > b.t && h.y < b.b ? 5 : 0);
       }
-      if (!full) cands.push({ x, y, cost, b });
+      cands.push({ x, y, cost: cost + (full ? 1000 : 0), b });
     }
   cands.sort((a, b) => a.cost - b.cost || b.y - a.y || a.x - b.x);
   const pick: typeof cands = [];
   for (const c of cands) {
     if (pick.length >= 3) break;
-    if (!pick.some((q) => c.b.l < q.b.r && c.b.r > q.b.l)) pick.push(c);
+    if (c.cost < 1000 && !pick.some((q) => c.b.l < q.b.r && c.b.r > q.b.l)) pick.push(c);
   }
   // 자리가 모자라면 사람끼리 조금 겹치는 건 괜찮아요(둘 다 일부는 보여서 누를 수 있어요).
-  for (const c of cands) {
-    if (pick.length >= 2) break;
-    if (!pick.some((q) => Math.abs(q.x - c.x) < 10)) pick.push(c);
-  }
+  // 그래도 모자라면(눌리는 곳이 빽빽한 방) 가장 덜 가리는 자리를 써요.
+  for (const ok of [1000, Infinity])
+    for (const c of cands) {
+      if (pick.length >= 2) break;
+      if (c.cost < ok && !pick.some((q) => Math.abs(q.x - c.x) < 10)) pick.push(c);
+    }
   return pick.length ? pick.map((c): [number, number] => [c.x, c.y]) : [[30, 88], [50, 90], [70, 88]];
 }
 
