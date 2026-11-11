@@ -7,6 +7,7 @@ import { canUseTheme } from '../shop';
 import { THEMES } from '../themes';
 import { Card, formatHours } from './card';
 import { Layout } from './layout';
+import { COMMUNITY_URL } from '../contact';
 
 const SAMPLE_STATS: [string, string][] = [
   ['레벨', '20'],
@@ -27,7 +28,7 @@ function DiscordIcon() {
   );
 }
 
-export function LandingPage(props: { error?: string; devLogin: boolean }) {
+export function LandingPage(props: { error?: string; notMember?: boolean; devLogin: boolean }) {
   return (
     <Layout title="환영해요">
       <section class="hero">
@@ -40,6 +41,14 @@ export function LandingPage(props: { error?: string; devLogin: boolean }) {
           </h1>
           <p class="lead">통화방에서, 내전에서 함께한 시간만큼 서로의 카드가 반짝반짝 빛나요. 친구 카드를 모아 나만의 도감을 채워 보세요.</p>
           {props.error && <p class="notice error">{props.error}</p>}
+          {props.notMember && (
+            <div class="notice error land-join">
+              <p>아직 하리보 디스코드 서버 멤버가 아니에요. 하리보 카카오톡 방에 먼저 들어와서 서버에 함께해 주세요!</p>
+              <a class="btn btn-primary" href={COMMUNITY_URL} target="_blank" rel="noopener">
+                💬 하리보 카톡방 들어가기
+              </a>
+            </div>
+          )}
           <a class="btn btn-discord" href="/auth/login">
             <DiscordIcon /> 디스코드로 시작하기
           </a>
