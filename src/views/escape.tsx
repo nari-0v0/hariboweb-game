@@ -244,7 +244,7 @@ function Focus(props: { run: EscRun; art: string; name: string }) {
           })()}
         {!puzzle && <p>{s.msg}</p>}
         {puzzle && (
-          <div class="esc-puzzle">
+          <div class="esc-puzzle" data-esc-sync="puzzle">
             <div class="esc-puzzle-head">
               <b>수수께끼 No.{puzzleNo(run.def, o.id)}</b>
               <span>{o.face ? `${o.name}의 문제` : o.name}</span>
@@ -420,7 +420,7 @@ function Play(props: { run: EscRun; art: string; name: string }) {
       <section class="jr-game esc-game" id="now">
         <div class="esc-layout">
           <div class="esc-view">
-            <header class="jr-hud">
+            <header class="jr-hud" data-esc-sync="hud">
               <span class="jr-hud-ch">
                 📍 {def.place} · {scene.name}
               </span>
@@ -525,7 +525,7 @@ function Play(props: { run: EscRun; art: string; name: string }) {
                 </button>
               </form>
             )}
-            <div class="esc-tools">
+            <div class="esc-tools" data-esc-sync="tools">
               {backs.map((o) => (
                 <Act run={run} a="tap" o={o.id} cls="btn btn-small">
                   🚪 {o.name}
@@ -685,7 +685,7 @@ export function EscapePage(props: {
 }) {
   const { run, result } = props;
   return (
-    <Layout title="하리보 사건파일" viewer={props.viewer} active="cases" scripts={run ? ['/escape.js?v=loupe-tap-1', '/escape-ui.js?v=3'] : undefined}>
+    <Layout title="하리보 사건파일" viewer={props.viewer} active="cases" scripts={run ? ['/escape.js?v=loupe-tap-1', '/escape-ui.js?v=5'] : undefined}>
       {props.url && <i hidden data-replace-url={props.url} />}
       <Popup lines={NOTICES[props.notice ?? ''] ?? []} />
       <div class="stack esc" data-fresh>

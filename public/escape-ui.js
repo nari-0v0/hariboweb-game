@@ -706,15 +706,43 @@
     return [g, h('p', 'hint', `칸을 누를 때마다 조각 색이 바뀌어요 (${u.parts}조각).`)];
   };
 
+  let fresh = '';
   const make = () => {
     moves = [];
     tell('');
     setV('');
     const parts = (W[u.t] || (() => [h('p', '', '이 문제는 아직 화면이 없어요.')]))();
     box.replaceChildren(...parts, say);
+    fresh = out.value;
   };
   make();
   form.querySelector('[data-ui-reset]')?.addEventListener('click', make);
+  // 푸는 도중에 힌트를 받으면 화면 전체를 새로 그리지 않고 힌트·동전 칸만 바꿔요. 움직여 둔 퍼즐이 그대로 남아요.
+  document.addEventListener('submit', async (e) => {
+    const f = e.target;
+    const a = f instanceof HTMLFormElement && f.matches('form.esc-form') ? f.elements.namedItem('a')?.value : '';
+    if ((a !== 'hint' && a !== 'hint2') || (!moves.length && out.value === fresh) || !window.fetch || !window.DOMParser) return;
+    e.preventDefault();
+    if (f.dataset.busy) return;
+    f.dataset.busy = '1';
+    try {
+      const res = await fetch(f.action, { method: 'POST', body: new FormData(f), credentials: 'same-origin' });
+      const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+      const parts = doc.querySelectorAll('[data-esc-sync]');
+      const rev = doc.querySelector('.esc-code input[name="rev"]');
+      // 같은 문제 화면이 아니면(다른 곳으로 넘어갔거나 오류) 그냥 그 화면으로 가요.
+      if (res.redirected || !rev || !doc.querySelector('.esc-ui') || !parts.length) {
+        location.assign(res.url);
+        return;
+      }
+      for (const n of parts) document.querySelector(`[data-esc-sync="${n.dataset.escSync}"]`)?.replaceWith(document.importNode(n, true));
+      for (const r of document.querySelectorAll('input[name="rev"]')) r.value = rev.value;
+    } catch {
+      f.submit();
+    } finally {
+      delete f.dataset.busy;
+    }
+  });
   form.addEventListener('submit', (e) => {
     if (!out.value) {
       e.preventDefault();

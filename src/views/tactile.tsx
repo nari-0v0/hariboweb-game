@@ -96,7 +96,7 @@ export function ExpeditionMap(props: { run: StoryRun }) {
       {map.cells.map((c, i) => <button type="button" class={`map-tile${c.revealed ? ' revealed' : ' fog'}${reach.has(i) ? ' connected' : ''}${c.surveyed ? ' surveyed' : ''}`} data-map-cell={String(i)} aria-label={`${String.fromCharCode(65 + i % 5)}${1 + Math.floor(i / 5)} ${i === map.camp ? '기지' : c.revealed ? c.event ? storyEvent(c.event)!.title : c.ports.length ? '길 조각' : '막힌 지형' : '미탐색 안개'}${c.surveyed ? ' 조사 완료' : ''}`}>
         <small class="tile-coordinate">{String.fromCharCode(65 + i % 5)}{1 + Math.floor(i / 5)}</small>
         {c.traced && <span class="tile-compass" style={`transform:rotate(${c.rotation * 90}deg)`} aria-label="원형 탁본 북쪽">↑</span>}
-        {c.revealed ? <><span class="tile-roads" aria-hidden="true">{cellPorts(c).map(p => <i class={`road port-${p}`} />)}</span><span class="tile-landmark">{i === map.camp ? '⛺' : c.event ? c.surveyed ? '✓' : '✦' : c.ports.length ? '·' : '♣'}</span>
+        {c.revealed ? <><span class="tile-roads" aria-hidden="true">{cellPorts(c).map(p => <i class={`tile-road port-${p}`} />)}</span><span class="tile-landmark">{i === map.camp ? '⛺' : c.event ? c.surveyed ? '✓' : '✦' : c.ports.length ? '·' : '♣'}</span>
           <span class="tile-party">{map.crewAt.map((n, actor) => n === i ? <img src={s.crew[actor]!.art} alt="" /> : null)}</span></> : <span aria-hidden="true">☁</span>}
         {!c.revealed && c.peeked && <small class="terrain-peek">{c.ports.length ? '발자국' : '수풀'}</small>}
       </button>)}
