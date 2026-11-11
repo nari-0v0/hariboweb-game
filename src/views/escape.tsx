@@ -154,7 +154,7 @@ function Hot(props: { run: EscRun; o: EscObject; h: Hotspot; sign?: string }) {
 }
 
 // 눌러 본 곳을 방 그림에서 크게 확대해요. 손가락·마우스로 끌어서 둘러볼 수 있고, 시계는 멈춘 시각으로 바늘이 돌아가요.
-function Loupe(props: { bg: RoomKey; h: Hotspot; msg: string; name: string }) {
+function Loupe(props: { bg: RoomKey; h: Hotspot; msg: string; name: string; hots: unknown }) {
   const { h } = props;
   const k = Math.min(3, Math.max(1.8, Math.min(62 / h.w, 62 / h.h)));
   const clamp = (v: number) => Math.min(0, Math.max(100 - 100 * k, v));
@@ -178,6 +178,7 @@ function Loupe(props: { bg: RoomKey; h: Hotspot; msg: string; name: string }) {
               <i class="mn" />
             </span>
           )}
+          {props.hots}
         </div>
         <b class="esc-loupe-name">🔍 {props.name}</b>
         {tag && <span class="esc-zoom-tag">{tag}</span>}
@@ -404,6 +405,16 @@ function Play(props: { run: EscRun; art: string; name: string }) {
   // 확대(끌어서 둘러보기)는 눈으로 읽어야 할 게 있을 때만: 멈춘 시계 바늘, 적힌 시각·글씨.
   const spot = focusObj?.at ? room.spots.find((h) => h.id === focusObj.at) : undefined;
   const lens = spot && ((spot.face && clockTime(s.msg)) || zoomTag(s.msg)) ? spot : undefined;
+  // 방 그림 속 물건 자리들. 확대 화면 안에도 같은 자리를 깔아서, 확대한 채로도 물건을 누를 수 있어요.
+  // 창구 안의 종처럼 겹친 곳은 작은 지점을 나중에 그려 눌릴 수 있게 해요.
+  const hots = [...room.spots].sort((a, b) => b.w * b.h - a.w * a.h).map((h) => {
+    const o = placed.find((o) => o.at === h.id);
+    return o ? (
+      <Hot run={run} o={o} h={h} sign={o.goto ? def.scenes.find((x) => x.id === o.goto)?.name : undefined} />
+    ) : (
+      <button type="button" class="esc-hot idle" style={box(h)} data-say={idleSay(h)} aria-label={h.label} />
+    );
+  });
   return (
     <>
       <section class="jr-game esc-game" id="now">
@@ -440,15 +451,7 @@ function Play(props: { run: EscRun; art: string; name: string }) {
                   height={1050}
                   draggable={false}
                 />
-                {/* 창구 안의 종처럼 겹친 곳은 작은 지점을 나중에 그려 눌릴 수 있게 해요. */}
-                {[...room.spots].sort((a, b) => b.w * b.h - a.w * a.h).map((h) => {
-                  const o = placed.find((o) => o.at === h.id);
-                  return o ? (
-                    <Hot run={run} o={o} h={h} sign={o.goto ? def.scenes.find((x) => x.id === o.goto)?.name : undefined} />
-                  ) : (
-                    <button type="button" class="esc-hot idle" style={box(h)} data-say={idleSay(h)} aria-label={h.label} />
-                  );
-                })}
+                                {hots}
                 {standing.map((o, i) => {
                   const [x, y] = room.people[i % room.people.length]!;
                   return <Thing run={run} o={{ ...o, x, y }} />;
@@ -475,7 +478,7 @@ function Play(props: { run: EscRun; art: string; name: string }) {
                     🪙 +1
                   </b>
                 )}
-                {lens && s.fx !== 'move' && <Loupe bg={bg} h={lens} msg={s.msg} name={focusObj!.name} />}
+                {lens && s.fx !== 'move' && <Loupe bg={bg} h={lens} msg={s.msg} name={focusObj!.name} hots={hots} />}
               </div>
             </div>
             {met.length > 0 && (
@@ -682,7 +685,7 @@ export function EscapePage(props: {
 }) {
   const { run, result } = props;
   return (
-    <Layout title="하리보 사건파일" viewer={props.viewer} active="cases" scripts={run ? ['/escape.js?v=playtest-3', '/escape-ui.js?v=3'] : undefined}>
+    <Layout title="하리보 사건파일" viewer={props.viewer} active="cases" scripts={run ? ['/escape.js?v=loupe-tap-1', '/escape-ui.js?v=3'] : undefined}>
       {props.url && <i hidden data-replace-url={props.url} />}
       <Popup lines={NOTICES[props.notice ?? ''] ?? []} />
       <div class="stack esc" data-fresh>

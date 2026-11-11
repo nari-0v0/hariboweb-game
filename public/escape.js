@@ -40,15 +40,22 @@
   const lens = room.querySelector('[data-loupe]');
   const img = lens?.querySelector('.esc-loupe-img');
   if (!lens || !img) return;
+  // 조금 움직여야 끌기로 봐요. 그냥 누르면 확대 화면 속 물건이 눌려요.
   let start = null;
+  let dragged = false;
   lens.addEventListener('pointerdown', (e) => {
     if (e.target instanceof Element && e.target.closest('label')) return;
-    start = { x: e.clientX, y: e.clientY, l: img.offsetLeft, t: img.offsetTop };
-    lens.setPointerCapture(e.pointerId);
-    lens.classList.add('dragging');
+    start = { x: e.clientX, y: e.clientY, l: img.offsetLeft, t: img.offsetTop, id: e.pointerId };
+    dragged = false;
   });
   lens.addEventListener('pointermove', (e) => {
     if (!start) return;
+    if (!dragged) {
+      if (Math.hypot(e.clientX - start.x, e.clientY - start.y) < 8) return;
+      dragged = true;
+      lens.setPointerCapture(start.id);
+      lens.classList.add('dragging');
+    }
     const minL = lens.clientWidth - img.offsetWidth;
     const minT = lens.clientHeight - img.offsetHeight;
     img.style.left = `${Math.min(0, Math.max(minL, start.l + e.clientX - start.x))}px`;
@@ -60,4 +67,15 @@
   };
   lens.addEventListener('pointerup', end);
   lens.addEventListener('pointercancel', end);
+  // 끌고 난 뒤 손을 뗄 때 생기는 클릭은 물건 누르기로 치지 않아요.
+  lens.addEventListener(
+    'click',
+    (e) => {
+      if (!dragged) return;
+      dragged = false;
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    true,
+  );
 })();

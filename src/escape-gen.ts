@@ -189,8 +189,8 @@ function clockQuiz(ctx: Ctx, kind: number, no: number): Built {
     code = four((start + hours * 60) % 720);
     ask = '네 자리 (7시 5분 → 0705)';
     tail = '을 가리키고 있어요. 똑딱똑딱, 지금도 가고 있어요.';
-    q = `${n}${josa(n, '은', '는')} 한 시간마다 꼭 ${slow}분씩 늦게 가요. 어제 저녁 ${hm(start)}에 정확히 맞춰 놓았고, 그 뒤로 12시간이 지나지 않았어요. 지금 진짜 시각은 몇 시 몇 분일까요?`;
-    hint = `시계는 진짜 1시간 동안 ${60 - slow}분만 가요. 맞춘 뒤 시계가 몇 분 갔는지 먼저 세어 보세요.`;
+    q = `${n}${josa(n, '은', '는')} 한 시간마다 꼭 ${slow}분씩 늦게 가요. 어제 저녁 ${hm(start)}에 정확히 맞춰 놓았고, 그 뒤로 12시간은 안 지났어요(그래서 답은 하나뿐이에요). 지금 시계가 가리키는 시각을 보고, 진짜 시각은 몇 시 몇 분인지 맞혀 보세요.`;
+    hint = `먼저 ${n}${josa(n, '이', '가')} 지금 가리키는 시각을 보세요. 시계는 진짜 1시간 동안 ${60 - slow}분만 가요. 맞춘 뒤 시계가 몇 분 갔는지 세고, ${60 - slow}분으로 나누면 진짜로 지난 시간이에요.`;
   } else {
     // 다음에 두 바늘이 겹칠 때까지
     do shown = (1 + Math.floor(r() * 11)) * 60 + Math.floor(r() * 60);
@@ -201,7 +201,12 @@ function clockQuiz(ctx: Ctx, kind: number, no: number): Built {
     q = `지금 ${n}${josa(n, '이', '가')} 가리키는 시각부터, 긴바늘과 짧은바늘이 처음으로 딱 겹칠 때까지 몇 분이 걸릴까요?`;
     hint = '두 바늘은 12시간에 11번 겹쳐요. 그러니 겹치는 간격은 720÷11분, 약 65분 27초예요.';
   }
-  const face: Spot = { id: ctx.id('clk'), at: h.id, name: wall ? n : h.label, emoji: '🕰️', look: wall ? `${n}${josa(n, '이', '가')} ${hm(shown)}${tail}` : `${h.at} 멈춘 손목시계가 떨어져 있어요. ${hm(shown)}${tail}`, memo: true };
+  // 손목시계는 방 그림에 따로 안 보이고 물건 하나에 숨어 있으니, 문제와 힌트에 그렇다고 알려 줘요.
+  if (!wall) {
+    q = `방 안 물건 어딘가에 손목시계가 떨어져 있어요. ${q}`;
+    hint = `손목시계는 ${h.label}${josa(h.label, '을', '를')} 눌러 보면 찾을 수 있어요. ${hint}`;
+  }
+  const face: Spot = { id: ctx.id('clk'), at: h.id, name: wall ? n : h.label, emoji: '🕰️', look: wall ? `${n}${josa(n, '이', '가')} ${hm(shown)}${tail}` : `${h.at} ${kind === 2 ? '' : '멈춘 '}손목시계가 떨어져 있어요. ${hm(shown)}${tail}`, memo: true };
   const lock = { ...box(ctx, code, ask, `자물쇠에 문제가 새겨져 있어요.\n「시계 수수께끼」\n${q}`), ref: no };
   return { spots: [face, lock], lockId: lock.id, hint: wall ? `방 그림 속 ${n}${josa(n, '을', '를')} 눌러 보세요. ${hint}` : `방 그림 속 ${h.label}${josa(h.label, '을', '를')} 눌러 보세요. 거기에 멈춘 손목시계가 떨어져 있어요. ${hint}`, steps: [{ a: 'tap', o: face.id }, { a: 'code', o: lock.id, v: code }] };
 }
