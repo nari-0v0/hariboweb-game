@@ -442,3 +442,25 @@ describe('방 그림 56장', () => {
     expect(roomByName('편집실')).toBe('newsroom');
   });
 });
+
+describe('사건파일 장치 검증(코덱스 검토 반영)', () => {
+  it('화면에 보내는 장치 정보에는 정답이 없어요', async () => {
+    const { uiForClient } = await import('../src/escape-ui');
+    for (const c of ESCAPE_CASES)
+      for (const o of c.objects)
+        if (o.lock?.kind === 'code' && o.lock.ui) {
+          const s = JSON.stringify(uiForClient(o.lock.ui));
+          expect(s).not.toContain('"answer"');
+          expect(s).not.toContain('"answers"');
+        }
+  });
+  it('답이 둘인 세모 문제는 둘 다 맞고, 왕 길 문제는 대각선 4번 미만이면 틀려요', async () => {
+    const { BANK } = await import('../src/escape-bank');
+    const tri = BANK.find((b) => b.idea === 'num-triangle')!;
+    expect(checkUi(tri.ui!, '531426')).toBe(true);
+    expect(checkUi(tri.ui!, '432516')).toBe(true);
+    const king = BANK.find((b) => b.idea === 'path-kingcross')!;
+    expect(checkUi(king.ui!, '0.1.2.3.6.7.11.10.9.5.4.8.12.13.14.15')).toBe(false);
+    expect(checkUi(king.ui!, king.a!)).toBe(true);
+  });
+});
