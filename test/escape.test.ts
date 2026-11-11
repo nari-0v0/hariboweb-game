@@ -132,14 +132,65 @@ describe('사건파일 방탈출 내용', () => {
       expect(left(3)[0]).toContain(c.question.options[c.question.correct]!.split(' (')[0]);
     }
   });
-  it('만든 사건: 사건마다 수수께끼 네 개가 모두 다르고, 수수께끼 카드 답도 겹치지 않아요', () => {
-    const made = ESCAPE_CASES.filter((c) => c.solution && !c.id.endsWith('-talk') && (c.level ?? 1) > 1);
-    expect(made.length).toBeGreaterThanOrEqual(45);
-    const qs = made.flatMap((c) => c.objects.filter((o) => o.lock?.kind === 'code' && o.look.includes('수수께끼 No.')).map((o) => o.look.split('\n').slice(-1)[0]));
-    expect(qs.length).toBe(made.length * 4);
-    expect(new Set(qs).size).toBe(qs.length);
-    const cards = made.map((c) => c.objects.find((o) => o.id.startsWith('rdn'))!.look.split('\n')[1]);
+  it('만든 사건: 수수께끼는 사건끼리 겹치지 않고, 푸는 방식도 사건마다 섞여 있어요', () => {
+    const made = ESCAPE_CASES.filter((c) => (c.level ?? 1) > 1 && !c.id.includes('-talk'));
+    expect(made.length).toBe(47);
+    const nos = made.flatMap((c) => c.objects.flatMap((o) => o.ref ?? []));
+    expect(nos.length).toBeGreaterThan(100);
+    expect(new Set(nos).size).toBe(nos.length);
+    const cards = made.flatMap((c) => c.objects.filter((o) => o.id.startsWith('rdn')).map((o) => o.look.split('\n')[1]));
     expect(new Set(cards).size).toBe(cards.length);
+    const sets = made.map((c) => [...c.formats!].sort().join());
+    for (const c of made) expect(new Set(c.formats).size, `${c.id} ${c.formats}`).toBe(5);
+    // 같은 방식 묶음은 거의 다시 나오지 않고, 바로 앞 사건과는 두 가지 이상 달라요
+    expect(sets.length - new Set(sets).size).toBeLessThanOrEqual(Math.floor(made.length / 3));
+    made.forEach((c, i) => i && expect(c.formats!.filter((f) => made[i - 1]!.formats!.includes(f)).length, c.id).toBeLessThanOrEqual(3));
+    const all = made.flatMap((c) => c.formats!);
+    for (const f of ['lock', 'person', 'torn', 'clock', 'card', 'far', 'order', 'grid']) expect(all.filter((x) => x === f).length, f).toBeGreaterThanOrEqual(10);
+  });
+  it('보물 칸·줄 세우기: 답이 하나뿐이고 화면에서 고를 수 있어요', async () => {
+    const { GRIDS, ORDERS } = await import('../src/escape-puzzles');
+    const around = (w: number, h: number, i: number) => {
+      const out: number[] = [];
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const x = (i % w) + dx, y = Math.floor(i / w) + dy;
+        if ((dx || dy) && x >= 0 && y >= 0 && x < w && y < h) out.push(y * w + x);
+      }
+      return out;
+    };
+    for (const g of GRIDS) {
+      const cand = g.nums.flatMap((n, i) => (n === null ? [i] : []));
+      let found = 0;
+      const pickK = (from: number, chosen: number[]) => {
+        if (found > 1) return;
+        if (chosen.length === g.k) {
+          const set = new Set(chosen);
+          if (g.nums.every((n, i) => n === null || around(g.w, g.h, i).filter((j) => set.has(j)).length === n)) {
+            found++;
+            expect(g.nums.map((_, i) => (set.has(i) ? '1' : '0')).join('')).toBe(g.a);
+          }
+          return;
+        }
+        for (let k = from; k < cand.length; k++) pickK(k + 1, [...chosen, cand[k]!]);
+      };
+      pickK(0, []);
+      expect(found).toBe(1);
+    }
+    for (const o of ORDERS) expect([...o.a].sort().join('')).toBe(o.names.map((_, i) => i + 1).join(''));
+  });
+  it('보물 칸·줄 세우기 답: 칸마다·자리마다 받은 값을 이어 맞혀요', () => {
+    const c = ESCAPE_CASES.find((x) => x.objects.some((o) => o.lock?.kind === 'code' && o.lock.grid))!;
+    const o = c.objects.find((x) => x.lock?.kind === 'code' && x.lock.grid)!;
+    const lk = o.lock as { code: string };
+    let s = startEscape(c);
+    for (const a of c.solution!) {
+      if (a.a === 'code' && a.o === o.id) break;
+      s = actEscape(c, s, a)!;
+    }
+    expect(actEscape(c, s, { a: 'code', o: o.id, v: '12' })).toBeNull();
+    const wrong = actEscape(c, s, { a: 'code', o: o.id, v: lk.code.replace(/^./, (x) => (x === '1' ? '0' : '1')) })!;
+    expect(wrong.mistakes).toBe(1);
+    expect(actEscape(c, s, { a: 'code', o: o.id, v: lk.code })!.opened).toContain(o.id);
   });
   it('수수께끼 은행: 고르기 문제는 정답이 보기 안에 있어요', async () => {
     const { TEASERS } = await import('../src/escape-teasers');

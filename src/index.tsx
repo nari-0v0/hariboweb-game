@@ -926,6 +926,15 @@ members.post('/api/escape/start', async (c) => {
     return c.redirect('/cases/room?n=error', 303);
   }
 });
+// 칸 고르기(g0, g1, …)와 순서 고르기(t0, t1, …)는 칸·자리마다 따로 와서 답 하나로 이어 붙여요.
+function escCodeValue(body: Record<string, unknown>, v: string): string {
+  const gn = Number(body.gn);
+  if (Number.isInteger(gn) && gn > 0 && gn <= 64) return Array.from({ length: gn }, (_, i) => (body[`g${i}`] ? '1' : '0')).join('');
+  if (body.t0 === undefined) return v;
+  const out: string[] = [];
+  for (let i = 0; i < 9 && body[`t${i}`] !== undefined; i++) out.push(String(body[`t${i}`]).slice(0, 1));
+  return out.join('');
+}
 members.post('/api/escape/act', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
   const body = await c.req.parseBody();
@@ -934,7 +943,7 @@ members.post('/api/escape/act', async (c) => {
   const act =
     a === 'tap' ? { a, o: str('o') } as const
     : a === 'use' ? { a, o: str('o'), i: str('i') } as const
-    : a === 'code' ? { a, o: str('o'), v: str('v') } as const
+    : a === 'code' ? { a, o: str('o'), v: escCodeValue(body, str('v')) } as const
     : a === 'answer' ? { a, n: Number(body.n), ...(body.m0 !== undefined ? { m: [0, 1, 2].map((k) => body[`m${k}`]).filter((v) => v !== undefined).map(Number) } : {}) } as const
     : a === 'combine' ? { a, i: str('i'), j: str('j') } as const
     : a === 'hint' ? { a } as const

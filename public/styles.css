@@ -1150,6 +1150,16 @@ main.wide { max-width: 1320px; }
 .esc-bubble-name { font-size: .95rem; }
 .esc-code { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 .esc-code input { flex: 1 1 140px; min-width: 0; padding: 8px 10px; font: inherit; font-size: 1.2rem; letter-spacing: .3em; border: 3px solid var(--ink); background: #fffbe6; }
+.esc-grid { display: grid; grid-template-columns: repeat(var(--w), minmax(0, 44px)); gap: 4px; flex: 1 1 100%; justify-content: center; }
+.esc-cell { aspect-ratio: 1; display: grid; place-items: center; border: 3px solid var(--ink); background: #e8f6ff; font-size: 1.15rem; font-weight: 700; cursor: pointer; position: relative; }
+.esc-cell.num { background: #fffbe6; cursor: default; }
+.esc-cell input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.esc-cell:has(input:checked) { background: #ffd9e4; }
+.esc-cell:has(input:checked) span::before { content: '🍬'; font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; }
+.esc-cell:has(input:focus-visible) { outline: 3px solid #5fa8e8; outline-offset: 1px; }
+.esc-order { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; flex: 1 1 100%; }
+.esc-order label { display: flex; flex-direction: column; gap: 2px; font-size: .85rem; color: #fff; }
+.esc-order select { font: inherit; padding: 6px; border: 3px solid var(--ink); background: #fffbe6; min-width: 0; }
 .esc-use { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
 .esc-bag { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; max-width: 760px; margin: 12px auto 0; padding: 8px 10px; border: 3px solid var(--ink); background: #fff6dc; }
 .esc-item { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 2px solid var(--ink); background: #fff; font-size: .85rem; }

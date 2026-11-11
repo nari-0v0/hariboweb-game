@@ -213,6 +213,7 @@ function Focus(props: { run: EscRun; art: string; name: string }) {
   const o = s.focus ? run.def.objects.find((x) => x.id === s.focus) : null;
   const locked = o && isLocked(s, o);
   const puzzle = locked && o.lock!.kind === 'code';
+  const code = o?.lock?.kind === 'code' ? o.lock : null;
   return (
     <div class={`esc-talk${s.fx === 'wrong' ? ' fx-nope' : ''}`}>
       <img class="esc-face" src={o?.face ? `/char/${o.face}.png` : props.art} alt={o?.face ? o.name : props.name} width={72} height={72} />
@@ -260,7 +261,35 @@ function Focus(props: { run: EscRun; art: string; name: string }) {
             <input type="hidden" name="rev" value={String(run.row.rev)} />
             <input type="hidden" name="a" value="code" />
             <input type="hidden" name="o" value={o.id} />
-            {o.lock!.kind === 'code' && o.lock!.choices ? (
+            {o.lock!.kind === 'code' && o.lock!.grid ? (
+              <div class="esc-grid" style={`--w:${o.lock!.grid.w}`}>
+                <input type="hidden" name="gn" value={String(o.lock!.grid.w * o.lock!.grid.h)} />
+                {o.lock!.grid.nums.map((n, i) =>
+                  n === null ? (
+                    <label class="esc-cell">
+                      <input type="checkbox" name={`g${i}`} value="1" aria-label={`${Math.floor(i / code!.grid!.w) + 1}줄 ${(i % code!.grid!.w) + 1}칸`} />
+                      <span aria-hidden="true" />
+                    </label>
+                  ) : (
+                    <span class="esc-cell num">{n}</span>
+                  ),
+                )}
+              </div>
+            ) : o.lock!.kind === 'code' && o.lock!.order ? (
+              <div class="esc-order">
+                {o.lock!.order.map((_, i) => (
+                  <label>
+                    <span>{i + 1}번째</span>
+                    <select name={`t${i}`} required>
+                      <option value="">고르기</option>
+                      {code!.order!.map((nm, k) => (
+                        <option value={String(k + 1)}>{nm}</option>
+                      ))}
+                    </select>
+                  </label>
+                ))}
+              </div>
+            ) : o.lock!.kind === 'code' && o.lock!.choices ? (
               <div class="esc-choices">
                 {o.lock!.choices.map((ch) => (
                   <button class="btn" type="submit" name="v" value={ch}>

@@ -7,7 +7,10 @@ import { ROOMS, ROOM_KEYS, roomByName, type RoomKey } from './case-rooms';
 import { STORY_SEEDS } from './escape-stories';
 import { TALK_CASES } from './escape-talk';
 
-export type Lock = { kind: 'item'; item: string } | { kind: 'code'; code: string; ask: string; choices?: string[] };
+// order: 이름을 순서대로 고르는 문제(답은 이름 번호를 이은 숫자), grid: 칸을 골라 표시하는 문제(답은 칸마다 1/0)
+export type Lock =
+  | { kind: 'item'; item: string }
+  | { kind: 'code'; code: string; ask: string; choices?: string[]; order?: string[]; grid?: { w: number; h: number; nums: (number | null)[] } };
 export type EscObject = {
   id: string;
   scene: string;
@@ -27,6 +30,7 @@ export type EscObject = {
   hidden?: boolean; // 다른 물건을 열어야 보여요
   goto?: string; // 문: 다른 방으로 이동
   at?: string; // 방 그림 속 자리(case-rooms.ts의 자리 id). 없으면 그림 위에 따로 서 있어요(사람·고양이 등)
+  ref?: number; // 만든 사건: 수수께끼 은행 번호(목록 문서·테스트용, 화면엔 안 보여요)
   face?: string; // 인물: 캐릭터 그림(public/char/<face>.png). 잠금은 그 사람이 내는 수수께끼예요
 };
 export type EscCase = {
@@ -44,6 +48,7 @@ export type EscCase = {
   combos?: { a: string; b: string; out: string; text: string }[]; // 가방 속 두 물건 합치기
   level?: number; // 난이도(별 개수)
   solution?: EscAction[]; // 만든 사건의 모범 풀이(테스트용)
+  formats?: string[]; // 만든 사건: 수수께끼 다섯 개를 푸는 방식(목록 문서·테스트용)
   hints: { until: string; text: string }[]; // until = 열린 물건 id 또는 찾은 단서 id
   ending: string;
 };
@@ -494,11 +499,14 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
     if (o.lock!.kind !== 'code' || typeof act.v !== 'string') return null;
     const v = normCode(act.v);
     const digits = /^[0-9]+$/.test(o.lock!.code);
-    if (digits ? !/^[0-9]{1,8}$/.test(v) : !v || v.length > (o.lock!.choices ? 40 : 12)) return null;
-    if (v !== normCode(o.lock!.code)) {
+    const lk = o.lock!;
+    const n = lk.order?.length ?? 0;
+    const shape = lk.grid ? new RegExp(`^[01]{${lk.grid.w * lk.grid.h}}$`) : lk.order ? new RegExp(`^[1-${n}]{${n}}$`) : digits ? /^[0-9]{1,8}$/ : null;
+    if (shape ? !shape.test(v) : !v || v.length > (lk.choices ? 40 : 12)) return null;
+    if (v !== normCode(lk.code)) {
       s.mistakes += 1;
       s.fx = 'wrong';
-      s.msg = digits ? '삐빅! 비밀번호가 틀렸어요.' : '삐빅! 암호가 틀렸어요.';
+      s.msg = lk.grid ? '삐빅! 표시한 칸이 맞지 않아요.' : lk.order ? '삐빅! 순서가 맞지 않아요.' : digits ? '삐빅! 비밀번호가 틀렸어요.' : '삐빅! 암호가 틀렸어요.';
       s.tone = 'bad';
       return s;
     }
