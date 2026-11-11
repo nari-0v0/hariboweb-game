@@ -3,10 +3,16 @@
 // 등장인물은 모두 가상 인물이에요(실제 멤버와 관계없어요).
 
 import { buildCase } from './escape-gen';
+import { ROOMS, ROOM_KEYS, roomByName, type RoomKey } from './case-rooms';
 import { STORY_SEEDS } from './escape-stories';
 import { TALK_CASES } from './escape-talk';
+import { checkUi, type Ui } from './escape-ui';
 
-export type Lock = { kind: 'item'; item: string } | { kind: 'code'; code: string; ask: string; choices?: string[] };
+// order: 이름을 순서대로 고르는 문제(답은 이름 번호를 이은 숫자), grid: 칸을 골라 표시하는 문제(답은 칸마다 1/0)
+export type Lock =
+  | { kind: 'item'; item: string }
+  | { kind: 'code'; code: string; ask: string; choices?: string[]; order?: string[]; grid?: { w: number; h: number; nums: (number | null)[] }; ui?: Ui };
+// ui: 화면에서 직접 움직여 푸는 퍼즐(escape-ui.ts). code는 모범 답 하나이고, 규칙만 맞으면 다른 답도 정답이에요.
 export type EscObject = {
   id: string;
   scene: string;
@@ -25,6 +31,8 @@ export type EscObject = {
   reveals?: string[]; // 열면 새로 보이는 물건
   hidden?: boolean; // 다른 물건을 열어야 보여요
   goto?: string; // 문: 다른 방으로 이동
+  at?: string; // 방 그림 속 자리(case-rooms.ts의 자리 id). 없으면 그림 위에 따로 서 있어요(사람·고양이 등)
+  ref?: number; // 만든 사건: 수수께끼 은행 번호(목록 문서·테스트용, 화면엔 안 보여요)
   face?: string; // 인물: 캐릭터 그림(public/char/<face>.png). 잠금은 그 사람이 내는 수수께끼예요
 };
 export type EscCase = {
@@ -33,7 +41,7 @@ export type EscCase = {
   emoji: string;
   place: string;
   intro: string;
-  scenes: { id: string; name: string; wall: string; floor: string }[];
+  scenes: { id: string; name: string; wall: string; floor: string; bg?: RoomKey }[];
   items: Record<string, { name: string; emoji: string }>;
   clues: Record<string, string>;
   objects: EscObject[];
@@ -42,6 +50,7 @@ export type EscCase = {
   combos?: { a: string; b: string; out: string; text: string }[]; // 가방 속 두 물건 합치기
   level?: number; // 난이도(별 개수)
   solution?: EscAction[]; // 만든 사건의 모범 풀이(테스트용)
+  formats?: string[]; // 만든 사건: 수수께끼 다섯 개를 푸는 방식(목록 문서·테스트용)
   hints: { until: string; text: string }[]; // until = 열린 물건 id 또는 찾은 단서 id
   ending: string;
 };
@@ -73,37 +82,37 @@ const HANDMADE: EscCase[] = [
       cat: '창고 상자 틈에서 젤리 포장지를 이불처럼 깔고 잠든 하얀 고양이를 찾았다.',
     },
     objects: [
-      { id: 'clock', scene: 'pantry', name: '벽시계', emoji: '🕰️', x: 22, y: 12, look: '벽시계가 3시 40분에 멈춰 있어요. 건전지가 다 된 것 같아요.', clue: 'clock' },
-      { id: 'board', scene: 'pantry', name: '메모판', emoji: '📋', x: 48, y: 12, look: '메모판에 쪽지가 붙어 있어요. 「냉장고 비밀번호 = 시계가 멈춘 시각 (숫자 4자리)」' },
+      { id: 'clock', scene: 'pantry', at: 'clock', name: '벽시계', emoji: '🕰️', x: 22, y: 12, look: '벽시계가 3시 40분에 멈춰 있어요. 건전지가 다 된 것 같아요.', clue: 'clock' },
+      { id: 'board', scene: 'pantry', at: 'menu', name: '메뉴판', emoji: '📋', x: 48, y: 12, look: '메뉴판에 쪽지가 붙어 있어요. 「냉장고 비밀번호 = 시계가 멈춘 시각 (숫자 4자리)」' },
       {
-        id: 'fridge', scene: 'pantry', name: '냉장고', emoji: '🧊', x: 14, y: 52, big: true,
+        id: 'fridge', scene: 'pantry', at: 'fridge', name: '냉장고', emoji: '🧊', x: 14, y: 52, big: true,
         look: '냉장고 문에 숫자 자물쇠가 달려 있어요.',
         lock: { kind: 'code', code: '0340', ask: '숫자 4자리' },
         openText: '철컥! 냉장고가 열렸어요. 젤리 단지는 텅 비었고, 단지 둘레에 작은 발자국과 하얀 털이 묻어 있어요.',
         again: '텅 빈 젤리 단지뿐이에요.',
         clue: 'jar',
       },
-      { id: 'plant', scene: 'pantry', name: '화분', emoji: '🪴', x: 40, y: 70, look: '화분을 살짝 들어 보니… 받침 밑에 작은 열쇠가 숨겨져 있어요!', again: '화분 밑에는 이제 아무것도 없어요.', take: ['smallkey'] },
+      { id: 'plant', scene: 'pantry', at: 'basket', name: '과일 바구니', emoji: '🧺', x: 40, y: 70, look: '과일 바구니를 살짝 들어 보니… 바구니 밑에 작은 열쇠가 숨겨져 있어요!', again: '바구니 밑에는 이제 아무것도 없어요.', take: ['smallkey'] },
       {
-        id: 'drawer', scene: 'pantry', name: '서랍장', emoji: '🗃️', x: 62, y: 64,
-        look: '서랍이 잠겨 있어요. 작은 열쇠 구멍이 보여요.',
+        id: 'drawer', scene: 'pantry', at: 'oven', name: '오븐', emoji: '🗃️', x: 62, y: 64,
+        look: '오븐 문이 잠겨 있어요. 작은 열쇠 구멍이 보여요.',
         lock: { kind: 'item', item: 'smallkey' },
-        openText: '작은 열쇠로 서랍을 열었어요. 창고 열쇠, 손전등, 출입 장부가 들어 있어요.',
+        openText: '작은 열쇠로 오븐을 열었어요. 창고 열쇠, 손전등, 출입 장부가 들어 있어요.',
         again: '서랍은 비어 있어요.',
         take: ['storagekey', 'flashlight'],
         clue: 'log',
       },
       {
-        id: 'door1', scene: 'pantry', name: '창고 문', emoji: '🚪', x: 86, y: 50, big: true,
+        id: 'door1', scene: 'pantry', at: 'door', name: '창고 문', emoji: '🚪', x: 86, y: 50, big: true,
         look: '창고로 가는 문이 잠겨 있어요.',
         lock: { kind: 'item', item: 'storagekey' },
         openText: '창고 문이 열렸어요! 한 번 더 누르면 들어가요.',
         goto: 'storage',
       },
       { id: 'door2', scene: 'storage', name: '탕비실로', emoji: '🚪', x: 8, y: 50, big: true, look: '탕비실로 돌아가요.', goto: 'pantry' },
-      { id: 'window', scene: 'storage', name: '작은 창문', emoji: '🪟', x: 70, y: 12, look: '창문 아래쪽이 살짝 열려 있어요. 사람은 못 지나가도 고양이는 지나갈 만해요.', clue: 'window' },
+      { id: 'window', scene: 'storage', at: 'door', name: '철문 쇠창살 창', emoji: '🪟', x: 70, y: 12, look: '철문에 달린 작은 쇠창살 창의 창살 하나가 빠져 있어요. 사람은 못 지나가도 고양이는 지나갈 만해요.', clue: 'window' },
       {
-        id: 'boxes', scene: 'storage', name: '상자 더미', emoji: '📦', x: 52, y: 62, big: true,
+        id: 'boxes', scene: 'storage', at: 'box3', name: '상자 더미', emoji: '📦', x: 52, y: 62, big: true,
         look: '상자 더미 뒤가 너무 깜깜해요. 불빛이 있으면 보일 것 같아요.',
         lock: { kind: 'item', item: 'flashlight' },
         openText: '손전등을 비추자 상자 틈에서 무언가 꿈틀! 젤리 포장지를 이불처럼 깔고 잠든 하얀 고양이예요.',
@@ -112,7 +121,7 @@ const HANDMADE: EscCase[] = [
         reveals: ['cat'],
       },
       { id: 'cat', scene: 'storage', name: '하얀 고양이', emoji: '🐈', x: 76, y: 74, hidden: true, look: '고양이 입가에 젤리 가루가 묻어 있고 배가 빵빵해요. 「냐아…」' },
-      { id: 'broom', scene: 'storage', name: '빗자루', emoji: '🧹', x: 30, y: 66, look: '그냥 빗자루예요. 바닥에 하얀 털이 조금 쓸려 있어요.' },
+      { id: 'broom', scene: 'storage', at: 'broom', name: '빗자루', emoji: '🧹', x: 30, y: 66, look: '그냥 빗자루예요. 바닥에 하얀 털이 조금 쓸려 있어요.' },
     ],
     question: {
       text: '젤리 단지를 비운 범인은 누구일까요?',
@@ -123,8 +132,8 @@ const HANDMADE: EscCase[] = [
     hints: [
       { until: 'plant', text: '탕비실 바닥에 있는 물건 밑을 살펴보세요.' },
       { until: 'drawer', text: '작은 열쇠로 열 수 있는 가구가 있어요.' },
-      { until: 'fridge', text: '메모판과 벽시계를 같이 보세요. 3시 40분은 숫자 4자리로 0340이에요.' },
-      { until: 'door1', text: '서랍에서 나온 열쇠로 창고 문을 열어 보세요.' },
+      { until: 'fridge', text: '메뉴판과 벽시계를 같이 보세요. 3시 40분은 숫자 4자리로 0340이에요.' },
+      { until: 'door1', text: '오븐에서 나온 열쇠로 창고 문을 열어 보세요.' },
       { until: 'boxes', text: '창고의 깜깜한 곳에 손전등을 써 보세요.' },
       { until: '', text: '아무도 들어오지 않았는데 작은 발자국과 털이 남았어요. 창고에서 찾은 것을 떠올려 보세요.' },
     ],
@@ -151,11 +160,11 @@ const HANDMADE: EscCase[] = [
       remote: '관리실 서랍 속 리모컨에 「합창부 연습용」 이름표가 붙어 있었다.',
     },
     objects: [
-      { id: 'sheet', scene: 'music', name: '악보', emoji: '🎼', x: 20, y: 12, look: '악보 구석에 연필 메모가 있어요. 「피아노 의자 비밀번호: 도 미 솔 솔」 그 아래 「도=1 레=2 미=3 파=4 솔=5」' },
-      { id: 'poster', scene: 'music', name: '포스터', emoji: '🖼️', x: 50, y: 12, look: '「합창부 연습 — 매일 밤 9시」 포스터예요. 구석에 낙서가 있어요. 「관리실 열쇠는 똑딱똑딱 속에」' },
+      { id: 'sheet', scene: 'music', at: 'stand', name: '악보', emoji: '🎼', x: 20, y: 12, look: '악보 구석에 연필 메모가 있어요. 「피아노 덮개 비밀번호: 도 미 솔 솔」 그 아래 「도=1 레=2 미=3 파=4 솔=5」' },
+      { id: 'poster', scene: 'music', at: 'poster', name: '포스터', emoji: '🖼️', x: 50, y: 12, look: '「합창부 연습 — 매일 밤 9시」 포스터예요. 구석에 낙서가 있어요. 「관리실 열쇠는 똑딱똑딱 속에」' },
       {
-        id: 'piano', scene: 'music', name: '피아노 의자', emoji: '🎹', x: 22, y: 62, big: true,
-        look: '피아노 의자 뚜껑에 숫자 자물쇠가 달려 있어요.',
+        id: 'piano', scene: 'music', at: 'pianoLow', name: '피아노 아래 덮개', emoji: '🎹', x: 22, y: 62, big: true,
+        look: '피아노 아래 덮개에 숫자 자물쇠가 달려 있어요.',
         lock: { kind: 'code', code: '1355', ask: '숫자 4자리' },
         openText: '딸깍! 의자 속에서 드라이버를 찾았어요.',
         again: '의자 속은 비어 있어요.',
@@ -169,19 +178,19 @@ const HANDMADE: EscCase[] = [
         again: '바닥 안에 무선 수신기가 있어요.',
         clue: 'receiver',
       },
-      { id: 'metronome', scene: 'music', name: '메트로놈', emoji: '⏱️', x: 70, y: 70, look: '메트로놈을 흔들어 보니 안에서 열쇠가 툭 떨어졌어요!', again: '똑딱똑딱… 이제 아무것도 안 나와요.', take: ['officekey'] },
+      { id: 'metronome', scene: 'music', at: 'metro', name: '메트로놈', emoji: '⏱️', x: 70, y: 70, look: '메트로놈을 흔들어 보니 안에서 열쇠가 툭 떨어졌어요!', again: '똑딱똑딱… 이제 아무것도 안 나와요.', take: ['officekey'] },
       {
-        id: 'door1', scene: 'music', name: '관리실 문', emoji: '🚪', x: 88, y: 50, big: true,
+        id: 'door1', scene: 'music', at: 'door', name: '관리실 문', emoji: '🚪', x: 88, y: 50, big: true,
         look: '관리실 문이 잠겨 있어요.',
         lock: { kind: 'item', item: 'officekey' },
         openText: '관리실 문이 열렸어요! 한 번 더 누르면 들어가요.',
         goto: 'office',
       },
-      { id: 'door2', scene: 'office', name: '음악실로', emoji: '🚪', x: 8, y: 50, big: true, look: '음악실로 돌아가요.', goto: 'music' },
-      { id: 'pc', scene: 'office', name: '컴퓨터', emoji: '🖥️', x: 40, y: 58, look: '켜진 화면에 「오르골 원격 재생 예약 — 매일 밤 9시」가 떠 있어요.', clue: 'schedule' },
-      { id: 'calendar', scene: 'office', name: '달력', emoji: '📅', x: 62, y: 12, look: '이번 달 달력에 메모가 있어요. 「합창부 연습 시작 알림은 오르골로! — 합창부 부장」', clue: 'calendar' },
-      { id: 'desk', scene: 'office', name: '책상 서랍', emoji: '🗄️', x: 72, y: 64, look: '서랍을 열어 보니 리모컨이 있어요. 「합창부 연습용」 이름표가 붙어 있어요.', clue: 'remote' },
-      { id: 'mug', scene: 'office', name: '머그컵', emoji: '☕', x: 26, y: 72, look: '식은 코코아예요. 관리인 아저씨는 9시 전에 퇴근한대요.' },
+      { id: 'door2', scene: 'office', at: 'door', name: '음악실로', emoji: '🚪', x: 8, y: 50, big: true, look: '음악실로 돌아가요.', goto: 'music' },
+      { id: 'pc', scene: 'office', at: 'pc', name: '컴퓨터', emoji: '🖥️', x: 40, y: 58, look: '켜진 화면에 「오르골 원격 재생 예약 — 매일 밤 9시」가 떠 있어요.', clue: 'schedule' },
+      { id: 'calendar', scene: 'office', at: 'board', name: '코르크 게시판', emoji: '📅', x: 62, y: 12, look: '게시판에 이번 달 메모가 꽂혀 있어요. 「합창부 연습 시작 알림은 오르골로! — 합창부 부장」', clue: 'calendar' },
+      { id: 'desk', scene: 'office', at: 'deskL', name: '책상 서랍', emoji: '🗄️', x: 72, y: 64, look: '서랍을 열어 보니 리모컨이 있어요. 「합창부 연습용」 이름표가 붙어 있어요.', clue: 'remote' },
+      { id: 'mug', scene: 'office', at: 'mug', name: '머그컵', emoji: '☕', x: 26, y: 72, look: '식은 코코아예요. 관리인 아저씨는 9시 전에 퇴근한대요.' },
     ],
     question: {
       text: '밤마다 오르골이 울린 진짜 이유는 무엇일까요?',
@@ -191,7 +200,7 @@ const HANDMADE: EscCase[] = [
     },
     hints: [
       { until: 'piano', text: '악보 메모대로 음을 숫자로 바꿔 보세요. 도 미 솔 솔 = 1 3 5 5' },
-      { until: 'musicbox', text: '피아노 의자에서 나온 도구로 열 수 있는 물건이 있어요.' },
+      { until: 'musicbox', text: '피아노 덮개에서 나온 도구로 열 수 있는 물건이 있어요.' },
       { until: 'metronome', text: '포스터 낙서의 「똑딱똑딱」은 무엇일까요?' },
       { until: 'door1', text: '찾은 열쇠로 관리실 문을 열어 보세요.' },
       { until: 'schedule', text: '관리실 컴퓨터 화면을 살펴보세요.' },
@@ -219,36 +228,36 @@ const HANDMADE: EscCase[] = [
       robot: '사서 로봇: 「고지도가 찢어져서 수리실로 보냈어요. 기록을 깜빡 안 바꿨어요. 삐빅.」',
     },
     objects: [
-      { id: 'shelf', scene: 'reading', name: '책장', emoji: '📚', x: 20, y: 56, big: true, look: '책 세 권이 삐죽 튀어나와 있어요. 빨강 책 등에 7, 파랑 책에 4, 노랑 책에 9가 적혀 있어요.' },
-      { id: 'globe', scene: 'reading', name: '지구본', emoji: '🌍', x: 44, y: 66, look: '지구본 받침에 글씨가 있어요. 「바다 → 해 → 노을」' },
+      { id: 'shelf', scene: 'reading', at: 'books', name: '책장', emoji: '📚', x: 20, y: 56, big: true, look: '책 세 권이 삐죽 튀어나와 있어요. 빨강 책 등에 7, 파랑 책에 4, 노랑 책에 9가 적혀 있어요.' },
+      { id: 'globe', scene: 'reading', at: 'globe', name: '지구본', emoji: '🌍', x: 44, y: 66, look: '지구본 받침에 글씨가 있어요. 「바다 → 해 → 노을」' },
       {
-        id: 'box', scene: 'reading', name: '작은 금고', emoji: '🧰', x: 64, y: 70,
-        look: '숫자 3자리 자물쇠가 달린 작은 금고예요.',
+        id: 'box', scene: 'reading', at: 'cab', name: '자물쇠 서랍장', emoji: '🧰', x: 64, y: 70,
+        look: '숫자 3자리 자물쇠가 달린 서랍장이에요.',
         lock: { kind: 'code', code: '497', ask: '숫자 3자리' },
         openText: '딸깍! 금고 안에 보관실 열쇠가 있어요.',
         again: '금고는 비어 있어요.',
         take: ['archivekey'],
       },
-      { id: 'lamp', scene: 'reading', name: '스탠드', emoji: '💡', x: 34, y: 12, look: '스탠드 밑에 영수증과 여분 건전지가 있어요. 영수증: 「고지도 — 반납 처리됨. 처리: 사서 로봇」', again: '스탠드 불빛이 따뜻해요.', take: ['battery'], clue: 'receipt' },
-      { id: 'clock', scene: 'reading', name: '시계', emoji: '🕰️', x: 60, y: 12, look: '도서관 문 닫는 시간은 저녁 6시래요.' },
+      { id: 'lamp', scene: 'reading', at: 'candle', name: '촛불', emoji: '🕯️', x: 34, y: 12, look: '촛대 밑에 영수증과 여분 건전지가 있어요. 영수증: 「고지도 — 반납 처리됨. 처리: 사서 로봇」', again: '촛불이 따뜻하게 흔들려요.', take: ['battery'], clue: 'receipt' },
+      { id: 'clock', scene: 'reading', at: 'clock', name: '괘종시계', emoji: '🕰️', x: 60, y: 12, look: '괘종시계가 오후 6시 정각을 가리켜요. 도서관 문 닫는 시간이래요.' },
       {
-        id: 'door1', scene: 'reading', name: '보관실 문', emoji: '🚪', x: 88, y: 50, big: true,
+        id: 'door1', scene: 'reading', at: 'door', name: '보관실 문', emoji: '🚪', x: 88, y: 50, big: true,
         look: '보관실 문이 잠겨 있어요.',
         lock: { kind: 'item', item: 'archivekey' },
         openText: '보관실 문이 열렸어요! 한 번 더 누르면 들어가요.',
         goto: 'archive',
       },
-      { id: 'door2', scene: 'archive', name: '열람실로', emoji: '🚪', x: 8, y: 50, big: true, look: '열람실로 돌아가요.', goto: 'reading' },
-      { id: 'cabinet', scene: 'archive', name: '지도 보관함', emoji: '🗄️', x: 38, y: 56, big: true, look: '「고지도」 칸이 비어 있어요. 대신 「수리 중」 쪽지가 꽂혀 있어요.', clue: 'empty' },
+      { id: 'door2', scene: 'archive', at: 'door', name: '열람실로', emoji: '🚪', x: 8, y: 50, big: true, look: '열람실로 돌아가요.', goto: 'reading' },
+      { id: 'cabinet', scene: 'archive', at: 'box2', name: '지도 보관 상자', emoji: '🗄️', x: 38, y: 56, big: true, look: '「고지도」 칸이 비어 있어요. 대신 「수리 중」 쪽지가 꽂혀 있어요.', clue: 'empty' },
       {
-        id: 'robot', scene: 'archive', name: '사서 로봇', emoji: '🤖', x: 66, y: 64, big: true,
+        id: 'robot', scene: 'archive', at: 'robot', name: '사서 로봇', emoji: '🤖', x: 66, y: 64, big: true,
         look: '사서 로봇이 꺼져 있어요. 등에 빈 건전지 칸이 보여요.',
         lock: { kind: 'item', item: 'battery' },
         openText: '건전지를 넣자 로봇이 깨어났어요. 「삐빅! 고지도가 찢어져서 수리실로 보냈어요. 기록을 깜빡 안 바꿨어요.」',
         again: '「삐빅! 고지도는 수리실에 있어요.」',
         clue: 'robot',
       },
-      { id: 'scroll', scene: 'archive', name: '두루마리', emoji: '📜', x: 60, y: 14, look: '오래된 회관 설계도예요. 고지도는 아니에요.' },
+      { id: 'scroll', scene: 'archive', at: 'box1', name: '맨 위 상자', emoji: '📜', x: 60, y: 14, look: '두루마리가 들어 있어요. 오래된 회관 설계도예요. 고지도는 아니에요.' },
     ],
     question: {
       text: '고지도는 지금 어디에 있을까요?',
@@ -258,10 +267,10 @@ const HANDMADE: EscCase[] = [
     },
     hints: [
       { until: 'box', text: '지구본 순서대로 책 색깔을 고르세요. 바다=파랑, 해=노랑, 노을=빨강 → 4 9 7' },
-      { until: 'door1', text: '금고에서 나온 열쇠로 보관실 문을 열어 보세요.' },
-      { until: 'lamp', text: '열람실 위쪽 불빛 근처를 살펴보세요.' },
+      { until: 'door1', text: '서랍장에서 나온 열쇠로 보관실 문을 열어 보세요.' },
+      { until: 'lamp', text: '책상 위 불빛 근처를 살펴보세요.' },
       { until: 'robot', text: '꺼진 로봇에 넣을 것이 있어요.' },
-      { until: '', text: '보관함 쪽지와 로봇의 말을 함께 생각해 보세요.' },
+      { until: '', text: '보관 상자 쪽지와 로봇의 말을 함께 생각해 보세요.' },
     ],
     ending: '고지도는 찢어져서 수리실에 가 있었어요! 사서 로봇이 기록을 바꾸는 걸 깜빡했던 거예요. 다음 주면 깨끗하게 고쳐진 고지도가 돌아온대요.',
   },
@@ -269,7 +278,25 @@ const HANDMADE: EscCase[] = [
 
 // 손으로 만든 입문 사건 3개(★) + 이야기 씨앗으로 만든 사건 47개(★★★)
 // 어려운 사건(★★★)이 먼저, 손으로 만든 입문 사건(★)은 맨 뒤에 둬요.
-export const ESCAPE_CASES: EscCase[] = [...TALK_CASES, ...STORY_SEEDS.map((x) => buildCase(x)), ...HANDMADE.map((c) => ({ ...c, level: 1 }))];
+// 손으로 만든 사건도 방마다 그림을 정하고, 물건 위치를 그림 속 자리 가운데로 맞춰요.
+function placeRooms(c: EscCase): EscCase {
+  const used: RoomKey[] = [];
+  const scenes = c.scenes.map((sc) => {
+    const want = sc.bg ?? roomByName(sc.name);
+    const bg = want && !used.includes(want) ? want : ROOM_KEYS.find((k) => !used.includes(k))!;
+    used.push(bg);
+    return { ...sc, bg };
+  });
+  const objects = c.objects.map((o) => {
+    const bg = scenes.find((sc) => sc.id === o.scene)!.bg;
+    const h = o.at ? ROOMS[bg].spots.find((x) => x.id === o.at) : null;
+    if (o.at && !h) throw new Error(`없는 자리: ${c.id} ${o.id} ${o.at}`);
+    return h ? { ...o, x: h.x, y: h.y } : o;
+  });
+  return { ...c, scenes, objects };
+}
+
+export const ESCAPE_CASES: EscCase[] = [...TALK_CASES, ...STORY_SEEDS.map((x, i) => buildCase(x, 3, i)), ...HANDMADE.map((c) => ({ ...c, level: 1 }))].map(placeRooms);
 
 export const escCase = (id: string) => ESCAPE_CASES.find((c) => c.id === id);
 
@@ -474,11 +501,30 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
     if (o.lock!.kind !== 'code' || typeof act.v !== 'string') return null;
     const v = normCode(act.v);
     const digits = /^[0-9]+$/.test(o.lock!.code);
-    if (digits ? !/^[0-9]{1,8}$/.test(v) : !v || v.length > 12) return null;
-    if (v !== normCode(o.lock!.code)) {
+    const lk = o.lock!;
+    if (lk.ui) {
+      if (!act.v || act.v.length > 900) return null;
+      if (!checkUi(lk.ui, act.v.trim())) {
+        s.mistakes += 1;
+        s.fx = 'wrong';
+        s.msg = '삐빅! 아직 풀리지 않았어요. 처음부터 다시 해 보세요.';
+        s.tone = 'bad';
+        return s;
+      }
+      add(s.opened, o.id);
+      gain(s, o);
+      s.msg = o.openText ?? o.look;
+      s.tone = 'good';
+      s.fx = 'right';
+      return s;
+    }
+    const n = lk.order?.length ?? 0;
+    const shape = lk.grid ? new RegExp(`^[01]{${lk.grid.w * lk.grid.h}}$`) : lk.order ? new RegExp(`^[1-${n}]{${n}}$`) : digits ? /^[0-9]{1,8}$/ : null;
+    if (shape ? !shape.test(v) : !v || v.length > (lk.choices ? 40 : 12)) return null;
+    if (v !== normCode(lk.code)) {
       s.mistakes += 1;
       s.fx = 'wrong';
-      s.msg = digits ? '삐빅! 비밀번호가 틀렸어요.' : '삐빅! 암호가 틀렸어요.';
+      s.msg = lk.grid ? '삐빅! 표시한 칸이 맞지 않아요.' : lk.order ? '삐빅! 순서가 맞지 않아요.' : digits ? '삐빅! 비밀번호가 틀렸어요.' : '삐빅! 암호가 틀렸어요.';
       s.tone = 'bad';
       return s;
     }

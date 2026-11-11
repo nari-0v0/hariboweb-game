@@ -42,7 +42,8 @@ def backgrounds(pairs: list[str]) -> None:
     for p in pairs:
         name, src = p.split("=", 1)
         img = Image.open(src).convert("RGB")
-        w = 1200 if img.width / img.height > 2 else 1000
+        # 사건파일 방은 눌러서 크게 확대해 보므로 더 크게 둬요.
+        w = 1500 if name.startswith("case/room/") else 1200 if img.width / img.height > 2 else 1000
         img = img.resize((w, round(img.height * w / img.width)), Image.LANCZOS)
         dst = PUBLIC / f"{name}.webp"
         dst.parent.mkdir(parents=True, exist_ok=True)

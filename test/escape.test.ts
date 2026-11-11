@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ESCAPE_CASES, escCase, actEscape, canAnswer, escGrade, isLocked, startEscape, visible, type EscAction, type EscCase, type EscState } from '../src/escape';
 import { actEscapeRun, activeEscape, beginEscape, escapeRecord, getEscape, quitEscape } from '../src/escape-db';
+import { checkUi } from '../src/escape-ui';
 
 function database() {
   const sql = new DatabaseSync(':memory:');
@@ -132,11 +133,43 @@ describe('사건파일 방탈출 내용', () => {
       expect(left(3)[0]).toContain(c.question.options[c.question.correct]!.split(' (')[0]);
     }
   });
-  it('만든 사건: 퍼즐 종류가 사건마다 섞여 있어요', () => {
-    const kinds = (c: EscCase) => new Set(c.objects.map((o) => o.id.replace(/\d+$/, '')).filter((k) => ['mm', 'cntn', 'col', 'alg', 'let', 'clkn', 'lmpn'].includes(k)));
-    const all = new Set(ESCAPE_CASES.filter((c) => c.solution && !c.id.endsWith("-talk")).flatMap((c) => [...kinds(c)]));
-    expect(all.size).toBe(7);
-    for (const c of ESCAPE_CASES.filter((x) => x.solution && !x.id.endsWith("-talk"))) expect(kinds(c).size, c.id).toBeGreaterThanOrEqual(3);
+  it('만든 사건: 은행 235문제를 한 번씩만 쓰고, 한 사건 안에서는 조작·내는 방식이 겹치지 않아요', async () => {
+    const { BANK } = await import('../src/escape-bank');
+    const made = ESCAPE_CASES.filter((c) => (c.level ?? 1) > 1 && !c.id.includes('-talk'));
+    expect(made.length).toBe(47);
+    expect(BANK.length).toBe(235);
+    expect(new Set(BANK.map((b) => b.idea)).size).toBe(BANK.length);
+    const nos = made.flatMap((c) => c.objects.flatMap((o) => o.ref ?? []));
+    expect(nos.length).toBe(235);
+    expect(new Set(nos).size).toBe(235);
+    const cards = made.flatMap((c) => c.objects.filter((o) => o.id.startsWith('rdn')).map((o) => o.look.split('\n')[1]));
+    expect(new Set(cards).size).toBe(cards.length);
+    for (const c of made) expect(new Set(c.formats).size, `${c.id} ${c.formats}`).toBe(5);
+    const all = new Set(made.flatMap((c) => c.formats!));
+    expect(all.size).toBeGreaterThanOrEqual(20);
+  });
+  it('수수께끼 은행: 장치는 모범 풀이로 풀리고, 고르기 답은 보기 안에 있어요', async () => {
+    const { BANK } = await import('../src/escape-bank');
+    for (const b of BANK) {
+      if (b.kind === 'ui') expect(checkUi(b.ui!, b.a!), b.idea).toBe(true);
+      if (b.kind === 'ui') expect(checkUi(b.ui!, ''), b.idea).toBe(false);
+      if (b.kind === 'order') expect([...b.a!].sort().join(''), b.idea).toBe(b.names!.map((_, i) => i + 1).join(''));
+      if (b.kind !== 'text') continue;
+      if (b.choices) expect(b.choices, b.idea).toContain(b.a);
+      else expect(b.a!.replace(/\s/g, '').length, b.idea).toBeLessThanOrEqual(/^[0-9]+$/.test(b.a!) ? 8 : 12);
+    }
+  });
+  it('장치 답: 규칙에 안 맞는 움직임은 실수, 맞으면 열려요', () => {
+    const c = ESCAPE_CASES.find((x) => x.objects.some((o) => o.lock?.kind === 'code' && o.lock.ui?.t === 'pour'))!;
+    const o = c.objects.find((x) => x.lock?.kind === 'code' && x.lock.ui?.t === 'pour')!;
+    const lk = o.lock as { code: string };
+    let s = startEscape(c);
+    for (const a of c.solution!) {
+      if (a.a === 'code' && a.o === o.id) break;
+      s = actEscape(c, s, a)!;
+    }
+    expect(actEscape(c, s, { a: 'code', o: o.id, v: '01' })!.mistakes).toBe(s.mistakes + 1);
+    expect(actEscape(c, s, { a: 'code', o: o.id, v: lk.code })!.opened).toContain(o.id);
   });
   it('합치기: 맞는 짝은 도구가 되고, 안 맞는 짝은 실수예요', () => {
     const c = ESCAPE_CASES.find((x) => x.combos)!;
@@ -308,10 +341,18 @@ describe('사건파일 퍼즐 게임 방식', () => {
 });
 
 describe('사건파일 그림', () => {
-  it('모든 사건의 물건과 소지품에 나리님 그림이 있어요', async () => {
+  it('모든 물건이 방 그림 속 자리에 있고, 한 자리엔 하나만 있어요', async () => {
     const { casePics, itemPic } = await import('../src/case-art');
+    const { ROOMS } = await import('../src/case-rooms');
     for (const c of ESCAPE_CASES) {
-      for (const o of c.objects.filter((x) => !x.face)) expect(casePics(o.emoji, false, false), `${c.id}/${o.id} ${o.emoji}`).not.toBeNull();
+      for (const sc of c.scenes) {
+        expect(sc.bg, `${c.id}/${sc.id}`).toBeTruthy();
+        const ats = c.objects.filter((o) => o.scene === sc.id && o.at).map((o) => o.at!);
+        expect(new Set(ats).size, `${c.id}/${sc.id} 겹침`).toBe(ats.length);
+        for (const at of ats) expect(ROOMS[sc.bg!].spots.some((h) => h.id === at), `${c.id}/${sc.id} ${at}`).toBe(true);
+      }
+      // 자리가 없는 건 돌아가는 문, 사람, 또는 그림이 따로 있는 물건(고양이·오르골)뿐이에요.
+      for (const o of c.objects.filter((x) => !x.at && !x.face && !x.goto)) expect(casePics(o.emoji, false, false), `${c.id}/${o.id} ${o.emoji}`).not.toBeNull();
       for (const [k, it] of Object.entries(c.items)) expect(itemPic(it.emoji), `${c.id}/${k} ${it.emoji}`).not.toBeNull();
     }
   });
@@ -354,5 +395,50 @@ describe('힌트 기록', () => {
     s = actEscape(c, s, { a: 'hint' })!;
     expect(s.hints).toBe(1);
     expect(s.seenHints).toEqual([k]);
+  });
+});
+
+describe('방 그림 확대', () => {
+  it('시계는 멈춘 시각으로 바늘을 돌려요', async () => {
+    const { clockTime } = await import('../src/views/escape');
+    expect(clockTime('벽시계가 오후 3시 40분에 멈춰 있어요.')).toEqual([3, 40]);
+    expect(clockTime('괘종시계가 오후 6시 정각을 가리켜요.')).toEqual([6, 0]);
+    expect(clockTime('시계가 오전 12시 5분')).toEqual([0, 5]);
+    expect(clockTime('특별한 건 없어요.')).toBeNull();
+  });
+  it('시계 자리가 있는 방은 시계 판 위치가 그 자리 안에 있어요', async () => {
+    const { ROOMS } = await import('../src/case-rooms');
+    for (const r of Object.values(ROOMS))
+      for (const h of r.spots.filter((x) => x.face)) {
+        expect(Math.abs(h.face![0] - h.x), `${r.key}/${h.id}`).toBeLessThan(h.w / 2);
+        expect(Math.abs(h.face![1] - h.y), `${r.key}/${h.id}`).toBeLessThan(h.h / 2);
+      }
+  });
+});
+
+describe('방 그림 56장', () => {
+  it('그림 파일이 다 있고, 방마다 문·잠긴 곳·서로 다른 수수께끼가 있어요', async () => {
+    const { readdirSync } = await import('node:fs');
+    const files = new Set(readdirSync('public/case/room'));
+    const { ROOMS, ROOM_KEYS, roomByName } = await import('../src/case-rooms');
+    expect(ROOM_KEYS.length).toBe(56);
+    for (const k of ROOM_KEYS) {
+      const r = ROOMS[k];
+      expect(files.has(`${k}.webp`), k).toBe(true);
+      expect(r.spots.filter((h) => h.tag?.includes('door')).length, `${k} 문`).toBe(1);
+      expect(r.spots.filter((h) => h.tag?.includes('lock')).length, `${k} 잠긴 곳`).toBeGreaterThanOrEqual(2);
+      const rids = r.spots.flatMap((h) => (h.rid && !h.tag?.includes('lock') ? [h.rid] : []));
+      expect(rids.length, `${k} 수수께끼`).toBeGreaterThanOrEqual(3);
+      expect(new Set(rids).size, `${k} 같은 답`).toBe(rids.length);
+      expect(new Set(r.spots.map((h) => h.id)).size, `${k} 같은 id`).toBe(r.spots.length);
+      for (const h of r.spots) {
+        expect(h.x - h.w / 2, `${k}/${h.id}`).toBeGreaterThanOrEqual(-1);
+        expect(h.x + h.w / 2, `${k}/${h.id}`).toBeLessThanOrEqual(101);
+      }
+    }
+    // 모든 그림이 적어도 한 사건 방 이름에 쓰여요.
+    const used = new Set(ESCAPE_CASES.flatMap((c) => c.scenes.map((s) => s.bg)));
+    for (const k of ROOM_KEYS) expect(used.has(k), `${k} 안 쓰임`).toBe(true);
+    expect(roomByName('편집실')).toBe('newsroom');
   });
 });

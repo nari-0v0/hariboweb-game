@@ -42,13 +42,13 @@ export const TALK_CASES: EscCase[] = [
         clue: 'doto',
       },
       {
-        id: 'door1', scene: 'pantry', name: '음악실 문', emoji: '🚪', x: 86, y: 50, big: true,
+        id: 'door1', scene: 'pantry', at: 'door', name: '음악실 문', emoji: '🚪', x: 86, y: 50, big: true,
         look: '문 자물쇠에 글이 새겨져 있어요. 「어제의 내일의 모레가 금요일이라면, 오늘은 무슨 요일?」',
         lock: { kind: 'code', code: '수요일', ask: '요일', choices: ['월요일', '화요일', '수요일', '목요일', '토요일'] },
         openText: '딸깍! 음악실 문이 열렸어요. 한 번 더 누르면 들어가요.',
         goto: 'music',
       },
-      { id: 'mug', scene: 'pantry', name: '머그컵', emoji: '☕', x: 40, y: 72, look: '식은 코코아예요. 컵 바닥에 「체리」라고 적혀 있어요.' },
+      { id: 'mug', scene: 'pantry', at: 'crate', name: '나무 상자', emoji: '☕', x: 40, y: 72, look: '나무 상자 바닥에 식은 코코아가 든 머그컵이 있어요. 컵 바닥에 「체리」라고 적혀 있어요.' },
       { id: 'back1', scene: 'music', name: '탕비실로', emoji: '🚪', x: 8, y: 50, big: true, look: '탕비실로 돌아가요.', goto: 'pantry' },
       {
         id: 'bori', scene: 'music', name: '보리', emoji: '🙂', face: 'boy-03-0', x: 36, y: 60,
@@ -58,9 +58,9 @@ export const TALK_CASES: EscCase[] = [
         again: '「구두 소리였어요. 운동화는 그런 소리가 안 나죠.」',
         clue: 'heels',
       },
-      { id: 'sheet', scene: 'music', name: '악보', emoji: '🎼', x: 60, y: 14, look: '악보 여백에 「진열장 비번은 하루만 알아요」라고 적혀 있어요.' },
+      { id: 'sheet', scene: 'music', at: 'stand', name: '악보', emoji: '🎼', x: 60, y: 14, look: '악보 여백에 「진열장 비번은 하루만 알아요」라고 적혀 있어요.' },
       {
-        id: 'door2', scene: 'music', name: '서재 문', emoji: '🚪', x: 88, y: 50, big: true,
+        id: 'door2', scene: 'music', at: 'door', name: '서재 문', emoji: '🚪', x: 88, y: 50, big: true,
         look: '서재 문 자물쇠의 수수께끼: 「책 한 권의 1쪽부터 마지막 쪽까지 쪽 번호를 쓰는 데 숫자 192개를 썼어요. 이 책은 몇 쪽일까요?」',
         lock: { kind: 'code', code: '100', ask: '쪽' },
         openText: '딸깍! 서재 문이 열렸어요. 한 번 더 누르면 들어가요.',
@@ -76,7 +76,7 @@ export const TALK_CASES: EscCase[] = [
         clue: 'shoes',
       },
       {
-        id: 'case', scene: 'study', name: '진열장', emoji: '🗄️', x: 56, y: 58, big: true,
+        id: 'case', scene: 'study', at: 'cab', name: '진열장', emoji: '🗄️', x: 56, y: 58, big: true,
         look: '진열장 자물쇠에 하루의 글씨: 「100명이 한 판에 한 명씩 떨어지는 토너먼트를 해요. 우승자가 나올 때까지 몇 판을 해야 할까요?」',
         lock: { kind: 'code', code: '99', ask: '판' },
         openText: '진열장이 열렸어요. 트로피 자리는 비었고, 열쇠 구멍 둘레에 찰흙 부스러기가 묻어 있어요. 누군가 찰흙으로 열쇠 본을 떴던 것 같아요.',
