@@ -1936,3 +1936,7 @@ main.wide { max-width: 1320px; }
 .gb-move-button:hover:not(:disabled) { background: #3a2026; }
 .gb-move-button:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #000, inset 0 0 0 1px #5a3a1a; }
 @media (max-width: 520px) { .gb-bet-steps .gb-amount-button { grid-column: span 2; } }
+/* 나리가 그린 카드 뒷면: 그림에 테두리가 있어서 칸 테두리·바탕은 빼요. */
+.gb-card-back:has(> .gb-art), .gb-card-deck:has(> .gb-art) { border: 0; box-shadow: none; background: none; }
+.gb-card-deck:has(> .gb-art) { width: 3.3rem; height: auto; aspect-ratio: 424 / 592; }
+.gb-card-back .gb-art, .gb-card-deck .gb-art { image-rendering: pixelated; }

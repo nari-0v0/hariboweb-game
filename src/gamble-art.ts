@@ -17,7 +17,7 @@ export const GAMBLE_ART: Record<string, GambleArt> = {
   slotFrame: { text: '', image: '/gamble/slot-frame.webp?v=1' },
   wheel: { text: '', image: '/gamble/wheel-rim.webp?v=1' },
   pointer: { text: '▼', image: '/gamble/pointer.webp?v=1' },
-  cardBack: { text: '🂠' },
+  cardBack: { text: '🂠', image: '/gamble/card-back.webp?v=1' },
   cardFront: { text: '' },
 };
 export const SLOT_ART = ['cherry', 'lemon', 'star', 'seven'] as const;
