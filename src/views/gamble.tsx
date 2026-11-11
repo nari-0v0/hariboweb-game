@@ -186,6 +186,21 @@ export function GamblePage(props: {
           )}
         </section>
         {settled && <Result round={settled} balance={balance} />}
+        {props.hand && (
+          <section class="gb-panel gb-result gb-active-hand" aria-label="진행 중인 카드 21"
+            data-gb-motion={playingHand ? 'cards' : undefined}
+            data-gb-key={playingHand ? `${playingHand.token}:${playingHand.revision}:active` : undefined}>
+            <h2><Art name="cards" /> 카드 21 진행 중</h2>
+            <p>건 칩 {chips(props.hand.bet)}개 · 한국 시간 자정이 되면 자동으로 멈춰요.</p>
+            <Cards round={props.hand} />
+            <form class="gb-form" method="post" action="/gamble/cards" data-gb-card-actions="">
+              <input type="hidden" name="token" value={props.hand.token} />
+              <input type="hidden" name="revision" value={props.hand.revision} />
+              <button class="gb-button" name="move" value="hit" type="submit">한 장 더</button>
+              <button class="gb-button" name="move" value="stand" type="submit">멈추기</button>
+            </form>
+          </section>
+        )}
         <noscript>걸 칩을 고르려면 자바스크립트를 켜 주세요.</noscript>
         <div class="gb-games">
           <section class="gb-panel">
@@ -205,20 +220,7 @@ export function GamblePage(props: {
             <h2><Art name="cards" /> 카드 21</h2>
             <p>21을 넘기지 않고 딜러보다 21에 가까우면 이겨요. 딜러는 17점부터 멈춰요.</p>
             <p>승리 2배 · 첫 두 장으로 21을 만들어 이기면 3배 · 비기면 1배</p>
-            {props.hand ? (
-              <div id={playingHand ? 'gb-result' : undefined} class="gb-active-hand"
-                data-gb-motion={playingHand ? 'cards' : undefined}
-                data-gb-key={playingHand ? `${playingHand.token}:${playingHand.revision}:active` : undefined}>
-                <p>건 칩 {chips(props.hand.bet)}개 · 한국 시간 자정이 되면 자동으로 멈춰요.</p>
-                <Cards round={props.hand} />
-                <form class="gb-form" method="post" action="/gamble/cards" data-gb-card-actions="">
-                  <input type="hidden" name="token" value={props.hand.token} />
-                  <input type="hidden" name="revision" value={props.hand.revision} />
-                  <button class="gb-button" name="move" value="hit" type="submit">한 장 더</button>
-                  <button class="gb-button" name="move" value="stand" type="submit">멈추기</button>
-                </form>
-              </div>
-            ) : <BetForm game="cards" balance={balance} />}
+            {props.hand ? <p>진행 중인 판은 위 노란 상자에서 이어서 해요.</p> : <BetForm game="cards" balance={balance} />}
           </section>
         </div>
         <h2>겜블장 순위</h2>
