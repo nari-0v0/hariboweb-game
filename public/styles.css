@@ -1519,11 +1519,14 @@ main.wide { max-width: 1320px; }
 .esc-game .jr-hud-ch { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── 사건파일 조작 퍼즐 (escape-ui.js) ── */
-.esc-ui-wrap { flex: 1 1 100%; min-width: 0; }
+.esc-ui-wrap { flex: 1 1 100%; min-width: 0; padding: 10px 8px; background: #2f2a44; border: 3px solid var(--ink); }
+/* 장치 안 밝은 칸·버튼은 늘 진한 글씨(기기 기본 글자색이 흰색이어도 보이게) */
+.esc-ui button, .esc-ui select, .esc-ui input, .esc-ui-cell, .esc-ui-piece, .esc-ui-col .disk, .esc-ui-jug, .esc-ui-river .boat, .esc-ui-river .bank, .esc-order select, .esc-choices button { color: var(--ink); -webkit-text-fill-color: currentColor; }
+.esc-ui-board.mark .esc-ui-cell.shade, .esc-ui-cell.wall { color: #fff; }
 .esc-ui { display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--ink); }
 .esc-ui-say { margin: 0; min-height: 1.4em; color: #fff; font-size: .9rem; text-align: center; }
 .esc-ui-say.bad { color: #ffb3c4; }
-.esc-ui .hint { color: #dfe8ff; margin: 0; font-size: .8rem; text-align: center; }
+.esc-ui .hint, .esc-game .esc-bubble .esc-ui .hint { color: #fff; opacity: .9; margin: 0; font-size: .8rem; text-align: center; }
 .esc-ui-board { position: relative; display: grid; grid-template-columns: repeat(var(--w), 1fr); width: min(100%, calc(var(--w) * 52px)); gap: 3px; padding: 3px; background: #b9d6ee; border: 3px solid var(--ink); }
 .esc-ui-board.mini { width: calc(var(--w) * 18px); gap: 1px; padding: 1px; }
 .esc-ui-board.mini .esc-ui-cell { font-size: .6rem; }
