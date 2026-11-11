@@ -381,7 +381,9 @@ function Play(props: { run: EscRun; art: string; name: string }) {
   const backs = things.filter((o) => !o.at && o.goto && !o.face);
   const standing = things.filter((o) => !o.at && !(o.goto && !o.face));
   const focusObj = s.focus ? things.find((o) => o.id === s.focus) : undefined;
-  const lens = focusObj?.at ? room.spots.find((h) => h.id === focusObj.at) : undefined;
+  // 확대(끌어서 둘러보기)는 눈으로 읽어야 할 게 있을 때만: 멈춘 시계 바늘, 적힌 시각·글씨.
+  const spot = focusObj?.at ? room.spots.find((h) => h.id === focusObj.at) : undefined;
+  const lens = spot && ((spot.face && clockTime(s.msg)) || zoomTag(s.msg)) ? spot : undefined;
   return (
     <>
       <section class="jr-game esc-game" id="now">
