@@ -42,7 +42,7 @@ function BetForm({ game, balance, previousBet }: { game: Game; balance: number; 
         <span>걸 칩</span><output class="gb-bet-amount" aria-label="걸 칩">{chips(bet)}개</output>
       </div>
       <div class="gb-bet-steps" role="group" aria-label="걸 칩 고르기">
-        {BET_STEPS.map((step) => <button class="gb-button gb-chip-button" type="button" data-gb-bet={step} disabled={!balance}><span>+{step >= 1000 ? `${step / 1000}천`.replace('10천', '1만') : step}</span></button>)}
+        {BET_STEPS.map((step) => <button class="gb-button gb-amount-button" type="button" data-gb-bet={step} disabled={!balance}><span>+{step >= 1000 ? `${step / 1000}천`.replace('10천', '1만') : step}</span></button>)}
         <button class="gb-button" type="button" data-gb-bet="all" disabled={!balance}>올인</button>
         <button class="gb-button" type="button" data-gb-bet="clear" disabled={!balance}>지우기</button>
       </div>
