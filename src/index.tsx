@@ -800,8 +800,8 @@ members.post('/gamble/play', async (c) => {
   }
   await expireHand(db, user, now);
   const round = await betChips(db, user, game, Number(bet), token, now);
-  return c.redirect(round ? `/gamble?r=${round.token}#gb-result` :
-    game === 'cards' && await activeHand(db, user) ? '/gamble?n=active#gb-cards' : '/gamble?n=bet', 303);
+  return c.redirect(round ? `/gamble?r=${round.token}` :
+    game === 'cards' && await activeHand(db, user) ? '/gamble?n=active' : '/gamble?n=bet', 303);
 });
 
 members.post('/gamble/cards', async (c) => {
@@ -811,7 +811,7 @@ members.post('/gamble/cards', async (c) => {
     (move !== 'hit' && move !== 'stand')) return c.redirect('/gamble', 303);
   const user = c.get('viewer').user_id;
   await moveHand(c.env.DB, user, token, Number(revision), move, new Date().toISOString());
-  return c.redirect(`/gamble?r=${token}#gb-result`, 303);
+  return c.redirect(`/gamble?r=${token}`, 303);
 });
 
 members.post('/gamble/rescue', async (c) => {
