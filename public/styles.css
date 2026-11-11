@@ -52,7 +52,7 @@ img, svg { image-rendering: pixelated; }
 @keyframes float { from { translate: -20vw 0; } to { translate: 120vw 0; } }
 
 /* 공통 픽셀 상자 */
-.panel, .step, .tiles, .topbar, .btn, .chip, .filter span, input:not([type=radio]), .notice {
+.panel, .step, .tiles, .topbar, .btn, .chip, .filter span, input:not([type=radio]):not([type=checkbox]), .notice {
   clip-path: var(--notch);
 }
 .panel {
@@ -213,10 +213,10 @@ img, svg { image-rendering: pixelated; }
 .stack { display: grid; gap: 20px; }
 .field { display: grid; gap: 6px; }
 .field > span, .themes legend { font-weight: 700; }
-input:not([type=radio]) {
+input:not([type=radio]):not([type=checkbox]) {
   width: 100%; padding: 10px 12px; border: 3px solid var(--ink); background: #fff; color: var(--ink); font: inherit; outline: none;
 }
-input:not([type=radio]):focus { background: #fff6fa; border-color: var(--pink); }
+input:not([type=radio]):not([type=checkbox]):focus { background: #fff6fa; border-color: var(--pink); }
 .themes { border: 0; padding: 0; margin: 0; }
 .themes legend { padding: 0; margin-bottom: 8px; }
 .theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 12px 10px; margin-bottom: 8px; }
@@ -1590,7 +1590,9 @@ main.wide { max-width: 1320px; }
 .esc-ui-assign label { display: flex; flex-direction: column; gap: 2px; color: #fff; font-size: .8rem; }
 .esc-ui-assign select { font: inherit; padding: 5px; border: 3px solid var(--ink); background: #fffbe6; min-width: 0; }
 .esc-ui-multi { grid-template-columns: 1fr; }
-.esc-ui-multi label { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; background: #fff; border: 2px solid var(--ink); font-size: .9rem; }
+.esc-ui-multi label { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; background: #fff; border: 2px solid var(--ink); font-size: .9rem; color: var(--ink); cursor: pointer; }
+.esc-ui-multi input { width: 20px; height: 20px; margin: 1px 0 0; flex: none; accent-color: var(--pink); }
+.esc-ui-multi label:has(input:checked) { background: #ffe9a8; }
 .esc-ui-board.path .esc-ui-cell.on { background: #ffd9e4; }
 .esc-ui-board.path .esc-ui-cell.head { background: #ff9fbd; }
 .esc-ui-board.path .esc-ui-cell[data-mark] { color: #b0306a; }
