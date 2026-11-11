@@ -729,9 +729,6 @@ export function EscapePage(props: {
           </section>
         )}
         <FictionNote />
-        <p class="hint">
-          예전 방식도 할 수 있어요: <a href="/cases">무작위 사건</a> · <a href="/cases/story">연재 사건</a>
-        </p>
       </div>
     </Layout>
   );

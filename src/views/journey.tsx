@@ -607,9 +607,6 @@ export function JourneyPage(props: {
         )}
         <PerkPanel bank={props.bank} going={!!run} unlocked={record.unlocked} />
         <FictionNote />
-        <p class="hint">
-          예전 방식도 할 수 있어요: <a href="/expedition">대원 원정</a> · <a href="/expedition/story">지도 탐사</a>
-        </p>
       </div>
     </Layout>
   );

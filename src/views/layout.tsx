@@ -1,3 +1,4 @@
+import { OWNER_CONTACT_URL } from '../contact';
 import { PREFETCH_RULES } from '../prefetch';
 import type { Child } from 'hono/jsx';
 import type { Member } from '../env';
@@ -26,7 +27,7 @@ export function Layout(props: {
         {props.refresh && <meta http-equiv="refresh" content={`${props.refresh.seconds}; url=${props.refresh.url}`} />}
         <title>{props.title} · 하리보 멤버 도감</title>
         <link rel="preload" href="/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin="" />
-        <link rel="stylesheet" href="/styles.css?v=esc-ui-6" />
+        <link rel="stylesheet" href="/styles.css?v=help-1" />
         <script src="/app.js?v=fast-act-1" defer></script>
         {props.scripts?.map((src) => <script src={src} defer></script>)}
         {props.viewer && <script type="speculationrules" dangerouslySetInnerHTML={{ __html: PREFETCH_RULES }} />}
@@ -63,11 +64,16 @@ export function Layout(props: {
               {nav('cases', '/cases/room', '사건파일', '🔎')}
               {nav('shop', '/shop', '상점', '🍬')}
               {nav('guide', '/guide', '사용설명서', '📘')}
-              <form method="post" action="/auth/logout">
-                <button class="menu-out" type="submit">
-                  로그아웃
-                </button>
-              </form>
+              <div class="menu-foot">
+                <a class="menu-help" href={OWNER_CONTACT_URL} target="_blank" rel="noopener" title="방장 1:1 카톡">
+                  🐞 버그 문의
+                </a>
+                <form method="post" action="/auth/logout">
+                  <button class="menu-out" type="submit">
+                    로그아웃
+                  </button>
+                </form>
+              </div>
             </nav>
           </>
         )}
@@ -84,6 +90,10 @@ export function Layout(props: {
           </div>
         </div>
         <footer class="foot">
+          <a class="foot-help" href={OWNER_CONTACT_URL} target="_blank" rel="noopener">
+            🐞 버그 신고·문의하기
+          </a>
+          <br />
           <a href="/guide">사용설명서</a> ·{' '}
           글꼴: 갈무리(Galmuri, OFL)
         </footer>
