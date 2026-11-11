@@ -48,7 +48,8 @@
     }
     for (const [id, [x, y]] of Object.entries(u.goal)) {
       const p = ps.find((q) => q.id === id);
-      const t = h('span', 'esc-ui-target');
+      // 상자가 여럿이면 어느 목표가 어느 상자 자리인지 보이게 표시를 넣어요.
+      const t = h('span', 'esc-ui-target', Object.keys(u.goal).length > 1 ? p.label : '');
       Object.assign(t.style, { left: `${(x / u.w) * 100}%`, top: `${(y / u.h) * 100}%`, width: `${(p.w / u.w) * 100}%`, height: `${(p.h / u.h) * 100}%` });
       g.append(t);
     }
