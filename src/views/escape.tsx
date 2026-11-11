@@ -428,11 +428,6 @@ function Play(props: { run: EscRun; art: string; name: string }) {
                     </Act>
                   </div>
                 ))}
-                {backs.map((o) => (
-                  <Act run={run} a="tap" o={o.id} cls="esc-back">
-                    ◀ {o.name}
-                  </Act>
-                ))}
                 {s.fx === 'right' && (
                   <b class="esc-stamp right" aria-hidden="true">
                     정답!
@@ -491,6 +486,11 @@ function Play(props: { run: EscRun; art: string; name: string }) {
               </form>
             )}
             <div class="esc-tools">
+              {backs.map((o) => (
+                <Act run={run} a="tap" o={o.id} cls="btn btn-small">
+                  🚪 {o.name}
+                </Act>
+              ))}
               <a class="btn btn-small" href="/cases/room?list=1">
                 📁 사건 목록
               </a>
