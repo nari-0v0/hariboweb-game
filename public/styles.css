@@ -1464,17 +1464,12 @@ main.wide { max-width: 1320px; }
 .esc-game .esc-room { cursor: zoom-in; }
 .esc-game .esc-name { opacity: 0; translate: 0 -4px; transition: opacity .15s, translate .15s; pointer-events: none; position: absolute; left: 50%; top: 100%; margin-left: 0; transform: translateX(-50%); z-index: 3; }
 .esc-game .esc-thing:hover .esc-name, .esc-game .esc-thing:focus-visible .esc-name, .esc-game .esc-thing.focus .esc-name { opacity: 1; translate: 0 0; }
-.esc-game .esc-thing.new::before { content: '🔍'; position: absolute; top: -.6cqw; left: 50%; translate: -50% -100%; font-size: max(12px, 2.4cqw); line-height: 1; z-index: 2; filter: drop-shadow(0 1px 0 #fff); }
 .esc-game .esc-pic { filter: none; }
 .esc-game .esc-thing:not(.on-wall) .esc-pic::before { content: ''; position: absolute; left: 8%; right: 8%; bottom: -1cqw; height: 2.4cqw; background: radial-gradient(closest-side, rgba(60, 35, 20, .38), transparent); }
 .esc-game .esc-spot:has(.esc-thing:not(.on-wall)) { scale: calc(.72 + var(--y) * .0065); transform-origin: 50% 100%; }
 .esc-game .esc-room img { filter: saturate(.88) sepia(.06) contrast(.97); }
 .esc-game .esc-room::after { content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none; background: radial-gradient(120% 90% at 50% 28%, rgba(255, 236, 200, .18), transparent 55%), radial-gradient(140% 120% at 50% 55%, transparent 55%, rgba(40, 22, 10, .32)); }
 .esc-game .esc-room .esc-stamp { z-index: 6; }
-@media (prefers-reduced-motion: no-preference) {
-  .esc-game .esc-thing.new::before { animation: esc-peek 1.8s ease-in-out infinite; }
-}
-@keyframes esc-peek { 0%, 100% { translate: -50% -100%; } 50% { translate: -50% -130%; } }
 
 /* 수수께끼는 종이 한 장을 펼친 것처럼 */
 .esc-game .esc-puzzle { margin: 0; border: 4px solid #6b4a2b; background: repeating-linear-gradient(0deg, transparent 0 27px, rgba(107, 74, 43, .12) 27px 28px), #fbf1dc; box-shadow: inset 0 0 0 3px #f3e3bf; }
@@ -1491,19 +1486,13 @@ main.wide { max-width: 1320px; }
 .esc-hot-wrap .esc-form { width: 100%; height: 100%; }
 .esc-hot { position: relative; display: block; width: 100%; height: 100%; padding: 0; margin: 0; background: transparent; border: 0; border-radius: 14px; cursor: zoom-in; -webkit-tap-highlight-color: transparent; }
 .esc-hot.idle { position: absolute; z-index: 2; }
-@media (hover: hover) and (pointer: fine) { .esc-hot:hover { background: rgba(255, 255, 255, .13); } }
 .esc-hot:focus-visible { outline: 3px dashed #fff; outline-offset: -3px; }
-.esc-hot.focus { box-shadow: inset 0 0 0 3px rgba(255, 255, 255, .75); }
-.esc-hot.fx-open, .esc-hot.fx-right, .esc-hot.fx-gain { animation: esc-hot-flash .9s ease-out; }
-@keyframes esc-hot-flash { 0% { background: rgba(255, 246, 200, .7); } 100% { background: transparent; } }
 .esc-hot-lock { position: absolute; right: 2px; top: 2px; font-size: clamp(11px, 2.2cqw, 18px); filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .35)); }
 .esc-pic-room .esc-back { position: absolute; left: 1.5%; top: 2%; z-index: 5; color: #4a2a2a !important; padding: .3em .7em; font: inherit; font-size: clamp(11px, 2.2cqw, 15px); color: var(--ink); background: #fffaf2; border: 2px solid var(--ink); border-radius: 999px; box-shadow: 0 2px 0 var(--ink); cursor: pointer; }
-/* 누르는 느낌: 톡 퍼지는 동그라미 + 돋보기 */
+/* 누르는 느낌: 톡 퍼지는 동그라미 */
 .esc-tap { position: absolute; z-index: 9; width: 0; height: 0; pointer-events: none; }
 .esc-tap::before { content: ''; position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 2px rgba(74, 42, 42, .35); animation: esc-ring .55s ease-out forwards; }
-.esc-tap::after { content: '🔍'; position: absolute; left: -2px; top: -30px; font-size: 22px; animation: esc-glass .6s ease-out forwards; }
 @keyframes esc-ring { from { transform: scale(.25); opacity: 1; } to { transform: scale(1.35); opacity: 0; } }
-@keyframes esc-glass { 0% { transform: scale(.4) rotate(-20deg); opacity: 0; } 35% { transform: scale(1.15) rotate(6deg); opacity: 1; } 100% { transform: scale(1) rotate(0); opacity: 0; } }
 .esc-say { position: absolute; z-index: 9; color: #4a2a2a !important; translate: -50% -135%; max-width: 70%; padding: .35em .7em; font-size: clamp(11px, 2.3cqw, 15px); line-height: 1.35; background: #fffaf2; color: var(--ink); border: 2px solid var(--ink); border-radius: 10px; box-shadow: 0 2px 0 var(--ink); pointer-events: none; animation: esc-say 1.8s ease-out forwards; white-space: nowrap; }
 @keyframes esc-say { 0% { opacity: 0; transform: translateY(6px); } 12%, 80% { opacity: 1; transform: none; } 100% { opacity: 0; } }
 /* 확대 화면: 그림을 크게, 끌어서 둘러보기 */
