@@ -272,7 +272,7 @@ export function fightPlan(fx: BattleFx) {
     hero: hero.join(', '),
     foe: foe.join(', '),
     heroEnd: fx.won ? '' : `jr-fall .6s ${end}s both`,
-    foeEnd: fx.won ? `jr-die .7s ${end}s both` : '',
+    foeEnd: fx.won ? `jr-die .45s ${end}s both` : '',
     pops,
     ms: Math.round((t + 0.9) * 1000),
   };

@@ -1111,7 +1111,7 @@ main.wide { max-width: 1320px; }
 .jr-foe .jr-sprite { display: block; max-width: min(36vw, 160px); height: auto; }
 .jr-foe.flip .jr-sprite { scale: -1 1; }
 .jr-foe .jr-shadow { width: 70%; bottom: 0; }
-.jr-foe.beaten > span:first-child { opacity: .35; filter: grayscale(1); }
+.jr-foe.beaten > span:first-child, .jr-foe.beaten .jr-shadow { opacity: 0; }
 .jr-stage.at-camp { justify-content: center; gap: 4%; }
 .jr-pop { position: absolute; top: 0; left: 50%; z-index: 3; translate: -50% 0; padding: 0 5px; border: 2px solid var(--ink); background: #fff; color: var(--ink); font-size: .85rem; line-height: 1.4; white-space: nowrap; opacity: 0; pointer-events: none; }
 .jr-pop.crit { background: var(--yellow); font-size: 1rem; }
@@ -1119,7 +1119,7 @@ main.wide { max-width: 1320px; }
 .jr-pop.zap { background: #e8f6ff; }
 @media (prefers-reduced-motion: no-preference) {
   .jr-actor { animation: var(--a, none); }
-  .jr-hero.jr-actor img, .jr-foe.jr-actor > span:first-child { animation: var(--a2, none); }
+  .jr-hero.jr-actor img, .jr-foe.jr-actor > span:first-child, .jr-foe.jr-actor .jr-shadow { animation: var(--a2, none); }
   .jr-pop { animation: jr-pop .75s var(--d, 0s) both; }
 }
 @keyframes jr-lunge-r { 40% { translate: 34px -6px; } }
@@ -1128,7 +1128,7 @@ main.wide { max-width: 1320px; }
 @keyframes jr-zap { 0%, 100% { filter: none; } 25%, 75% { filter: brightness(2.5) hue-rotate(160deg); } 50% { filter: none; } }
 @keyframes jr-cheer { 50% { translate: 0 -10px; } }
 @keyframes jr-fall { from { rotate: 0deg; translate: 0 0; filter: none; } to { rotate: -80deg; translate: 0 30px; filter: grayscale(1); } }
-@keyframes jr-die { 0% { opacity: 1; filter: none; scale: 1; } 30% { filter: brightness(3); } 100% { opacity: .35; filter: grayscale(1); scale: .85 .7; translate: 0 10px; } }
+@keyframes jr-die { 0% { opacity: 1; filter: none; scale: 1; } 25% { opacity: .8; filter: brightness(3); } 100% { opacity: 0; filter: grayscale(1); scale: .6 .4; translate: 0 10px; } }
 @keyframes jr-pop { 0% { opacity: 0; translate: -50% 6px; } 15% { opacity: 1; translate: -50% -10px; } 75% { opacity: 1; translate: -50% -22px; } 100% { opacity: 0; translate: -50% -28px; } }
 .jr-bar { position: relative; height: 24px; margin: 6px 0; border: 3px solid var(--ink); background: #fff; }
 .jr-bar span { position: absolute; inset: 0 auto 0 0; background: var(--pink); transition: width .4s; }
