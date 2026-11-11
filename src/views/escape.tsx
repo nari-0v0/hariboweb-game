@@ -427,7 +427,7 @@ function Play(props: { run: EscRun; art: string; name: string }) {
                   return <Thing run={run} o={{ ...o, x, y }} />;
                 })}
                 {coins.map((c) => (
-                  <div class="esc-spot" style={`--x:${c.x};--y:${c.y}`}>
+                  <div class="esc-spot esc-coin-spot" style={`--x:${c.x};--y:${c.y}`}>
                     <Act run={run} a="coin" n={c.k} cls="esc-coin" label="반짝이는 곳">
                       {null}
                     </Act>

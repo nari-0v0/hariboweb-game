@@ -365,11 +365,17 @@ function hash(t: string) {
 }
 export function coinSpots(c: EscCase, scene: string): { k: number; x: number; y: number }[] {
   const taken = c.objects.filter((o) => o.scene === scene).map((o) => [o.x, o.y] as const);
+  // 방 그림 속 눌리는 자리(물건·문)와 사람이 서는 자리 위에는 동전을 두지 않아요. 겹치면 동전을 누를 수 없어요.
+  const room = ROOMS[c.scenes.find((x) => x.id === scene)?.bg ?? 'office'];
+  const M = 3;
+  const onSpot = (x: number, y: number) => room.spots.some((h) => Math.abs(h.x - x) < h.w / 2 + M && Math.abs(h.y - y) < h.h / 2 + M);
+  const onPerson = (x: number, y: number) => room.people.some(([px, py]) => Math.abs(px - x) < 10 && y > py - 30);
   const out: { k: number; x: number; y: number }[] = [];
-  for (let k = 0, tries = 0; out.length < COINS_PER_ROOM && tries < 200; tries++) {
+  for (let k = 0, tries = 0; out.length < COINS_PER_ROOM && tries < 400; tries++) {
     const h = hash(`${c.id}:${scene}:${k}:${tries}`);
     const x = 6 + (h % 88);
     const y = 8 + ((h >>> 8) % 84);
+    if (onSpot(x, y) || onPerson(x, y)) continue;
     if (taken.some(([ox, oy]) => Math.abs(ox - x) < 13 && Math.abs(oy - y) < 17) || out.some((o) => Math.abs(o.x - x) < 15 && Math.abs(o.y - y) < 15)) continue;
     out.push({ k, x, y });
     k++;
