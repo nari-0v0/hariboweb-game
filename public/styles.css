@@ -1792,6 +1792,10 @@ main.wide { max-width: 1320px; }
 .gb-card-back { transform: rotateY(180deg); background: #cbe5ff; font-size: 1.55rem; }
 .gb-card-deck .gb-art, .gb-card-back .gb-art { width: 100%; height: 100%; object-fit: fill; }
 .gb-card-mark { position: relative; white-space: nowrap; font-size: .76rem; }
+/* 나리가 그린 카드 그림: 테두리까지 그림에 있어서 칸 테두리는 빼고, 픽셀이 뭉개지지 않게 그려요. */
+.gb-playing-card { width: 3.3rem; height: auto; aspect-ratio: 424 / 592; }
+.gb-card-front--art { border: 0; background: none; }
+.gb-card-img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
 
 .gb-lobby-intro { position: relative; isolation: isolate; }
 .gb-lobby-intro .gb-art-layer { z-index: -1; }

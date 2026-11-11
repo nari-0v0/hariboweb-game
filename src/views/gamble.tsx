@@ -1,5 +1,5 @@
 import type { Member } from '../env';
-import { GAMBLE_ART, SLOT_ART, SUIT_ART } from '../gamble-art';
+import { GAMBLE_ART, SLOT_ART } from '../gamble-art';
 import { CHERRY_PAIR, ROULETTE, SLOTS, WHEEL, rankOf } from '../gamble';
 import { gambleDay, publicHand, type GambleAccount, type Game, type Round } from '../gamble-db';
 import { Layout } from './layout';
@@ -129,6 +129,12 @@ function RouletteWheel({ landed }: { landed?: number }) {
   );
 }
 
+// 나리가 그린 카드 52장(public/gamble/cards/<무늬>-<숫자>.webp). 카드 번호 = 무늬 × 13 + 숫자.
+const SUIT_FILES = ['spades', 'hearts', 'diamonds', 'clubs'] as const;
+const SUIT_NAMES = ['스페이드', '하트', '다이아', '클로버'] as const;
+const cardImage = (card: number) =>
+  `/gamble/cards/${SUIT_FILES[Math.floor(card / 13)]}-${CARD_RANKS[rankOf(card)]!.toLowerCase()}.webp?v=1`;
+
 function PlayingCard({ card, order, flip }: { card?: number; order?: number; flip?: boolean }) {
   const hidden = card === undefined;
   return (
@@ -138,9 +144,8 @@ function PlayingCard({ card, order, flip }: { card?: number; order?: number; fli
           <Art name="cardBack" />
         </span>
         {!hidden && (
-          <span class="gb-card-face gb-card-front">
-            <ArtLayer name="cardFront" />
-            <span class="gb-card-mark"><Art name={SUIT_ART[Math.floor(card / 13)]!} /> {CARD_RANKS[rankOf(card)]}</span>
+          <span class="gb-card-face gb-card-front gb-card-front--art">
+            <img class="gb-card-img" src={cardImage(card)} alt={`${SUIT_NAMES[Math.floor(card / 13)]} ${CARD_RANKS[rankOf(card)]}`} />
           </span>
         )}
       </span>
