@@ -55,7 +55,7 @@ function SlotReels({ reels }: { reels?: number[] }) {
   const strip = Array.from({ length: 6 }, () => SLOT_ART).flat();
   const jackpot = reels?.every((i) => SLOT_ART[i] === 'seven');
   return (
-    <div class="gb-slot" data-gb-jackpot={jackpot ? 'yes' : undefined}>
+    <div class={`gb-slot${GAMBLE_ART.slotFrame?.image ? ' gb-slot--framed' : ''}`} data-gb-jackpot={jackpot ? 'yes' : undefined}>
       {(reels ?? [null, null, null]).map((symbol) => {
         const name = symbol === null ? null : SLOT_ART[symbol]!;
         return (
@@ -71,28 +71,52 @@ function SlotReels({ reels }: { reels?: number[] }) {
   );
 }
 
+// 판에 그리는 칸 순서만 섞어요(서버 결과·확률은 WHEEL 번호 그대로). 0배 칸 사이사이에 다른 배수가 끼게요.
+const WHEEL_POS: number[] = (() => {
+  const zero = WHEEL.flatMap((p, i) => (p === 0 ? [i] : []));
+  const rest = WHEEL.flatMap((p, i) => (p === 0 ? [] : [i]));
+  // 큰 배수끼리 붙지 않게: 1·2·3·5·10배를 돌아가며 꺼내요.
+  const byPay = new Map<number, number[]>();
+  for (const i of rest) byPay.set(WHEEL[i]!, [...(byPay.get(WHEEL[i]!) ?? []), i]);
+  const mixed: number[] = [];
+  while (mixed.length < rest.length) for (const list of byPay.values()) { const i = list.shift(); if (i !== undefined) mixed.push(i); }
+  const order: number[] = [];
+  let z = 0, n = 0;
+  for (let k = 0; k < WHEEL.length; k++) {
+    if (n < mixed.length && (z >= zero.length || n * zero.length < z * mixed.length)) order.push(mixed[n++]!);
+    else order.push(zero[z++]!);
+  }
+  const pos: number[] = [];
+  order.forEach((i, k) => { pos[i] = k; });
+  return pos;
+})();
 const WHEEL_COLORS: Record<number, string> = {
-  0: '#e0eaff', 1: '#addef8', 2: '#bceada', 3: '#f7d9a0', 5: '#e7cffa', 10: '#f5baca',
+  1: '#1f6b3a', 2: '#2f5fa8', 3: '#7b3fa0', 5: '#c26a12', 10: '#d4a017',
 };
 const SECTOR = 360 / WHEEL.length;
-const WHEEL_FILL = `conic-gradient(from -${SECTOR / 2}deg, ${WHEEL.map((payout, i) =>
-  `${WHEEL_COLORS[payout]} ${i * SECTOR}deg ${(i + 1) * SECTOR}deg`).join(', ')})`;
+const slotColor = (k: number) => {
+  const i = WHEEL_POS.indexOf(k);
+  return WHEEL[i] === 0 ? (k % 2 ? '#7a1420' : '#1d1d24') : WHEEL_COLORS[WHEEL[i]!]!;
+};
+const WHEEL_FILL = `conic-gradient(from -${SECTOR / 2}deg, ${WHEEL.map((_, k) =>
+  `${slotColor(k)} ${k * SECTOR}deg ${(k + 1) * SECTOR}deg`).join(', ')})`;
 
 function RouletteWheel({ landed }: { landed?: number }) {
   return (
-    <div class="gb-wheel-stage">
+    <div class={`gb-wheel-stage${GAMBLE_ART.wheel?.image ? ' gb-wheel-stage--rim' : ''}`}>
       <div class="gb-wheel-pointer" aria-hidden="true"><Art name="pointer" /></div>
       <div class="gb-wheel-viewport">
         <div class="gb-wheel-disc" data-gb-landed={landed}
-          style={`--gb-wheel-fill:${WHEEL_FILL};--gb-wheel-sector:${SECTOR}deg;--gb-wheel-stop:${-(landed ?? 0) * SECTOR}deg`}
+          style={`--gb-wheel-fill:${WHEEL_FILL};--gb-wheel-sector:${SECTOR}deg;--gb-wheel-stop:${-WHEEL_POS[landed ?? 0]! * SECTOR}deg`}
           aria-hidden="true">
-          <ArtLayer name="wheel" />
           <div class="gb-wheel-sectors" />
           {WHEEL.map((payout, i) => (
-            <span class="gb-wheel-label" data-gb-sector={i} aria-current={i === landed ? 'true' : undefined} style={`--gb-wheel-angle:${i * SECTOR}deg`}>{payout}배</span>
+            <span class="gb-wheel-label" data-gb-sector={i} aria-current={i === landed ? 'true' : undefined} style={`--gb-wheel-angle:${WHEEL_POS[i]! * SECTOR}deg`}>{payout}배</span>
           ))}
         </div>
       </div>
+      {/* 테두리 그림은 판과 같이 돌지 않게 판 바깥에 덮어요. */}
+      <ArtLayer name="wheel" />
     </div>
   );
 }
@@ -146,7 +170,7 @@ function CardDeck() {
 
 function GameSurface({ game, round, canBet }: { game: Game; round: Round | null; canBet: boolean }) {
   return (
-    <div class={`gb-game-surface gb-surface-${game}`}>
+    <div class={`gb-game-surface gb-surface-${game}`} style={GAMBLE_ART.background?.image ? `--gb-bg:url(${GAMBLE_ART.background.image})` : undefined}>
       {game === 'slot' && <SlotReels reels={round ? JSON.parse(round.state) as number[] : undefined} />}
       {game === 'roulette' && <RouletteWheel landed={round ? Number(round.state) : undefined} />}
       {game === 'cards' && (round ? <Cards round={round} /> : <CardDeck />)}
