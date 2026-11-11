@@ -58,12 +58,20 @@ function Act(props: { run: JourneyRun; a: string; n?: number; children: unknown;
   );
 }
 
-function Bar(props: { now: number; max: number; cls: string; label: string }) {
-  const pct = Math.max(0, Math.min(100, Math.round((props.now / Math.max(1, props.max)) * 100)));
+// from: 싸우기 전 값. 싸움 모션이 끝날 때(--reveal)까지는 전 값을 보여 주고, 그다음 지금 값으로 바뀌어요.
+function Bar(props: { now: number; max: number; cls: string; label: string; from?: number }) {
+  const pc = (v: number) => Math.max(0, Math.min(100, Math.round((v / Math.max(1, props.max)) * 100)));
+  const pct = pc(props.now);
+  const from = props.from !== undefined && props.from !== props.now ? props.from : null;
   return (
-    <div class={`jr-bar ${props.cls}`} role="meter" aria-valuenow={props.now} aria-valuemin={0} aria-valuemax={props.max} aria-label={props.label}>
-      <span style={`width:${pct}%`} />
-      <b>
+    <div class={`jr-bar ${props.cls}${from !== null ? ' later' : ''}`} role="meter" aria-valuenow={props.now} aria-valuemin={0} aria-valuemax={props.max} aria-label={props.label}>
+      <span style={from !== null ? `width:${pct}%;--from:${pc(from)}%` : `width:${pct}%`} />
+      {from !== null && (
+        <b class="jr-before" aria-hidden="true">
+          {props.label} {from}/{props.max}
+        </b>
+      )}
+      <b class={from !== null ? 'jr-after' : undefined}>
         {props.label} {props.now}/{props.max}
       </b>
     </div>
@@ -275,6 +283,7 @@ export function fightPlan(fx: BattleFx) {
     foeEnd: fx.won ? `jr-die .45s ${end}s both` : '',
     pops,
     ms: Math.round((t + 0.9) * 1000),
+    reveal: Math.round((t + 0.5) * 1000), // 결과(대화창·체력·버튼)가 나오는 때: 쓰러지는 모션이 끝난 뒤
   };
 }
 
@@ -355,9 +364,10 @@ function Play(props: { run: JourneyRun; art: string; name: string }) {
   const st = stat(s);
   const lost = s.hp <= 0;
   const ch = chapterOf(s.ch);
+  const reveal = s.fx ? fightPlan(s.fx).reveal : 0;
   return (
     <section class="jr-game" id="now">
-      <div id="journey" data-journey-play>
+      <div id="journey" data-journey-play class={reveal ? 'jr-fighting' : undefined} style={reveal ? `--reveal:${reveal}ms` : undefined}>
         <div class="jr-view">
           <header class="jr-hud">
             <span class="jr-hud-ch">
@@ -373,7 +383,7 @@ function Play(props: { run: JourneyRun; art: string; name: string }) {
           <div class="jr-screen">
             <Stage s={s} art={props.art} name={props.name} lost={lost} />
             <div class="jr-meters">
-              <Bar now={s.hp} max={st.maxHp} cls="hp" label="❤️" />
+              <Bar now={s.hp} max={st.maxHp} cls="hp" label="❤️" from={s.fx?.hp0} />
               <Bar now={s.xp} max={xpNeed(s.lv)} cls="xp" label={`⭐ Lv.${s.lv}`} />
             </div>
             <div class="jr-stats">

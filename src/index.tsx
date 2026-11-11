@@ -83,6 +83,7 @@ import { JourneyPage } from './views/journey';
 import { activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney } from './journey-db';
 import { PERKS, type PerkId } from './journey';
 import { activeEscape, actEscapeRun, beginEscape, escapeRecord, getEscape, quitEscape } from './escape-db';
+import { escCase } from './escape';
 import { StoryPage } from './views/story';
 import { activeStory, actStory, beginStory, getStory, storyMarks, uuid } from './story-db';
 import type { StoryAction } from './story';
@@ -911,13 +912,20 @@ members.get('/cases/room', async (c) => {
   const art = characterUrl(profile.character_id, viewer.user_id, profile.deco_id);
   const rid = c.req.query('r') ?? '';
   const done = !run && ESC_ID.test(rid) ? await getEscape(c.env.DB, viewer.user_id, rid) : null;
-  return page(c, <EscapePage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} best={best} notice={c.req.query('n')} />);
+  return page(c, <EscapePage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} best={best} notice={c.req.query('n')} list={c.req.query('list') === '1'} />);
 });
 members.post('/api/escape/start', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
   const body = await c.req.parseBody();
   try {
-    const id = await beginEscape(c.env.DB, c.get('viewer').user_id, String(body.case ?? ''));
+    const user = c.get('viewer').user_id;
+    const want = String(body.case ?? '');
+    // 사건 목록에서 다른 사건을 고르면 하던 사건은 덮고 새로 열어요.
+    if (body.switch === '1' && escCase(want)) {
+      const going = await activeEscape(c.env.DB, user);
+      if (going && going.row.case_id !== want) await quitEscape(c.env.DB, user, going.row.id);
+    }
+    const id = await beginEscape(c.env.DB, user, want);
     return c.redirect(id ? '/cases/room#now' : '/cases/room?n=bad', 303);
   } catch (e) {
     console.error('사건 시작 실패', e);

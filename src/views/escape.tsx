@@ -488,6 +488,9 @@ function Play(props: { run: EscRun; art: string; name: string }) {
               </form>
             )}
             <div class="esc-tools">
+              <a class="btn btn-small" href="/cases/room?list=1">
+                📁 사건 목록
+              </a>
               <Act run={run} a="hint" cls="btn btn-small">
                 {left > 0 ? '💡 힌트 (동전 1개)' : '💡 힌트 (등급 감점)'}
               </Act>
@@ -631,6 +634,7 @@ export function EscapePage(props: {
   viewer: Member;
   art: string;
   run: EscRun | null;
+  list?: boolean; // 하던 사건이 있어도 사건 목록 보기
   result: EscRun | null;
   best: Map<string, EscGrade>;
   notice?: string;
@@ -656,10 +660,20 @@ export function EscapePage(props: {
             </div>
           </details>
         </div>
-        {run ? <Play run={run} art={props.art} name={props.viewer.display_name} /> : result ? <Result run={result} /> : null}
-        {!run && (
+        {run && !props.list ? <Play run={run} art={props.art} name={props.viewer.display_name} /> : result ? <Result run={result} /> : null}
+        {(!run || props.list) && (
           <section class="jr-game esc-game esc-shelf">
             <h2 class="jr-pick-title">어떤 사건 파일을 열까요?</h2>
+            {run && (
+              <p class="esc-going">
+                하던 사건: <b>{run.def.emoji} {run.def.title}</b>{' '}
+                <a class="btn btn-small btn-primary" href="/cases/room#now">
+                  ▶ 이어 하기
+                </a>
+                <br />
+                <span class="hint">다른 사건을 열면 하던 사건은 덮여요(다음에 열면 처음부터 해요).</span>
+              </p>
+            )}
             <p class="hint">★ 입문 사건은 짧고 쉬워요. ★★★ 사건은 방 3개, 퍼즐 4~5개, 물건 합치기, 범인·방법·동기까지 맞혀야 해요.</p>
             <div class="esc-cases">
               {ESCAPE_CASES.map((c) => {
@@ -667,6 +681,7 @@ export function EscapePage(props: {
                 return (
                   <form method="post" action="/api/escape/start" class={`esc-file${best ? ' done' : ''}`}>
                     <input type="hidden" name="case" value={c.id} />
+                    {run && <input type="hidden" name="switch" value="1" />}
                     <button type="submit" title={c.intro}>
                       <span class="esc-file-tab">{'★'.repeat(c.level ?? 1)}</span>
                       <span class="esc-case-emoji" aria-hidden="true">

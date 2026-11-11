@@ -30,7 +30,7 @@ export const SKILL_IDS = Object.keys(SKILLS) as SkillId[];
 export type Line = { icon: string; text: string; tone?: 'good' | 'bad' };
 // 화면 전투 모션용 기록: 누가(0 = 나, 1 = 적) 얼마나 때렸는지. 처음 몇 번과 마지막 한 번만 남겨요.
 export type Hit = [who: 0 | 1, dmg: number, crit?: 1];
-export type BattleFx = { foe: string; won: boolean; spark?: number; hits: Hit[] };
+export type BattleFx = { foe: string; won: boolean; spark?: number; hits: Hit[]; hp0?: number }; // hp0: 싸우기 전 체력(결과는 모션이 끝난 뒤 보여요)
 export const FX_HITS = 6;
 export type Offer = { id: 'potion' | 'sword' | 'armor' | 'heart' | 'scroll'; price: number };
 export const OFFERS: Record<Offer['id'], { name: string; icon: string; text: string; price: number }> = {
@@ -38,7 +38,7 @@ export const OFFERS: Record<Offer['id'], { name: string; icon: string; text: str
   sword: { name: '숫돌', icon: '🗡️', text: '공격력 +5', price: 20 },
   armor: { name: '헝겊 갑옷', icon: '🧥', text: '방어력 +3', price: 20 },
   heart: { name: '하트 젤리', icon: '💗', text: '최대 체력 +30', price: 22 },
-  scroll: { name: '스킬 두루마리', icon: '📜', text: '스킬 하나 고르기', price: 30 },
+  scroll: { name: '스킬 두루마리', icon: '📜', text: '다음 날 스킬 하나 고르기', price: 30 },
 };
 export type Pending =
   | { kind: 'skill'; options: SkillId[] }
@@ -123,7 +123,7 @@ function gainXp(s: JourneyState, n: number, lines: Line[]) {
     s.xp -= xpNeed(s.lv);
     s.lv += 1;
     s.queuedLevels += 1;
-    lines.push({ icon: '⭐', text: `레벨 업! Lv.${s.lv}`, tone: 'good' });
+    lines.push({ icon: '⭐', text: `레벨 업! Lv.${s.lv} (다음 날 스킬을 골라요)`, tone: 'good' });
   }
 }
 function gainCoins(s: JourneyState, n: number) {
@@ -146,7 +146,7 @@ function battle(s: JourneyState, m: Monster, power: number, r: () => number, lin
     if (hits.length < FX_HITS) hits.push(h);
     else hits[FX_HITS - 1] = h; // 마지막 칸은 늘 끝난 순간
   };
-  const fx: BattleFx = { foe: m.key, won: false, hits };
+  const fx: BattleFx = { foe: m.key, won: false, hits, hp0: start };
   if (sk(s, 'spark')) {
     mhp -= 10 * sk(s, 'spark');
     fx.spark = 10 * sk(s, 'spark');
@@ -199,10 +199,23 @@ function nextDay(s: JourneyState): Line[] {
   const st = stat(s);
   // 아침마다 조금 회복(걷기 간식)
   s.hp = Math.min(st.maxHp, s.hp + Math.round(st.maxHp * 0.08));
+  // 레벨업이 밀려 있으면 그날은 싸우지 않고 스킬만 골라요(스킬 고르기가 하루 한 칸). 중간 보스·마지막 보스 날은 싸움이 먼저예요.
+  if (s.queuedLevels > 0 && s.day !== DAYS && s.day !== ELITE_DAY) {
+    const options = pickSkills(s, rng(`${s.seed}:${s.day}:skill`));
+    if (options.length) {
+      s.queuedLevels -= 1;
+      s.pending = { kind: 'skill', options };
+      const heal = Math.min(st.maxHp - s.hp, Math.round(st.maxHp * 0.3));
+      s.hp += heal;
+      lines.push({ icon: '⭐', text: `오늘은 쉬면서 새 스킬을 하나 골라요.${heal > 0 ? ` 체력 +${heal}` : ''}` });
+      return lines;
+    }
+    s.queuedLevels = 0; // 더 배울 스킬이 없어요
+  }
   if (s.day === DAYS) {
     const boss = chapterOf(s.ch).boss;
     lines.push({ icon: '🌋', text: `마지막 날! ${boss.name}${(boss.name.charCodeAt(boss.name.length - 1) - 0xac00) % 28 > 0 ? '이' : '가'} 나타났어요!` });
-    if (battle(s, boss, 1.75, r, lines)) {
+    if (battle(s, boss, 1.65, r, lines)) {
       s.done = true;
       s.cleared = true;
       lines.push({ icon: '🏆', text: `${boss.name}${obj(boss.name)} 물리쳤어요! 원정 성공!`, tone: 'good' });
@@ -296,15 +309,6 @@ function resolveEvent(s: JourneyState, id: EventId, n: number, lines: Line[]) {
   finish(s, lines);
 }
 
-// 레벨업이 밀려 있으면 스킬 고르기를 띄워요.
-function settle(s: JourneyState) {
-  if (!s.done && !s.pending && s.queuedLevels > 0) {
-    s.queuedLevels -= 1;
-    const options = pickSkills(s, rng(`${s.seed}:${s.day}:skill:${s.lv - s.queuedLevels}`));
-    if (options.length) s.pending = { kind: 'skill', options };
-  }
-}
-
 // 자동 선택: 무난하고 안전한 쪽을 골라요. 사람이 고르면 더 잘할 수 있어요.
 const SKILL_ORDER: SkillId[] = ['power', 'crit', 'leech', 'vital', 'guard', 'spark', 'shield', 'mend', 'thorn', 'lucky'];
 const HURT_ORDER: SkillId[] = ['leech', 'vital', 'mend', 'guard', 'shield', 'power', 'crit', 'spark', 'thorn', 'lucky'];
@@ -355,7 +359,6 @@ export function actJourney(old: JourneyState, act: JourneyAction): JourneyState 
     do {
       if (lines.length) lines.push({ icon: '·', text: '' });
       lines.push({ icon: '📅', text: `${s.day + 1}일째` }, ...nextDay(s));
-      settle(s);
     } while (act.a === 'auto' && !s.pending && !s.done && s.day < DAYS);
     keep(lines.filter((l) => l.text));
     return s;
@@ -388,9 +391,9 @@ export function actJourney(old: JourneyState, act: JourneyAction): JourneyState 
       s.hp += 30;
     } else s.queuedLevels += 1;
     lines.push({ icon: info.icon, text: `${info.name} 샀어요. ${info.text}`, tone: 'good' });
-    // 상인 곁에 남아 더 살 수 있어요(두루마리는 산 뒤 바로 스킬 고르기)
+    // 상인 곁에 남아 더 살 수 있어요(두루마리 스킬은 다음 날 골라요)
     const rest = p.offers.filter((_, i) => i !== act.n);
-    if (o.id !== 'scroll' && rest.length) {
+    if (rest.length) {
       s.pending = { kind: 'shop', offers: rest };
       keep(lines);
       return s;
@@ -401,7 +404,6 @@ export function actJourney(old: JourneyState, act: JourneyAction): JourneyState 
     lines.push({ icon: '👋', text: '상인에게 인사하고 지나갔어요.' });
   } else return null;
   s.pending = null;
-  settle(s);
   keep(lines);
   return s;
 }
