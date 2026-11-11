@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { escCase, startEscape } from '../src/escape';
+import { ESCAPE_CASES, escCase, startEscape } from '../src/escape';
 import { EscapePage } from '../src/views/escape';
 import { Layout } from '../src/views/layout';
 import type { EscRun } from '../src/escape-db';
@@ -39,9 +39,13 @@ describe('플레이테스트에서 재현된 화면 회귀', () => {
   });
 
   it('인물 자리는 방마다 눌리는 곳을 거의 다 가리지 않는 곳이에요', () => {
+    // 방마다 실제로 한꺼번에 서는 사람 수만큼만 봐요.
+    const need: Record<string, number> = {};
+    for (const c of ESCAPE_CASES) for (const sc of c.scenes) need[sc.bg!] = Math.max(need[sc.bg!] ?? 0, c.objects.filter((o) => o.scene === sc.id && !o.at && !(o.goto && !o.face)).length);
     for (const room of Object.values(ROOMS)) {
       expect(room.people.length, room.key).toBeGreaterThanOrEqual(2);
-      for (const [x, y] of room.people) {
+      for (const [x, y] of room.people.slice(0, need[room.key] ?? 0)) {
+        expect(y + 12, `${room.key} 발끝`).toBeLessThanOrEqual(97);
         const b = personBox(x, y);
         for (const h of room.spots) {
           const hit = [0.15, 0.5, 0.85].flatMap((a) => [0.15, 0.5, 0.85].map((c) => [h.x - h.w / 2 + h.w * a, h.y - h.h / 2 + h.h * c] as const)).filter(([px, py]) => px > b.l && px < b.r && py > b.t && py < b.b);
