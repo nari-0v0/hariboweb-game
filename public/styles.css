@@ -1601,7 +1601,7 @@ main.wide { max-width: 1320px; }
 .esc-ui-cell .pipe::before, .esc-ui-cell .pipe::after { content: ''; position: absolute; background: #5fa8e8; }
 .pipe.p-I::before { left: 40%; width: 20%; top: 0; bottom: 0; }
 .pipe.p-L::before { left: 40%; width: 20%; top: 0; height: 60%; } .pipe.p-L::after { left: 40%; right: 0; top: 40%; height: 20%; }
-.pipe.p-T::before { left: 0; right: 0; top: 40%; height: 20%; } .pipe.p-T::after { left: 40%; width: 20%; top: 0; height: 60%; }
+.pipe.p-T::before { left: 40%; width: 20%; top: 0; bottom: 0; } .pipe.p-T::after { left: 40%; right: 0; top: 40%; height: 20%; }
 .pipe.p-X::before { left: 40%; width: 20%; top: 0; bottom: 0; } .pipe.p-X::after { left: 0; right: 0; top: 40%; height: 20%; }
 .pipe.p-E::before, .pipe.p-S::before { left: 40%; width: 20%; top: 0; height: 55%; }
 .esc-ui-cell em { position: relative; font-style: normal; font-size: .9rem; }

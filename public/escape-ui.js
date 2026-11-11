@@ -56,7 +56,12 @@
       const p = ps.find((q) => q.id === u.exit.id);
       const t = h('span', `esc-ui-exit ${u.exit.side}`, '출구');
       const along = u.exit.side === 'L' || u.exit.side === 'R';
-      Object.assign(t.style, along ? { top: `${(p.y / u.h) * 100}%`, height: `${(p.h / u.h) * 100}%` } : { left: `${(p.x / u.w) * 100}%`, width: `${(p.w / u.w) * 100}%` });
+      // 벽으로 둘러싼 판(얼음 동굴)은 그쪽 벽의 빈 칸이 출구예요. 아니면 조각이 있는 줄이 출구예요.
+      const edge = along ? Array.from({ length: u.h }, (_, y) => y * u.w + (u.exit.side === 'R' ? u.w - 1 : 0)) : Array.from({ length: u.w }, (_, x) => (u.exit.side === 'D' ? (u.h - 1) * u.w : 0) + x);
+      const holes = edge.map((c, k) => (walls.has(c) ? -1 : k)).filter((k) => k >= 0);
+      const at = walls.size && holes.length === 1 ? holes[0] : along ? p.y : p.x;
+      const span = walls.size && holes.length === 1 ? 1 : along ? p.h : p.w;
+      Object.assign(t.style, along ? { top: `${(at / u.h) * 100}%`, height: `${(span / u.h) * 100}%` } : { left: `${(at / u.w) * 100}%`, width: `${(span / u.w) * 100}%` });
       g.append(t);
     }
     const els = new Map();
