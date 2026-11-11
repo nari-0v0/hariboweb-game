@@ -19,13 +19,13 @@ export type Ui =
   // 저울·시소: 추(아이)를 자리마다 놓아 균형을 맞춰요
   | { t: 'balance'; items: { name: string; w: number }[]; arms: number[]; left?: { name: string; w: number; at: number }; useAll?: boolean; maxUse?: number; distinct?: boolean; count?: number }
   // 길 긋기: 칸을 이어 길을 만들어요
-  | { t: 'path'; w: number; h: number; blocked?: Cell[]; walls?: [Cell, Cell][]; start?: Cell; end?: Cell; all?: boolean; step: 'orth' | 'king' | 'knight'; marks?: (string | null)[]; must?: Cell[]; inOrder?: Cell[]; max?: number; noStraight?: boolean; turnEvery?: boolean; loop?: boolean; noCross?: boolean }
+  | { t: 'path'; w: number; h: number; blocked?: Cell[]; walls?: [Cell, Cell][]; start?: Cell; end?: Cell; all?: boolean; step: 'orth' | 'king' | 'knight'; marks?: (string | null)[]; must?: Cell[]; inOrder?: Cell[]; max?: number; noStraight?: boolean; turnEvery?: boolean; loop?: boolean; noCross?: boolean; minDiag?: number }
   // 타일 돌리기: 관(또는 거울)을 돌려 이어요
   | { t: 'rotate'; w: number; h: number; tiles: string; rot: string; mode: 'pipe' | 'beam'; fixed?: string }
   // 쌓기: 탑·시험관·팬케이크
   | { t: 'stacks'; stacks: string[][]; rule: 'hanoi' | 'color' | 'free' | 'flip'; cap?: number; goal: string[][] | 'sorted'; adj?: boolean; max?: number; names?: string[] }
   // 숫자 칸 채우기: 정답 하나(만들 때 확인)와 비교해요
-  | { t: 'numgrid'; w: number; h: number; given: (number | null | -1)[]; max: number; min?: number; marks?: (string | null)[]; ineq?: [Cell, Cell, '<' | '>'][]; cages?: { cells: Cell[]; label: string }[]; answer: string }
+  | { t: 'numgrid'; w: number; h: number; given: (number | null | -1)[]; max: number; min?: number; marks?: (string | null)[]; ineq?: [Cell, Cell, '<' | '>'][]; cages?: { cells: Cell[]; label: string }[]; answer: string; answers?: string[] }
   // 칸 고르기: 정답 하나(만들 때 확인)와 비교해요
   | { t: 'mark'; w: number; h: number; cells: (string | null)[]; text?: (string | null)[]; regions?: number[]; rowClues?: string[]; colClues?: string[]; icon: string; answer: string }
   // 여러 개 고르기
@@ -272,6 +272,14 @@ function path(u: Extract<Ui, { t: 'path' }>, v: string): boolean {
       }
     }
   }
+  if (u.minDiag) {
+    let n = 0;
+    for (let i = 1; i < cells.length; i++) {
+      const [ax, ay] = xy(u.w, cells[i - 1]!), [bx, by] = xy(u.w, cells[i]!);
+      if (ax !== bx && ay !== by) n++;
+    }
+    if (n < u.minDiag) return false;
+  }
   if (u.start !== undefined && cells[0] !== u.start) return false;
   if (u.end !== undefined && cells.at(-1) !== u.end) return false;
   if (u.loop && (cells.at(-1) !== cells[0] || cells.length < 4)) return false;
@@ -510,6 +518,13 @@ export function checkUi(u: Ui, v: string): boolean {
     case 'numgrid':
     case 'mark':
     case 'multi':
-      return v === u.answer;
+      // 답이 여럿인 문제는 answers에 규칙에 맞는 답을 모두 넣어 둬요.
+      return v === u.answer || (u.t === 'numgrid' && !!u.answers?.includes(v));
   }
+}
+
+// 화면에 보내는 장치 정보: 정답(answer·answers)은 빼요. 정답은 서버에서만 비교해요.
+export function uiForClient(u: Ui): Ui {
+  const { answer: _a, answers: _b, ...rest } = u as Ui & { answer?: string; answers?: string[] };
+  return rest as Ui;
 }

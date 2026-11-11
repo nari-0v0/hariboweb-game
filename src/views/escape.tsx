@@ -6,6 +6,7 @@ import { ROOMS, roomSrc, type Hotspot, type RoomKey } from '../case-rooms';
 import { FictionNote } from './expedition';
 import { Layout } from './layout';
 import { Popup, type PopupLine } from './shop';
+import { uiForClient } from '../escape-ui';
 
 const NOTICES: Record<string, PopupLine[]> = {
   stale: [
@@ -263,7 +264,7 @@ function Focus(props: { run: EscRun; art: string; name: string }) {
             <input type="hidden" name="o" value={o.id} />
             {code?.ui ? (
               <div class="esc-ui-wrap">
-                <div class="esc-ui" data-ui={JSON.stringify(code.ui)}>
+                <div class="esc-ui" data-ui={JSON.stringify(uiForClient(code.ui))}>
                   <noscript>이 문제는 화면에서 직접 움직여 풀어요. 자바스크립트를 켜 주세요.</noscript>
                 </div>
                 <input type="hidden" name="v" value="" data-ui-v />
@@ -381,7 +382,9 @@ function Play(props: { run: EscRun; art: string; name: string }) {
   const backs = things.filter((o) => !o.at && o.goto && !o.face);
   const standing = things.filter((o) => !o.at && !(o.goto && !o.face));
   const focusObj = s.focus ? things.find((o) => o.id === s.focus) : undefined;
-  const lens = focusObj?.at ? room.spots.find((h) => h.id === focusObj.at) : undefined;
+  // 확대(끌어서 둘러보기)는 눈으로 읽어야 할 게 있을 때만: 멈춘 시계 바늘, 적힌 시각·글씨.
+  const spot = focusObj?.at ? room.spots.find((h) => h.id === focusObj.at) : undefined;
+  const lens = spot && ((spot.face && clockTime(s.msg)) || zoomTag(s.msg)) ? spot : undefined;
   return (
     <>
       <section class="jr-game esc-game" id="now">
@@ -642,7 +645,7 @@ export function EscapePage(props: {
 }) {
   const { run, result } = props;
   return (
-    <Layout title="하리보 사건파일" viewer={props.viewer} active="cases" scripts={run ? ['/escape.js?v=1', '/escape-ui.js?v=1'] : undefined}>
+    <Layout title="하리보 사건파일" viewer={props.viewer} active="cases" scripts={run ? ['/escape.js?v=1', '/escape-ui.js?v=2'] : undefined}>
       {props.url && <i hidden data-replace-url={props.url} />}
       <Popup lines={NOTICES[props.notice ?? ''] ?? []} />
       <div class="stack esc" data-fresh>

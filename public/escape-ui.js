@@ -466,7 +466,7 @@
     const draw = () => {
       cols.forEach((c, i) => {
         c.replaceChildren(...s[i].map((x, k) => {
-          const d = h('span', `disk d${x}`, u.rule === 'color' ? x : '');
+          const d = h('span', `disk d${x}`, u.rule === 'color' || u.rule === 'free' ? x : '');
           if (u.rule === 'hanoi' || u.rule === 'flip') d.style.width = `${30 + Number(x) * 12}%`;
           if (u.rule === 'flip') {
             d.addEventListener('click', (ev) => {
@@ -480,7 +480,7 @@
               count(u.max);
             });
           }
-          if (u.rule === 'color') d.textContent = disk(x);
+          if (u.rule === 'color' || u.rule === 'free') d.textContent = disk(x);
           return d;
         }).reverse(), h('small', '', u.names ? u.names[i] : ''));
         c.classList.toggle('sel', pick === i);
