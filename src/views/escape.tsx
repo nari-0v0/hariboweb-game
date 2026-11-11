@@ -396,7 +396,10 @@ function Play(props: { run: EscRun; art: string; name: string }) {
   const room = ROOMS[bg];
   const placed = things.filter((o) => o.at);
   const backs = things.filter((o) => !o.at && o.goto && !o.face);
-  const standing = things.filter((o) => !o.at && !(o.goto && !o.face));
+  const loose = things.filter((o) => !o.at && !(o.goto && !o.face));
+  // 사람은 처음엔 방 안에 서 있다가, 그 사람 문제를 풀면 방 아래 카드 줄로 내려가요(방 안을 덜 가려요).
+  const met = loose.filter((o) => o.face && (o.lock ? !isLocked(s, o) : s.seen.includes(o.id)));
+  const standing = loose.filter((o) => !met.includes(o));
   const focusObj = s.focus ? things.find((o) => o.id === s.focus) : undefined;
   // 확대(끌어서 둘러보기)는 눈으로 읽어야 할 게 있을 때만: 멈춘 시계 바늘, 적힌 시각·글씨.
   const spot = focusObj?.at ? room.spots.find((h) => h.id === focusObj.at) : undefined;
@@ -446,6 +449,10 @@ function Play(props: { run: EscRun; art: string; name: string }) {
                     <button type="button" class="esc-hot idle" style={box(h)} data-say={idleSay(h)} aria-label={h.label} />
                   );
                 })}
+                {standing.map((o, i) => {
+                  const [x, y] = room.people[i % room.people.length]!;
+                  return <Thing run={run} o={{ ...o, x, y }} />;
+                })}
                 {coins.map((c) => (
                   <div class="esc-spot esc-coin-spot" style={`--x:${c.x};--y:${c.y}`}>
                     <Act run={run} a="coin" n={c.k} cls="esc-coin" label="반짝이는 곳">
@@ -471,9 +478,9 @@ function Play(props: { run: EscRun; art: string; name: string }) {
                 {lens && s.fx !== 'move' && <Loupe bg={bg} h={lens} msg={s.msg} name={focusObj!.name} />}
               </div>
             </div>
-            {standing.length > 0 && (
-              <div class="esc-actors" aria-label="대화와 발견한 물건">
-                {standing.map((o) => <Thing run={run} o={o} />)}
+            {met.length > 0 && (
+              <div class="esc-actors" aria-label="이야기를 나눈 사람">
+                {met.map((o) => <Thing run={run} o={o} />)}
               </div>
             )}
             <div class="esc-bag">

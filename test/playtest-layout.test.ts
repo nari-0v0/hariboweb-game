@@ -4,12 +4,12 @@ import { escCase, startEscape } from '../src/escape';
 import { EscapePage } from '../src/views/escape';
 import { Layout } from '../src/views/layout';
 import type { EscRun } from '../src/escape-db';
-import { ROOMS } from '../src/case-rooms';
+import { ROOMS, personBox } from '../src/case-rooms';
 
 const viewer = { user_id: '900000000000000001', display_name: '검사', avatar_url: null, joined_at: null, active: 1, is_newbie: 0 };
 
 describe('플레이테스트에서 재현된 화면 회귀', () => {
-  it('조사 대사가 있는 모든 방 버튼을 유지하고 인물을 별도 줄에 둔다', async () => {
+  it('조사 대사가 있는 모든 방 버튼을 유지하고 인물은 방 그림 안에 둔다', async () => {
     const def = escCase('trophy-talk')!;
     const state = startEscape(def);
     const run: EscRun = { def, state, row: { id: 'test', user_id: viewer.user_id, case_id: def.id, state: JSON.stringify(state), rev: 0, status: 'going', grade: null, xp: 0, jelly: 0 } };
@@ -23,8 +23,32 @@ describe('플레이테스트에서 재현된 화면 회귀', () => {
       expect(button).not.toContain('disabled');
       expect(button).not.toContain('aria-hidden');
     }
-    expect(html.indexOf('aria-label="모모"')).toBeGreaterThan(html.indexOf('class="esc-actors"'));
-    expect(html).toContain('aria-label="대화와 발견한 물건"');
+    expect(html).not.toContain('esc-actors'); // 처음엔 모두 방 안
+    expect(html.indexOf('aria-label="모모"')).toBeGreaterThan(html.indexOf('class="esc-bg"'));
+    expect(html.indexOf('aria-label="모모"')).toBeLessThan(html.indexOf('class="esc-bag"'));
+  });
+
+  it('문제를 푼 사람은 방 아래 카드 줄로 내려가요', async () => {
+    const def = escCase('trophy-talk')!;
+    const momo = def.objects.find((o) => o.face && o.lock && o.scene === def.scenes[0]!.id)!;
+    const state = { ...startEscape(def), opened: [momo.id], seen: [momo.id] };
+    const run: EscRun = { def, state, row: { id: 'test', user_id: viewer.user_id, case_id: def.id, state: JSON.stringify(state), rev: 0, status: 'going', grade: null, xp: 0, jelly: 0 } };
+    const html = String(await EscapePage({ viewer, art: '/char/deco/explorer.png', run, result: null, best: new Map() }).toString());
+    expect(html.indexOf(`aria-label="${momo.name}"`)).toBeGreaterThan(html.indexOf('class="esc-actors"'));
+    expect(html.indexOf('class="esc-actors"')).toBeGreaterThan(0);
+  });
+
+  it('인물 자리는 방마다 눌리는 곳을 거의 다 가리지 않는 곳이에요', () => {
+    for (const room of Object.values(ROOMS)) {
+      expect(room.people.length, room.key).toBeGreaterThanOrEqual(2);
+      for (const [x, y] of room.people) {
+        const b = personBox(x, y);
+        for (const h of room.spots) {
+          const hit = [0.15, 0.5, 0.85].flatMap((a) => [0.15, 0.5, 0.85].map((c) => [h.x - h.w / 2 + h.w * a, h.y - h.h / 2 + h.h * c] as const)).filter(([px, py]) => px > b.l && px < b.r && py > b.t && py < b.b);
+          expect(hit.length, `${room.key}/${h.id}`).toBeLessThan(7);
+        }
+      }
+    }
   });
 
   it('매표 창구 안의 작은 종이 창구 뒤에 가려지지 않게 나중에 그린다', async () => {

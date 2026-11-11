@@ -298,7 +298,44 @@ function room(key: RoomKey, rows: Row[]): Room {
     const face = FACES[`${key}/${id}`];
     return { id, label, at, x, y, w, h, ...(tag.length ? { tag } : {}), ...(tool.length ? { tool: [...tool] } : {}), ...(r ? { rid: RIDDLES[r] } : {}), ...(face ? { face } : {}) };
   });
-  return { key, spots, people: [[30, 88], [50, 90], [70, 88]] };
+  return { key, spots, people: placePeople(spots) };
+}
+
+// 사람(대화 상대)이 설 자리: 방 그림 속 눌리는 곳을 덜 가리는 바닥 자리를 골라요.
+// 사람 그림 크기는 휴대폰 화면(가장 크게 보일 때) 기준으로 어림해요: 가운데 x에서 좌우, 발끝(y+12)에서 위로.
+// 눌리는 곳은 아홉 점(가장자리·가운데) 중 몇 개가 가리는지 세고, 가운데가 가리면 더 나쁘게 쳐요.
+// 거의 다(7점 이상) 가리는 자리는 쓰지 않아요. 바닥 쪽(아래)을 조금 더 좋아해요.
+export function personBox(cx: number, cy: number) {
+  const s = 0.72 + cy * 0.0065;
+  // 여유를 넉넉히 둬요(퍼즐을 연 화면처럼 방 그림이 조금 달라 보일 때도 가리지 않게).
+  return { l: cx - 9.5 * s - 1, r: cx + 9.5 * s + 1, t: cy + 12 - 32 * s - 1, b: Math.min(100, cy + 12) };
+}
+function placePeople(spots: Hotspot[]): [number, number][] {
+  const cands: { x: number; y: number; cost: number; b: ReturnType<typeof personBox> }[] = [];
+  for (let y = 92; y >= 66; y -= 2)
+    for (let x = 12; x <= 88; x += 2) {
+      const b = personBox(x, y);
+      let cost = (92 - y) * 0.15;
+      let full = false;
+      for (const h of spots) {
+        const hit = [0.15, 0.5, 0.85].flatMap((a) => [0.15, 0.5, 0.85].map((c) => [h.x - h.w / 2 + h.w * a, h.y - h.h / 2 + h.h * c] as const)).filter(([px, py]) => px > b.l && px < b.r && py > b.t && py < b.b).length;
+        if (hit >= 7) full = true;
+        cost += hit + (h.x > b.l && h.x < b.r && h.y > b.t && h.y < b.b ? 5 : 0);
+      }
+      if (!full) cands.push({ x, y, cost, b });
+    }
+  cands.sort((a, b) => a.cost - b.cost || b.y - a.y || a.x - b.x);
+  const pick: typeof cands = [];
+  for (const c of cands) {
+    if (pick.length >= 3) break;
+    if (!pick.some((q) => c.b.l < q.b.r && c.b.r > q.b.l)) pick.push(c);
+  }
+  // 자리가 모자라면 사람끼리 조금 겹치는 건 괜찮아요(둘 다 일부는 보여서 누를 수 있어요).
+  for (const c of cands) {
+    if (pick.length >= 2) break;
+    if (!pick.some((q) => Math.abs(q.x - c.x) < 10)) pick.push(c);
+  }
+  return pick.length ? pick.map((c): [number, number] => [c.x, c.y]) : [[30, 88], [50, 90], [70, 88]];
 }
 
 export const ROOMS: Record<RoomKey, Room> = {

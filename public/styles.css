@@ -1637,7 +1637,7 @@ main.wide { max-width: 1320px; }
 .esc-ui-cell.void.clue { background: #e8f0ff; border-color: #8fb2cf; font-size: .7rem; white-space: pre-line; line-height: 1.1; text-align: center; }
 .esc-ui-board.mark .esc-ui-cell.shade { background: #3d3550; color: #fff; }
 
-/* 방의 조사 지점과 대화 대상을 나란히 두어, 어느 버튼도 서로 덮지 않아요. */
+/* 문제를 푼 사람은 방 아래 카드 줄에 모아요. 방 안 조사 지점을 가리지 않아요. */
 .esc-actors { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; margin-top: 10px; container-type: inline-size; }
 .esc-game .esc-actors > .esc-spot { position: relative; left: auto; top: auto; translate: none; scale: none !important; max-width: 120px; min-width: 0; }
 .esc-actors .esc-thing { width: 100%; padding: 6px; border: 3px solid var(--ink); background: var(--paper); color: var(--ink); }
