@@ -1551,7 +1551,7 @@ main.wide { max-width: 1320px; }
 .esc-ui-piece.sel { box-shadow: 0 0 0 3px #ff7aa2 inset; }
 .esc-ui-piece.fixed { background: #8a8299; cursor: default; }
 .esc-ui-piece.gone { opacity: .3; }
-.esc-ui-target { position: absolute; border: 3px dashed #ff7aa2; pointer-events: none; }
+.esc-ui-target { position: absolute; display: grid; place-items: center; border: 3px dashed #ff7aa2; pointer-events: none; opacity: .55; font-size: 1.1rem; }
 .esc-ui-exit { position: absolute; display: grid; place-items: center; font-size: .7rem; color: #fff; background: #ff7aa2; pointer-events: none; }
 .esc-ui-exit.R { right: -22px; width: 20px; } .esc-ui-exit.L { left: -22px; width: 20px; }
 .esc-ui-exit.U { top: -20px; height: 18px; } .esc-ui-exit.D { bottom: -20px; height: 18px; }
@@ -1601,7 +1601,7 @@ main.wide { max-width: 1320px; }
 .esc-ui-cell .pipe::before, .esc-ui-cell .pipe::after { content: ''; position: absolute; background: #5fa8e8; }
 .pipe.p-I::before { left: 40%; width: 20%; top: 0; bottom: 0; }
 .pipe.p-L::before { left: 40%; width: 20%; top: 0; height: 60%; } .pipe.p-L::after { left: 40%; right: 0; top: 40%; height: 20%; }
-.pipe.p-T::before { left: 0; right: 0; top: 40%; height: 20%; } .pipe.p-T::after { left: 40%; width: 20%; top: 0; height: 60%; }
+.pipe.p-T::before { left: 40%; width: 20%; top: 0; bottom: 0; } .pipe.p-T::after { left: 40%; right: 0; top: 40%; height: 20%; }
 .pipe.p-X::before { left: 40%; width: 20%; top: 0; bottom: 0; } .pipe.p-X::after { left: 0; right: 0; top: 40%; height: 20%; }
 .pipe.p-E::before, .pipe.p-S::before { left: 40%; width: 20%; top: 0; height: 55%; }
 .esc-ui-cell em { position: relative; font-style: normal; font-size: .9rem; }
