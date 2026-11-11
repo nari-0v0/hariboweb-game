@@ -39,7 +39,8 @@ const NICK_FAIL_TEXT: Record<string, string> = {
 export const JELLY_HOWTO = '출석 1개, 하루 통화 3시간 3개, 도감 카드 레벨이 오를 때마다 1개';
 
 // 오류가 났을 때 방장에게 문의하는 카카오톡 오픈채팅
-export const OWNER_CONTACT_URL = 'https://open.kakao.com/o/sznz9sHg';
+import { OWNER_CONTACT_URL } from '../contact';
+export { OWNER_CONTACT_URL };
 
 export type PopupLine = { title: string; text: string; bad?: boolean; contact?: boolean };
 
