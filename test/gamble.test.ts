@@ -130,6 +130,16 @@ describe('칩과 판 기록', () => {
     expect(() => sql.exec('UPDATE gamble_accounts SET chips = -1')).toThrow();
   });
 
+  it('칩을 다 건 카드 21이 진행 중이면 구제하지 않는다', async () => {
+    const { db } = fixture();
+    await claimDaily(db, USER, TODAY);
+    roll(1);
+    const hand = await betChips(db, USER, 'cards', 1000, 'all-in', TODAY);
+    expect(hand?.multiplier).toBeNull();
+    expect((await gambleAccount(db, USER))?.chips).toBe(0);
+    expect(await rescueChips(db, USER, TODAY)).toBe(false);
+  });
+
   it('진행 중인 카드 판 하나만 허용하고 같은 조작을 두 번 적용하지 않는다', async () => {
     const { db, sql } = fixture();
     await claimDaily(db, USER, TODAY);
