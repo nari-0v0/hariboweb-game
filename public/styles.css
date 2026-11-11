@@ -1658,7 +1658,6 @@ main.wide { max-width: 1320px; }
   box-shadow: 3px 3px 0 #273551;
   overflow-wrap: anywhere;
 }
-.gb-result { background: #fff4ca; scroll-margin-top: 5rem; }
 .gb-balance { font-size: 1.35rem; }
 .gb-form, .gb-tiles { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
 .gb-form { margin-top: 1rem; }
@@ -1687,8 +1686,7 @@ main.wide { max-width: 1320px; }
 .gb-play-button { width: 100%; }
 
 .gb-motion-running [data-gb-reveal],
-.gb-page:has(.gb-result.gb-motion-running) .gb-intro-balance { visibility: hidden; }
-.gb-active-hand { scroll-margin-top: 5rem; }
+.gb-room-page:has(.gb-room[data-gb-settled].gb-motion-running) .gb-room-balance { visibility: hidden; }
 .gb-art-layer { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; pointer-events: none; }
 
 .gb-slot {
@@ -1755,7 +1753,7 @@ main.wide { max-width: 1320px; }
   white-space: nowrap;
 }
 .gb-wheel-label[aria-current="true"] { border-radius: 2px; }
-.gb-result:not(.gb-motion-running) .gb-wheel-label[aria-current="true"] {
+.gb-room:not(.gb-motion-running) .gb-wheel-label[aria-current="true"] {
   background: #fff8d2;
   outline: 2px solid #782845;
 }
@@ -1793,3 +1791,35 @@ main.wide { max-width: 1320px; }
 .gb-card-back { transform: rotateY(180deg); background: #cbe5ff; font-size: 1.55rem; }
 .gb-card-deck .gb-art, .gb-card-back .gb-art { width: 100%; height: 100%; object-fit: fill; }
 .gb-card-mark { position: relative; white-space: nowrap; font-size: .76rem; }
+
+.gb-lobby-intro { position: relative; isolation: isolate; }
+.gb-lobby-intro .gb-art-layer { z-index: -1; }
+.gb-game-link {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: .5rem;
+  color: var(--ink);
+  text-decoration: none;
+}
+.gb-game-link:hover, .gb-game-link:focus-visible { background: #dff3ff; text-decoration: underline; }
+.gb-game-link-icon { font-size: 1.75rem; }
+.gb-game-progress { padding: .1rem .45rem; background: #fff0b6; border: 1px solid #273551; }
+
+.gb-room-page { max-width: 38rem; margin-inline: auto; }
+.gb-room-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .45rem 1rem; }
+.gb-room-bar p { margin: 0; }
+.gb-resume { flex-basis: 100%; }
+.gb-room { background: #fff4ca; color: #202944; }
+.gb-room h1 { font-size: clamp(1.25rem, 5vw, 1.8rem); }
+.gb-game-surface { position: relative; display: flow-root; padding-bottom: .65rem; margin-block: .75rem; }
+.gb-surface-cards { padding: .65rem .65rem 1.1rem; background: #e0effc; border: 2px solid #273551; }
+.gb-surface-cards .gb-card-table { margin-top: 0; }
+.gb-round-result { margin-top: 1rem; }
+.gb-rules { margin-top: 1rem; }
+.gb-rules summary { cursor: pointer; }
+
+.gb-coin-drop { position: absolute; inset: auto 0 0; height: 4.75rem; overflow: hidden; pointer-events: none; }
+.gb-dropping-coin, .gb-coin-target { position: absolute; left: 50%; translate: -50% 0; }
+.gb-dropping-coin { bottom: .25rem; font-size: 1.55rem; line-height: 1; }
+.gb-coin-target { bottom: .15rem; width: 2.8rem; height: .55rem; background: #273551; border: 1px solid #fff; }

@@ -12,6 +12,8 @@ export const GAMBLE_ART: Record<string, GambleArt> = {
   heart: { text: '♥️' },
   diamond: { text: '♦️' },
   club: { text: '♣️' },
+  coin: { text: '🪙' },
+  background: { text: '' },
   slotFrame: { text: '' },
   wheel: { text: '' },
   pointer: { text: '▼' },

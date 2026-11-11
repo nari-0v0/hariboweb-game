@@ -4,12 +4,34 @@ export function nextBet(current, balance, action) {
   return current + Math.min(action, balance - current);
 }
 
+function canAnimate() {
+  return Element.prototype.animate && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+async function dropCoin(coin) {
+  coin.hidden = false;
+  try {
+    await coin.animate(
+      [
+        { transform: 'translateY(-3.25rem) scale(1)', opacity: 1 },
+        { transform: 'translateY(0) scale(1)', opacity: 1, offset: .72 },
+        { transform: 'translateY(.75rem) scale(.25)', opacity: 0 },
+      ],
+      { duration: 600, easing: 'cubic-bezier(.45,.05,.75,.45)' },
+    ).finished;
+  } finally {
+    coin.hidden = true;
+  }
+}
+
 function initBet(form) {
   const balance = Number(form.dataset.gbBalance);
   const input = form.elements.namedItem('bet');
   const submit = form.querySelector('button[type="submit"]');
   const amount = form.querySelector('output');
   const format = new Intl.NumberFormat('ko-KR');
+  const coin = form.closest('.gb-room').querySelector('.gb-dropping-coin');
+  let state = 'idle';
 
   form.addEventListener('click', (event) => {
     const button = event.target.closest('button[data-gb-bet]');
@@ -21,8 +43,32 @@ function initBet(form) {
     submit.disabled = bet === 0;
   });
 
-  form.addEventListener('submit', (event) => {
-    if (submit.disabled) event.preventDefault();
+  form.addEventListener('submit', async (event) => {
+    if (state === 'sending' || state === 'dropping' || submit.disabled) {
+      event.preventDefault();
+      return;
+    }
+    if (state === 'ready' || !coin || !canAnimate()) {
+      state = 'sending';
+      return;
+    }
+
+    event.preventDefault();
+    state = 'dropping';
+    form.inert = true;
+    try {
+      await dropCoin(coin);
+    } catch {
+      // A canceled animation should not block a valid bet.
+    }
+    if (state !== 'dropping') return;
+    state = 'ready';
+    form.requestSubmit();
+  });
+
+  addEventListener('pagehide', () => { state = 'idle'; });
+  addEventListener('pageshow', (event) => {
+    if (event.persisted) form.inert = false;
   });
 }
 
@@ -84,8 +130,7 @@ function firstView(key) {
 const playMotion = { slot: spinReels, roulette: spinWheel, cards: dealCards };
 
 async function showResult(stage) {
-  if (!Element.prototype.animate || !firstView(stage.dataset.gbKey) ||
-    matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (!canAnimate() || !firstView(stage.dataset.gbKey)) return;
 
   const actions = stage.querySelector('[data-gb-card-actions]');
   stage.classList.add('gb-motion-running');
