@@ -1518,4 +1518,6 @@ export function roomByName(name: string): RoomKey | null {
   return ROOM_BY_NAME[name] ?? ROOM_BY_WORD.find(([, re]) => re.test(name))?.[0] ?? null;
 }
 export const roomSrc = (key: RoomKey) => `/case/room/${key}.webp?v=3`;
+// 휴대폰은 900px 그림이면 충분해요. 큰 화면·확대 보기만 1500px 그림을 받아요.
+export const roomSrcSet = (key: RoomKey) => `/case/room/${key}-m.webp?v=3 900w, ${roomSrc(key)} 1500w`;
 export const hotspot = (room: RoomKey, id: string) => ROOMS[room].spots.find((s) => s.id === id) ?? null;
