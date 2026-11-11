@@ -1,11 +1,11 @@
 // 하리보 사건파일: 이야기 씨앗(escape-stories.ts)으로 방 3개짜리 방탈출 사건을 만들어요.
-// 수수께끼 다섯 개를 푸는 방식(자물쇠, 말 거는 사람, 찢어진 쪽지, 멈춘 시계, 물건 찾기 카드, 다른 방 쪽지,
-// 줄 세우기, 보물 칸)을 사건마다 다르게 섞고, 마지막엔 용의자 특징표와 증거 세 개로 범인·방법·동기를 맞혀요.
+// 수수께끼는 은행(escape-bank.ts) 235개를 사건 47개에 다섯 개씩 나눠요. 아이디어가 하나도 겹치지 않고,
+// 손으로 움직여 푸는 장치(물 붓기, 강 건너기, 불 끄기 …)와 글 수수께끼가 사건마다 섞여요.
+// 마지막엔 용의자 특징표와 증거 세 개로 범인·방법·동기를 맞혀요.
 // 같은 씨앗이면 늘 같은 사건이 나와요(무작위는 사건 id로 정해져요).
 import { rng } from './expedition';
 import type { EscAction, EscCase, EscObject, Lock } from './escape';
-import { TEASERS, type Teaser } from './escape-teasers';
-import { GRIDS, ORDERS, type GridPuzzle, type OrderPuzzle } from './escape-puzzles';
+import { BANK, type BankItem } from './escape-bank';
 import { ROOMS, ROOM_KEYS, roomByName, type Hotspot, type RoomKey } from './case-rooms';
 
 export type StorySeed = {
@@ -74,7 +74,8 @@ type Reward = { take?: string[]; clue?: string | string[]; text: string; got?: s
 type Ctx = { r: R; id: (k: string) => string; reward: Reward; lock?: Spot; pool: Pool; safe?: Hotspot };
 
 // 잠긴 곳 하나(혹은 문). 비밀번호를 맞히면 보상이 나와요.
-type CodeExtra = Pick<Extract<Lock, { kind: 'code' }>, 'choices' | 'order' | 'grid'>;
+type CodeExtra = Pick<Extract<Lock, { kind: 'code' }>, 'choices' | 'order' | 'grid' | 'ui'>;
+type Teaser = { q: string; a: string; ask: string; hint: string; choices?: string[] };
 function box(ctx: Ctx, code: string, ask: string, look: string, extra: CodeExtra = {}): Spot {
   const lk: Lock = { kind: 'code', code, ask, ...extra };
   if (ctx.lock) return { ...ctx.lock, lock: lk, look: `${ctx.lock.look} ${look}` };
@@ -148,12 +149,13 @@ function far(ctx: Ctx, t: Teaser, no: number, back: Ctx, backName: string): Buil
 
 // 멈춘 시계: 방 그림 속 벽시계를 눌러 크게 보고, 그 시각으로 계산해요(눌러야 바늘이 보여요).
 const CLOCK_KINDS = 4;
-function clockQuiz(ctx: Ctx, kind: number): Built | null {
+function clockQuiz(ctx: Ctx, kind: number, no: number): Built {
   const { r } = ctx;
-  const h = ctx.pool.free.find(has('clock'));
-  if (!h) return null;
-  ctx.pool.free = ctx.pool.free.filter((x) => x !== h);
-  const n = h.label;
+  // 그림에 벽시계가 없으면 바닥에 떨어진 손목시계로 대신해요.
+  const wall = ctx.pool.free.find(has('clock'));
+  const h = wall ?? take(r, ctx.pool);
+  if (wall) ctx.pool.free = ctx.pool.free.filter((x) => x !== wall);
+  const n = wall ? h.label : '손목시계';
   const hm = (t: number) => {
     const hh = Math.floor(t / 60) % 12 || 12;
     const mm = t % 60;
@@ -199,69 +201,69 @@ function clockQuiz(ctx: Ctx, kind: number): Built | null {
     q = `지금 ${n}${josa(n, '이', '가')} 가리키는 시각부터, 긴바늘과 짧은바늘이 처음으로 딱 겹칠 때까지 몇 분이 걸릴까요?`;
     hint = '두 바늘은 12시간에 11번 겹쳐요. 그러니 겹치는 간격은 720÷11분, 약 65분 27초예요.';
   }
-  const face: Spot = { id: ctx.id('clk'), at: h.id, name: n, emoji: '🕰️', look: `${n}${josa(n, '이', '가')} ${hm(shown)}${tail}`, memo: true };
-  const lock = box(ctx, code, ask, `자물쇠에 문제가 새겨져 있어요.\n「시계 수수께끼」\n${q}`);
-  return { spots: [face, lock], lockId: lock.id, hint: `${n}${josa(n, '을', '를')} 눌러 크게 보세요. ${hint}`, steps: [{ a: 'tap', o: face.id }, { a: 'code', o: lock.id, v: code }] };
+  const face: Spot = { id: ctx.id('clk'), at: h.id, name: wall ? n : h.label, emoji: '🕰️', look: wall ? `${n}${josa(n, '이', '가')} ${hm(shown)}${tail}` : `${h.at} 멈춘 손목시계가 떨어져 있어요. ${hm(shown)}${tail}`, memo: true };
+  const lock = { ...box(ctx, code, ask, `자물쇠에 문제가 새겨져 있어요.\n「시계 수수께끼」\n${q}`), ref: no };
+  return { spots: [face, lock], lockId: lock.id, hint: `${wall ? n : '떨어진 손목시계'}${josa(n, '을', '를')} 눌러 보세요. ${hint}`, steps: [{ a: 'tap', o: face.id }, { a: 'code', o: lock.id, v: code }] };
 }
 
 // 줄 세우기: 문장 여러 개로 순서를 추리해서, 자리마다 이름을 골라요.
-function lineUp(ctx: Ctx, p: OrderPuzzle): Built {
-  const lock = box(ctx, p.a, `${p.ask} 고르기`, `자물쇠에 문제가 새겨져 있어요.\n「줄 세우기 수수께끼」\n${p.q}`, { order: p.names });
-  return { spots: [lock], lockId: lock.id, hint: p.hint, steps: [{ a: 'code', o: lock.id, v: p.a }] };
+function lineUp(ctx: Ctx, p: BankItem, no: number): Built {
+  const lock = { ...box(ctx, p.a!, p.ask!, `자물쇠에 문제가 새겨져 있어요.\n「줄 세우기 수수께끼」\n${p.q}`, { order: p.names! }), ref: no };
+  return { spots: [lock], lockId: lock.id, hint: p.hint!, steps: [{ a: 'code', o: lock.id, v: p.a! }] };
 }
 
-// 보물 칸: 숫자는 둘레 여덟 칸에 숨은 젤리 개수. 젤리 칸을 모두 골라 표시해요.
-function treasure(ctx: Ctx, g: GridPuzzle): Built {
-  const q = `젤리 보물 지도예요. 숫자가 적힌 칸에는 젤리가 없고, 숫자는 그 칸을 둘러싼 여덟 칸(가로·세로·대각선)에 숨은 젤리 개수예요. 젤리는 모두 ${g.k}개예요. 젤리가 있는 칸을 모두 골라 표시하세요.`;
-  const lock = box(ctx, g.a, `젤리 ${g.k}칸 고르기`, `자물쇠에 칸 그림이 새겨져 있어요.\n「보물 칸 수수께끼」\n${q}`, { grid: { w: g.w, h: g.h, nums: g.nums } });
-  return { spots: [lock], lockId: lock.id, hint: '0 둘레에는 젤리가 없어요. 숫자 칸 둘레에 남은 빈칸이 그 숫자와 딱 같으면 거기는 모두 젤리예요.', steps: [{ a: 'code', o: lock.id, v: g.a }] };
+// 손으로 움직이는 장치: 잠긴 곳에 달린 작은 판을 직접 움직여 풀어요(규칙에 맞으면 어떤 풀이든 정답).
+function gadget(ctx: Ctx, p: BankItem, no: number): Built {
+  const name = FMT_NAME[p.ui!.t]!;
+  const lock = { ...box(ctx, p.a!, p.ask!, `자물쇠 대신 작은 장치가 달려 있어요.\n「${name}」\n${p.q}`, { ui: p.ui! }), ref: no };
+  return { spots: [lock], lockId: lock.id, hint: p.hint!, steps: [{ a: 'code', o: lock.id, v: p.a! }] };
 }
 
-// ── 사건마다 다섯 자리(방1 장치, 방1 조각, 방2 장치, 방2 문, 방3 장치)에 서로 다른 방식을 나눠요 ──
-export type Fmt = 'lock' | 'person' | 'torn' | 'clock' | 'card' | 'far' | 'order' | 'grid';
-export const FMT_NAME: Record<Fmt, string> = {
-  lock: '자물쇠 수수께끼', person: '말 거는 사람', torn: '찢어진 쪽지', clock: '멈춘 시계', card: '물건 찾기 카드', far: '다른 방 쪽지', order: '줄 세우기', grid: '보물 칸',
+// ── 은행 235문제를 사건 47개에 다섯 개씩 나눠요 ──
+// 손으로 푸는 장치(시계·카드·줄 세우기 포함)는 사건마다 한두 개, 나머지는 글 수수께끼예요.
+// 한 사건 안에서는 같은 조작이 두 번 나오지 않아요.
+export const FMT_NAME: Record<string, string> = {
+  lock: '자물쇠 수수께끼', person: '말 거는 사람', torn: '찢어진 쪽지', far: '다른 방 쪽지', clock: '멈춘 시계', card: '물건 찾기 카드', order: '줄 세우기',
+  slide: '밀어서 옮기기', pour: '물 붓기', river: '강 건너기', lights: '불 끄기', match: '성냥개비 옮기기', balance: '저울 맞추기', path: '길 그리기',
+  rotate: '타일 돌리기', stacks: '쌓기 옮기기', numgrid: '숫자 칸 채우기', mark: '칸 표시하기', multi: '모두 고르기', jump: '말 뛰어넘기',
+  dials: '다이얼 맞추기', color: '색칠하기', divide: '땅 나누기',
 };
-const FMTS: Fmt[] = ['lock', 'person', 'torn', 'clock', 'card', 'far', 'order', 'grid'];
-const SLOT_OK: Fmt[][] = [
-  ['lock', 'person', 'torn', 'clock', 'card', 'order', 'grid'],
-  ['lock', 'person', 'torn', 'clock', 'card', 'order', 'grid'],
-  FMTS,
-  ['lock', 'torn', 'clock', 'far', 'order', 'grid'],
-  FMTS,
-];
-const TEASE = new Set<Fmt>(['lock', 'person', 'torn', 'far']);
-type Plan = { f: Fmt[]; tz: number; ord: number; grid: number; clock: number };
-const PLANS: Plan[] = [];
-function planFor(no: number): Plan {
-  while (PLANS.length <= no) {
-    const i = PLANS.length;
-    const r = rng(`fmt-plan:${i}`);
-    const used = new Set(PLANS.map((p) => [...p.f].sort().join()));
-    const prev = PLANS[i - 1];
-    const sets: Fmt[][] = [];
-    for (let m = 0; m < 256; m++) if (m.toString(2).split('1').length - 1 === 5) sets.push(FMTS.filter((_, k) => m & (1 << k)));
-    const order = shuffle(r, sets).sort((a, b) => Number(used.has([...a].sort().join())) - Number(used.has([...b].sort().join())));
-    let f: Fmt[] | null = null;
-    for (const set of order) {
-      if (prev && set.filter((x) => prev.f.includes(x)).length > 3) continue;
-      for (let tries = 0; tries < 60 && !f; tries++) {
-        const p = shuffle(r, set);
-        if (p.every((x, k) => SLOT_OK[k]!.includes(x))) f = p;
+export const MADE_CASES = 47;
+export const mech = (b: BankItem) => (b.kind === 'ui' ? b.ui!.t : b.kind);
+let HANDS: number[][] | null = null;
+export function bankHands(): number[][] {
+  if (HANDS) return HANDS;
+  const r = rng('bank-deal');
+  const idx = BANK.map((_, i) => i);
+  const special = idx.filter((i) => BANK[i]!.kind === 'clock' || BANK[i]!.kind === 'card');
+  const hard = [...special, ...shuffle(r, idx.filter((i) => BANK[i]!.kind !== 'text' && !special.includes(i)))];
+  const text = shuffle(r, idx.filter((i) => BANK[i]!.kind === 'text'));
+  const hands: number[][] = Array.from({ length: MADE_CASES }, () => []);
+  hard.forEach((i, k) => hands[k % MADE_CASES]!.push(i));
+  // 같은 사건에 같은 조작이 둘이면 다른 사건 것과 맞바꿔요.
+  const clash = (h: number[]) => new Set(h.map((i) => mech(BANK[i]!))).size < h.length;
+  for (let guard = 0; guard < 500 && hands.some(clash); guard++) {
+    const a = hands.findIndex(clash);
+    const x = hands[a]!.at(-1)!;
+    for (let b = 0; b < MADE_CASES; b++) {
+      if (b === a) continue;
+      const k = hands[b]!.findIndex((y) => !special.includes(y));
+      if (k < 0) continue;
+      const na = [...hands[a]!.slice(0, -1), hands[b]![k]!];
+      const nb = hands[b]!.map((z, j) => (j === k ? x : z));
+      if (!clash(na) && !clash(nb)) {
+        hands[a] = na;
+        hands[b] = nb;
+        break;
       }
-      if (f) break;
     }
-    const sum = (k: keyof Omit<Plan, 'f'>, add: number) => (prev ? prev[k] : 0) + add;
-    const pf = prev?.f ?? [];
-    PLANS.push({
-      f: f!,
-      tz: sum('tz', pf.filter((x) => TEASE.has(x)).length),
-      ord: sum('ord', pf.filter((x) => x === 'order').length),
-      grid: sum('grid', pf.filter((x) => x === 'grid').length),
-      clock: sum('clock', pf.filter((x) => x === 'clock').length),
-    });
   }
-  return PLANS[no]!;
+  let t = 0;
+  for (const h of hands) while (h.length < 5) h.push(text[t++]!);
+  if (t !== text.length) throw new Error('은행 수가 맞지 않아요');
+  // 묶음 순서를 섞어서 시계·카드가 앞 사건에 몰리지 않게 해요.
+  HANDS = shuffle(r, hands);
+  return HANDS;
 }
 
 // 사건마다 수수께끼 카드의 답이 겹치지 않게, 이미 쓴 수수께끼를 기억해 둬요.
@@ -341,38 +343,59 @@ export function buildCase(seed: StorySeed, level = 3, no = 0): EscCase {
   // 잠긴 곳은 장치마다 먼저 하나 맡아 둬요(다른 쪽지가 자물쇠 자리를 차지하지 않게).
   const ctx = (scene: number, reward: Reward, lock?: Spot | 'none'): Ctx => ({ r, reward, lock: lock === 'none' ? undefined : lock, pool: pools[scene]!, safe: lock ? undefined : take(r, pools[scene]!, has('lock')), id: (k) => `${k}${++n}` });
 
-  // 다섯 자리마다 정해 둔 방식으로 수수께끼를 만들어요. 그림에 시계·수수께끼 물건이 모자라면 자물쇠 수수께끼로 바꿔요.
-  const plan = planFor(no);
-  let tzi = plan.tz;
-  const nextT = (): [Teaser, number] => {
-    const t = TEASERS[tzi];
-    if (!t) throw new Error(`수수께끼가 모자라요: ${seed.id}`);
-    return [t, ++tzi];
+  // 이 사건이 받은 은행 문제 다섯 개를 다섯 자리에 놓아요. 카드는 수수께끼 물건이 넉넉한 방에만,
+  // 글 수수께끼는 내는 방식(자물쇠·사람·찢어진 쪽지·다른 방 쪽지)이 서로 다르게요.
+  const hand = bankHands()[no];
+  if (!hand) throw new Error(`은행 묶음이 없어요: ${seed.id}`);
+  const SCENE = [0, 0, 1, 1, 2];
+  const mine = shuffle(r, hand);
+  const slotItem: number[] = [-1, -1, -1, -1, -1];
+  const card = mine.find((i) => BANK[i]!.kind === 'card');
+  if (card !== undefined) {
+    const ok = shuffle(r, [0, 1, 2, 4]).find((k) => pools[SCENE[k]!]!.free.filter((h) => h.rid && !h.tag?.includes('lock')).length >= 4);
+    if (ok === undefined) throw new Error(`카드 놓을 방이 없어요: ${seed.id}`);
+    slotItem[ok] = card;
+  }
+  for (const i of mine) if (i !== card) slotItem[slotItem.indexOf(-1)] = i;
+  const PRES: string[][] = [['lock', 'person', 'torn'], ['lock', 'person', 'torn'], ['lock', 'person', 'torn', 'far'], ['lock', 'torn', 'far'], ['lock', 'person', 'torn', 'far']];
+  const textSlots = [0, 1, 2, 3, 4].filter((k) => BANK[slotItem[k]!]!.kind === 'text');
+  const pres: string[] = [];
+  const assign = (j: number, used: Set<string>): boolean => {
+    if (j === textSlots.length) return true;
+    for (const p of shuffle(r, PRES[textSlots[j]!]!)) {
+      if (used.has(p)) continue;
+      pres[j] = p;
+      if (assign(j + 1, new Set([...used, p]))) return true;
+    }
+    return false;
   };
-  const spare = (): [Teaser, number] => [TEASERS[TEASERS.length - 1 - no]!, TEASERS.length - no];
-  const formats: Fmt[] = [];
+  if (!assign(0, new Set())) textSlots.forEach((k, j) => (pres[j] = pick(r, PRES[k]!)));
+  const formats: string[] = [];
   const people: string[] = seed.suspects.map(([name]) => name);
   const make = (k: number, scene: number, reward: Reward, lock?: Spot): Built => {
-    const f = plan.f[k]!;
-    const free = pools[scene]!.free;
-    const ok = f === 'clock' ? free.some(has('clock')) : f === 'card' ? free.filter((h) => h.rid && !h.tag?.includes('lock')).length >= 3 : true;
-    // 바꿀 땐 이 사건에 아직 없는 수수께끼 방식으로(남는 문제는 은행 끝에서 가져와요)
-    const use: Fmt = ok ? f : ((['torn', 'far', 'person', 'lock'] as const).find((x) => !plan.f.includes(x) && SLOT_OK[k]!.includes(x)) ?? 'lock');
+    const bi = slotItem[k]!;
+    const b = BANK[bi]!;
+    const no1 = bi + 1;
+    const use = b.kind === 'text' ? pres[textSlots.indexOf(k)]! : mech(b);
     formats.push(use);
-    const tz = (): [Teaser, number] => (ok ? nextT() : spare());
     const cx = ctx(scene, reward, lock ?? (use === 'person' || use === 'card' ? 'none' : undefined));
-    if (use === 'lock') return teaser(cx, ...tz());
+    const t = b as Teaser;
+    if (use === 'lock') return teaser(cx, t, no1);
     if (use === 'person') {
-      const b = person(cx, ...tz(), people);
-      people.push(b.spots[0]!.name);
-      return b;
+      const out = person(cx, t, no1, people);
+      people.push(out.spots[0]!.name);
+      return out;
     }
-    if (use === 'torn') return torn(cx, ...tz());
-    if (use === 'far') return far(cx, ...tz(), ctx(scene - 1, reward, 'none'), seed.rooms[scene - 1]!);
-    if (use === 'clock') return clockQuiz(cx, plan.clock % CLOCK_KINDS)!;
-    if (use === 'card') return riddle(cx);
-    if (use === 'order') return lineUp(cx, ORDERS[plan.ord]!);
-    return treasure(cx, GRIDS[plan.grid]!);
+    if (use === 'torn') return torn(cx, t, no1);
+    if (use === 'far') return far(cx, t, no1, ctx(scene - 1, reward, 'none'), seed.rooms[scene - 1]!);
+    if (use === 'clock') return clockQuiz(cx, b.clock!, no1);
+    if (use === 'card') {
+      const out = riddle(cx);
+      out.spots[0] = { ...out.spots[0]!, ref: no1 };
+      return out;
+    }
+    if (use === 'order') return lineUp(cx, b, no1);
+    return gadget(cx, b, no1);
   };
 
   const sceneSpots: Spot[][] = [[], [], []];

@@ -943,7 +943,7 @@ members.post('/api/escape/act', async (c) => {
   const act =
     a === 'tap' ? { a, o: str('o') } as const
     : a === 'use' ? { a, o: str('o'), i: str('i') } as const
-    : a === 'code' ? { a, o: str('o'), v: escCodeValue(body, str('v')) } as const
+    : a === 'code' ? { a, o: str('o'), v: escCodeValue(body, String(body.v ?? '').slice(0, 900)) } as const
     : a === 'answer' ? { a, n: Number(body.n), ...(body.m0 !== undefined ? { m: [0, 1, 2].map((k) => body[`m${k}`]).filter((v) => v !== undefined).map(Number) } : {}) } as const
     : a === 'combine' ? { a, i: str('i'), j: str('j') } as const
     : a === 'hint' ? { a } as const

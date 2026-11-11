@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ESCAPE_CASES, escCase, actEscape, canAnswer, escGrade, isLocked, startEscape, visible, type EscAction, type EscCase, type EscState } from '../src/escape';
 import { actEscapeRun, activeEscape, beginEscape, escapeRecord, getEscape, quitEscape } from '../src/escape-db';
+import { checkUi } from '../src/escape-ui';
 
 function database() {
   const sql = new DatabaseSync(':memory:');
@@ -132,72 +133,43 @@ describe('사건파일 방탈출 내용', () => {
       expect(left(3)[0]).toContain(c.question.options[c.question.correct]!.split(' (')[0]);
     }
   });
-  it('만든 사건: 수수께끼는 사건끼리 겹치지 않고, 푸는 방식도 사건마다 섞여 있어요', () => {
+  it('만든 사건: 은행 235문제를 한 번씩만 쓰고, 한 사건 안에서는 조작·내는 방식이 겹치지 않아요', async () => {
+    const { BANK } = await import('../src/escape-bank');
     const made = ESCAPE_CASES.filter((c) => (c.level ?? 1) > 1 && !c.id.includes('-talk'));
     expect(made.length).toBe(47);
+    expect(BANK.length).toBe(235);
+    expect(new Set(BANK.map((b) => b.idea)).size).toBe(BANK.length);
     const nos = made.flatMap((c) => c.objects.flatMap((o) => o.ref ?? []));
-    expect(nos.length).toBeGreaterThan(100);
-    expect(new Set(nos).size).toBe(nos.length);
+    expect(nos.length).toBe(235);
+    expect(new Set(nos).size).toBe(235);
     const cards = made.flatMap((c) => c.objects.filter((o) => o.id.startsWith('rdn')).map((o) => o.look.split('\n')[1]));
     expect(new Set(cards).size).toBe(cards.length);
-    const sets = made.map((c) => [...c.formats!].sort().join());
     for (const c of made) expect(new Set(c.formats).size, `${c.id} ${c.formats}`).toBe(5);
-    // 같은 방식 묶음은 거의 다시 나오지 않고, 바로 앞 사건과는 두 가지 이상 달라요
-    expect(sets.length - new Set(sets).size).toBeLessThanOrEqual(Math.floor(made.length / 3));
-    made.forEach((c, i) => i && expect(c.formats!.filter((f) => made[i - 1]!.formats!.includes(f)).length, c.id).toBeLessThanOrEqual(3));
-    const all = made.flatMap((c) => c.formats!);
-    for (const f of ['lock', 'person', 'torn', 'clock', 'card', 'far', 'order', 'grid']) expect(all.filter((x) => x === f).length, f).toBeGreaterThanOrEqual(10);
+    const all = new Set(made.flatMap((c) => c.formats!));
+    expect(all.size).toBeGreaterThanOrEqual(20);
   });
-  it('보물 칸·줄 세우기: 답이 하나뿐이고 화면에서 고를 수 있어요', async () => {
-    const { GRIDS, ORDERS } = await import('../src/escape-puzzles');
-    const around = (w: number, h: number, i: number) => {
-      const out: number[] = [];
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-        const x = (i % w) + dx, y = Math.floor(i / w) + dy;
-        if ((dx || dy) && x >= 0 && y >= 0 && x < w && y < h) out.push(y * w + x);
-      }
-      return out;
-    };
-    for (const g of GRIDS) {
-      const cand = g.nums.flatMap((n, i) => (n === null ? [i] : []));
-      let found = 0;
-      const pickK = (from: number, chosen: number[]) => {
-        if (found > 1) return;
-        if (chosen.length === g.k) {
-          const set = new Set(chosen);
-          if (g.nums.every((n, i) => n === null || around(g.w, g.h, i).filter((j) => set.has(j)).length === n)) {
-            found++;
-            expect(g.nums.map((_, i) => (set.has(i) ? '1' : '0')).join('')).toBe(g.a);
-          }
-          return;
-        }
-        for (let k = from; k < cand.length; k++) pickK(k + 1, [...chosen, cand[k]!]);
-      };
-      pickK(0, []);
-      expect(found).toBe(1);
+  it('수수께끼 은행: 장치는 모범 풀이로 풀리고, 고르기 답은 보기 안에 있어요', async () => {
+    const { BANK } = await import('../src/escape-bank');
+    for (const b of BANK) {
+      if (b.kind === 'ui') expect(checkUi(b.ui!, b.a!), b.idea).toBe(true);
+      if (b.kind === 'ui') expect(checkUi(b.ui!, ''), b.idea).toBe(false);
+      if (b.kind === 'order') expect([...b.a!].sort().join(''), b.idea).toBe(b.names!.map((_, i) => i + 1).join(''));
+      if (b.kind !== 'text') continue;
+      if (b.choices) expect(b.choices, b.idea).toContain(b.a);
+      else expect(b.a!.replace(/\s/g, '').length, b.idea).toBeLessThanOrEqual(/^[0-9]+$/.test(b.a!) ? 8 : 12);
     }
-    for (const o of ORDERS) expect([...o.a].sort().join('')).toBe(o.names.map((_, i) => i + 1).join(''));
   });
-  it('보물 칸·줄 세우기 답: 칸마다·자리마다 받은 값을 이어 맞혀요', () => {
-    const c = ESCAPE_CASES.find((x) => x.objects.some((o) => o.lock?.kind === 'code' && o.lock.grid))!;
-    const o = c.objects.find((x) => x.lock?.kind === 'code' && x.lock.grid)!;
+  it('장치 답: 규칙에 안 맞는 움직임은 실수, 맞으면 열려요', () => {
+    const c = ESCAPE_CASES.find((x) => x.objects.some((o) => o.lock?.kind === 'code' && o.lock.ui?.t === 'pour'))!;
+    const o = c.objects.find((x) => x.lock?.kind === 'code' && x.lock.ui?.t === 'pour')!;
     const lk = o.lock as { code: string };
     let s = startEscape(c);
     for (const a of c.solution!) {
       if (a.a === 'code' && a.o === o.id) break;
       s = actEscape(c, s, a)!;
     }
-    expect(actEscape(c, s, { a: 'code', o: o.id, v: '12' })).toBeNull();
-    const wrong = actEscape(c, s, { a: 'code', o: o.id, v: lk.code.replace(/^./, (x) => (x === '1' ? '0' : '1')) })!;
-    expect(wrong.mistakes).toBe(1);
+    expect(actEscape(c, s, { a: 'code', o: o.id, v: '01' })!.mistakes).toBe(s.mistakes + 1);
     expect(actEscape(c, s, { a: 'code', o: o.id, v: lk.code })!.opened).toContain(o.id);
-  });
-  it('수수께끼 은행: 고르기 문제는 정답이 보기 안에 있어요', async () => {
-    const { TEASERS } = await import('../src/escape-teasers');
-    for (const t of TEASERS) {
-      if (t.choices) expect(t.choices, t.q).toContain(t.a);
-      else expect(t.a.replace(/\s/g, '').length, t.q).toBeLessThanOrEqual(/^[0-9]+$/.test(t.a) ? 8 : 12);
-    }
   });
   it('합치기: 맞는 짝은 도구가 되고, 안 맞는 짝은 실수예요', () => {
     const c = ESCAPE_CASES.find((x) => x.combos)!;

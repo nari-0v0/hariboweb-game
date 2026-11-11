@@ -6,11 +6,13 @@ import { buildCase } from './escape-gen';
 import { ROOMS, ROOM_KEYS, roomByName, type RoomKey } from './case-rooms';
 import { STORY_SEEDS } from './escape-stories';
 import { TALK_CASES } from './escape-talk';
+import { checkUi, type Ui } from './escape-ui';
 
 // order: 이름을 순서대로 고르는 문제(답은 이름 번호를 이은 숫자), grid: 칸을 골라 표시하는 문제(답은 칸마다 1/0)
 export type Lock =
   | { kind: 'item'; item: string }
-  | { kind: 'code'; code: string; ask: string; choices?: string[]; order?: string[]; grid?: { w: number; h: number; nums: (number | null)[] } };
+  | { kind: 'code'; code: string; ask: string; choices?: string[]; order?: string[]; grid?: { w: number; h: number; nums: (number | null)[] }; ui?: Ui };
+// ui: 화면에서 직접 움직여 푸는 퍼즐(escape-ui.ts). code는 모범 답 하나이고, 규칙만 맞으면 다른 답도 정답이에요.
 export type EscObject = {
   id: string;
   scene: string;
@@ -500,6 +502,22 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
     const v = normCode(act.v);
     const digits = /^[0-9]+$/.test(o.lock!.code);
     const lk = o.lock!;
+    if (lk.ui) {
+      if (!act.v || act.v.length > 900) return null;
+      if (!checkUi(lk.ui, act.v.trim())) {
+        s.mistakes += 1;
+        s.fx = 'wrong';
+        s.msg = '삐빅! 아직 풀리지 않았어요. 처음부터 다시 해 보세요.';
+        s.tone = 'bad';
+        return s;
+      }
+      add(s.opened, o.id);
+      gain(s, o);
+      s.msg = o.openText ?? o.look;
+      s.tone = 'good';
+      s.fx = 'right';
+      return s;
+    }
     const n = lk.order?.length ?? 0;
     const shape = lk.grid ? new RegExp(`^[01]{${lk.grid.w * lk.grid.h}}$`) : lk.order ? new RegExp(`^[1-${n}]{${n}}$`) : digits ? /^[0-9]{1,8}$/ : null;
     if (shape ? !shape.test(v) : !v || v.length > (lk.choices ? 40 : 12)) return null;

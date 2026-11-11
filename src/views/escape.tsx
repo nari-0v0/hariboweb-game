@@ -261,7 +261,14 @@ function Focus(props: { run: EscRun; art: string; name: string }) {
             <input type="hidden" name="rev" value={String(run.row.rev)} />
             <input type="hidden" name="a" value="code" />
             <input type="hidden" name="o" value={o.id} />
-            {o.lock!.kind === 'code' && o.lock!.grid ? (
+            {code?.ui ? (
+              <div class="esc-ui-wrap">
+                <div class="esc-ui" data-ui={JSON.stringify(code.ui)}>
+                  <noscript>이 문제는 화면에서 직접 움직여 풀어요. 자바스크립트를 켜 주세요.</noscript>
+                </div>
+                <input type="hidden" name="v" value="" data-ui-v />
+              </div>
+            ) : o.lock!.kind === 'code' && o.lock!.grid ? (
               <div class="esc-grid" style={`--w:${o.lock!.grid.w}`}>
                 <input type="hidden" name="gn" value={String(o.lock!.grid.w * o.lock!.grid.h)} />
                 {o.lock!.grid.nums.map((n, i) =>
@@ -317,6 +324,11 @@ function Focus(props: { run: EscRun; art: string; name: string }) {
                 aria-label={`${o.name} 암호`}
                 required
               />
+            )}
+            {code?.ui && (
+              <button class="btn" type="button" data-ui-reset>
+                ↺ 처음부터
+              </button>
             )}
             {!(o.lock!.kind === 'code' && o.lock!.choices) && (
               <button class="btn btn-primary" type="submit">
@@ -626,7 +638,7 @@ export function EscapePage(props: {
 }) {
   const { run, result } = props;
   return (
-    <Layout title="하리보 사건파일" viewer={props.viewer} active="cases" scripts={run ? ['/escape.js?v=1'] : undefined}>
+    <Layout title="하리보 사건파일" viewer={props.viewer} active="cases" scripts={run ? ['/escape.js?v=1', '/escape-ui.js?v=1'] : undefined}>
       {props.url && <i hidden data-replace-url={props.url} />}
       <Popup lines={NOTICES[props.notice ?? ''] ?? []} />
       <div class="stack esc" data-fresh>
