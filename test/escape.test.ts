@@ -307,11 +307,14 @@ describe('사건파일 방탈출 저장과 보상', () => {
 describe('사건파일 퍼즐 게임 방식', () => {
   it('방마다 숨은 힌트 동전 2개는 물건과 겹치지 않고, 한 번만 주워요', async () => {
     const { coinSpots, coinsLeft } = await import('../src/escape');
+    const { ROOMS } = await import('../src/case-rooms');
     for (const c of ESCAPE_CASES)
       for (const sc of c.scenes) {
         const spots = coinSpots(c, sc.id);
         expect(spots.length, `${c.id}/${sc.id}`).toBe(2);
         for (const p of spots) for (const o of c.objects.filter((x) => x.scene === sc.id)) expect(Math.abs(o.x - p.x) >= 13 || Math.abs(o.y - p.y) >= 17).toBe(true);
+        const room = ROOMS[sc.bg ?? 'office'];
+        for (const p of spots) for (const h of room.spots) expect(Math.abs(h.x - p.x) >= h.w / 2 || Math.abs(h.y - p.y) >= h.h / 2, `${c.id}/${sc.id} 동전이 ${h.id} 위`).toBe(true);
       }
     const c = escCase('jellyjar')!;
     const s1 = actEscape(c, startEscape(c), { a: 'coin', k: 0 })!;
