@@ -6,7 +6,7 @@ type N = { n: number };
 
 // 칭호 조건에 쓰는 내 기록을 한 번에 읽어요
 export async function loadTitleStats(db: D1Database, userId: string, nowIso: string): Promise<TitleStats> {
-  const [cards, seasons, clears, bingo, got, gave, own] = await db.batch([
+  const [cards, seasons, clears, bingo, got, gave, own, gamble] = await db.batch([
     db.prepare('SELECT xp, voice_seconds FROM cards WHERE owner_id = ?').bind(userId),
     // 끝난 시즌마다 내가 끝까지 있던 모둠의 퀘스트 수와 깬 수
     db
@@ -28,11 +28,13 @@ export async function loadTitleStats(db: D1Database, userId: string, nowIso: str
     db.prepare("SELECT COUNT(*) AS n FROM praises WHERE to_id = ?1 AND created_at >= COALESCE((SELECT reset_at FROM members WHERE user_id = ?1), '')").bind(userId),
     db.prepare("SELECT COUNT(*) AS n FROM praises WHERE from_id = ?1 AND created_at >= COALESCE((SELECT reset_at FROM members WHERE user_id = ?1), '')").bind(userId),
     db.prepare('SELECT solo_xp AS n FROM profiles WHERE user_id = ?').bind(userId),
+    db.prepare('SELECT chips, all_in_wins, jackpots, naturals FROM gamble_accounts WHERE user_id = ?').bind(userId),
   ]);
   const cardRows = cards!.results as { xp: number; voice_seconds: number }[];
   const xps = cardRows.map((r) => Number(r.xp));
   const n = (r: D1Result | undefined) => Number((r?.results[0] as N | undefined)?.n ?? 0);
   return {
+    gamble: gamble?.results[0] as TitleStats['gamble'],
     bestXp: xps.reduce((a, b) => Math.max(a, b), 0),
     ownXp: n(own),
     voiceSeconds: cardRows.reduce((a, r) => a + Number(r.voice_seconds), 0),

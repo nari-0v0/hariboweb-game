@@ -1,3 +1,4 @@
+import { awardGambleSeason } from './gamble-db';
 // 시즌 모둠 퀘스트: 모둠 나누기, 봇 기록 모으기, 퀘스트 확인과 보상.
 // 시즌 = 커뮤니티 주기(2주). 봇이 동기화 때 시즌 시작·끝을 보내면 처음 한 번 모둠을 만들어요.
 import { levelFromXp } from './levels';
@@ -701,6 +702,7 @@ export async function evaluateSeason(db: D1Database, seasonId: string, nowMs: nu
     );
   }
   if (stmts.length) await db.batch(stmts);
+  if (Date.parse(end.ends_at) <= nowMs) await awardGambleSeason(db, seasonId, end.ends_at, t);
   return done;
 }
 
