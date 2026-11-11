@@ -1,6 +1,6 @@
 import type { NickJob, Profile, Purchase } from '../db';
 import type { Member } from '../env';
-import { PRICES, SERVICES, SHOP_ITEMS, canUse, serviceItem, servicePrice, type ShopItem } from '../shop';
+import { PRICES, SERVICES, SHOP_ITEMS, canUse, rewardNeed, serviceItem, servicePrice, type ShopItem } from '../shop';
 import { poolOf } from '../character';
 import { Card } from './card';
 import { titleName } from '../titles';
@@ -31,7 +31,7 @@ const NOTICES: Record<string, PopupLine[]> = {
 const NICK_FAIL_TEXT: Record<string, string> = {
   invalid: '서버 닉네임 규칙(글자 수·자음모음만 쓰기 등)에 맞지 않아 바꾸지 못했어요.',
   banned: '쓸 수 없는 단어가 들어 있어 바꾸지 못했어요.',
-  forbidden: '하리보봇 권한이 모자라 바꾸지 못했어요. 방장에게 알려 주세요.',
+  forbidden: '방장 계정이나 하리보봇보다 높은 역할은 디스코드 규칙상 봇이 닉네임을 바꿀 수 없어요. 디스코드에서 직접 바꿔 주세요(변경권은 그대로 남아요).',
   left: '서버에 없어서 바꾸지 못했어요.',
 };
 
@@ -97,20 +97,20 @@ export function Popup(props: { lines: PopupLine[] }) {
 
 type State = 'using' | 'usable' | 'buy' | 'reward';
 
-function stateOf(item: ShopItem, p: { profile: Profile; owned: Set<string>; cards: number }): State {
+function stateOf(item: ShopItem, p: { profile: Profile; owned: Set<string>; cards: number; members: number }): State {
   const usingNow = item.kind === 'theme' ? p.profile.theme_id === item.key : p.profile.deco_id === item.key;
   if (usingNow) return 'using';
-  if (canUse(item, p.owned, p.cards)) return 'usable';
+  if (canUse(item, p.owned, p.cards, p.members)) return 'usable';
   return item.price === null ? 'reward' : 'buy';
 }
 
-function Action(props: { item: ShopItem; state: State; cards: number }) {
+function Action(props: { item: ShopItem; state: State; cards: number; members: number }) {
   const { item, state } = props;
   if (state === 'using') return <span class="tag on">사용 중</span>;
   if (state === 'reward')
     return (
       <span class="tag reward">
-        도감 {props.cards}/{item.rewardCards}장
+        도감 {props.cards}/{rewardNeed(item.rewardRank ?? 0, props.members)}장
       </span>
     );
   if (state === 'usable')
@@ -166,13 +166,14 @@ export function ShopPage(props: {
   profile: Profile;
   owned: Set<string>;
   cards: number;
+  members: number;
   results: Purchase[];
   services: { bought: Map<string, number>; pending: Set<string> };
   nick: { left: number; last: NickJob | null };
   notice?: string;
 }) {
-  const { viewer, profile, owned, cards } = props;
-  const ctx = { profile, owned, cards };
+  const { viewer, profile, owned, cards, members } = props;
+  const ctx = { profile, owned, cards, members };
   const themes = SHOP_ITEMS.filter((i) => i.kind === 'theme');
   const decoBuy = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price !== null);
   const decoReward = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price === null);
@@ -292,7 +293,7 @@ export function ShopPage(props: {
                       <span class="swatch-inner"></span>
                     </button>
                     <span class="shop-name">{item.name}</span>
-                    <Action item={item} state={state} cards={cards} />
+                    <Action item={item} state={state} cards={cards} members={members} />
                   </div>
                 );
               })}
@@ -309,7 +310,7 @@ export function ShopPage(props: {
                   <div class={`shop-item ${state}`}>
                     <img src={`/char/deco/${item.key}.png`} alt="" loading="lazy" />
                     <span class="shop-name">{item.name}</span>
-                    <Action item={item} state={state} cards={cards} />
+                    <Action item={item} state={state} cards={cards} members={members} />
                   </div>
                 );
               })}
@@ -326,7 +327,7 @@ export function ShopPage(props: {
                   <div class={`shop-item ${state}`}>
                     <img src={`/char/deco/${item.key}.png`} alt="" loading="lazy" />
                     <span class="shop-name">{item.name}</span>
-                    <Action item={item} state={state} cards={cards} />
+                    <Action item={item} state={state} cards={cards} members={members} />
                   </div>
                 );
               })}

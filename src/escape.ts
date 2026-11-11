@@ -316,6 +316,7 @@ export type EscState = {
   done: boolean;
   coins?: string[]; // 방에서 찾은 힌트 동전(<방 id>:<번호>)
   spent?: number; // 힌트에 쓴 동전
+  bigHints?: string[]; // 「더 쉬운 힌트」를 본 수수께끼 물건 id
   seenHints?: number[]; // 이미 본 힌트(c.hints 번호). 계속 보여 주고, 다시 봐도 동전·감점 없어요
   fx?: EscFx; // 방금 행동의 화면 움직임(다음 행동 때 지워져요)
 };
@@ -328,6 +329,7 @@ export type EscAction =
   | { a: 'answer'; n: number; m?: number[] }
   | { a: 'combine'; i: string; j: string }
   | { a: 'hint' }
+  | { a: 'hint2'; o: string }
   | { a: 'coin'; k: number };
 export type EscGrade = 'S' | 'A' | 'B' | 'C';
 
@@ -353,6 +355,27 @@ export function hintIndex(c: EscCase, s: EscState): number {
   const k = c.hints.findIndex((h) => !h.until || !(s.opened.includes(h.until) || s.clues.includes(h.until) || s.seen.includes(h.until)));
   return k >= 0 ? k : c.hints.length - 1;
 }
+// 더 쉬운 힌트: 보통 힌트를 본 뒤에, 정답 일부를 알려 줘요. 화면에서 움직이는 퍼즐(ui)은 없어요.
+export function bigHint(o: EscObject): string | null {
+  const l = o.lock;
+  if (!l || l.kind !== 'code' || l.ui) return null;
+  if (l.choices && l.choices.length > 2) {
+    const wrong = l.choices.filter((x) => normCode(x) !== normCode(l.code));
+    const out = wrong.slice(0, Math.max(1, Math.floor(l.choices.length / 2)));
+    return `답이 아닌 보기: ${out.map((x) => `「${x}」`).join(', ')}`;
+  }
+  if (l.order && l.order.length > 1) {
+    const first = l.order[Number(l.code[0]) - 1];
+    const second = l.order[Number(l.code[1]) - 1];
+    return first && second ? `1번째: 「${first}」, 2번째: 「${second}」` : null;
+  }
+  const a = [...l.code.normalize('NFC')];
+  const num = /^[0-9]+$/.test(l.code);
+  if (a.length < 2) return num ? `정답은 한 자리 ${Number(l.code) % 2 ? '홀수' : '짝수'}예요.` : null;
+  const k = Math.max(1, Math.floor(a.length / 2));
+  return `정답 앞부분: 「${a.slice(0, k).join('')}」 (정답은 모두 ${a.length}${num ? '자리 숫자' : '글자'})`;
+}
+
 export const nextHint = (c: EscCase, s: EscState) =>
   c.hints.find((h) => !h.until || !(s.opened.includes(h.until) || s.clues.includes(h.until) || s.seen.includes(h.until)))?.text ?? c.hints.at(-1)!.text;
 
@@ -404,6 +427,21 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
   if (old.done) return null;
   const s: EscState = structuredClone(old);
   delete s.fx;
+  if (act.a === 'hint2') {
+    const o = c.objects.find((x) => x.id === act.o);
+    const k = o ? c.hints.findIndex((h) => h.until === o.id) : -1;
+    const text = o && isLocked(old, o) && visible(c, old, o) ? bigHint(o) : null;
+    if (!o || !text || k < 0 || !(old.seenHints ?? []).includes(k)) return null;
+    if (!(s.bigHints ?? []).includes(o.id)) {
+      if (coinsLeft(s) > 0) s.spent = (s.spent ?? 0) + 1;
+      else s.hints += 1;
+      s.bigHints = [...(s.bigHints ?? []), o.id];
+    }
+    s.focus = o.id;
+    s.msg = `💡💡 ${text}`;
+    s.tone = 'info';
+    return s;
+  }
   if (act.a === 'hint') {
     const k = hintIndex(c, old);
     if (!(s.seenHints ?? []).includes(k)) {
@@ -550,6 +588,7 @@ export function decodeEscape(c: EscCase, json: string): EscState | null {
     if (s.v !== 1 || !c.scenes.some((x) => x.id === s.scene) || ![s.inv, s.opened, s.seen, s.shown, s.clues].every(strs)) return null;
     if (![s.mistakes, s.hints].every((n) => Number.isSafeInteger(n) && n >= 0) || typeof s.msg !== 'string' || typeof s.done !== 'boolean') return null;
     if ((s.seenHints !== undefined && !(Array.isArray(s.seenHints) && s.seenHints.every((k) => Number.isSafeInteger(k) && k >= 0 && k < c.hints.length)))) return null;
+    if (s.bigHints !== undefined && !strs(s.bigHints)) return null;
     if ((s.coins !== undefined && !strs(s.coins)) || (s.spent !== undefined && !(Number.isSafeInteger(s.spent) && s.spent >= 0))) return null;
     return s;
   } catch {

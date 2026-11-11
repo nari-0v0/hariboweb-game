@@ -467,3 +467,38 @@ describe('사건파일 장치 검증(코덱스 검토 반영)', () => {
     expect(checkUi(king.ui!, king.a!)).toBe(true);
   });
 });
+
+describe('더 쉬운 힌트', () => {
+  it('보통 힌트를 본 수수께끼만, 한 번 값을 내고 정답 일부를 알려 줘요', async () => {
+    const { bigHint, coinsLeft } = await import('../src/escape');
+    for (const c of ESCAPE_CASES) {
+      const o = c.objects.find((x) => x.lock?.kind === 'code' && !x.lock.ui && bigHint(x) && c.hints.some((h) => h.until === x.id) && x.scene === c.scenes[0]!.id && !x.hidden);
+      if (!o) continue;
+      let s = startEscape(c);
+      expect(actEscape(c, s, { a: 'hint2', o: o.id })).toBeNull();
+      s = actEscape(c, s, { a: 'tap', o: o.id })!;
+      s = actEscape(c, s, { a: 'hint' })!;
+      const before = s.hints + (s.spent ?? 0);
+      const s2 = actEscape(c, s, { a: 'hint2', o: o.id })!;
+      expect(s2.bigHints).toEqual([o.id]);
+      expect(s2.hints + (s2.spent ?? 0)).toBe(before + 1);
+      const s3 = actEscape(c, s2, { a: 'hint2', o: o.id })!;
+      expect(s3.hints + (s3.spent ?? 0)).toBe(before + 1);
+      expect(coinsLeft(s3)).toBeGreaterThanOrEqual(0);
+      return;
+    }
+    throw new Error('no case');
+  });
+  it('보기는 정답을 지우지 않고, 줄 세우기는 진짜 앞자리를 알려 줘요', async () => {
+    const { bigHint } = await import('../src/escape');
+    for (const c of ESCAPE_CASES)
+      for (const o of c.objects) {
+        const l = o.lock;
+        if (!l || l.kind !== 'code' || l.ui) continue;
+        const t = bigHint(o);
+        if (l.choices && t) expect(t.includes(`「${l.code}」`), `${c.id}/${o.id}`).toBe(false);
+        if (l.order && t) expect(t).toContain(l.order[Number(l.code[0]) - 1]!);
+        if (!l.choices && !l.order && t && l.code.length > 1) expect(t).toContain(`「${[...l.code].slice(0, Math.floor([...l.code].length / 2)).join('')}」`);
+      }
+  });
+});

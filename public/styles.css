@@ -1285,7 +1285,7 @@ main.wide { max-width: 1320px; }
 /* 물건 확대 화면 */
 .esc-zoom { position: relative; display: grid; place-items: center; width: min(100%, 220px); aspect-ratio: 1; margin: 6px auto 8px; border: 3px solid var(--ink); border-radius: 50%; background: radial-gradient(circle, #fff 55%, #e8f6ff); box-shadow: 0 0 0 4px #fff, 0 0 0 7px var(--ink); animation: esc-zoom-in .35s ease-out; overflow: hidden; }
 .esc-zoom img { width: 78%; height: 78%; object-fit: contain; }
-.esc-zoom-tag { position: absolute; bottom: 14%; left: 50%; translate: -50% 0; max-width: 86%; padding: 3px 10px; border: 2px solid var(--ink); background: #fff8c9; font-size: 1.25rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; rotate: -3deg; box-shadow: 2px 2px 0 var(--ink); }
+.esc-zoom-tag { position: absolute; color: #2f2a44; bottom: 14%; left: 50%; translate: -50% 0; max-width: 86%; padding: 3px 10px; border: 2px solid var(--ink); background: #fff8c9; font-size: 1.25rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; rotate: -3deg; box-shadow: 2px 2px 0 var(--ink); }
 @keyframes esc-zoom-in { from { scale: .3; opacity: 0; } to { scale: 1; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .esc-zoom { animation: none; } }
 /* 인물 수수께끼 */

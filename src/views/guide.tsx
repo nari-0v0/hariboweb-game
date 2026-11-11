@@ -1,6 +1,6 @@
 import type { Member } from '../env';
 import { FULL_JELLY, LINE_JELLY, LINE_XP } from '../bingo';
-import { PRICES, REWARD_STEP } from '../shop';
+import { PRICES } from '../shop';
 import { PRAISE_PER_DAY, PRAISE_JELLY_PER_DAY } from '../db';
 import { JELLY_PER_CARD_STEP, LEVEL_STEP } from '../sync';
 import { Layout } from './layout';
@@ -36,7 +36,7 @@ export function GuidePage(props: { viewer: Member | null }) {
           <li>꾸미기: 카드 테마 {PRICES.theme}개, 꾸밈 캐릭터 {PRICES.deco}개예요.</li>
           <li>처음 들어오면 여자·남자 캐릭터 중 하나를 골라요. 나중에 바꾸려면 매점에서 "성별 바꾸기"({PRICES.gender}개)를 사요. 캐릭터 성별은 그 사람의 실제 성별과 다를 수 있어요.</li>
           <li>칭호: 고른 칭호는 하리보봇이 디스코드 닉네임 앞에 「칭호」로 붙여요. 닉네임·생년은 그대로예요(닉네임 변경권과는 따로예요). 조건을 채운 칭호는 칭호 화면을 열면 열려요.</li>
-          <li>판타지 캐릭터는 젤리로 못 사요. 도감 카드를 {REWARD_STEP}장 모을 때마다 하나씩 열려요.</li>
+          <li>판타지 캐릭터는 젤리로 못 사요. 도감 카드를 모을수록 하나씩 열려요. 필요한 장수는 지금 서버 인원에 맞춰 바뀌고, 마지막 캐릭터는 도감을 다 채우면 열려요.</li>
           <li>매점: 벌점·경고 1점 지우기, 닉네임 변경권도 도감 젤리로 살 수 있어요. 하리보봇이 디스코드에 바로 적용해요. 벌점·경고 지우기는 살 때마다 값이 1.5배씩 올라요.</li>
         </ul>
 
