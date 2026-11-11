@@ -1644,3 +1644,40 @@ main.wide { max-width: 1320px; }
 .esc-actors .esc-person { width: clamp(48px, 12cqw, 80px) !important; height: clamp(48px, 12cqw, 80px) !important; }
 .esc-game .esc-actors .esc-name { position: static; opacity: 1; translate: none; transform: none; max-width: 100%; white-space: normal; font-size: 12px; }
 .esc-game .esc-actors .esc-pic::before, .esc-game .esc-actors .esc-thing::after { display: none; }
+
+/* 겜블장 */
+.gb-page { display: grid; gap: 1rem; color: var(--ink); }
+.gb-page h1, .gb-page h2, .gb-page h3 { margin: 0; }
+.gb-page p { margin: .65rem 0; }
+.gb-games { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 1rem; }
+.gb-panel {
+  min-width: 0;
+  padding: 1rem;
+  background: #f1faff;
+  border: 2px solid #273551;
+  box-shadow: 3px 3px 0 #273551;
+  overflow-wrap: anywhere;
+}
+.gb-result { background: #fff4ca; scroll-margin-top: 5rem; }
+.gb-balance { font-size: 1.35rem; }
+.gb-form, .gb-tiles { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.gb-form { margin-top: 1rem; }
+.gb-form label { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; max-width: 100%; }
+.gb-form input[type="number"] { width: 8rem; max-width: 100%; min-height: 2.5rem; color: var(--ink); font: inherit; }
+.gb-button {
+  border: 2px solid #273551;
+  box-shadow: 2px 2px 0 #273551;
+  padding: .5rem .75rem;
+  min-height: 2.5rem;
+  background: #bde6ff;
+  color: #202944;
+  font: inherit;
+  cursor: pointer;
+}
+.gb-button:disabled { opacity: .55; cursor: default; }
+.gb-tile { border: 2px solid #273551; padding: .3rem .5rem; background: #fff; color: #202944; }
+.gb-art { width: 1.4em; height: 1.4em; object-fit: contain; vertical-align: middle; }
+.gb-wheel { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: .15rem; padding: 0; list-style: none; }
+.gb-wheel li { padding: .2rem 0; background: #e1f1ff; color: #202944; font-size: .75rem; text-align: center; }
+.gb-wheel li[aria-current="true"] { background: #ffdf7d; outline: 2px solid #273551; }
+.gb-ranking { padding-inline-start: 1.6rem; }

@@ -5,7 +5,11 @@ import { levelFromXp, xpForLevel } from './levels';
 // 이미 누가 얻은 칭호의 id는 바꾸지 마세요(얻은 기록이 id로 남아요).
 export const TITLE_MAX = 4;
 
+type GambleMetric = 'chips' | 'all_in_wins' | 'jackpots' | 'naturals';
+
 export type TitleRule =
+  | { kind: 'gamble'; metric: GambleMetric; count: number }
+  | { kind: 'gambleSeason' }
   | { kind: 'shop'; price: number }
   | { kind: 'bestLevel'; level: number } // 카드 한 장을 이 레벨까지
   | { kind: 'friends'; level: number; count: number } // 이 레벨 넘은 카드가 몇 장
@@ -88,11 +92,26 @@ const LADDERS: Ladder[] = [
     steps: steps([10, 30, 50, 100, 200, 300, 500, 1000], '수다 수다쟁이 입담 토크왕 통화왕 목소리 라디오 마이크신') },
 ];
 
+export const GAMBLE_WINNER_ID = 'gamble-season-winner';
+const gambleTitle = (id: string, name: string, metric: GambleMetric, count: number): Title =>
+  ({ id: `gamble-${id}`, name, group: '겜블장', rule: { kind: 'gamble', metric, count } });
+export const GAMBLE_TITLES: Title[] = [
+  gambleTitle('chips-10000', '타짜', 'chips', 10_000),
+  gambleTitle('chips-100000', '큰손', 'chips', 100_000),
+  gambleTitle('chips-1000000', '재벌', 'chips', 1_000_000),
+  gambleTitle('all-in-1', '올인', 'all_in_wins', 1),
+  gambleTitle('all-in-10', '강심장', 'all_in_wins', 10),
+  gambleTitle('jackpot', '칠칠칠', 'jackpots', 1),
+  gambleTitle('natural', '블랙잭', 'naturals', 10),
+  { id: GAMBLE_WINNER_ID, name: '도박신', group: '겜블장', rule: { kind: 'gambleSeason' } },
+];
+
 let shopNo = 0;
 export const TITLES: Title[] = [
   ...SHOP_GROUPS.flatMap(([group, price, names]) =>
     names.split(' ').map((name): Title => ({ id: `shop-${++shopNo}`, name, group, rule: { kind: 'shop', price } })),
   ),
+  ...GAMBLE_TITLES,
   ...LADDERS.flatMap((l) => l.steps.map(([v, name]): Title => ({ id: `${l.id}-${v}`, name, group: l.group, rule: l.rule(v) }))),
 ];
 
@@ -104,6 +123,7 @@ export const titleItemId = (id: string) => `title:${id}`;
 
 // 칭호 조건에 쓰는 기록
 export type TitleStats = {
+  gamble?: Record<GambleMetric, number>;
   bestXp: number;
   ownXp: number; // 내 카드(혼자 쌓은) 경험치
   friendXps: number[]; // 내 카드들의 경험치
@@ -127,6 +147,15 @@ export function titleProgress(t: Title, s: TitleStats): TitleProgress {
     now: `${n}/${need}${unit}`,
   });
   switch (r.kind) {
+    case 'gambleSeason':
+      return { ok: false, text: '시즌 누적 딴 칩 1등' };
+    case 'gamble': {
+      const condition = {
+        chips: '가진 칩', all_in_wins: '올인 승리', jackpots: '슬롯 7️⃣ 세 개', naturals: '첫 두 장으로 21',
+      }[r.metric];
+      const unit = r.metric === 'chips' ? '개' : '회';
+      return count(s.gamble?.[r.metric] ?? 0, r.count, `${condition} ${r.count.toLocaleString('ko-KR')}${unit}`, unit);
+    }
     case 'shop':
       return { ok: false, text: `도감 젤리 ${r.price}개로 사요` };
     case 'bestLevel': {

@@ -74,6 +74,8 @@ import {
   titleState,
 } from './title-db';
 
+import { GamblePage } from './views/gamble';
+import { activeHand, betChips, claimDaily, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, moveHand, rescueChips } from './gamble-db';
 import { ExpeditionPage } from './views/expedition';
 import { prefetchAllowed } from './prefetch';
 import { act, currentRun, getRun, listCandidates, myRecord, myRole, quitRun, setRole, startRun } from './expedition-db';
@@ -767,6 +769,60 @@ members.post('/api/titles/buy', async (c) => {
   }
   // 산 칭호가 들어 있는 묶음을 펼쳐서 보여 줘요
   return c.redirect(`/titles?n=${result === 'done' ? 'bought' : result}&t=${encodeURIComponent(t.id)}`);
+});
+
+members.get('/gamble', async (c) => {
+  c.header('Cache-Control', 'no-store');
+  const viewer = c.get('viewer');
+  const user = viewer.user_id;
+  const db = c.env.DB;
+  const now = new Date().toISOString();
+  const expired = await expireHand(db, user, now);
+  const daily = await claimDaily(db, user, now);
+  const token = c.req.query('r') ?? expired;
+  const [account, hand, result, ranks] = await Promise.all([
+    gambleAccount(db, user), activeHand(db, user),
+    uuid(token) ? gambleRound(db, user, token) : null, gambleRanks(db, now),
+  ]);
+  return page(c, <GamblePage viewer={viewer} account={account} hand={hand} result={result}
+    ranks={ranks} now={now} daily={daily} notice={c.req.query('n')} />);
+});
+
+members.post('/gamble/play', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const user = c.get('viewer').user_id;
+  const db = c.env.DB;
+  const now = new Date().toISOString();
+  const { game, bet, token } = await c.req.parseBody();
+  if ((game !== 'slot' && game !== 'roulette' && game !== 'cards') ||
+    typeof bet !== 'string' || !/^[1-9][0-9]*$/.test(bet) || !uuid(token)) {
+    return c.redirect('/gamble?n=bet', 303);
+  }
+  await expireHand(db, user, now);
+  const round = await betChips(db, user, game, Number(bet), token, now);
+  return c.redirect(round ? `/gamble?r=${round.token}#gb-result` :
+    game === 'cards' && await activeHand(db, user) ? '/gamble?n=active#gb-cards' : '/gamble?n=bet', 303);
+});
+
+members.post('/gamble/cards', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const { token, revision, move } = await c.req.parseBody();
+  if (!uuid(token) || typeof revision !== 'string' || !/^[0-9]{1,2}$/.test(revision) ||
+    (move !== 'hit' && move !== 'stand')) return c.redirect('/gamble', 303);
+  const user = c.get('viewer').user_id;
+  await moveHand(c.env.DB, user, token, Number(revision), move, new Date().toISOString());
+  return c.redirect(`/gamble?r=${token}#gb-result`, 303);
+});
+
+members.post('/gamble/rescue', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const user = c.get('viewer').user_id;
+  const now = new Date().toISOString();
+  const { day } = await c.req.parseBody();
+  if (day !== gambleDay(now)) return c.redirect('/gamble?n=no-rescue', 303);
+  await expireHand(c.env.DB, user, now);
+  const rescued = await rescueChips(c.env.DB, user, now);
+  return c.redirect(rescued ? '/gamble?n=rescue' : '/gamble?n=no-rescue', 303);
 });
 
 members.get('/expedition', async (c) => {
