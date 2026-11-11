@@ -89,7 +89,9 @@ function spinWheel(stage) {
 }
 
 function dealCards(stage) {
-  const deck = stage.querySelector('.gb-card-deck').getBoundingClientRect();
+  // 카드 더미는 화면에 두지 않아요(가시성). 카드는 판 위쪽 가운데에서 날아와요.
+  const table = stage.querySelector('.gb-card-table').getBoundingClientRect();
+  const deck = { left: table.left + table.width / 2, top: table.top - 40 };
   const animations = [];
   for (const card of stage.querySelectorAll('[data-gb-deal]')) {
     const delay = Number(card.dataset.gbDeal) * 300;

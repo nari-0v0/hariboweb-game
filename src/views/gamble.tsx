@@ -158,7 +158,6 @@ function Cards({ round }: { round: Round }) {
   const dealerOrder = (i: number) => opening ? i * 2 + 1 : i === 0 ? undefined : (hit ? i : i - 1);
   return (
     <div class="gb-card-table">
-      <CardDeck />
       <p>내 카드<span data-gb-reveal> · {score}점</span></p>
       <div class="gb-tiles">
         {player.map((card, i) => <PlayingCard card={card} order={playerOrder(i)} />)}
@@ -293,7 +292,7 @@ export function GambleRoom(props: {
   const motion = result ?? (hand && hand.token === props.result?.token ? hand : null);
   const notice = noticeText(props.notice);
   return (
-    <Layout title={GAMES[game]} viewer={props.viewer} active="gamble" scripts={[{ src: '/gamble.js?v=2', type: 'module' }]}>
+    <Layout title={GAMES[game]} viewer={props.viewer} active="gamble" scripts={[{ src: '/gamble.js?v=3', type: 'module' }]}>
       <div class="gb-page gb-room-page">
         <div class="gb-room-bar">
           <a href="/gamble">← 겜블장</a>
