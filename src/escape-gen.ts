@@ -137,14 +137,14 @@ function torn(ctx: Ctx, t: Teaser, no: number): Built {
   const p1 = note(ctx, 'tr', '찢어진 쪽지 윗부분', '📄', `${a} …(찢어짐)`);
   const p2 = note(ctx, 'tr', '찢어진 쪽지 아랫부분', '📄', `…(찢어짐) ${b}`);
   const lock = { ...box(ctx, t.a, t.choices ? '답 고르기' : t.ask, `자물쇠에 「찢어진 쪽지 두 장을 맞추면 문제가 보여요」라고 새겨져 있어요.`, t.choices ? { choices: t.choices } : {}), ref: no };
-  return { spots: [p1, p2, lock], lockId: lock.id, hint: `방 안에 찢어진 쪽지가 두 장 있어요. 수첩에서 두 조각을 이어 읽어 보세요. ${t.hint}`, steps: [{ a: 'tap', o: p1.id }, { a: 'tap', o: p2.id }, { a: 'code', o: lock.id, v: t.a }] };
+  return { spots: [p1, p2, lock], lockId: lock.id, hint: `찢어진 쪽지 두 장이 방 그림 속 ${p1.name}${josa(p1.name, '과', '와')} ${p2.name}에 있어요. 둘 다 눌러 본 뒤 수첩에서 두 조각을 이어 읽어 보세요. ${t.hint}`, steps: [{ a: 'tap', o: p1.id }, { a: 'tap', o: p2.id }, { a: 'code', o: lock.id, v: t.a }] };
 }
 
 // 다른 방 쪽지: 자물쇠에는 문제가 없고, 문제 쪽지는 앞 방에 남아 있어요. 왔다 갔다 해야 해요.
 function far(ctx: Ctx, t: Teaser, no: number, back: Ctx, backName: string): Built {
   const paper = note(back, 'far', '접힌 쪽지', '✉️', `「이 문제의 답이 다른 방 자물쇠를 열어요.」\n${t.q}`);
   const lock = { ...box(ctx, t.a, t.choices ? '답 고르기' : t.ask, `자물쇠에 「문제는 ${backName}에 두고 왔어요」라는 꼬리표가 달려 있어요.`, t.choices ? { choices: t.choices } : {}), ref: no };
-  return { spots: [lock], back: [paper], lockId: lock.id, hint: `문제 쪽지는 ${backName}에 있어요. 돌아가서 접힌 쪽지를 찾아보세요. ${t.hint}`, steps: [{ a: 'code', o: lock.id, v: t.a }] };
+  return { spots: [lock], back: [paper], lockId: lock.id, hint: `문제 쪽지는 ${backName}에 있어요. 돌아가서 방 그림 속 ${paper.name}${josa(paper.name, '을', '를')} 눌러 보세요. ${t.hint}`, steps: [{ a: 'code', o: lock.id, v: t.a }] };
 }
 
 // 멈춘 시계: 방 그림 속 벽시계를 눌러 크게 보고, 그 시각으로 계산해요(눌러야 바늘이 보여요).
@@ -281,7 +281,7 @@ function riddle(ctx: Ctx): Built {
       ? { id: ctx.id('rd0'), at: o.id, name: o.label, emoji: '❔', look: `${o.label} 곁을 살펴보니… ${ctx.reward.got ?? ctx.reward.text}`, again: `${o.label} 곁엔 이제 아무것도 없어요.`, take: ctx.reward.take, clue: ctx.reward.clue }
       : { id: ctx.id(`rd${i}`), at: o.id, name: o.label, emoji: '❔', look: `${o.label}${josa(o.label, '이에요', '예요')}. 특별한 건 없어요.` },
   );
-  return { spots: [paper, ...shuffle(r, spots)], lockId: spots[0]!.id, hint: '수수께끼 카드의 답이 되는 물건을 방 그림에서 찾아 눌러 보세요.', steps: [{ a: 'tap', o: paper.id }, { a: 'tap', o: spots[0]!.id }] };
+  return { spots: [paper, ...shuffle(r, spots)], lockId: spots[0]!.id, hint: `수수께끼 카드는 방 그림 속 ${paper.name}에 있어요. 카드의 답이 되는 물건을 방 그림에서 찾아 눌러 보세요.`, steps: [{ a: 'tap', o: paper.id }, { a: 'tap', o: spots[0]!.id }] };
 }
 
 // 물건 합치기: 두 조각을 합쳐 도구를 만들고, 방 그림 속 알맞은 곳에 써서 증거를 찾아요.
@@ -404,7 +404,10 @@ export function buildCase(seed: StorySeed, level = 3, no = 0): EscCase {
   const add = (scene: number, b: Built) => {
     sceneSpots[scene]!.push(...b.spots);
     if (b.back) sceneSpots[scene - 1]!.push(...b.back);
-    hints.push({ until: b.lockId, text: b.hint });
+    // 잠긴 곳이 방 그림 속 어디인지 힌트에 없으면 앞에 붙여 줘요(그림에 표시가 없어서 찾기 어려워요).
+    const lk = b.spots.find((x) => x.id === b.lockId);
+    const where = lk?.at && !b.hint.includes(lk.name) ? `잠긴 곳은 방 그림 속 ${lk.name}${josa(lk.name, "이에요", "예요")}. ` : '';
+    hints.push({ until: b.lockId, text: where + b.hint });
   };
 
   // 방 1: 용의자 파일, 장치 A(→ 방 2 열쇠), 수수께끼(→ 조각 A), 방 2로 가는 문

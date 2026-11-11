@@ -51,6 +51,26 @@ def backgrounds(pairs: list[str]) -> None:
         print(f"{name}.webp {img.size}")
 
 
+def room_variants() -> None:
+    """사건파일 방: 휴대폰용 작은 그림(-m.webp)과, 그림이 오기 전 먼저 보이는 흐린 미리보기(src/room-blur.gen.ts)."""
+    import base64, io
+    blur = {}
+    for f in sorted((PUBLIC / "case" / "room").glob("*.webp")):
+        if f.stem.endswith("-m"):
+            continue
+        img = Image.open(f).convert("RGB")
+        m = img.resize((900, round(img.height * 900 / img.width)), Image.LANCZOS)
+        m.save(f.with_name(f"{f.stem}-m.webp"), quality=74, method=6)
+        t = img.resize((24, round(img.height * 24 / img.width)), Image.LANCZOS)
+        buf = io.BytesIO()
+        t.save(buf, "WEBP", quality=50)
+        blur[f.stem] = "data:image/webp;base64," + base64.b64encode(buf.getvalue()).decode()
+    lines = ["// scripts/build_sprites.py 가 만든 파일이에요. 손으로 고치지 마세요.", "// 사건파일 방 그림이 오기 전에 먼저 깔아 두는 아주 작은 흐린 그림", "export const ROOM_BLUR: Record<string, string> = {"]
+    lines += [f"  '{k}': '{v}'," for k, v in blur.items()]
+    lines += ["};", ""]
+    (ROOT / "src" / "room-blur.gen.ts").write_text("\n".join(lines), encoding="utf-8")
+
+
 def size_map() -> None:
     sizes = {}
     for d in ("journey/foe", "journey/prop", "case/obj", "case/item"):
@@ -65,6 +85,9 @@ def size_map() -> None:
 if __name__ == "__main__":
     if len(sys.argv) > 2 and sys.argv[1] == "--bg":
         backgrounds(sys.argv[2:])
+        room_variants()
+    elif len(sys.argv) == 2 and sys.argv[1] == "--rooms":
+        room_variants()
     elif len(sys.argv) == 2:
         pictures(Path(sys.argv[1]))
     size_map()

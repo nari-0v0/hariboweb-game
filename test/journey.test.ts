@@ -199,16 +199,21 @@ describe('journey training bank', () => {
     await quitJourney(db, 'me', q);
     expect((await journeyBank(db, 'me')).coins).toBe(0);
     // 끝까지 가면 남은 동전이 모여요
-    const id = (await beginJourney(db, 'me'))!;
-    for (let i = 0; i < 300; i++) {
-      const run = await getJourney(db, 'me', id);
-      if (run!.row.status !== 'going') break;
-      expect(await actJourneyRun(db, 'me', id, run!.row.rev, { a: 'idle' })).toBe('ok');
+    // 판마다 씨앗이 무작위라 남는 동전이 다르니, 훈련 값(20)이 모일 때까지 몇 판 돌려요
+    let banked = 0;
+    for (let k = 0; k < 10 && banked < 20; k++) {
+      const id = (await beginJourney(db, 'me'))!;
+      for (let i = 0; i < 300; i++) {
+        const run = await getJourney(db, 'me', id);
+        if (run!.row.status !== 'going') break;
+        expect(await actJourneyRun(db, 'me', id, run!.row.rev, { a: 'idle' })).toBe('ok');
+      }
+      const end = (await getJourney(db, 'me', id))!;
+      expect(end.row.status).toBe('done');
+      banked += end.state.coins;
+      expect((await journeyBank(db, 'me')).coins).toBe(banked);
     }
-    const end = (await getJourney(db, 'me', id))!;
-    expect(end.row.status).toBe('done');
     const bank = await journeyBank(db, 'me');
-    expect(bank.coins).toBe(end.state.coins);
     expect(bank.coins).toBeGreaterThanOrEqual(20);
     expect(await buyPerk(db, 'me', 'atk')).toBe(true);
     const after = await journeyBank(db, 'me');

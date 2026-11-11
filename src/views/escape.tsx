@@ -2,7 +2,8 @@ import type { Member } from '../env';
 import type { EscRun } from '../escape-db';
 import { ESCAPE_CASES, ESC_XP, bigHint, canAnswer, coinSpots, coinsLeft, escGrade, isLocked, puzzleNo, visible, type EscGrade, type EscObject } from '../escape';
 import { casePics, itemPic } from '../case-art';
-import { ROOMS, roomSrc, type Hotspot, type RoomKey } from '../case-rooms';
+import { ROOMS, roomSrc, roomSrcSet, type Hotspot, type RoomKey } from '../case-rooms';
+import { ROOM_BLUR } from '../room-blur.gen';
 import { FictionNote } from './expedition';
 import { Layout } from './layout';
 import { Popup, type PopupLine } from './shop';
@@ -203,11 +204,15 @@ function CasePreload(props: { def: EscRun['def'] }) {
     const p = itemPic(it.emoji);
     if (p) set.add(p);
   }
-  for (const sc of props.def.scenes) if (sc.bg) set.add(roomSrc(sc.bg));
+  const rooms = [...new Set(props.def.scenes.flatMap((sc) => (sc.bg ? [sc.bg] : [])))];
+  // 지금 보는 방 그림이 먼저 오도록, 미리 받아 두는 그림은 낮은 순서로 받아요.
   return (
     <div class="jr-preload" aria-hidden="true">
       {[...set].map((src) => (
-        <img src={src} alt="" width={1} height={1} />
+        <img src={src} alt="" width={1} height={1} fetchpriority="low" />
+      ))}
+      {rooms.map((k) => (
+        <img src={roomSrc(k)} srcset={roomSrcSet(k)} sizes="(max-width: 820px) 100vw, 820px" alt="" width={1} height={1} fetchpriority="low" />
       ))}
     </div>
   );
@@ -419,7 +424,19 @@ function Play(props: { run: EscRun; art: string; name: string }) {
             </header>
             <div class="esc-frame">
               <div class={`esc-room esc-pic-room${s.fx === 'move' ? ' fx-move' : ''}`} data-room>
-                <img class="esc-bg" src={roomSrc(bg)} alt={`${scene.name} 그림`} width={1500} height={1050} draggable={false} />
+                <img
+                  class="esc-bg"
+                  src={roomSrc(bg)}
+                  srcset={roomSrcSet(bg)}
+                  sizes="(max-width: 820px) 100vw, 820px"
+                  fetchpriority="high"
+                  decoding="async"
+                  style={ROOM_BLUR[bg] ? `background:url(${ROOM_BLUR[bg]}) center/cover` : undefined}
+                  alt={`${scene.name} 그림`}
+                  width={1500}
+                  height={1050}
+                  draggable={false}
+                />
                 {room.spots
                   .filter((h) => !placed.some((o) => o.at === h.id))
                   .map((h) => (
