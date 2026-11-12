@@ -13,6 +13,7 @@ import {
   shuffle,
 } from './quests';
 import { type Prior, canPair, kidnapStatements, loadPrior, slotOf } from './team';
+import { approvedBlocks, blockKey, separateBlocked } from './assign-block';
 
 export const GROUP_SIZE = 10;
 // 시즌 시작 전 이 기간 안에 활동한 사람만 모둠에 넣어요
@@ -126,7 +127,13 @@ export function planGroups(people: Person[], rand: () => number): Map<string, nu
 
 // 팀마다 팀 퀘스트 짝(canPair)이 하나 이상 있게 맞춰요. 짝이 없는 팀이 있으면 다른 팀 사람과 한 명씩 바꿔 봐요
 // (바꾼 뒤에도 두 팀 모두 짝이 있을 때만). 못 맞추면 그대로 두고, 그 팀 가운데 칸은 보너스 칸이 돼요.
-export function ensurePairs(plan: Map<string, number>, people: Person[], can: (a: Person, b: Person) => boolean): Map<string, number> {
+// allow(팀원 목록)이 false인 바꾸기는 하지 않아요(같이 배정되지 않기로 승인된 짝을 다시 붙이지 않게).
+export function ensurePairs(
+  plan: Map<string, number>,
+  people: Person[],
+  can: (a: Person, b: Person) => boolean,
+  allow: (ids: string[]) => boolean = () => true,
+): Map<string, number> {
   const byId = new Map(people.map((p) => [p.id, p]));
   const members = (no: number) => [...plan].filter(([, g]) => g === no).map(([id]) => id);
   const hasPair = (ids: string[]) => ids.some((a, i) => ids.slice(i + 1).some((b) => can(byId.get(a)!, byId.get(b)!)));
@@ -137,7 +144,9 @@ export function ensurePairs(plan: Map<string, number>, people: Person[], can: (a
       for (const [y, other] of [...plan].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
         if (other === no) continue;
         const theirs = members(other);
-        if (hasPair([...mine.filter((u) => u !== x), y]) && hasPair([...theirs.filter((u) => u !== y), x])) {
+        const a = [...mine.filter((u) => u !== x), y];
+        const b = [...theirs.filter((u) => u !== y), x];
+        if (hasPair(a) && hasPair(b) && allow(a) && allow(b)) {
           plan.set(x, other);
           plan.set(y, no);
           break swap;
@@ -148,8 +157,15 @@ export function ensurePairs(plan: Map<string, number>, people: Person[], can: (a
 }
 
 // 시즌 중에 새로 활동한 사람: 게임 역할이 겹치는 모둠 중 제일 작은 곳(없으면 그냥 제일 작은 곳)
-export function joinGroup(games: string[], groups: { no: number; size: number; games: Set<string> }[], rand: () => number): number | null {
+// avoid: 같이 배정되지 않기로 승인된 상대가 있는 모둠 번호(다른 곳이 있으면 피해요)
+export function joinGroup(
+  games: string[],
+  groups: { no: number; size: number; games: Set<string> }[],
+  rand: () => number,
+  avoid: Set<number> = new Set(),
+): number | null {
   if (!groups.length) return null;
+  if (avoid.size && groups.some((x) => !avoid.has(x.no))) groups = groups.filter((x) => !avoid.has(x.no));
   const sharing = groups.filter((x) => games.some((g) => x.games.has(g)));
   const pool = sharing.length ? sharing : groups;
   return shuffle(pool, rand).sort((a, b) => a.size - b.size)[0]!.no;
@@ -191,7 +207,10 @@ export async function ensureSeason(db: D1Database, season: Season, nowMs: number
   }
   const rand = seededRandom(`season:${season.id}`);
   // 팀(예전 이름 모둠): 게임 역할 겹치게, 많이/적게 노는 사람 섞기, 주로 노는 시간대 겹치게, 팀마다 팀 퀘스트 짝이 있게
-  const plan = ensurePairs(planGroups(people, rand), people, (a, b) => canPair(a, b, prior));
+  // 같이 배정되지 않기로 승인된 짝은 먼저 떼어 놓고, 팀 퀘스트 짝을 맞출 때도 다시 붙이지 않아요
+  const blocked = await approvedBlocks(db);
+  const noClash = (ids: string[]) => !ids.some((a, i) => ids.slice(i + 1).some((b) => blocked.has(blockKey(a, b))));
+  const plan = ensurePairs(separateBlocked(planGroups(people, rand), blocked), people, (a, b) => canPair(a, b, prior), noClash);
   // 모둠을 만들 사람이 없으면 시즌을 적지 않고 다음 묶음에서 다시 해 봐요
   if (!plan.size) return false;
 
@@ -400,6 +419,7 @@ async function groupStatements(
     'INSERT OR IGNORE INTO season_members (season_id, user_id, group_no, start_member, joined_at) VALUES (?, ?, ?, 0, ?)',
   );
   const rejoin = db.prepare('UPDATE season_members SET left_at = NULL WHERE season_id = ? AND user_id = ?');
+  let blocked: Set<string> | null = null; // 같이 배정되지 않기(새로 들어오는 사람이 있을 때만 읽어요)
   for (const u of join ? [...seen].sort() : []) {
     if (removed.has(u) || !activeNow.has(u)) continue;
     // 나갔다가 다시 들어온 사람은 원래 모둠으로 돌아가요
@@ -415,7 +435,9 @@ async function groupStatements(
       const ids = [...group].filter(([, g]) => g === no).map(([id]) => id);
       return { no, size: ids.length, games: new Set(ids.flatMap((id) => gamesOf.get(id) ?? [])) };
     });
-    const no = joinGroup(gamesOf.get(u) ?? [], groups, rand);
+    blocked ??= await approvedBlocks(db);
+    const avoid = new Set([...group].filter(([id]) => blocked!.has(blockKey(u, id))).map(([, g]) => g));
+    const no = joinGroup(gamesOf.get(u) ?? [], groups, rand, avoid);
     if (no === null) continue;
     group.set(u, no);
     known.add(u);
