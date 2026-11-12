@@ -690,6 +690,12 @@ main.wide { max-width: 1320px; }
 .bgo-block-state { font-size: .8rem; color: var(--ink-soft); }
 .bgo-block-mine form { margin: 0; }
 .bgo-block-mine .btn { margin: 0; }
+.bgo-pop { width: min(320px, calc(100vw - 32px)); box-sizing: border-box; padding: 16px; color: var(--ink); background: var(--paper, #fff); border: 3px solid var(--ink); box-shadow: 0 6px 0 rgba(0, 0, 0, .18); }
+.bgo-pop::backdrop { background: rgba(30, 40, 60, .35); }
+.bgo-pop p { margin: 0 0 8px; overflow-wrap: anywhere; }
+.bgo-pop-title { font-weight: 700; font-size: 1.05rem; }
+.bgo-pop-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+.bgo-pop-btns form { margin: 0; }
 .bgo-block .btn { justify-self: start; margin-top: 4px; }
 .bgo-server { max-width: 940px; margin: 8px auto 4px; padding: 14px 18px; background: #e9fbef; color: var(--ink); }
 .bgo-server.met { background: #fff6d6; }
@@ -781,7 +787,7 @@ main.wide { max-width: 1320px; }
 .service-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 2px solid var(--line, #c9e4f5); border-radius: 10px; background: #fff; }
 .service-item > div { min-width: 0; }
 .service-item .hint { margin: 2px 0 0; }
-.service-item form, .service-item .tag { flex: none; }
+.service-item form, .service-item .tag, .service-item > .btn { flex: none; white-space: nowrap; }
 
 /* 처음 캐릭터(성별) 고르기 */
 .choose h1 { margin-top: 0; }

@@ -38,12 +38,26 @@ function BlockSection(props: { box: BlockBox }) {
               <li>
                 <span class="bgo-block-name">{b.name}</span>
                 <span class="bgo-block-state">{b.state === 'approved' ? '제외됨' : '검토 중'}</span>
-                <form method="post" action="/bingo/block/cancel#block">
-                  <input type="hidden" name="id" value={String(b.id)} />
-                  <button class="btn btn-small" type="submit">
-                    풀기
-                  </button>
-                </form>
+                <button class="btn btn-small" type="button" popovertarget={`unblock-${b.id}`}>
+                  풀기
+                </button>
+                <div class="bgo-pop" id={`unblock-${b.id}`} popover="auto">
+                  <p class="bgo-pop-title">정말 풀까요?</p>
+                  <p>
+                    <b>{b.name}</b>님과 다음 팀 짜기부터 다시 같은 팀이 될 수 있어요.
+                  </p>
+                  <div class="bgo-pop-btns">
+                    <form method="post" action="/bingo/block/cancel#block">
+                      <input type="hidden" name="id" value={String(b.id)} />
+                      <button class="btn btn-small btn-primary" type="submit">
+                        네, 풀게요
+                      </button>
+                    </form>
+                    <button class="btn btn-small" type="button" popovertarget={`unblock-${b.id}`} popovertargetaction="hide">
+                      아니요
+                    </button>
+                  </div>
+                </div>
               </li>
             ))}
           </ul>
