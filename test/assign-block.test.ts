@@ -119,6 +119,7 @@ describe('봇', () => {
     expect(b).toMatchObject({ from: { id: A, name: 'm1' }, to: { id: B, name: 'm2' }, reason: REASON });
     expect(await markBlockPosted(db, b!.id, '1'.repeat(19), NOW)).toBe(true);
     expect(await markBlockPosted(db, b!.id, '2'.repeat(19), NOW)).toBe(false);
+    expect(await markBlockPosted(db, b!.id, '1'.repeat(19), NOW + 1)).toBe(true); // 응답을 못 받아 다시 보내도 그대로
     expect(await listUnpostedBlocks(db)).toEqual([]);
     expect(await decideBlock(db, b!.id, 'approved', '7'.repeat(18), NOW)).toMatchObject({ applied: true, status: 'approved' });
     expect(await decideBlock(db, b!.id, 'rejected', '7'.repeat(18), NOW + 1)).toMatchObject({ applied: false, status: 'approved' });

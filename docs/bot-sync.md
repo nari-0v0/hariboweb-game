@@ -180,7 +180,7 @@ Content-Type: application/json
 
 - `GET /api/bot/assign-blocks` → `{ "blocks": [{ "id": 1, "from": {"id","name"}, "to": {"id","name"}, "reason": "...", "ai_verdict": "ok|vague|null", "ai_summary": "한 줄 요약|null", "created_at": "ISO" }] }`
   - 아직 채널에 안 올린 대기 요청, 오래된 것부터 최대 10개. AI가 장난·내용 없음으로 본 요청(`ai_rejected`)은 오지 않아요.
-- `POST /api/bot/assign-blocks/:id/posted` `{ "message_id": "디스코드 메시지 ID" }` → `{ "ok": true, "changed": true|false }` (처음 한 번만 적혀요)
+- `POST /api/bot/assign-blocks/:id/posted` `{ "message_id": "디스코드 메시지 ID" }` → `{ "ok": true, "changed": true|false }` (처음 한 번만 적혀요. 같은 메시지 ID로 다시 보내면 `changed: true`, 다른 ID면 `false`)
 - `POST /api/bot/assign-blocks/:id/decide` `{ "decision": "approve"|"reject", "by": "누른 사람 디스코드 ID" }` → `{ "applied": true|false, "status": "approved|rejected|pending", "decided_at": "ISO|null" }`
   - 대기 중일 때만 적용돼요. 두 번 눌러도 처음 결정만 남아요(`applied: false`면 이미 처리된 것).
   - 누가 누를 수 있는지(나리만)는 봇이 확인해요.

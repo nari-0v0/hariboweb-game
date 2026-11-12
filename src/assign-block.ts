@@ -144,12 +144,14 @@ export async function listUnpostedBlocks(db: D1Database, limit = 10): Promise<Pe
   }));
 }
 
+// 같은 메시지 번호로 다시 보내도 true예요(봇이 응답을 못 받아 다시 보낼 때 메시지를 지우지 않게요).
 export async function markBlockPosted(db: D1Database, id: number, messageId: string, nowMs: number): Promise<boolean> {
-  const res = await db
+  await db
     .prepare('UPDATE assign_blocks SET message_id = ?, posted_at = ? WHERE id = ? AND message_id IS NULL')
     .bind(messageId, new Date(nowMs).toISOString(), id)
     .run();
-  return (res.meta?.changes ?? 0) > 0;
+  const row = await db.prepare('SELECT message_id FROM assign_blocks WHERE id = ?').bind(id).first<{ message_id: string | null }>();
+  return row?.message_id === messageId;
 }
 
 // 결정은 대기 중일 때만 적용돼요(두 번 눌러도 처음 것만). 지금 상태를 돌려줘요.
