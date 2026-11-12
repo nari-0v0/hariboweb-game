@@ -179,3 +179,43 @@ addEventListener('pageshow', (e) => {
   const id = url.split('#')[1];
   if (id) document.getElementById(id)?.scrollIntoView();
 })();
+
+// 개발자 도구(F12) 막기: 단축키·우클릭을 막고, 개발자 도구가 열리면 화면을 가리고 멈춰요.
+// 눈속임용이에요. 칩·젤리·정답은 모두 서버가 정하고 확인해서, 이걸 우회해도 조작은 안 돼요.
+(() => {
+  const devKey = (e) => {
+    const mod = e.ctrlKey || e.metaKey;
+    return e.key === 'F12' ||
+      (mod && e.shiftKey && ['KeyI', 'KeyJ', 'KeyC'].includes(e.code)) ||
+      (e.metaKey && e.altKey && ['KeyI', 'KeyJ', 'KeyC', 'KeyU'].includes(e.code)) ||
+      (mod && !e.shiftKey && e.code === 'KeyU');
+  };
+  window.addEventListener('keydown', (e) => {
+    if (!devKey(e)) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }, true);
+  // 글 입력칸에서는 붙여넣기 메뉴가 필요해서 우클릭을 그대로 둬요
+  document.addEventListener('contextmenu', (e) => {
+    if (e.target instanceof Element && e.target.closest('input, textarea, [contenteditable]')) return;
+    e.preventDefault();
+  });
+
+  let cover = null;
+  const check = () => {
+    const start = performance.now();
+    // 개발자 도구가 닫혀 있으면 아무 일도 안 하고, 열려 있으면 여기서 멈춰요
+    debugger; // eslint-disable-line no-debugger
+    const open = performance.now() - start > 100;
+    if (open && !cover) {
+      cover = document.createElement('div');
+      cover.className = 'devtools-cover';
+      cover.setAttribute('role', 'alert');
+      cover.textContent = '개발자 도구를 닫아 주세요. 닫으면 다시 이용할 수 있어요.';
+      document.body.append(cover);
+    } else if (!open && cover) {
+      location.reload();
+    }
+  };
+  setInterval(check, 1000);
+})();
