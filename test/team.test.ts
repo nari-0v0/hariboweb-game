@@ -226,3 +226,28 @@ describe('동기화로 팀·서버 퀘스트', () => {
     expect(jp(sql, C)).toBe(0);
   });
 });
+
+describe('팀 완료로 채워진 가운데 칸 보상', () => {
+  it('활동이 없던 팀원도 동기화 때 줄 보상을 받아요', async () => {
+    const { sql, db } = fakeD1([A, B, C, D]);
+    await applySync(db, payload({ members: [member(A), member(B), member(C), member(D)], full_members: true }), NOW);
+    const period = sql.prepare('SELECT id FROM bingo_periods ORDER BY starts_at LIMIT 1').get() as { id: string };
+    // C는 개인 칸을 다 채워 두었어요(가운데 칸만 남음)
+    const days = Array.from({ length: 7 }, (_, i) => `2026-11-0${3 + i}`);
+    for (const day of days)
+      sql.prepare('INSERT INTO bingo_day (week, user_id, day, minutes, crowd, night, attended) VALUES (?, ?, ?, 600, 600, 600, 1)').run(period.id, C, day);
+    const others = Array.from({ length: 8 }, (_, i) => `5${String(i).padStart(17, '0')}`);
+    for (const o of others) {
+      sql.prepare('INSERT INTO bingo_pair (week, a, b, minutes) VALUES (?, ?, ?, 600)').run(period.id, C, o);
+      for (const day of ['2026-11-03', '2026-11-04']) {
+        sql.prepare('INSERT INTO praises (day, from_id, to_id, jelly, created_at) VALUES (?, ?, ?, 0, ?)').run(day, C, o, `${day}T03:00:00.000Z#g`);
+        sql.prepare('INSERT INTO praises (day, from_id, to_id, jelly, created_at) VALUES (?, ?, ?, 0, ?)').run(day, o, C, `${day}T03:00:00.000Z#r`);
+      }
+    }
+    sql.prepare("INSERT INTO bingo_flag (week, user_id, flag) VALUES (?, ?, 'panel'), (?, ?, 'web')").run(period.id, C, period.id, C);
+    // A·B, A·D가 30분 → 팀 목표(2명) 넘김. C는 이번 묶음에 기록이 없어요.
+    await applySync(db, payload({ room_minutes: [...minutes(30, [A, B]), ...minutes(30, [A, D], NOW + 3_600_000)] }), NOW + 7_200_000);
+    const lines = (sql.prepare('SELECT COUNT(*) AS n FROM bingo_lines WHERE user_id = ?').get(C) as { n: number }).n;
+    expect(lines).toBe(9); // 8줄 + 9칸
+  });
+});

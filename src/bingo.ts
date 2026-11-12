@@ -445,8 +445,23 @@ export async function grantTouched(db: D1Database, touched: Map<string, Set<stri
   for (const [id, users] of touched) {
     const p = periods.get(id);
     if (!p || p.start > now || p.end <= cutoff || !users.size) continue;
-    await grantBingo(db, p, [...users], nowMs);
+    await grantBingo(db, p, await withTeammates(db, p, users), nowMs);
   }
+}
+
+// 기록이 바뀐 사람 + 같은 팀원 전부. 팀원의 통화로 팀이 목표를 채우면 활동이 없던 팀원의
+// 가운데 칸도 채워지니까, 그 사람들의 줄 보상도 같이 확인해요(팀이 10명 안팎이라 많지 않아요).
+async function withTeammates(db: D1Database, p: Week, users: Set<string>): Promise<string[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT DISTINCT t.user_id FROM season_members t
+       JOIN seasons x ON x.id = t.season_id AND x.starts_at <= ?1 AND x.ends_at > ?1
+       JOIN season_members s ON s.season_id = t.season_id AND s.group_no = t.group_no
+       WHERE t.left_at IS NULL AND s.user_id IN (SELECT value FROM json_each(?2))`,
+    )
+    .bind(p.start, JSON.stringify([...users]))
+    .all<{ user_id: string }>();
+  return [...new Set([...users, ...results.map((r) => r.user_id)])];
 }
 
 // ── 칭찬하기: 오늘 같이 통화한 사람 ──
