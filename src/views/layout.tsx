@@ -12,6 +12,8 @@ export function Layout(props: {
   refresh?: { seconds: number; url: string };
   wide?: boolean;
   scripts?: (string | { src: string; type: 'module' })[];
+  /** 화면에 바로 보일 큰 그림(배경 등)을 CSS보다 먼저 받기 시작해요. */
+  preloadImages?: string[];
   children?: Child;
 }) {
   const nav = (key: NavKey, href: string, label: string, icon: string) => (
@@ -27,8 +29,9 @@ export function Layout(props: {
         {props.refresh && <meta http-equiv="refresh" content={`${props.refresh.seconds}; url=${props.refresh.url}`} />}
         <title>{props.title} · 하리보 멤버 도감</title>
         <link rel="preload" href="/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin="" />
+        {props.preloadImages?.map((href) => <link rel="preload" href={href} as="image" fetchpriority="high" />)}
         <link rel="icon" type="image/png" href="/char/deco/explorer.png" />
-        <link rel="stylesheet" href="/styles.css?v=bingo-2" />
+        <link rel="stylesheet" href="/styles.css?v=wheel-art-2" />
         <script src="/app.js?v=fast-act-1" defer></script>
         {props.scripts?.map((script) => typeof script === 'string'
           ? <script src={script} defer></script>

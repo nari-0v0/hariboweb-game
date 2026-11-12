@@ -1,6 +1,6 @@
 import type { Member } from '../env';
-import { GAMBLE_ART, SLOT_ART, SUIT_ART } from '../gamble-art';
-import { CHERRY_PAIR, ROULETTE, SLOTS, WHEEL, rankOf } from '../gamble';
+import { GAMBLE_ART, SLOT_ART } from '../gamble-art';
+import { CHERRY_PAIR, ROULETTE, SLOTS, WHEEL, payback, rankOf } from '../gamble';
 import { gambleDay, publicHand, type GambleAccount, type Game, type Round } from '../gamble-db';
 import { Layout } from './layout';
 
@@ -25,6 +25,11 @@ function Art({ name }: { name: string }) {
 
 const BET_STEPS = [1, 5, 10, 100, 1000, 10000];
 const CARD_RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+
+// 나리가 그린 게임별 배경: 게임 방은 정사각형(room), 로비의 게임 고르기 칸은 가로로 긴 그림(lobby).
+// 게임 방에서 제일 크게 보이는 그림(먼저 받기 시작해요).
+const MAIN_ART: Record<Game, string> = { slot: 'slotFrame', roulette: 'wheel', cards: 'cardBack' };
+const gameBackground = (game: Game, kind: 'room' | 'lobby') => `/gamble/bg/${game}-${kind}.webp?v=2`;
 
 function ArtLayer({ name }: { name: string }) {
   const image = GAMBLE_ART[name]?.image;
@@ -71,56 +76,25 @@ function SlotReels({ reels }: { reels?: number[] }) {
   );
 }
 
-// 룰렛판은 40칸(서버 WHEEL 번호, 확률 그대로)을 같은 배수끼리 묶어 넓은 칸 19개로 그려요.
-// [배수, 칸 수]: 0배 22 · 1배 8 · 2배 6 · 3배 2 · 5배 1 · 10배 1 = 40칸. 같은 배수끼리는 붙지 않게 놓아요.
-const WHEEL_RUNS: [number, number][] = [
-  [0, 3], [1, 2], [0, 3], [2, 2], [0, 3], [1, 2], [0, 3], [3, 1], [0, 3], [2, 2],
-  [0, 3], [1, 2], [0, 2], [5, 1], [1, 2], [2, 2], [0, 2], [10, 1], [3, 1],
-];
-const SECTOR = 360 / WHEEL.length;
-// WHEEL 번호 i가 판의 몇 번째 자리(k)에 그려지는지, 그리고 그 자리가 어느 묶음(run)인지
-const { WHEEL_POS, RUN_OF } = (() => {
-  const free = new Map<number, number[]>();
-  WHEEL.forEach((p, i) => free.set(p, [...(free.get(p) ?? []), i]));
-  const pos: number[] = [];
-  const runOf: number[] = [];
-  let k = 0;
-  WHEEL_RUNS.forEach(([payout, count], r) => {
-    for (let j = 0; j < count; j++, k++) {
-      const i = free.get(payout)!.shift()!;
-      pos[i] = k;
-      runOf[i] = r;
-    }
-  });
-  if (k !== WHEEL.length || [...free.values()].some((l) => l.length)) throw new Error('룰렛 칸 묶음이 WHEEL과 안 맞아요');
-  return { WHEEL_POS: pos, RUN_OF: runOf };
-})();
-const RUN_COLORS: Record<number, string> = {
-  1: '#1f6b3a', 2: '#2f5fa8', 3: '#7b3fa0', 5: '#c26a12', 10: '#d4a017',
-};
-let zeroNo = 0;
-const RUN_DRAW = WHEEL_RUNS.reduce<{ from: number; to: number; payout: number; color: string }[]>((list, [payout, count]) => {
-  const from = list.length ? list[list.length - 1]!.to : 0;
-  const color = payout === 0 ? (zeroNo++ % 2 ? '#7a1420' : '#1d1d24') : RUN_COLORS[payout]!;
-  return [...list, { from, to: from + count * SECTOR, payout, color }];
-}, []);
-// 칸 사이에 금색 줄을 그어요.
-const WHEEL_FILL = `conic-gradient(from -${SECTOR / 2}deg, ${RUN_DRAW.map(({ from, to, color }) =>
-  `#e8c25a ${from}deg ${from + 0.8}deg, ${color} ${from + 0.8}deg ${to}deg`).join(', ')})`;
+// 룰렛 판 그림(나리 그림)은 같은 크기 8칸이에요. 12시 방향 칸부터 시계 방향으로 이 배수예요.
+// 나올 확률은 그림 크기와 상관없이 서버의 ROULETTE(WHEEL)가 정하고, 여기서는 나온 배수 칸으로 판을 돌려 세워요.
+const DISC_SLICES = [0, 0.5, 1, 1.5, 2, 3, 5, 10];
+const SLICE = 360 / DISC_SLICES.length;
+if (ROULETTE.some(({ payout }) => !DISC_SLICES.includes(payout))) throw new Error('룰렛 판 그림에 없는 배수가 있어요');
 
-function RouletteWheel({ landed }: { landed?: number }) {
-  const landedRun = landed === undefined ? -1 : RUN_OF[landed];
+function RouletteWheel({ landed: raw }: { landed?: number }) {
+  // 예전 판(40칸·20칸) 결과 번호는 지금 판에 없을 수 있어서, 그때는 멈춘 칸 없이 그려요.
+  const landed = raw !== undefined && raw < WHEEL.length ? raw : undefined;
+  const slice = landed === undefined ? 0 : DISC_SLICES.indexOf(WHEEL[landed]!);
+  // 칸 한가운데만 서지 않게, 결과 번호에 따라 칸 안에서 조금씩 다른 자리에 서요(칸 폭 45도 중 ±15도).
+  const wobble = landed === undefined ? 0 : ((landed * 37) % 31) - 15;
   return (
     <div class={`gb-wheel-stage${GAMBLE_ART.wheel?.image ? ' gb-wheel-stage--rim' : ''}`}>
       <div class="gb-wheel-pointer" aria-hidden="true"><Art name="pointer" /></div>
       <div class="gb-wheel-viewport">
-        <div class="gb-wheel-disc" data-gb-landed={landed}
-          style={`--gb-wheel-fill:${WHEEL_FILL};--gb-wheel-stop:${-WHEEL_POS[landed ?? 0]! * SECTOR}deg`}
-          aria-hidden="true">
-          {RUN_DRAW.map(({ from, to, payout }, r) => (
-            <span class={`gb-wheel-label${payout >= 5 ? ' gb-wheel-label--big' : ''}`} aria-current={r === landedRun ? 'true' : undefined}
-              style={`--gb-wheel-angle:${(from + to) / 2 - SECTOR / 2}deg`}>{payout}배</span>
-          ))}
+        <div class="gb-wheel-disc gb-wheel-disc--art" data-gb-landed={landed}
+          style={`--gb-wheel-stop:${-(slice * SLICE + wobble)}deg`} aria-hidden="true">
+          <img class="gb-wheel-disc-img" src={GAMBLE_ART.wheelDisc!.image} alt="" />
         </div>
       </div>
       {/* 테두리 그림은 판과 같이 돌지 않게 판 바깥에 덮어요. */}
@@ -128,6 +102,12 @@ function RouletteWheel({ landed }: { landed?: number }) {
     </div>
   );
 }
+
+// 나리가 그린 카드 52장(public/gamble/cards/<무늬>-<숫자>.webp). 카드 번호 = 무늬 × 13 + 숫자.
+const SUIT_FILES = ['spades', 'hearts', 'diamonds', 'clubs'] as const;
+const SUIT_NAMES = ['스페이드', '하트', '다이아', '클로버'] as const;
+const cardImage = (card: number) =>
+  `/gamble/cards/${SUIT_FILES[Math.floor(card / 13)]}-${CARD_RANKS[rankOf(card)]!.toLowerCase()}.webp?v=1`;
 
 function PlayingCard({ card, order, flip }: { card?: number; order?: number; flip?: boolean }) {
   const hidden = card === undefined;
@@ -138,9 +118,8 @@ function PlayingCard({ card, order, flip }: { card?: number; order?: number; fli
           <Art name="cardBack" />
         </span>
         {!hidden && (
-          <span class="gb-card-face gb-card-front">
-            <ArtLayer name="cardFront" />
-            <span class="gb-card-mark"><Art name={SUIT_ART[Math.floor(card / 13)]!} /> {CARD_RANKS[rankOf(card)]}</span>
+          <span class="gb-card-face gb-card-front gb-card-front--art">
+            <img class="gb-card-img" src={cardImage(card)} alt={`${SUIT_NAMES[Math.floor(card / 13)]} ${CARD_RANKS[rankOf(card)]}`} />
           </span>
         )}
       </span>
@@ -177,7 +156,7 @@ function CardDeck() {
 
 function GameSurface({ game, round, canBet }: { game: Game; round: Round | null; canBet: boolean }) {
   return (
-    <div class={`gb-game-surface gb-surface-${game}`} style={GAMBLE_ART.background?.image ? `--gb-bg:url(${GAMBLE_ART.background.image})` : undefined}>
+    <div class={`gb-game-surface gb-surface-${game}`} style={`--gb-bg:url(${gameBackground(game, 'room')})`}>
       {game === 'slot' && <SlotReels reels={round ? JSON.parse(round.state) as number[] : undefined} />}
       {game === 'roulette' && <RouletteWheel landed={round ? Number(round.state) : undefined} />}
       {game === 'cards' && (round ? <Cards round={round} /> : <CardDeck />)}
@@ -193,7 +172,7 @@ function GameSurface({ game, round, canBet }: { game: Game; round: Round | null;
 
 function Result({ round, balance }: { round: Round; balance: number }) {
   const multiplier = round.multiplier!;
-  const net = round.bet * (multiplier - 1);
+  const net = payback(round.bet, multiplier) - round.bet;
   return (
     <div class="gb-round-result" aria-live="polite" data-gb-reveal>
       <h2>{net > 0 ? `칩 ${chips(net)}개 이겼어요!` : net < 0 ? `칩 ${chips(-net)}개 잃었어요` : '본전이에요'}</h2>
@@ -213,7 +192,7 @@ function GameRules({ game }: { game: Game }) {
           <p><Art name="cherry" /> 2개는 {CHERRY_PAIR}배예요.</p>
         </>
       )}
-      {game === 'roulette' && <p>1배는 본전이에요. {ROULETTE.map(({ payout, count }) => `${payout}배 ${count}칸`).join(' · ')}</p>}
+      {game === 'roulette' && <p>1배는 본전이고, 0.5배·1.5배는 받을 칩을 내림해요. 나올 확률: {ROULETTE.map(({ payout, count }) => `${payout}배 ${count}%`).join(' · ')}</p>}
       {game === 'cards' && <p>딜러는 17점부터 멈춰요. 승리 2배 · 첫 두 장으로 21을 만들어 이기면 3배 · 비기면 1배</p>}
     </details>
   );
@@ -243,10 +222,9 @@ export function GambleLobby(props: {
   const [balanceRank = [], bestRank = [], allInRank = [], seasonRank = []] = props.ranks;
   const notice = noticeText(props.notice);
   return (
-    <Layout title="겜블장" viewer={props.viewer} active="gamble">
+    <Layout title="겜블장" viewer={props.viewer} active="gamble" preloadImages={(Object.keys(GAMES) as Game[]).map((game) => gameBackground(game, 'lobby'))}>
       <div class="gb-page">
         <section class="gb-panel gb-lobby-intro">
-          <ArtLayer name="background" />
           <h1>겜블장 <Art name="slot" /></h1>
           <ChipBalance balance={balance} />
           {props.daily && <p role="status">오늘 칩 1000개 받았어요.</p>}
@@ -261,7 +239,7 @@ export function GambleLobby(props: {
         </section>
         <nav class="gb-games" aria-label="게임 고르기">
           {(Object.keys(GAMES) as Game[]).map((game) => (
-            <a class="gb-panel gb-game-link" href={`/gamble/${game}`}>
+            <a class="gb-panel gb-game-link" href={`/gamble/${game}`} style={`--gb-bg:url(${gameBackground(game, 'lobby')})`}>
               <span class="gb-game-link-icon"><Art name={game} /></span>
               <strong>{GAMES[game]}</strong>
               {game === 'cards' && props.inProgress && <span class="gb-game-progress">진행 중</span>}
@@ -292,7 +270,8 @@ export function GambleRoom(props: {
   const motion = result ?? (hand && hand.token === props.result?.token ? hand : null);
   const notice = noticeText(props.notice);
   return (
-    <Layout title={GAMES[game]} viewer={props.viewer} active="gamble" scripts={[{ src: '/gamble.js?v=3', type: 'module' }]}>
+    <Layout title={GAMES[game]} viewer={props.viewer} active="gamble" scripts={[{ src: '/gamble.js?v=3', type: 'module' }]}
+      preloadImages={[gameBackground(game, 'room'), ...[MAIN_ART[game]].flatMap((name) => GAMBLE_ART[name]?.image ?? [])]}>
       <div class="gb-page gb-room-page">
         <div class="gb-room-bar">
           <a href="/gamble">← 겜블장</a>

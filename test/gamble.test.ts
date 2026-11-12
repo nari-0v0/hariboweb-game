@@ -68,13 +68,27 @@ describe('겜블장 배당', () => {
     expect(weightedPayout / total ** 3).toBeLessThanOrEqual(1.05);
   });
 
-  it('룰렛의 40칸 구성과 기대값', () => {
-    expect(WHEEL).toHaveLength(40);
-    expect([0, 1, 2, 3, 5, 10].map((n) => WHEEL.filter((v) => v === n).length)).toEqual([22, 8, 6, 2, 1, 1]);
+  it('룰렛 배수별 확률(100번 중)과 기대값', () => {
+    expect(WHEEL).toHaveLength(100);
+    expect([0, 0.5, 1, 1.5, 2, 3, 5, 10].map((n) => WHEEL.filter((v) => v === n).length)).toEqual([32, 20, 18, 12, 9, 5, 3, 1]);
+    expect(WHEEL[WHEEL.length - 1]).toBe(10);
     const mean = WHEEL.reduce((sum, n) => sum + n, 0) / WHEEL.length;
-    expect(mean).toBeCloseTo(1.025);
+    expect(mean).toBeCloseTo(1.04);
     expect(mean).toBeGreaterThanOrEqual(1.02);
     expect(mean).toBeLessThanOrEqual(1.05);
+  });
+
+  it('0.5배·1.5배는 돌려받을 칩을 내림해서 정수로 준다', async () => {
+    const { db } = fixture();
+    await claimDaily(db, USER, TODAY);
+    roll(32);
+    const half = await betChips(db, USER, 'roulette', 3, 'half', TODAY);
+    expect(half?.multiplier).toBe(0.5);
+    expect((await gambleAccount(db, USER))?.chips).toBe(998);
+    roll(70);
+    const more = await betChips(db, USER, 'roulette', 3, 'more', TODAY);
+    expect(more?.multiplier).toBe(1.5);
+    expect(await gambleAccount(db, USER)).toMatchObject({ chips: 999, won: 1, best_win: 1 });
   });
 
   it('A를 1이나 11로 계산하고 딜러는 소프트 17에서도 멈춘다', () => {
@@ -173,7 +187,7 @@ describe('칩과 판 기록', () => {
     const { db, sql } = fixture();
     sql.prepare("INSERT INTO seasons (id, starts_at, ends_at, created_at) VALUES ('season', ?, ?, ?)").run('2026-11-01T00:00:00.000Z', TOMORROW, TODAY);
     await claimDaily(db, USER, TODAY);
-    roll(39);
+    roll(99);
     await betChips(db, USER, 'roulette', 100, 'win', TODAY);
     expect((await gambleRanks(db, TODAY))[3]).toEqual([{ name: '테스트', value: 900 }]);
     await awardGambleSeason(db, 'season', TOMORROW, TOMORROW);

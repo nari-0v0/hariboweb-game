@@ -1811,20 +1811,20 @@ main.wide { max-width: 1320px; }
 }
 .gb-wheel-label {
   position: absolute;
-  left: calc(50% + 34% * sin(var(--gb-wheel-angle)));
-  top: calc(50% - 34% * cos(var(--gb-wheel-angle)));
+  left: calc(50% + 38% * sin(var(--gb-wheel-angle)));
+  top: calc(50% - 38% * cos(var(--gb-wheel-angle)));
   translate: -50% -50%;
   /* 글자를 바깥쪽으로 눕혀서 좁은 칸에도 겹치지 않게 해요. */
   rotate: calc(var(--gb-wheel-angle) - 90deg);
   padding: .1em .25em;
-  color: #fff8e6;
+  color: #f3d27a;
   text-shadow: 0 1px #000, 0 0 3px #000;
-  font-size: 4.2cqw;
+  font-size: 5.2cqw;
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
 }
-.gb-wheel-label--big { font-size: 4.6cqw; }
+.gb-wheel-label--big { font-size: 5.6cqw; color: #2a1a00; text-shadow: 0 1px #fff3; }
 .gb-wheel-label[aria-current="true"] { border-radius: 2px; }
 .gb-room:not(.gb-motion-running) .gb-wheel-label[aria-current="true"] {
   background: #fff8d2;
@@ -1866,6 +1866,10 @@ main.wide { max-width: 1320px; }
 .gb-card-back { transform: rotateY(180deg); background: #cbe5ff; font-size: 1.55rem; }
 .gb-card-deck .gb-art, .gb-card-back .gb-art { width: 100%; height: 100%; object-fit: fill; }
 .gb-card-mark { position: relative; white-space: nowrap; font-size: .76rem; }
+/* 나리가 그린 카드 그림: 테두리까지 그림에 있어서 칸 테두리는 빼고, 픽셀이 뭉개지지 않게 그려요. */
+.gb-playing-card { width: 3.3rem; height: auto; aspect-ratio: 424 / 592; }
+.gb-card-front--art { border: 0; background: none; }
+.gb-card-img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
 
 .gb-lobby-intro { position: relative; isolation: isolate; }
 .gb-lobby-intro .gb-art-layer { z-index: -1; }
@@ -1931,10 +1935,17 @@ main.wide { max-width: 1320px; }
 .gb-wheel-pointer .gb-art { width: 1.6rem; height: 3.4rem; }
 .gb-reel-symbol .gb-art { width: 1.3em; height: 1.3em; }
 /* 겜블장 배경 그림: 게임 판은 초록 테이블 위에, 로비 첫 상자는 어둡게 덮어 글씨가 잘 보이게 */
+/* 배경 그림이 정사각형이라 칸도 정사각형으로 만들어 그림이 잘리지 않게 해요.
+   그림 테두리 장식 안쪽에 내용이 오도록 안쪽 여백을 넉넉히 둬요. */
 .gb-game-surface[style*="--gb-bg"] {
-  background: var(--gb-bg) center 75% / cover no-repeat;
+  background: var(--gb-bg) center / cover no-repeat;
   border: 3px solid #273551;
-  padding: .9rem .6rem;
+  aspect-ratio: 1;
+  width: min(100%, 30rem);
+  margin-inline: auto;
+  display: grid;
+  align-content: center;
+  padding: 8%;
   color: #fff8e6;
   text-shadow: 0 1px 2px #000;
 }
@@ -2006,3 +2017,31 @@ main.wide { max-width: 1320px; }
 .gb-move-button:hover:not(:disabled) { background: #3a2026; }
 .gb-move-button:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #000, inset 0 0 0 1px #5a3a1a; }
 @media (max-width: 520px) { .gb-bet-steps .gb-amount-button { grid-column: span 2; } }
+/* 나리가 그린 카드 뒷면: 그림에 테두리가 있어서 칸 테두리·바탕은 빼요. */
+.gb-card-back:has(> .gb-art), .gb-card-deck:has(> .gb-art) { border: 0; box-shadow: none; background: none; }
+.gb-card-deck:has(> .gb-art) { width: 3.3rem; height: auto; aspect-ratio: 424 / 592; }
+.gb-card-back .gb-art, .gb-card-deck .gb-art { image-rendering: pixelated; }
+/* 로비의 게임 고르기 칸: 게임마다 나리가 그린 가로 그림을 깔고 글씨는 밝게 */
+.gb-game-link[style*="--gb-bg"] {
+  background: var(--gb-bg) center / cover no-repeat;
+  color: #fff3d6;
+  text-shadow: 0 1px 0 #000, 0 0 4px #000;
+  min-height: 7.5rem;
+}
+.gb-game-link[style*="--gb-bg"]:hover, .gb-game-link[style*="--gb-bg"]:focus-visible { background: var(--gb-bg) center / cover no-repeat; filter: brightness(1.15); }
+.gb-game-link[style*="--gb-bg"] strong { color: #ffd75e; font-size: 1.1rem; }
+.gb-game-link[style*="--gb-bg"] .gb-game-progress { color: #202944; text-shadow: none; }
+/* 룰렛 가운데 금색 동그라미: 멈춘 뒤 나온 배수를 크게 보여 줘요. */
+.gb-wheel-viewport { position: relative; }
+.gb-wheel-hub {
+  position: absolute; left: 50%; top: 50%; translate: -50% -50%;
+  display: grid; place-items: center;
+  width: 30%; aspect-ratio: 1; border-radius: 50%;
+  background: #141217;
+  border: 3px solid #c9a227; box-shadow: 0 0 0 2px #5a4310, 0 4px 10px #0008;
+  color: #f3d27a; font-size: 7cqw; font-weight: 700; text-shadow: 0 1px #000;
+}
+.gb-game-surface[style*="--gb-bg"] .gb-wheel-stage { width: min(92%, 20rem); margin: 0 auto; }
+/* 나리가 그린 룰렛 판(8칸): 그림을 통째로 돌려요. */
+.gb-wheel-disc--art { background: none; border: 0; }
+.gb-wheel-disc-img { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
