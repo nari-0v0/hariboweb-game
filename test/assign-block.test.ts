@@ -127,6 +127,18 @@ describe('봇', () => {
   });
 });
 
+it('나간 멤버가 신청했거나 받은 요청은 지워요', async () => {
+  const { sql, db } = fakeD1();
+  sql.prepare("INSERT INTO assign_blocks (from_id, to_id, reason, status, created_at) VALUES (?, ?, 'x', 'pending', 'x')").run(A, B);
+  sql.prepare("INSERT INTO assign_blocks (from_id, to_id, reason, status, created_at) VALUES (?, ?, 'x', 'approved', 'x')").run(C, A);
+  sql.prepare("INSERT INTO assign_blocks (from_id, to_id, reason, status, created_at) VALUES (?, ?, 'x', 'pending', 'x')").run(C, D);
+  const parsed = parseSync({ batch_id: `${new Date(NOW).toISOString()}-left`, removed: [A] });
+  if (!parsed.ok) throw new Error(parsed.error);
+  await applySync(db, parsed.value, NOW);
+  expect(sql.prepare('SELECT from_id, to_id FROM assign_blocks').all()).toEqual([{ from_id: C, to_id: D }]);
+  expect((await listUnpostedBlocks(db)).map((b) => b.from.id)).toEqual([C]);
+});
+
 describe('팀 짜기', () => {
   it('승인된 짝이 같은 팀이면 다른 팀 사람과 바꿔요', () => {
     const plan = new Map([
@@ -138,6 +150,25 @@ describe('팀 짜기', () => {
     separateBlocked(plan, new Set([blockKey(A, B)]));
     expect(plan.get(A)).not.toBe(plan.get(B));
     expect([...plan.values()].filter((g) => g === 0)).toHaveLength(2);
+  });
+
+  it('한 팀에 막힌 짝이 둘이어도 하나씩 풀어요', () => {
+    const E = ids[4]!;
+    const F = ids[5]!;
+    const plan = new Map([
+      [A, 0],
+      [B, 0],
+      [C, 0],
+      [D, 0],
+      [E, 1],
+      [F, 1],
+      ['7'.repeat(18), 1],
+      ['9'.repeat(18), 1],
+    ]);
+    separateBlocked(plan, new Set([blockKey(A, B), blockKey(C, D)]));
+    expect(plan.get(A)).not.toBe(plan.get(B));
+    expect(plan.get(C)).not.toBe(plan.get(D));
+    expect([...plan.values()].filter((g) => g === 0)).toHaveLength(4);
   });
 
   it('시즌 중간에 들어오는 사람은 막힌 상대가 있는 팀을 피해요', () => {

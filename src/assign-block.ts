@@ -180,7 +180,8 @@ export async function approvedBlocks(db: D1Database): Promise<Set<string>> {
   return new Set(results.map((r) => blockKey(r.from_id, r.to_id)));
 }
 
-// 같은 팀에 승인된 짝이 있으면 다른 팀 사람과 한 명씩 바꿔요(바꾼 뒤 두 팀 모두 막힌 짝이 없을 때만).
+// 같은 팀에 승인된 짝이 있으면 다른 팀 사람과 한 명씩 바꿔요.
+// 바꾼 뒤 두 팀의 막힌 짝 수가 줄어들 때만 바꿔요(한 팀에 짝이 여럿이어도 하나씩 풀려요).
 // keep(팀원 목록)이 false가 되는 바꾸기는 하지 않아요(팀 퀘스트 짝 같은 다른 조건을 지키려고).
 export function separateBlocked(
   plan: Map<string, number>,
@@ -189,20 +190,26 @@ export function separateBlocked(
 ): Map<string, number> {
   if (!blocked.size) return plan;
   const members = (no: number) => [...plan].filter(([, g]) => g === no).map(([id]) => id);
-  const clash = (ids: string[]) => ids.some((a, i) => ids.slice(i + 1).some((b) => blocked.has(blockKey(a, b))));
+  const clashes = (ids: string[]) => {
+    let n = 0;
+    ids.forEach((a, i) => ids.slice(i + 1).forEach((b) => blocked.has(blockKey(a, b)) && n++));
+    return n;
+  };
   const ids = [...plan.keys()].sort();
-  for (let round = 0; round < 3; round++) {
+  for (let round = 0; round < 6; round++) {
     let moved = false;
     for (const x of ids) {
       const no = plan.get(x)!;
       const mine = members(no);
       if (!mine.some((y) => y !== x && blocked.has(blockKey(x, y)))) continue;
+      const mineBefore = clashes(mine);
       for (const y of ids) {
         const other = plan.get(y)!;
         if (other === no) continue;
+        const theirs = members(other);
         const a = [...mine.filter((u) => u !== x), y];
-        const b = [...members(other).filter((u) => u !== y), x];
-        if (clash(a) || clash(b) || !keep(a) || !keep(b)) continue;
+        const b = [...theirs.filter((u) => u !== y), x];
+        if (clashes(a) + clashes(b) >= mineBefore + clashes(theirs) || !keep(a) || !keep(b)) continue;
         plan.set(x, other);
         plan.set(y, no);
         moved = true;
