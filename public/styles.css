@@ -2045,3 +2045,17 @@ main.wide { max-width: 1320px; }
 /* 나리가 그린 룰렛 판(8칸): 그림을 통째로 돌려요. */
 .gb-wheel-disc--art { background: none; border: 0; }
 .gb-wheel-disc-img { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+
+/* 개발자 도구가 열렸을 때 화면 가리기(app.js) */
+.devtools-cover {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: #cfe9ff;
+  color: #1d3557;
+  font-size: 18px;
+  text-align: center;
+}

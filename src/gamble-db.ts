@@ -59,15 +59,22 @@ export const gambleRound = (db: D1Database, user: string, token: string) =>
 export const activeHand = (db: D1Database, user: string) =>
   db.prepare("SELECT * FROM gamble_rounds WHERE user_id = ? AND game = 'cards' AND settled_at IS NULL").bind(user).first<Round>();
 
+// 판과 판 사이 최소 간격. 사람이 누르면 그림이 도는 시간(1초 넘게) 때문에 걸리지 않고,
+// F12 콘솔에서 자동으로 수천 판을 돌려 칩을 불리는 것만 막아요.
+export const BET_GAP_MS = 1000;
+
 export async function betChips(db: D1Database, user: string, game: Game, bet: number, token: string, now: string) {
   if (!Number.isSafeInteger(bet) || bet < 1) return null;
+  const since = new Date(Date.parse(now) - BET_GAP_MS).toISOString();
   const state = game === 'slot' ? spinSlots() : game === 'roulette' ? spinWheel() : startHand();
   const multiplier = Array.isArray(state) ? slotPayout(state) : typeof state === 'number' ? WHEEL[state]! : openingPayout(state);
   const expires = new Date(Date.parse(gambleDay(now) + 'T00:00:00+09:00') + 86_400_000).toISOString();
   const insert = db.prepare(`INSERT OR IGNORE INTO gamble_rounds (user_id, token, game, bet, all_in, state, expires_at)
     SELECT a.user_id, ?, ?, ?, a.chips = ?, ?, ? FROM gamble_accounts a
     JOIN members m ON m.user_id = a.user_id AND m.active = 1
-    WHERE a.user_id = ? AND a.chips >= ?`).bind(token, game, bet, bet, JSON.stringify(state), expires, user, bet);
+    WHERE a.user_id = ? AND a.chips >= ?
+      AND NOT EXISTS (SELECT 1 FROM gamble_rounds r WHERE r.user_id = a.user_id AND r.settled_at > ?)`)
+    .bind(token, game, bet, bet, JSON.stringify(state), expires, user, bet, since);
   const statements = [insert];
   if (multiplier !== null) {
     statements.push(
@@ -94,6 +101,12 @@ async function updateHand(db: D1Database, round: Round, move: CardMove, now: str
     awardMilestones(db, round.user_id, now),
   ]);
   return result!.meta.changes === 1;
+}
+
+// 방금 판이 끝나서 아직 다음 판을 못 거는지(안내 문구용)
+export async function betTooSoon(db: D1Database, user: string, now: string) {
+  const since = new Date(Date.parse(now) - BET_GAP_MS).toISOString();
+  return !!await db.prepare('SELECT 1 FROM gamble_rounds WHERE user_id = ? AND settled_at > ? LIMIT 1').bind(user, since).first();
 }
 
 export async function moveHand(db: D1Database, user: string, token: string, revision: number, move: CardMove, now: string) {

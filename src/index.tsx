@@ -75,7 +75,7 @@ import {
 } from './title-db';
 
 import { GambleLobby, GambleRoom } from './views/gamble';
-import { activeHand, betChips, claimDaily, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, moveHand, rescueChips, type Game } from './gamble-db';
+import { activeHand, betChips, betTooSoon, claimDaily, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, moveHand, rescueChips, type Game } from './gamble-db';
 import { ExpeditionPage } from './views/expedition';
 import { prefetchAllowed } from './prefetch';
 import { act, currentRun, getRun, listCandidates, myRecord, myRole, quitRun, setRole, startRun } from './expedition-db';
@@ -829,7 +829,7 @@ async function playGamble(c: Context<AppEnv>, room?: string) {
   await expireHand(db, user, now);
   const round = await betChips(db, user, game, Number(bet), token, now);
   if (round?.game === game) return c.redirect(gambleRoomUrl(game, round.token), 303);
-  const notice = game === 'cards' && await activeHand(db, user) ? 'active' : 'bet';
+  const notice = game === 'cards' && await activeHand(db, user) ? 'active' : await betTooSoon(db, user, now) ? 'fast' : 'bet';
   return c.redirect(`${url}?n=${notice}`, 303);
 }
 
