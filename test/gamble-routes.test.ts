@@ -17,6 +17,7 @@ vi.mock('../src/gamble-db', async (original) => ({
   ...await original<typeof import('../src/gamble-db')>(),
   activeHand: vi.fn(),
   betChips: vi.fn(),
+  betTooSoon: async () => false,
   claimDaily: async () => true,
   expireHand: async () => null,
   gambleAccount: async () => ({ chips: 15 }),

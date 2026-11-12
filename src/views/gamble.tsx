@@ -13,6 +13,7 @@ const DESCRIPTIONS = {
 const NOTICES: Record<string, string> = {
   bet: '가진 칩 안에서 1개 이상 걸어 주세요.',
   active: '진행 중인 카드 21을 먼저 끝내 주세요.',
+  fast: '너무 빨라요. 잠깐 뒤에 다시 걸어 주세요.',
   rescue: '다시 시작할 칩 1000개를 받았어요.',
   'no-rescue': '오늘 이미 다시 시작했거나, 아직 칩이나 진행 중인 카드 21이 있어요.',
 };

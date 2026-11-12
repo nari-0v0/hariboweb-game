@@ -2,12 +2,14 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buyWithJelly } from '../src/db';
-import { activeHand, awardGambleSeason, betChips, claimDaily, expireHand, gambleAccount, gambleRanks, moveHand, publicHand, rescueChips } from '../src/gamble-db';
+import { activeHand, awardGambleSeason, betChips, betTooSoon, claimDaily, expireHand, gambleAccount, gambleRanks, moveHand, publicHand, rescueChips } from '../src/gamble-db';
 import { cardScore, openingPayout, playHand, SLOTS, slotPayout, WHEEL } from '../src/gamble';
 import { SHOP_ITEMS } from '../src/shop';
 
 const TODAY = '2026-11-10T14:59:00.000Z';
 const TOMORROW = '2026-11-10T15:00:00.000Z';
+// 같은 날 TODAY보다 n초 뒤(판 사이 최소 간격을 넘기려고 써요)
+const LATER = (n: number) => new Date(Date.parse(TODAY) + n * 1000).toISOString();
 const USER = '100000000000000001';
 
 function fixture() {
@@ -86,7 +88,7 @@ describe('겜블장 배당', () => {
     expect(half?.multiplier).toBe(0.5);
     expect((await gambleAccount(db, USER))?.chips).toBe(998);
     roll(70);
-    const more = await betChips(db, USER, 'roulette', 3, 'more', TODAY);
+    const more = await betChips(db, USER, 'roulette', 3, 'more', LATER(2));
     expect(more?.multiplier).toBe(1.5);
     expect(await gambleAccount(db, USER)).toMatchObject({ chips: 999, won: 1, best_win: 1 });
   });
@@ -116,7 +118,7 @@ describe('칩과 판 기록', () => {
     await betChips(db, USER, 'roulette', 1000, 'lose', TODAY);
     expect((await gambleAccount(db, USER))?.chips).toBe(0);
     expect(await Promise.all([rescueChips(db, USER, TODAY), rescueChips(db, USER, TODAY)])).toEqual([true, false]);
-    await betChips(db, USER, 'roulette', 1000, 'lose2', TODAY);
+    await betChips(db, USER, 'roulette', 1000, 'lose2', LATER(2));
     expect(await rescueChips(db, USER, TODAY)).toBe(false);
     expect(await claimDaily(db, USER, TOMORROW)).toBe(true);
     expect((await gambleAccount(db, USER))?.chips).toBe(1000);
@@ -135,13 +137,27 @@ describe('칩과 판 기록', () => {
     expect(race.filter(Boolean)).toHaveLength(1);
     expect((await gambleAccount(db, USER))?.chips).toBe(400);
     roll(99);
-    const win = await betChips(db, USER, 'slot', 400, 'win', TODAY);
+    const win = await betChips(db, USER, 'slot', 400, 'win', LATER(2));
     expect(win?.multiplier).toBe(10);
     roll(0);
-    await betChips(db, USER, 'roulette', 1, 'win', TODAY);
+    await betChips(db, USER, 'roulette', 1, 'win', LATER(4));
     expect(await gambleAccount(db, USER)).toMatchObject({ chips: 4000, all_in_wins: 1, plays: 2, won: 3600, best_win: 3600, jackpots: 1 });
     expect(sql.prepare("SELECT item_id FROM owned_items WHERE item_id = 'title:gamble-jackpot'").get()).toBeDefined();
     expect(() => sql.exec('UPDATE gamble_accounts SET chips = -1')).toThrow();
+  });
+
+  it('판이 끝나고 1초 안에는 다음 판을 받지 않는다(콘솔 자동 반복 막기)', async () => {
+    const { db } = fixture();
+    await claimDaily(db, USER, TODAY);
+    roll(0);
+    expect(await betChips(db, USER, 'roulette', 1, 'one', TODAY)).not.toBeNull();
+    expect(await betTooSoon(db, USER, LATER(0.5))).toBe(true);
+    expect(await betChips(db, USER, 'slot', 1, 'two', LATER(0.5))).toBeNull();
+    // 같은 판을 다시 보내면(두 번 누르기) 그 판 결과를 그대로 돌려줘요
+    expect((await betChips(db, USER, 'roulette', 1, 'one', LATER(0.5)))?.token).toBe('one');
+    expect((await gambleAccount(db, USER))?.chips).toBe(999);
+    expect(await betTooSoon(db, USER, LATER(1.5))).toBe(false);
+    expect(await betChips(db, USER, 'slot', 1, 'two', LATER(1.5))).not.toBeNull();
   });
 
   it('칩을 다 건 카드 21이 진행 중이면 구제하지 않는다', async () => {
