@@ -1,0 +1,9 @@
+node_modules/
+.wrangler/
+.dev.vars
+dist/
+work/
+/output/
+
+# Arena skill working files
+.arena/
