@@ -672,6 +672,52 @@ main.wide { max-width: 1320px; }
 .bgo-rules p { margin: 0 0 4px; }
 .bgo-rules p::before { content: '· '; }
 
+/* 하리보 빙고: 서버 퀘스트 막대, 팀 퀘스트, 젤리피 순위 */
+.bgo-server { max-width: 940px; margin: 8px auto 4px; padding: 14px 18px; background: #e9fbef; color: var(--ink); }
+.bgo-server.met { background: #fff6d6; }
+.bgo-server-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bgo-server-head h2 { margin: 0; font-size: 1.15rem; }
+.bgo-server-tag { padding: 0 8px; font-size: .75rem; font-weight: 700; color: #2c7a55; background: #fff; border: 2px solid var(--ink); }
+.bgo-server-text { margin: 6px 0 8px; font-size: .9rem; overflow-wrap: anywhere; }
+.bgo-server-bar { height: 22px; padding: 2px; background: #fff; border: 3px solid var(--ink); }
+.bgo-server-bar i { display: block; height: 100%; background: repeating-linear-gradient(90deg, #5fcf8f 0 8px, #8ee0ae 8px 16px); }
+.bgo-server-bar.small { height: 14px; border-width: 2px; margin: 4px 0 8px; }
+.bgo-server-count { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0 2px; font-size: .95rem; }
+.bgo-server-count b { font-size: 1.4rem; color: #2c7a55; }
+.bgo-server-reward, .bgo-team-reward { margin: 2px 0 0; font-size: .78rem; color: var(--ink-soft); }
+.bgo-chip { padding: 0 8px; font-size: .78rem; font-weight: 700; color: var(--ink); background: #ffe9a8; border: 2px solid var(--ink); }
+.bgo-cell.bgo-center { background: #e9fbef; }
+.bgo-cell.bgo-center.done { background: #c9f2d9; }
+.bgo-diff-team { background: #c9f2d9; color: #2c7a55; letter-spacing: 0; }
+.bgo-team { background: #fff; color: var(--ink); }
+.bgo-team.met { background: #e9fbef; }
+.bgo-team p { margin: 0 0 4px; font-size: .88rem; overflow-wrap: anywhere; }
+.bgo-team-count b { font-size: 1.6rem; color: var(--pink); }
+.bgo-team-bonus { padding: 6px 8px; background: #fff6d6; border: 2px solid var(--ink); }
+.bgo-stickers { list-style: none; display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 6px; padding: 0; }
+.bgo-stickers li { max-width: 100%; padding: 0 8px; font-size: .8rem; font-weight: 700; background: #ffd3e1; border: 2px solid var(--ink); rotate: -2deg; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bgo-stickers li:nth-child(even) { rotate: 2deg; background: #cfe8ff; }
+.bgo-team-me { display: inline-block; padding: 0 8px; font-weight: 700; border: 2px solid var(--ink); background: var(--paper); }
+.bgo-team-me.s-done { background: #c9f2d9; }
+.bgo-team-me.s-team-done { background: #fff6d6; }
+.bgo-ranks { color: var(--ink); }
+.bgo-rank-help { margin: 0 0 8px; font-size: .78rem; color: var(--ink-soft); }
+.bgo-rank-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.bgo-rank { min-width: 0; }
+.bgo-rank h3 { margin: 0 0 4px; font-size: .88rem; }
+.bgo-rank ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.bgo-rank li { display: grid; grid-template-columns: 1.8em minmax(0, 1fr) auto; gap: 4px; align-items: center; padding: 1px 6px; font-size: .8rem; background: #fff; border: 2px solid var(--ink); }
+.bgo-rank li.mine { background: #ffd3e1; }
+.bgo-rank-no { font-weight: 700; color: var(--pink); }
+.bgo-rank-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bgo-rank-n { font-weight: 700; }
+.bgo-rank-me { margin: 4px 0 0; font-size: .8rem; font-weight: 700; }
+@media (max-width: 520px) {
+  .bgo-server { padding: 10px 12px; }
+  .bgo-server-head h2 { font-size: 1rem; }
+  .bgo-rank-cols { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 900px) {
   .bgo { grid-template-columns: minmax(0, 600px); }
 }

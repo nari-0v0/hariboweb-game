@@ -10,6 +10,8 @@ import { applySync, parseSync } from '../src/sync';
 const NOW = Date.parse('2026-11-03T03:00:00Z'); // 한국 11월 3일 12시
 const START = '2026-11-02T15:00:00Z'; // 한국 11월 3일 0시
 const END = '2026-11-16T15:00:00Z';
+// 예전 모둠 퀘스트 8개 테스트: 새 시즌부터는 안 만들어서 켜고 시험해요
+const OLD = { groupQuests: true };
 const id = (n: number) => `1${String(n).padStart(17, '0')}`;
 
 function fakeD1(memberCount: number) {
@@ -155,8 +157,8 @@ describe('동기화로 시즌 모둠', () => {
     // 멤버 전부가 아니면 아직 안 만들어요
     await applySync(db, payload({ members: members(3) }), NOW);
     expect(sql.prepare('SELECT COUNT(*) AS n FROM seasons').get()).toEqual({ n: 0 });
-    await applySync(db, payload({ members: members(20), full_members: true }), NOW);
-    await applySync(db, payload({ members: members(20), full_members: true }), NOW);
+    await applySync(db, payload({ members: members(20), full_members: true }), NOW, OLD);
+    await applySync(db, payload({ members: members(20), full_members: true }), NOW, OLD);
     expect(sql.prepare('SELECT id FROM seasons').all()).toEqual([{ id: '2026-11-03' }]);
     expect(sql.prepare('SELECT group_no, COUNT(*) AS n FROM season_members GROUP BY group_no').all()).toEqual([
       { group_no: 0, n: 10 },
@@ -167,7 +169,7 @@ describe('동기화로 시즌 모둠', () => {
 
   it('통화방 1분 기록을 모둠별로 세고, 같은 묶음은 한 번만', async () => {
     const { sql, db } = fakeD1(20);
-    await applySync(db, payload({ members: members(20), full_members: true }), NOW);
+    await applySync(db, payload({ members: members(20), full_members: true }), NOW, OLD);
     const g0 = (sql.prepare('SELECT user_id FROM season_members WHERE group_no = 0 ORDER BY user_id').all() as { user_id: string }[]).map((r) => r.user_id);
     const room = id(999);
     const minutes = Array.from({ length: 30 }, (_, i) => ({
@@ -190,7 +192,7 @@ describe('동기화로 시즌 모둠', () => {
 
   it('시즌이 바뀌는 순간에 걸친 묶음은 앞 시즌 기록도 앞 시즌에 넣어요', async () => {
     const { sql, db } = fakeD1(20);
-    await applySync(db, payload({ members: members(20), full_members: true }), NOW);
+    await applySync(db, payload({ members: members(20), full_members: true }), NOW, OLD);
     const g0 = (sql.prepare('SELECT user_id FROM season_members WHERE group_no = 0 ORDER BY user_id').all() as { user_id: string }[]).map((r) => r.user_id);
     const endMs = Date.parse(END);
     const nextEnd = new Date(endMs + 14 * 86_400_000).toISOString();
@@ -215,7 +217,7 @@ describe('동기화로 시즌 모둠', () => {
 
   it('끝나기 직전 로그인으로 채운 퀘스트는 다음 묶음에 앞 시즌 기록이 없어도 확인해요', async () => {
     const { sql, db } = fakeD1(10);
-    await applySync(db, payload({ members: members(10), full_members: true }), NOW);
+    await applySync(db, payload({ members: members(10), full_members: true }), NOW, OLD);
     sql.exec("UPDATE season_quests SET quest_id = 'login:all' WHERE slot = 0");
     sql.exec("UPDATE season_quests SET done_at = 'x' WHERE slot > 0");
     const endMs = Date.parse(END);
@@ -240,7 +242,7 @@ describe('동기화로 시즌 모둠', () => {
 
   it('시즌이 바뀐 뒤 온 출석만 있는 묶음도 앞 시즌 출석으로 넣어요', async () => {
     const { sql, db } = fakeD1(20);
-    await applySync(db, payload({ members: members(20), full_members: true }), NOW);
+    await applySync(db, payload({ members: members(20), full_members: true }), NOW, OLD);
     const endMs = Date.parse(END);
     const nextEnd = new Date(endMs + 14 * 86_400_000).toISOString();
     const parsed = parseSync({
@@ -255,7 +257,7 @@ describe('동기화로 시즌 모둠', () => {
 
   it('퀘스트를 채우면 모둠원 모두 젤리를 한 번만 받고, 8개 다 깨면 칭호', async () => {
     const { sql, db } = fakeD1(10);
-    await applySync(db, payload({ members: members(10), full_members: true }), NOW);
+    await applySync(db, payload({ members: members(10), full_members: true }), NOW, OLD);
     // 퀘스트를 "통화 마라톤 1시간"(이어서 60분)으로 바꿔서 확인해요
     sql.exec("UPDATE season_quests SET quest_id = 'run:60' WHERE slot = 0");
     sql.exec("UPDATE season_quests SET done_at = 'x' WHERE slot > 0");
@@ -282,7 +284,7 @@ describe('동기화로 시즌 모둠', () => {
   it('고정 패널용 전체 모둠 순위와 서버 전체 오늘의 활약', async () => {
     const { sql, db } = fakeD1(20);
     expect(await seasonRanking(db, NOW)).toBeNull();
-    await applySync(db, payload({ members: members(20), full_members: true }), NOW);
+    await applySync(db, payload({ members: members(20), full_members: true }), NOW, OLD);
     const g1 = (sql.prepare('SELECT user_id FROM season_members WHERE group_no = 1 ORDER BY user_id').all() as { user_id: string }[]).map((r) => r.user_id);
     const minutes = Array.from({ length: 20 }, (_, i) => ({ at: new Date(NOW + i * 60_000).toISOString(), room: id(999), members: g1.slice(0, 2) }));
     await applySync(db, payload({ room_minutes: minutes }), NOW);
@@ -309,7 +311,7 @@ describe('동기화로 시즌 모둠', () => {
     const { sql, db } = fakeD1(22);
     // 21, 22번은 최근 2주 동안 활동이 없어요
     sql.exec(`UPDATE profiles SET updated_at = '2026-01-01T00:00:00.000Z' WHERE user_id IN ('${id(21)}', '${id(22)}')`);
-    await applySync(db, payload({ members: members(20), full_members: true }), NOW);
+    await applySync(db, payload({ members: members(20), full_members: true }), NOW, OLD);
     expect(sql.prepare('SELECT COUNT(*) AS n FROM season_members').get()).toEqual({ n: 20 });
     sql.exec(`UPDATE season_members SET left_at = 'x' WHERE user_id = '${id(1)}'`);
     const g1 = (sql.prepare(`SELECT group_no FROM season_members WHERE user_id = '${id(1)}'`).get() as { group_no: number }).group_no;
@@ -325,7 +327,7 @@ describe('동기화로 시즌 모둠', () => {
   it('늦게 들어온 사람의 시작 기준에는 같은 묶음 경험치가 들어가지 않아요', async () => {
     const { sql, db } = fakeD1(21);
     sql.exec(`UPDATE profiles SET updated_at = '2026-01-01T00:00:00.000Z' WHERE user_id = '${id(21)}'`);
-    await applySync(db, payload({ members: members(20), full_members: true }), NOW);
+    await applySync(db, payload({ members: members(20), full_members: true }), NOW, OLD);
     await applySync(db, payload({ solo_xp: [{ id: id(21), xp: 3 }], room_minutes: [{ at: new Date(NOW).toISOString(), room: id(999), members: [id(21), id(1)] }] }), NOW);
     expect(sql.prepare(`SELECT start_member FROM season_members WHERE user_id = '${id(21)}'`).get()).toEqual({ start_member: 0 });
     expect(sql.prepare(`SELECT xp FROM season_snap WHERE owner_id = '${id(21)}' AND target_id = '${id(21)}'`).get()).toEqual({ xp: 0 });
@@ -334,7 +336,7 @@ describe('동기화로 시즌 모둠', () => {
 
   it('시즌이 끝난 직후 온 마지막 묶음의 레벨업은 앞 시즌 퀘스트에 들어가요', async () => {
     const { sql, db } = fakeD1(10);
-    await applySync(db, payload({ members: members(10), full_members: true }), NOW);
+    await applySync(db, payload({ members: members(10), full_members: true }), NOW, OLD);
     sql.exec("UPDATE season_quests SET quest_id = 'ownlevel:all', done_at = NULL WHERE slot = 0");
     sql.exec("UPDATE season_quests SET done_at = 'x' WHERE slot > 0");
     const endMs = Date.parse(END);
@@ -351,7 +353,7 @@ describe('동기화로 시즌 모둠', () => {
 
   it('시즌이 끝난 뒤 30분 여유 안에 로그인한 건 앞 시즌 접속 퀘스트에 안 들어가요', async () => {
     const { sql, db } = fakeD1(10);
-    await applySync(db, payload({ members: members(10), full_members: true }), NOW);
+    await applySync(db, payload({ members: members(10), full_members: true }), NOW, OLD);
     sql.exec("UPDATE season_quests SET quest_id = 'login:5', done_at = NULL WHERE slot = 0");
     sql.exec("UPDATE season_quests SET done_at = 'x' WHERE slot > 0");
     const endMs = Date.parse(END);
@@ -368,7 +370,7 @@ describe('동기화로 시즌 모둠', () => {
 
   it('시즌 정보 없는 묶음으로 나가도 모둠에서 빠지고, 다시 들어오면 원래 모둠으로', async () => {
     const { sql, db } = fakeD1(20);
-    await applySync(db, payload({ members: members(20), full_members: true }), NOW);
+    await applySync(db, payload({ members: members(20), full_members: true }), NOW, OLD);
     const before = sql.prepare(`SELECT group_no FROM season_members WHERE user_id = '${id(3)}'`).get() as { group_no: number };
     // 시즌 정보가 빠진 묶음(DOGAM_SEASON을 끈 봇 등)
     const plain = parseSync({ batch_id: `${new Date(NOW).toISOString()}-plain${seq++}`, removed: [id(3)] });
@@ -389,7 +391,7 @@ describe('동기화로 시즌 모둠', () => {
 
   it('내전·출석 기록을 받아요(내전 퀘스트는 기본으로 안 뽑아요)', async () => {
     const { sql, db } = fakeD1(10);
-    await applySync(db, payload({ members: members(10), full_members: true }), NOW);
+    await applySync(db, payload({ members: members(10), full_members: true }), NOW, OLD);
     expect(sql.prepare("SELECT COUNT(*) AS n FROM season_quests WHERE quest_id LIKE 'scrim:%'").get()).toEqual({ n: 0 });
     await applySync(
       db,

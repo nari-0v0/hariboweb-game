@@ -31,7 +31,7 @@ export function Layout(props: {
         <link rel="preload" href="/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin="" />
         {props.preloadImages?.map((href) => <link rel="preload" href={href} as="image" fetchpriority="high" />)}
         <link rel="icon" type="image/png" href="/char/deco/explorer.png" />
-        <link rel="stylesheet" href="/styles.css?v=no-devtools-1" />
+        <link rel="stylesheet" href="/styles.css?v=haribo-bingo-1" />
         <script src="/app.js?v=no-devtools-2" defer></script>
         {props.scripts?.map((script) => typeof script === 'string'
           ? <script src={script} defer></script>
@@ -63,8 +63,7 @@ export function Layout(props: {
             <nav class="menu-panel" aria-label="메뉴">
               {nav('me', '/me', '내 카드', '🃏')}
               {nav('dogam', '/dogam', '도감', '📖')}
-              {nav('group', '/group', '모둠', '👥')}
-              {nav('bingo', '/bingo', '빙고', '🎯')}
+              {nav('bingo', '/bingo', '하리보 빙고', '🎯')}
               {nav('plaza', '/plaza', '광장', '🏞️')}
               {nav('expedition', '/expedition/go', '원정대', '🧭')}
               {nav('gamble', '/gamble', '겜블장', '🎰')}

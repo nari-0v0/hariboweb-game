@@ -1,5 +1,6 @@
 import type { Member } from '../env';
 import { FULL_JELLY, LINE_JELLY, LINE_XP } from '../bingo';
+import { KIDNAP_MIN, SERVER_JELLY, TEAM_GOAL_MIN, TEAM_JELLY, TEAM_PRIOR_MAX } from '../team';
 import { PRICES } from '../shop';
 import { PRAISE_PER_DAY, PRAISE_JELLY_PER_DAY } from '../db';
 import { JELLY_PER_CARD_STEP, LEVEL_STEP } from '../sync';
@@ -27,7 +28,8 @@ export function GuidePage(props: { viewer: Member | null }) {
           <li>출석 1개, 하루 통화 3시간 3개</li>
           <li>도감 카드가 {LEVEL_STEP}레벨 오를 때마다 {JELLY_PER_CARD_STEP}개</li>
           <li>칭찬을 받으면 1개 (하루 {PRAISE_JELLY_PER_DAY}개까지)</li>
-          <li>모둠 퀘스트를 깨면 1~3개, 빙고 한 줄마다 {LINE_JELLY}개</li>
+          <li>빙고 한 줄마다 {LINE_JELLY}개, 9칸 다 채우면 {FULL_JELLY}개 더</li>
+          <li>팀 퀘스트 {TEAM_JELLY}개, 서버 퀘스트 {SERVER_JELLY}개 (시즌이 끝날 때 목표를 채웠으면)</li>
         </ul>
 
         <h2>🛒 상점</h2>
@@ -46,18 +48,22 @@ export function GuidePage(props: { viewer: Member | null }) {
           <li>오늘 같이 통화했거나 내전을 뛴 사람에게만, 하루 {PRAISE_PER_DAY}번, 같은 사람에게는 하루 1번 줄 수 있어요.</li>
         </ul>
 
-        <h2>🧩 우리 모둠</h2>
-        <ul>
-          <li>생명력 주기(2주)마다 같은 게임 하는 사람끼리 10명쯤 모둠이 돼요.</li>
-          <li>모둠마다 퀘스트 8개가 나와요. 하나 깰 때마다 모둠원 모두 젤리를 받고, 8개를 다 깨면 시즌 칭호를 받아요.</li>
-          <li>모둠 순위는 깬 퀘스트가 많은 순, 같으면 모둠끼리 같이 통화한 시간이 긴 순이에요.</li>
-        </ul>
-
-        <h2>🎯 이번 주 빙고</h2>
+        <h2>🎯 하리보 빙고</h2>
         <ul>
           <li>생명력 주기를 반으로 나눠, 한 주기에 2번 나만의 3×3 빙고판이 나와요.</li>
           <li>통화, 출석, 칭찬 같은 활동을 하면 칸이 저절로 채워져요.</li>
           <li>한 줄마다 젤리 {LINE_JELLY}개와 내 카드 경험치 {LINE_XP}, 9칸을 다 채우면 젤리 {FULL_JELLY}개를 더 받아요.</li>
+          <li>
+            가운데 칸은 <b>팀 퀘스트</b>예요. 생명력 주기(2주)마다 같은 게임 하고 비슷한 시간대에 노는 사람끼리 10명쯤 팀이 돼요. 지난 2주간 {TEAM_PRIOR_MAX}분 미만
+            통화자와 같은 통화방에서 {TEAM_GOAL_MIN}분 함께하면 달성이에요. 팀 후보의 절반이 달성하면 팀 완료예요.
+          </li>
+          <li>
+            판 위의 <b>초록하리보 납치 대소동!</b>은 서버 전체가 같이 하는 퀘스트예요. 초록하리보와 같은 통화방에서 {KIDNAP_MIN}분 함께하면 납치 성공.
+          </li>
+          <li>
+            팀·서버 퀘스트 보상은 시즌이 끝날 때 목표를 채웠으면 직접 달성·참여한 사람만 받아요. 젤리피는 쓸 수 없는 기록이고 빙고 화면에서 순위를 볼 수
+            있어요.
+          </li>
         </ul>
 
         <h2>🌳 광장</h2>
@@ -76,7 +82,7 @@ export function GuidePage(props: { viewer: Member | null }) {
 
         <h2>📌 디스코드 고정 패널</h2>
         <ul>
-          <li>내 카드, 칭찬하기, 우리 모둠, 모둠 순위, 이번 주 빙고 버튼이 있어요. 누르면 나만 보이는 창으로 열려요.</li>
+          <li>내 카드, 칭찬하기, 하리보 빙고 버튼이 있어요. 누르면 나만 보이는 창으로 열려요.</li>
           <li>알림은 보내지 않아요. 궁금할 때 버튼을 눌러 보세요.</li>
         </ul>
         {!props.viewer && (

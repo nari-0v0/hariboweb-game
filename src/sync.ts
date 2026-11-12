@@ -1,5 +1,6 @@
 import { stripTitle } from './titles';
 import { MAX_LEVEL, xpForLevel } from './levels';
+import { ensureSeasonQuests, settleEnded } from './team';
 import { bingoStatements, grantTouched, loadPeriods, prunePairDays, savePeriod, splitCycle } from './bingo';
 import { type Attendance, type RoomMinute, type ScrimRecord, type Season, ENDED_GRACE_MS, ensureSeason, evaluateSeason, seasonFrom, seasonStatements, seasonTargets } from './season';
 
@@ -179,7 +180,8 @@ export function isStaleBatch(batchId: string, nowMs: number): boolean {
   return nowMs - ms > SYNC_BATCH_MAX_AGE_DAYS * DAY_MS || ms - nowMs > DAY_MS;
 }
 
-export type SyncOptions = { scrimQuests?: boolean };
+// groupQuests: 예전 모둠 퀘스트 8개를 새 시즌에도 만들기(테스트용, 기본은 안 만들어요)
+export type SyncOptions = { scrimQuests?: boolean; groupQuests?: boolean };
 
 export async function applySync(
   db: D1Database,
@@ -208,7 +210,16 @@ export async function applySync(
     const exists = await db.prepare('SELECT 1 FROM seasons WHERE id = ?').bind(p.season.id).first();
     if (!exists) {
       if (memberStmts.length) await db.batch(memberStmts);
-      await ensureSeason(db, p.season, nowMs, { scrim: opts.scrimQuests });
+      await ensureSeason(db, p.season, nowMs, { scrim: opts.scrimQuests, groupQuests: opts.groupQuests });
+    }
+  }
+
+  // 하리보 빙고 팀 퀘스트 짝과 서버 퀘스트 목표(시즌마다 처음 한 번). 이 기능 전에 시작한 시즌도 여기서 정해요.
+  if (p.season && Date.parse(p.season.start) <= nowMs && nowMs < Date.parse(p.season.end)) {
+    try {
+      if (await db.prepare('SELECT 1 FROM seasons WHERE id = ?').bind(p.season.id).first()) await ensureSeasonQuests(db, p.season, nowMs);
+    } catch (e) {
+      console.error('팀·서버 퀘스트 만들기 실패', e);
     }
   }
 
@@ -282,6 +293,7 @@ export async function applySync(
     stmts.push(db.prepare('DELETE FROM story_marks WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM story_rewards WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM rooms WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM jellypi WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM room_likes WHERE from_id = ?1 OR to_id = ?1').bind(id));
     stmts.push(db.prepare("UPDATE purchases SET status = 'failed', reason = 'left' WHERE user_id = ? AND status = 'pending'").bind(id));
   }
@@ -320,6 +332,12 @@ export async function applySync(
     for (const r of justEnded) if (!seen.has(r.id)) await evaluateSeason(db, r.id, nowMs);
   } catch (e) {
     console.error('시즌 퀘스트 확인 실패', e);
+  }
+  // 끝난 시즌의 팀·서버 퀘스트 보상(실패해도 다음 묶음 때 다시 해요)
+  try {
+    await settleEnded(db, nowMs);
+  } catch (e) {
+    console.error('팀·서버 퀘스트 보상 실패', e);
   }
   // 채운 빙고 줄 보상(실패해도 동기화는 끝났어요. 다음에 빙고를 보거나 다음 묶음 때 다시 확인해요)
   try {

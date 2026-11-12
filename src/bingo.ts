@@ -2,6 +2,7 @@
 // 신청이나 인증, 관리자 확인은 없어요. 알림도 보내지 않아요(고정 패널과 웹 /bingo에서만 보여요).
 import { kstParts, type RoomMinute, type Attendance } from './season';
 import { seededRandom, shuffle } from './quests';
+import { type MyTeam, JP_FULL, JP_LINE, centerDone, seasonAt, teamStatesFor } from './team';
 
 const DAY_MS = 86_400_000;
 const KST_MS = 9 * 3_600_000;
@@ -135,18 +136,18 @@ export const CELLS: CellDef[] = [
   { id: 'weekend', icon: '🎉', stat: 'weekend', targets: [30, 90, 240], text: (t) => `주말에 통화 ${time(t)}`, unit: 'min' },
   { id: 'days', icon: '🗓️', stat: 'voiceDays', targets: [2, 3, 5], text: (t) => `${t}일 동안 30분씩 통화` },
   { id: 'pair', icon: '🤝', stat: 'bestPair', targets: [60, 120, 300], text: (t) => `한 사람과 ${time(t)} 통화`, unit: 'min' },
-  { id: 'new', icon: '🆕', stat: 'newFriends', targets: [null, 1, 2], text: (t) => `처음 보는 ${t}명과 통화 30분` },
   { id: 'panel', icon: '🃏', stat: 'panel', targets: [1, null, null], text: () => '패널에서 내 카드 열기' },
   { id: 'web', icon: '🌐', stat: 'web', targets: [1, null, null], text: () => '웹 도감에서 내 카드 보기' },
 ];
 
 const DIFFS: Diff[] = ['easy', 'normal', 'hard'];
-// 9칸: 쉬움 3, 보통 4, 어려움 2
-const BOARD_DIFFS: Diff[] = ['easy', 'easy', 'easy', 'normal', 'normal', 'normal', 'normal', 'hard', 'hard'];
+// 개인 칸 8개: 쉬움 3, 보통 3, 어려움 2. 가운데(4번) 칸은 팀 퀘스트예요.
+const BOARD_DIFFS: Diff[] = ['easy', 'easy', 'easy', 'normal', 'normal', 'normal', 'hard', 'hard'];
+export const CENTER = 4;
 
 export type BoardCell = { def: CellDef; diff: Diff; target: number };
 
-// 주와 멤버로 정해지는 빙고판(같은 주에는 몇 번을 봐도 같아요). 칸마다 다른 종류.
+// 주와 멤버로 정해지는 개인 칸 8개(같은 주에는 몇 번을 봐도 같아요). 칸마다 다른 종류.
 export function boardFor(weekId: string, userId: string): BoardCell[] {
   const rand = seededRandom(`bingo:${weekId}:${userId}`);
   const pool = shuffle(CELLS, rand);
@@ -169,7 +170,7 @@ export const LINES: number[][] = [
   [0, 4, 8], [2, 4, 6],
 ];
 
-export type BingoCellView = { id: string; icon: string; text: string; diff: Diff; value: number; target: number; done: boolean; unit?: 'min' };
+export type BingoCellView = { id: string; icon: string; text: string; diff: Diff; value: number; target: number; done: boolean; unit?: 'min'; center?: true };
 export type BingoView = {
   week: Week;
   cells: BingoCellView[];
@@ -178,17 +179,33 @@ export type BingoView = {
   full: boolean;
   jelly: number; // 이번 주 빙고로 받을(받은) 젤리
   xp: number;
+  team: MyTeam; // 가운데 칸(팀 퀘스트) 내 상태
 };
 
-export function bingoView(week: Week, userId: string, stats: BingoStats): BingoView {
-  const cells = boardFor(week.id, userId).map((c) => {
+const CENTER_TEXT: Record<MyTeam, string> = {
+  done: '팀 퀘스트 달성',
+  'team-done': '팀 퀘스트 팀 완료',
+  todo: '팀 퀘스트',
+  bonus: '보너스 칸',
+  none: '팀 퀘스트(팀 없음)',
+};
+
+// 가운데 칸: 지난 2주간 10분 미만 통화자와 이번 시즌 30분. 내가 달성했거나 팀이 목표를 채웠거나 보너스 칸이면 채운 칸.
+export function centerCell(team: MyTeam): BingoCellView {
+  const done = centerDone(team);
+  return { id: 'team', icon: '👫', text: CENTER_TEXT[team], diff: 'normal', value: done ? 1 : 0, target: 1, done, center: true };
+}
+
+export function bingoView(week: Week, userId: string, stats: BingoStats, team: MyTeam = 'none'): BingoView {
+  const cells: BingoCellView[] = boardFor(week.id, userId).map((c) => {
     const value = stats[c.def.stat];
     return { id: c.def.id, icon: c.def.icon, text: c.def.text(c.target), diff: c.diff, value: Math.min(value, c.target), target: c.target, done: value >= c.target, ...(c.def.unit ? { unit: c.def.unit } : {}) };
   });
+  cells.splice(CENTER, 0, centerCell(team));
   const lines = LINES.flatMap((l, i) => (l.every((x) => cells[x]!.done) ? [i] : []));
   const filled = cells.filter((c) => c.done).length;
   const full = filled === cells.length;
-  return { week, cells, lines, filled, full, jelly: lines.length * LINE_JELLY + (full ? FULL_JELLY : 0), xp: lines.length * LINE_XP };
+  return { week, cells, lines, filled, full, jelly: lines.length * LINE_JELLY + (full ? FULL_JELLY : 0), xp: lines.length * LINE_XP, team };
 }
 
 // ── 봇 기록 모으기(동기화와 같은 트랜잭션) ──
@@ -372,12 +389,14 @@ export async function grantBingo(db: D1Database, week: Week, userIds: string[], 
       ).results.map((r) => r.user_id)
     : [];
   if (!active.length) return views;
-  const [stats, given] = await Promise.all([
+  const season = await seasonAt(db, week.start);
+  const [stats, given, teams] = await Promise.all([
     loadStats(db, week, active),
     db
       .prepare('SELECT user_id, line FROM bingo_lines WHERE week = ?1 AND user_id IN (SELECT value FROM json_each(?2))')
       .bind(week.id, JSON.stringify(active))
       .all<{ user_id: string; line: number }>(),
+    teamStatesFor(db, season?.id ?? null, active),
   ]);
   const had = new Set(given.results.map((r) => `${r.user_id}|${r.line}`));
   const t = new Date(nowMs).toISOString();
@@ -390,9 +409,16 @@ export async function grantBingo(db: D1Database, week: Week, userIds: string[], 
      ON CONFLICT (user_id) DO UPDATE SET dogam_jelly = dogam_jelly + excluded.dogam_jelly, solo_xp = solo_xp + excluded.solo_xp,
        updated_at = excluded.updated_at`,
   );
+  // 젤리피(쓸 수 없는 기록): 한 줄 1, 9칸 3. 시즌 순위에 쌓여요.
+  const addJellypi = db.prepare(
+    `INSERT OR IGNORE INTO jellypi (user_id, season_id, source, ref, amount, created_at)
+     SELECT ?1, ?2, ?3, ?4, ?5, ?6 WHERE EXISTS (SELECT 1 FROM bingo_lines WHERE week = ?7 AND user_id = ?1 AND line = ?8 AND mark = ?9)
+       AND EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)`,
+  );
+  const seasonId = season?.id ?? week.id;
   const stmts: D1PreparedStatement[] = [];
   for (const u of active) {
-    const view = bingoView(week, u, stats.get(u)!);
+    const view = bingoView(week, u, stats.get(u)!, teams.get(u) ?? 'none');
     views.set(u, view);
     const earned = view.full ? [...view.lines, FULL_LINE] : view.lines;
     for (const line of earned) {
@@ -400,6 +426,7 @@ export async function grantBingo(db: D1Database, week: Week, userIds: string[], 
       const full = line === FULL_LINE;
       stmts.push(addLine.bind(week.id, u, line, mark, t));
       stmts.push(reward.bind(u, full ? FULL_JELLY : LINE_JELLY, full ? 0 : LINE_XP, t, week.id, line, mark));
+      stmts.push(addJellypi.bind(u, seasonId, full ? 'full' : 'line', `${week.id}:${line}`, full ? JP_FULL : JP_LINE, t, week.id, line, mark));
     }
   }
   if (stmts.length) await db.batch(stmts);
@@ -418,8 +445,23 @@ export async function grantTouched(db: D1Database, touched: Map<string, Set<stri
   for (const [id, users] of touched) {
     const p = periods.get(id);
     if (!p || p.start > now || p.end <= cutoff || !users.size) continue;
-    await grantBingo(db, p, [...users], nowMs);
+    await grantBingo(db, p, await withTeammates(db, p, users), nowMs);
   }
+}
+
+// 기록이 바뀐 사람 + 같은 팀원 전부. 팀원의 통화로 팀이 목표를 채우면 활동이 없던 팀원의
+// 가운데 칸도 채워지니까, 그 사람들의 줄 보상도 같이 확인해요(팀이 10명 안팎이라 많지 않아요).
+async function withTeammates(db: D1Database, p: Week, users: Set<string>): Promise<string[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT DISTINCT t.user_id FROM season_members t
+       JOIN seasons x ON x.id = t.season_id AND x.starts_at <= ?1 AND x.ends_at > ?1
+       JOIN season_members s ON s.season_id = t.season_id AND s.group_no = t.group_no
+       WHERE t.left_at IS NULL AND s.user_id IN (SELECT value FROM json_each(?2))`,
+    )
+    .bind(p.start, JSON.stringify([...users]))
+    .all<{ user_id: string }>();
+  return [...new Set([...users, ...results.map((r) => r.user_id)])];
 }
 
 // ── 칭찬하기: 오늘 같이 통화한 사람 ──
