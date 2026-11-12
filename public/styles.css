@@ -2114,3 +2114,14 @@ main.wide { max-width: 1320px; }
   font-size: 18px;
   text-align: center;
 }
+
+/* 칭찬함 */
+.pr-box .pr-new { background: #ffe9a8; }
+.pr-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.pr-item { border: 3px solid var(--ink); background: #fff; padding: 8px 10px; }
+.pr-item.new { background: #fff7d6; }
+.pr-top { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: .9rem; }
+.pr-top time { color: var(--ink-soft); font-size: .8rem; }
+.pr-note { margin: 6px 0 0; overflow-wrap: anywhere; }
+.pr-hidden { margin: 6px 0 0; font-size: .8rem; }
+.pr-hide { margin: 6px 0 0; text-align: right; }

@@ -13,7 +13,7 @@ export const journeyJelly = (cleared: boolean) => (cleared ? 1 : 0);
 
 export type SkillId = 'power' | 'vital' | 'guard' | 'leech' | 'crit' | 'spark' | 'shield' | 'mend' | 'thorn' | 'lucky';
 export const SKILLS: Record<SkillId, { name: string; icon: string; text: (lv: number) => string; max: number }> = {
-  power: { name: '힘 젤리', icon: '💪', text: (l) => `공격력 +${4 * l}`, max: 5 },
+  power: { name: '힘 구미', icon: '💪', text: (l) => `공격력 +${4 * l}`, max: 5 },
   vital: { name: '말랑 체력', icon: '❤️', text: (l) => `최대 체력 +${25 * l}`, max: 5 },
   guard: { name: '단단 껍질', icon: '🛡️', text: (l) => `방어력 +${2 * l}`, max: 5 },
   leech: { name: '쪽쪽 흡수', icon: '🩸', text: (l) => `준 피해의 ${10 * l}%만큼 회복`, max: 3 },
@@ -22,7 +22,7 @@ export const SKILLS: Record<SkillId, { name: string; icon: string; text: (lv: nu
   shield: { name: '첫 방패', icon: '🔰', text: (l) => `전투마다 첫 ${l}번 받는 피해 절반`, max: 3 },
   mend: { name: '전투 후 간식', icon: '🍪', text: (l) => `전투가 끝나면 체력 ${6 * l} 회복`, max: 3 },
   thorn: { name: '가시 갑옷', icon: '🌵', text: (l) => `맞을 때 ${3 * l} 되돌려 주기`, max: 3 },
-  lucky: { name: '행운 주머니', icon: '🍀', text: (l) => `얻는 젤리 동전 +${30 * l}%`, max: 3 },
+  lucky: { name: '행운 주머니', icon: '🍀', text: (l) => `얻는 젤코인 +${30 * l}%`, max: 3 },
 };
 export const SKILL_IDS = Object.keys(SKILLS) as SkillId[];
 
@@ -37,7 +37,7 @@ export const OFFERS: Record<Offer['id'], { name: string; icon: string; text: str
   potion: { name: '회복 물약', icon: '🧪', text: '체력 50 회복', price: 12 },
   sword: { name: '숫돌', icon: '🗡️', text: '공격력 +5', price: 20 },
   armor: { name: '헝겊 갑옷', icon: '🧥', text: '방어력 +3', price: 20 },
-  heart: { name: '하트 젤리', icon: '💗', text: '최대 체력 +30', price: 22 },
+  heart: { name: '하트 구미', icon: '💗', text: '최대 체력 +30', price: 22 },
   scroll: { name: '스킬 두루마리', icon: '📜', text: '다음 날 스킬 하나 고르기', price: 30 },
 };
 export type Pending =
@@ -48,7 +48,7 @@ export type EventId = 'spring' | 'coin' | 'bear' | 'fork';
 export const EVENTS: Record<EventId, { icon: string; title: string; text: string; options: string[] }> = {
   spring: { icon: '⛲', title: '수상한 샘', text: '반짝이는 샘물이 보글보글 끓고 있어요.', options: ['한 모금 마신다', '그냥 지나간다'] },
   coin: { icon: '🪙', title: '행운의 동전 던지기', text: '길가 요정이 동전 던지기를 하재요. 이기면 두 배, 지면 절반을 가져가요.', options: ['던진다!', '사양할게요'] },
-  bear: { icon: '🧸', title: '길 잃은 젤리곰', text: '젤리곰이 배가 고파 울고 있어요. 동전 10개면 간식을 사 줄 수 있어요.', options: ['간식을 사 준다 (동전 10)', '미안, 갈 길이 바빠'] },
+  bear: { icon: '🧸', title: '길 잃은 젤리곰', text: '젤리곰이 배가 고파 울고 있어요. 젤코인 10개면 간식을 사 줄 수 있어요.', options: ['간식을 사 준다 (젤코인 10)', '미안, 갈 길이 바빠'] },
   fork: { icon: '🪧', title: '갈림길', text: '왼쪽 길에선 으르렁 소리가, 오른쪽 길에선 모닥불 냄새가 나요.', options: ['왼쪽: 싸우고 경험치 많이', '오른쪽: 쉬면서 회복'] },
 };
 
@@ -178,7 +178,7 @@ function battle(s: JourneyState, m: Monster, power: number, r: () => number, lin
   if (sk(s, 'mend')) s.hp = Math.min(st.maxHp, s.hp + 6 * sk(s, 'mend'));
   s.kills += 1;
   const coins = gainCoins(s, Math.round((4 + s.day) * power * cp));
-  lines.push({ icon: m.emoji, text: `${m.name}${obj(m.name)} ${turns}턴 만에 물리쳤어요! 체력 ${s.hp - start >= 0 ? '+' : ''}${s.hp - start}, 동전 +${coins}`, tone: 'good' });
+  lines.push({ icon: m.emoji, text: `${m.name}${obj(m.name)} ${turns}턴 만에 물리쳤어요! 체력 ${s.hp - start >= 0 ? '+' : ''}${s.hp - start}, 젤코인 +${coins}`, tone: 'good' });
   gainXp(s, Math.round((12 + s.day * 2) * power), lines);
   return true;
 }
@@ -235,14 +235,14 @@ function nextDay(s: JourneyState): Line[] {
     battle(s, foes[Math.floor(r() * foes.length)]!, 1, r, lines);
   } else if (roll < 0.6) {
     const c = r();
-    if (c < 0.4) lines.push({ icon: '🎁', text: `보물 상자! 동전 +${gainCoins(s, 8 + s.day)}`, tone: 'good' });
+    if (c < 0.4) lines.push({ icon: '🎁', text: `보물 상자! 젤코인 +${gainCoins(s, 8 + s.day)}`, tone: 'good' });
     else if (c < 0.7) {
       s.atk += 2;
       lines.push({ icon: '🎁', text: '보물 상자에서 반짝 돌을 찾았어요. 공격력 +2', tone: 'good' });
     } else {
       s.maxHp += 10;
       s.hp += 10;
-      lines.push({ icon: '🎁', text: '보물 상자에서 말랑 젤리를! 최대 체력 +10', tone: 'good' });
+      lines.push({ icon: '🎁', text: '보물 상자에서 말랑 구미를! 최대 체력 +10', tone: 'good' });
     }
   } else if (roll < 0.76) {
     const ids = Object.keys(EVENTS) as EventId[];
@@ -257,7 +257,7 @@ function nextDay(s: JourneyState): Line[] {
       offers.push({ id, price: OFFERS[id].price + Math.floor(s.day / 2) });
     }
     s.pending = { kind: 'shop', offers };
-    lines.push({ icon: '🛒', text: '떠돌이 상인을 만났어요. 동전으로 물건을 살 수 있어요.' });
+    lines.push({ icon: '🛒', text: '떠돌이 상인을 만났어요. 젤코인으로 물건을 살 수 있어요.' });
   } else {
     const heal = Math.min(st.maxHp - s.hp, Math.round(st.maxHp * 0.3));
     s.hp += heal;
@@ -284,19 +284,19 @@ function resolveEvent(s: JourneyState, id: EventId, n: number, lines: Line[]) {
   } else if (id === 'coin') {
     if (n === 1) lines.push({ icon: '🪙', text: '동전 던지기는 사양했어요.' });
     else if (r() < 0.5) {
-      lines.push({ icon: '🪙', text: `이겼다! 동전 +${s.coins}`, tone: 'good' });
+      lines.push({ icon: '🪙', text: `이겼다! 젤코인 +${s.coins}`, tone: 'good' });
       s.coins *= 2;
     } else {
       const lost = Math.ceil(s.coins / 2);
       s.coins -= lost;
-      lines.push({ icon: '🪙', text: `졌어요… 동전 -${lost}`, tone: 'bad' });
+      lines.push({ icon: '🪙', text: `졌어요… 젤코인 -${lost}`, tone: 'bad' });
     }
   } else if (id === 'bear') {
-    if (n === 1 || s.coins < 10) lines.push({ icon: '🧸', text: n === 0 ? '동전이 모자라 간식을 못 샀어요.' : '젤리곰에게 손을 흔들고 지나갔어요.' });
+    if (n === 1 || s.coins < 10) lines.push({ icon: '🧸', text: n === 0 ? '젤코인이 모자라 간식을 못 샀어요.' : '젤리곰에게 손을 흔들고 지나갔어요.' });
     else {
       s.coins -= 10;
       s.atk += 5;
-      lines.push({ icon: '🧸', text: '젤리곰이 고맙다며 힘 젤리를 줬어요. 공격력 +5', tone: 'good' });
+      lines.push({ icon: '🧸', text: '젤리곰이 고맙다며 힘 구미를 줬어요. 공격력 +5', tone: 'good' });
     }
   } else if (id === 'fork') {
     if (n === 0) battle(s, chapterOf(s.ch).foes[Math.floor(r() * chapterOf(s.ch).foes.length)]!, 1.3, r, lines);

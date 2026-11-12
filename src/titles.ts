@@ -148,10 +148,10 @@ export function titleProgress(t: Title, s: TitleStats): TitleProgress {
   });
   switch (r.kind) {
     case 'gambleSeason':
-      return { ok: false, text: '시즌 누적 딴 칩 1등' };
+      return { ok: false, text: '시즌 누적 딴 젤칩 1등' };
     case 'gamble': {
       const condition = {
-        chips: '가진 칩', all_in_wins: '올인 승리', jackpots: '슬롯 7️⃣ 세 개', naturals: '첫 두 장으로 21',
+        chips: '가진 젤칩', all_in_wins: '올인 승리', jackpots: '슬롯 7️⃣ 세 개', naturals: '첫 두 장으로 21',
       }[r.metric];
       const unit = r.metric === 'chips' ? '개' : '회';
       return count(s.gamble?.[r.metric] ?? 0, r.count, `${condition} ${r.count.toLocaleString('ko-KR')}${unit}`, unit);

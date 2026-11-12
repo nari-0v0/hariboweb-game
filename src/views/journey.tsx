@@ -34,7 +34,7 @@ const NOTICES: Record<string, PopupLine[]> = {
   bad: [{ title: '알림', text: '지금은 그렇게 할 수 없어요.' }],
   quit: [{ title: '알림', text: '원정을 그만두고 돌아왔어요.' }],
   perk: [{ title: '강화 완료', text: '다음 원정부터 더 강해져요.' }],
-  noperk: [{ title: '알림', text: '동전이 모자라거나 이미 끝까지 올렸어요.' }],
+  noperk: [{ title: '알림', text: '젤코인이 모자라거나 이미 끝까지 올렸어요.' }],
   error: [
     { title: '오류', text: '오류가 발생하였습니다.', bad: true },
     { title: '오류', text: '방장에게 문의해주세요.', bad: true, contact: true },
@@ -157,7 +157,7 @@ function Choice(props: { run: JourneyRun }) {
   return (
     <div class="jr-choice">
       <h3>🛒 떠돌이 상인</h3>
-      <p class="hint">가진 동전 🪙 {s.coins}개. 여러 개 사도 돼요.</p>
+      <p class="hint">가진 젤코인 🪙 {s.coins}개. 여러 개 사도 돼요.</p>
       <div class="jr-cards">
         {p.offers.map((o, n) => {
           const info = OFFERS[o.id];
@@ -495,7 +495,7 @@ function Result(props: { run: JourneyRun; art: string; name: string; unlocked: n
       </div>
       <Log lines={s.today} />
       <p class="jr-bank">
-        남은 동전 🪙 {s.coins}개를 <a href="#perks">원정 훈련소</a>에 모았어요.
+        남은 젤코인 🪙 {s.coins}개를 <a href="#perks">원정 훈련소</a>에 모았어요.
       </p>
       <p>
         {run.row.xp > 0
@@ -514,10 +514,10 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number 
     <section class="panel jr-perks" id="perks">
       <h2>🏋️ 원정 훈련소</h2>
       <p class="hint">
-        원정이 끝나면 남은 동전이 여기 모여요(그만두기는 빼고). 훈련은 영원히 남고, {props.going ? '지금 원정이 끝난 뒤 ' : ''}다음 원정부터 적용돼요.
+        원정이 끝나면 남은 젤코인이 여기 모여요(그만두기는 빼고). 훈련은 영원히 남고, {props.going ? '지금 원정이 끝난 뒤 ' : ''}다음 원정부터 적용돼요.
       </p>
       <p class="jr-bank">
-        모은 동전 <b>🪙 {bank.coins}</b>
+        모은 젤코인 <b>🪙 {bank.coins}</b>
       </p>
       <div class="jr-cards">
         {PERK_IDS.map((id) => {
@@ -579,7 +579,7 @@ export function JourneyPage(props: {
               <p>장이 올라갈수록 몬스터 레벨이 20씩 올라가요(1장 Lv.1~20, 2장 Lv.21~40…).</p>
               <p>
                 하루 첫 {DAILY_REWARD_JOURNEYS}판은 끝날 때 내 카드 경험치를 받고(멀리 갈수록, 높은 장일수록 많이), 대장을 이기면 도감 젤리 1개도 받아요. 남은
-                동전은 훈련소에 모여요.
+                젤코인은 훈련소에 모여요.
               </p>
             </div>
           </details>

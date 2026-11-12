@@ -8,6 +8,7 @@ import { THEMES } from '../themes';
 import { Card, formatHours } from './card';
 import { Layout } from './layout';
 import { COMMUNITY_URL } from '../contact';
+import { type PraiseBox, PRAISE_BOX_NOTICE, praiseDayLabel } from '../praise-note';
 
 const SAMPLE_STATS: [string, string][] = [
   ['레벨', '20'],
@@ -119,7 +120,43 @@ function TierRoad(props: { level: number }) {
   );
 }
 
-export function MePage(props: { viewer: Member; profile: Profile; items: Set<string>; owned: number; total: number; saved: boolean }) {
+// 칭찬함: 누가 보냈는지는 보여 주지 않아요
+function PraiseBoxSection(props: { box: PraiseBox }) {
+  const { box } = props;
+  return (
+    <section class="panel pr-box" id="praise">
+      <div class="panel-head">
+        <h2>💛 칭찬함</h2>
+        {box.unread > 0 && <span class="chip pr-new">새 칭찬 {box.unread}개</span>}
+      </div>
+      <p class="hint">{PRAISE_BOX_NOTICE}</p>
+      {box.items.length === 0 ? (
+        <p class="muted">아직 받은 칭찬이 없어요. 디스코드 도감 패널의 "칭찬하기"로 같이 논 사람을 칭찬할 수 있어요.</p>
+      ) : (
+        <ul class="pr-list">
+          {box.items.map((i) => (
+            <li class={i.unread ? 'pr-item new' : 'pr-item'}>
+              <div class="pr-top">
+                <b>누군가 나를 칭찬했어요</b>
+                <time datetime={i.day}>{praiseDayLabel(i.day)}</time>
+              </div>
+              {i.note && <p class="pr-note">“{i.note}”</p>}
+              {i.hidden && <p class="pr-hidden muted">숨긴 한마디예요</p>}
+              {i.note && (
+                <form method="post" action={`/api/me/praise/${i.id}/hide`} class="pr-hide">
+                  <button class="btn btn-small" type="submit">숨기기</button>
+                </form>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {box.total > box.items.length && <p class="hint">최근 {box.items.length}개만 보여요.</p>}
+    </section>
+  );
+}
+
+export function MePage(props: { viewer: Member; profile: Profile; items: Set<string>; owned: number; total: number; saved: boolean; praise: PraiseBox }) {
   const { viewer, profile } = props;
   const level = progress(profile.solo_xp).level;
   return (
@@ -154,6 +191,8 @@ export function MePage(props: { viewer: Member; profile: Profile; items: Set<str
             <XpBar xp={profile.solo_xp} />
             <TierRoad level={level} />
           </section>
+
+          <PraiseBoxSection box={props.praise} />
 
           <section class="panel">
             <h2>카드 꾸미기</h2>

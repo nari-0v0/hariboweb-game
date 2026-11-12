@@ -61,6 +61,7 @@ import { currentPeriod, grantBingo, markFlag, myBingo, todayPartners, LINE_JELLY
 import { BingoPage } from './views/bingo';
 import { bingoExtras } from './team';
 import { BLOCK_MAX_PENDING, BLOCK_MORE, blockCandidates, decideBlock, listUnpostedBlocks, markBlockPosted, requestBlock } from './assign-block';
+import { checkNote, cleanNote, hidePraiseNote, markPraiseSeen, praiseBox, praiseDayLabel, PRAISE_NOTE_MAX } from './praise-note';
 import type { BlockForm } from './views/bingo';
 import { GuidePage } from './views/guide';
 import { TitlesPage } from './views/titles';
@@ -355,12 +356,15 @@ app.get('/api/bot/card/:id', async (c) => {
   const id = c.req.param('id');
   const member = isDiscordId(id) ? await getMember(c.env.DB, id) : null;
   if (!member || !member.active) return c.json({ error: 'not_member' }, 404);
-  const [profile, entries, best, praise] = await Promise.all([
+  const [profile, entries, best, praise, box] = await Promise.all([
     getProfile(c.env.DB, id),
     listDogam(c.env.DB, id),
     getBestCard(c.env.DB, id),
     praiseToday(c.env.DB, id),
+    praiseBox(c.env.DB, id, 5),
   ]);
+  // 패널 "내 카드"로 칭찬함을 봤어요(안 읽은 개수는 이번 응답에만 보여 줘요)
+  if (box.unread) await markPraiseSeen(c.env.DB, id, Date.now()).catch((e) => console.error('칭찬함 읽음 표시 실패', e));
   // 주간 빙고 "패널에서 내 카드 열기" 칸(실패해도 카드는 보여 줘요)
   // 새로 채웠으면 그 자리에서 줄 보상도 확인해요(이 칸이 마지막 칸일 수 있어요)
   await markFlag(c.env.DB, id, 'panel', Date.now())
@@ -382,6 +386,11 @@ app.get('/api/bot/card/:id', async (c) => {
     dogam: completion(entries),
     best: best ? { id: best.user_id, name: best.display_name, level: progress(best.xp).level } : null,
     praise_left: praise.left,
+    praise_box: {
+      unread: box.unread,
+      total: box.total,
+      items: box.items.map((i) => ({ day: i.day, date: praiseDayLabel(i.day), note: i.note, unread: i.unread })),
+    },
     palette: cardPalette(profile.theme_id, p.level),
     character_url: base + characterUrl(profile.character_id, id, profile.deco_id),
     page_url: base + '/me',
@@ -401,20 +410,27 @@ app.get('/api/bot/praise/:id', async (c) => {
 // 칭찬하기. 오늘 같이 논 사람인지는 봇이 확인하고 보내요.
 app.post('/api/bot/praise', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
-  let body: { from?: unknown; to?: unknown };
+  let body: { from?: unknown; to?: unknown; note?: unknown };
   try {
     body = await c.req.json();
   } catch {
     return c.json({ error: 'JSON이 아니에요' }, 400);
   }
   if (!isDiscordId(body.from) || !isDiscordId(body.to)) return c.json({ error: 'bad_id' }, 400);
-  const result = await givePraise(c.env.DB, body.from, body.to);
+  if (body.note != null && (typeof body.note !== 'string' || [...body.note].length > PRAISE_NOTE_MAX * 2)) return c.json({ error: 'bad_note' }, 400);
+  // 한마디는 비꼬기·욕이면 빼고 칭찬만 전해요. 이미 줬거나 한도면 AI에 묻지 않아요.
+  const status = await praiseToday(c.env.DB, body.from);
+  const asked = cleanNote(body.note) !== '';
+  const check = asked && status.left > 0 && !status.given.includes(body.to) ? await checkNote(c.env.AI, body.note) : { note: null, filtered: false };
+  const result = await givePraise(c.env.DB, body.from, body.to, kstDay(), check.note);
   // 칭찬 주기·받기 빙고 칸이 채워졌으면 줄 보상을 줘요(실패해도 칭찬은 끝났어요)
   if (result.result === 'done') {
     const now = Date.now();
     await grantBingo(c.env.DB, await currentPeriod(c.env.DB, now), [body.from, body.to], now).catch((e) => console.error('빙고 보상 확인 실패', e));
   }
-  return c.json(result);
+  // note: sent(한마디도 전함) · filtered(한마디는 빼고 칭찬만 전함) · none(한마디 없음)
+  const note = result.result !== 'done' || !asked ? 'none' : check.note ? 'sent' : 'filtered';
+  return c.json({ ...result, note });
 });
 
 // 디스코드 고정 패널 "빙고"(생명력 주기마다 새 빙고판). 보는 김에 채운 줄 보상도 줘요.
@@ -544,16 +560,26 @@ members.get('/me', async (c) => {
   await markFlag(c.env.DB, viewer.user_id, 'web', Date.now())
     .then((fresh) => (fresh ? myBingo(c.env.DB, viewer.user_id, Date.now()) : null))
     .catch((e) => console.error('빙고 표시 실패', e));
-  const [profile, entries, items] = await Promise.all([
+  const [profile, entries, items, box] = await Promise.all([
     getProfile(c.env.DB, viewer.user_id),
     listDogam(c.env.DB, viewer.user_id),
     getOwnedItems(c.env.DB, viewer.user_id),
+    praiseBox(c.env.DB, viewer.user_id),
   ]);
+  if (box.unread) await markPraiseSeen(c.env.DB, viewer.user_id, Date.now()).catch((e) => console.error('칭찬함 읽음 표시 실패', e));
   const { owned, total } = completion(entries);
   return page(
     c,
-    <MePage viewer={viewer} profile={profile} items={items} owned={owned} total={total} saved={c.req.query('saved') === '1'} />,
+    <MePage viewer={viewer} profile={profile} items={items} owned={owned} total={total} saved={c.req.query('saved') === '1'} praise={box} />,
   );
+});
+
+// 칭찬함: 받은 한마디 숨기기
+members.post('/api/me/praise/:id/hide', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const id = Number(c.req.param('id'));
+  if (Number.isSafeInteger(id) && id > 0) await hidePraiseNote(c.env.DB, c.get('viewer').user_id, id);
+  return c.redirect('/me#praise');
 });
 
 members.post('/api/me/profile', async (c) => {

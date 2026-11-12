@@ -1,3 +1,4 @@
+import { kstDay } from './db';
 import { stripTitle } from './titles';
 import { MAX_LEVEL, xpForLevel } from './levels';
 import { ensureSeasonQuests, settleEnded } from './team';
@@ -297,6 +298,9 @@ export async function applySync(
     stmts.push(db.prepare('DELETE FROM room_likes WHERE from_id = ?1 OR to_id = ?1').bind(id));
     // 같이 배정되지 않기 요청도(신청했든 받았든) 지워요. 사유가 채널에 새로 올라가지 않게요.
     stmts.push(db.prepare('DELETE FROM assign_blocks WHERE from_id = ?1 OR to_id = ?1').bind(id));
+    // 받은 칭찬(칭찬함)도 지워요. 오늘 것은 보낸 사람의 하루 칭찬 횟수에 들어가니 한마디만 지워요.
+    stmts.push(db.prepare('DELETE FROM praises WHERE to_id = ? AND day < ?').bind(id, kstDay(new Date(nowMs))));
+    stmts.push(db.prepare('UPDATE praises SET note = NULL WHERE to_id = ?').bind(id));
     stmts.push(db.prepare("UPDATE purchases SET status = 'failed', reason = 'left' WHERE user_id = ? AND status = 'pending'").bind(id));
   }
 
