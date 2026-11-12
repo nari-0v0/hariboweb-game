@@ -407,3 +407,22 @@ export async function bingoExtras(db: D1Database, userId: string, periodStart: s
   const team = [...teams.values()].find((x) => x.members.some((m) => m.id === userId && !m.left)) ?? null;
   return { season, team, server, ranks: { season: rankSeason, all: rankAll } };
 }
+
+// ── 디스코드 고정 패널: 팀 순위 ──
+
+export type TeamRank = { no: number; rank: number; done: number; total: number; size: number; complete: boolean; bonus: boolean };
+
+// 팀 목표를 채운 팀 → 달성 비율이 높은 팀 → 달성한 사람이 많은 팀 순. 보너스 칸 팀(후보가 2명 미만)은 맨 뒤.
+export function rankTeams(teams: Iterable<TeamState>): TeamRank[] {
+  const rows = [...teams].map((t) => ({
+    no: t.no,
+    done: Math.min(t.achievers.length, t.target),
+    total: t.target,
+    size: t.members.filter((m) => !m.left).length,
+    complete: t.complete,
+    bonus: t.bonus,
+  }));
+  const ratio = (r: (typeof rows)[number]) => (r.total ? r.done / r.total : 0);
+  rows.sort((x, y) => Number(x.bonus) - Number(y.bonus) || Number(y.complete) - Number(x.complete) || ratio(y) - ratio(x) || y.done - x.done || x.no - y.no);
+  return rows.map((r, i) => ({ ...r, rank: i + 1 }));
+}

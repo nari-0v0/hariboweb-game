@@ -3,7 +3,7 @@
 // 손으로 움직여 푸는 장치(물 붓기, 강 건너기, 불 끄기 …)와 글 수수께끼가 사건마다 섞여요.
 // 마지막엔 용의자 특징표와 증거 세 개로 범인·방법·동기를 맞혀요.
 // 같은 씨앗이면 늘 같은 사건이 나와요(무작위는 사건 id로 정해져요).
-import { rng } from './expedition';
+import { rng } from './rng';
 import type { EscAction, EscCase, EscObject, Lock } from './escape';
 import { BANK, type BankItem } from './escape-bank';
 import { ROOMS, ROOM_KEYS, roomByName, type Hotspot, type RoomKey } from './case-rooms';

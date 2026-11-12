@@ -2,6 +2,7 @@ import { askAi } from './ai';
 
 // 같이 배정되지 않기: 멤버가 "다시 같은 팀에 배정되고 싶지 않은 사람"과 사유를 적으면,
 // Workers AI(무료 사용량)가 사유를 한 번 검토하고, 하리보봇이 비공개 채널에 올려 나리가 [승인]/[반려]를 눌러요.
+// AI가 장난·내용 없음으로 거른 요청(ai_rejected)도 채널에 올라가고, 나리가 [승인]으로 뒤집을 수 있어요.
 // 승인된 짝은 다음 팀 짜기와 시즌 중간 합류에서 같은 팀에 넣지 않아요. 기간은 없어요(출시 초기화 때 다시 시작).
 // 상대에게는 어떤 알림도 가지 않아요.
 
@@ -73,7 +74,7 @@ export async function requestBlock(
   const [target, mine] = await Promise.all([
     db.prepare('SELECT 1 FROM members WHERE user_id = ? AND active = 1').bind(toId).first(),
     db
-      .prepare("SELECT to_id FROM assign_blocks WHERE from_id = ? AND status = 'pending'")
+      .prepare("SELECT to_id FROM assign_blocks WHERE from_id = ? AND status IN ('pending', 'ai_rejected')")
       .bind(fromId)
       .all<{ to_id: string }>(),
   ]);
@@ -109,19 +110,21 @@ export type PendingBlock = {
   reason: string;
   ai_verdict: string | null;
   ai_summary: string | null;
+  // pending: 나리가 결정할 요청, ai_rejected: AI가 거른 요청(나리가 승인하면 뒤집혀요)
+  status: 'pending' | 'ai_rejected';
   created_at: string;
 };
 
-// 아직 채널에 안 올린 요청(오래된 것부터)
+// 아직 채널에 안 올린 요청(오래된 것부터). AI가 거른 요청도 나리가 볼 수 있게 같이 올려요.
 export async function listUnpostedBlocks(db: D1Database, limit = 10): Promise<PendingBlock[]> {
   const { results } = await db
     .prepare(
-      `SELECT b.id, b.from_id, f.display_name AS from_name, b.to_id, t.display_name AS to_name, b.reason, b.ai_verdict, b.ai_summary, b.created_at
+      `SELECT b.id, b.from_id, f.display_name AS from_name, b.to_id, t.display_name AS to_name, b.reason, b.ai_verdict, b.ai_summary, b.status, b.created_at
        FROM assign_blocks b LEFT JOIN members f ON f.user_id = b.from_id LEFT JOIN members t ON t.user_id = b.to_id
-       WHERE b.status = 'pending' AND b.message_id IS NULL ORDER BY b.id LIMIT ?`,
+       WHERE b.status IN ('pending', 'ai_rejected') AND b.message_id IS NULL ORDER BY b.id LIMIT ?`,
     )
     .bind(limit)
-    .all<{ id: number; from_id: string; from_name: string | null; to_id: string; to_name: string | null; reason: string; ai_verdict: string | null; ai_summary: string | null; created_at: string }>();
+    .all<{ id: number; from_id: string; from_name: string | null; to_id: string; to_name: string | null; reason: string; ai_verdict: string | null; ai_summary: string | null; status: string; created_at: string }>();
   return results.map((r) => ({
     id: r.id,
     from: { id: r.from_id, name: r.from_name ?? '알 수 없음' },
@@ -129,6 +132,7 @@ export async function listUnpostedBlocks(db: D1Database, limit = 10): Promise<Pe
     reason: r.reason,
     ai_verdict: r.ai_verdict,
     ai_summary: r.ai_summary,
+    status: r.status === 'ai_rejected' ? 'ai_rejected' : 'pending',
     created_at: r.created_at,
   }));
 }
@@ -143,7 +147,7 @@ export async function markBlockPosted(db: D1Database, id: number, messageId: str
   return row?.message_id === messageId;
 }
 
-// 결정은 대기 중일 때만 적용돼요(두 번 눌러도 처음 것만). 지금 상태를 돌려줘요.
+// 결정은 대기 중이거나 AI가 거른 요청에만 적용돼요(두 번 눌러도 처음 것만). 지금 상태를 돌려줘요.
 export async function decideBlock(
   db: D1Database,
   id: number,
@@ -153,7 +157,7 @@ export async function decideBlock(
 ): Promise<{ applied: boolean; status: string; decided_at: string | null } | null> {
   const t = new Date(nowMs).toISOString();
   const res = await db
-    .prepare("UPDATE assign_blocks SET status = ?, decided_at = ?, decided_by = ? WHERE id = ? AND status = 'pending'")
+    .prepare("UPDATE assign_blocks SET status = ?, decided_at = ?, decided_by = ? WHERE id = ? AND status IN ('pending', 'ai_rejected')")
     .bind(decision, t, by, id)
     .run();
   const row = await db.prepare('SELECT status, decided_at FROM assign_blocks WHERE id = ?').bind(id).first<{ status: string; decided_at: string | null }>();

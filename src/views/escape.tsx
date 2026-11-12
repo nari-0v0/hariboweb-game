@@ -4,7 +4,7 @@ import { ESCAPE_CASES, ESC_XP, bigHint, canAnswer, coinSpots, coinsLeft, escGrad
 import { casePics, itemPic } from '../case-art';
 import { ROOMS, roomSrc, roomSrcSet, type Hotspot, type RoomKey } from '../case-rooms';
 import { ROOM_BLUR } from '../room-blur.gen';
-import { FictionNote } from './expedition';
+import { FictionNote } from './fiction';
 import { Layout } from './layout';
 import { Popup, type PopupLine } from './shop';
 import { uiForClient } from '../escape-ui';

@@ -251,3 +251,26 @@ describe('팀 완료로 채워진 가운데 칸 보상', () => {
     expect(lines).toBe(9); // 8줄 + 9칸
   });
 });
+
+describe('패널 팀 순위', () => {
+  it('목표를 채운 팀 → 달성 비율 → 달성 수 순, 보너스 칸 팀은 맨 뒤', async () => {
+    const { rankTeams } = await import('../src/team');
+    const t = (no: number, achievers: number, target: number, extra: Partial<{ complete: boolean; bonus: boolean }> = {}) => ({
+      no,
+      members: Array.from({ length: 10 }, (_, i) => ({ id: `${no}-${i}`, name: 'x', left: false })),
+      candidates: [],
+      achievers: Array.from({ length: achievers }, (_, i) => `${no}-${i}`),
+      target,
+      complete: achievers >= target && target > 0,
+      bonus: false,
+      ...extra,
+    });
+    const r = rankTeams([t(0, 1, 4), t(1, 0, 0, { bonus: true }), t(2, 3, 3), t(3, 2, 4)]);
+    expect(r.map((x) => [x.no, x.rank, x.done, x.total])).toEqual([
+      [2, 1, 3, 3],
+      [3, 2, 2, 4],
+      [0, 3, 1, 4],
+      [1, 4, 0, 0],
+    ]);
+  });
+});

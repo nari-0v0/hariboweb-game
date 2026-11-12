@@ -112,11 +112,21 @@ describe('신청', () => {
 });
 
 describe('봇', () => {
+  it('AI가 거른 요청도 나리 채널에 올라가고, 나리가 승인하면 뒤집혀요', async () => {
+    const { db } = fakeD1();
+    await requestBlock(db, fakeAi('{"verdict":"reject","summary":"장난"}'), A, C, '바보바보바보', false, NOW);
+    expect(await requestBlock(db, fakeAi('{"verdict":"reject","summary":"장난"}'), A, C, '바보바보바보', false, NOW)).toBe('dup');
+    const [b] = await listUnpostedBlocks(db);
+    expect(b).toMatchObject({ to: { id: C }, status: 'ai_rejected', ai_verdict: 'reject' });
+    expect(await decideBlock(db, b!.id, 'approved', '7'.repeat(18), NOW)).toMatchObject({ applied: true, status: 'approved' });
+    expect(await approvedBlocks(db)).toEqual(new Set([blockKey(A, C)]));
+  });
+
   it('안 올린 요청 → 올림 표시 → 결정은 처음 한 번만', async () => {
     const { db } = fakeD1();
     await requestBlock(db, undefined, A, B, REASON, false, NOW);
     const [b] = await listUnpostedBlocks(db);
-    expect(b).toMatchObject({ from: { id: A, name: 'm1' }, to: { id: B, name: 'm2' }, reason: REASON });
+    expect(b).toMatchObject({ from: { id: A, name: 'm1' }, to: { id: B, name: 'm2' }, reason: REASON, status: 'pending' });
     expect(await markBlockPosted(db, b!.id, '1'.repeat(19), NOW)).toBe(true);
     expect(await markBlockPosted(db, b!.id, '2'.repeat(19), NOW)).toBe(false);
     expect(await markBlockPosted(db, b!.id, '1'.repeat(19), NOW + 1)).toBe(true); // 응답을 못 받아 다시 보내도 그대로

@@ -20,7 +20,7 @@ import {
 } from '../journey';
 import { FOES, PROPS, ZONE_NAMES, spriteSvg, zoneFor, type Zone } from '../journey-art';
 import { SPRITES } from '../sprites.gen';
-import { FictionNote } from './expedition';
+import { FictionNote } from './fiction';
 import { Layout } from './layout';
 import { Popup, type PopupLine } from './shop';
 
