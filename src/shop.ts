@@ -3,11 +3,35 @@ import { THEMES } from './themes';
 
 // 젤리 상점 물건. 값은 여기서만 바꾸면 돼요.
 // 테마는 젤리로 사고, 꾸밈 캐릭터는 대부분 젤리로 사요. 판타지 캐릭터는 도감 카드를 모으면 열려요.
+// 테마와 꾸밈 캐릭터는 물건마다 값이 달라요(나리: 테마 20~, 캐릭터 30~). 표에 없는 새 물건은 제일 싼 값이에요.
 export const PRICES = {
-  theme: 30,
-  deco: 20,
+  theme: 20, // 테마 시작값
+  deco: 30, // 꾸밈 캐릭터 시작값
   gender: 30, // 성별 바꾸기(처음 한 번 고르는 건 무료)
 } as const;
+
+export const THEME_PRICES: Record<string, number> = {
+  moonnight: 20,
+  rose: 22,
+  teaparty: 24,
+  ice: 26,
+  mermaid: 28,
+  forest: 30,
+  space: 35,
+  blackgold: 40,
+  cyber: 45,
+  racing: 50,
+};
+
+const DECO_TIERS: [number, string[]][] = [
+  [30, ['hoodie', 'pink-knit', 'student', 'sailor', 'office', 'winter', 'winter-scarf', 'red-cap', 'prep', 'camper', 'bookworm', 'courier']],
+  [35, ['teacher', 'professor', 'nurse', 'barista', 'baker', 'chef', 'painter', 'photographer', 'soccer', 'basketball', 'tennis', 'baseball', 'swimmer', 'varsity', 'beret-girl', 'sailor-boy', 'sunflower', 'skater']],
+  [40, ['rabbit', 'bear', 'puppy', 'calico', 'frog', 'chick', 'duck', 'sheep', 'hamster', 'cow', 'monkey', 'koala', 'seal', 'penguin', 'deer', 'raccoon']],
+  [45, ['fox', 'wolf', 'tiger', 'panda', 'polar-bear', 'red-panda', 'shark', 'dino', 'bunny-hoodie', 'bunny-pajama', 'cat-girl', 'wolf-jacket', 'gamer-girl', 'streamer', 'guitarist', 'ballerina', 'detective', 'explorer', 'techwear']],
+  [50, ['maid', 'butler', 'rocker', 'black-dress', 'cyber', 'idol']],
+  [60, ['gothic', 'lolita', 'kimono', 'admiral', 'dragon']],
+];
+export const DECO_PRICES: Record<string, number> = Object.fromEntries(DECO_TIERS.flatMap(([price, ids]) => ids.map((id) => [id, price])));
 
 // 판타지 캐릭터는 도감 카드 3장, 6장, 9장… 모을 때마다 하나씩 열려요(순서는 그림 순서).
 export const REWARD_STEP = 3; // 멤버가 적을 때도 캐릭터마다 최소 이만큼은 모아야 해요
@@ -38,7 +62,7 @@ export const REWARD_COUNT = fantasyOrder.length;
 
 export const SHOP_ITEMS: ShopItem[] = [
   ...THEMES.filter((t) => t.id !== 'basic').map(
-    (t): ShopItem => ({ id: `theme:${t.id}`, kind: 'theme', key: t.id, name: t.name, price: PRICES.theme, rewardRank: null }),
+    (t): ShopItem => ({ id: `theme:${t.id}`, kind: 'theme', key: t.id, name: t.name, price: THEME_PRICES[t.id] ?? PRICES.theme, rewardRank: null }),
   ),
   ...DECO_CHARACTERS.map((d): ShopItem => {
     const reward = fantasyOrder.indexOf(d.id);
@@ -47,7 +71,7 @@ export const SHOP_ITEMS: ShopItem[] = [
       kind: 'deco',
       key: d.id,
       name: d.name,
-      price: reward >= 0 ? null : PRICES.deco,
+      price: reward >= 0 ? null : (DECO_PRICES[d.id] ?? PRICES.deco),
       rewardRank: reward >= 0 ? reward + 1 : null,
     };
   }),
