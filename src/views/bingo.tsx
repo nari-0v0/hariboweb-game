@@ -2,9 +2,6 @@ import type { Member } from '../env';
 import { type BingoView, FULL_JELLY, LINE_JELLY, LINE_XP, LINES } from '../bingo';
 import {
   type BingoExtras,
-  type JellypiRanking,
-  JP_FULL,
-  JP_LINE,
   JP_SERVER,
   JP_TEAM,
   KIDNAP_MIN,
@@ -219,33 +216,6 @@ function TeamPanel(props: { extras: BingoExtras; view: BingoView; me: string }) 
   );
 }
 
-function RankList(props: { title: string; rank: JellypiRanking }) {
-  const { top, me } = props.rank;
-  return (
-    <div class="bgo-rank">
-      <h3>{props.title}</h3>
-      {top.length === 0 ? (
-        <p class="muted">아직 모은 사람이 없어요.</p>
-      ) : (
-        <ol>
-          {top.map((r) => (
-            <li class={me?.id === r.id ? 'mine' : undefined}>
-              <span class="bgo-rank-no">{r.rank}</span>
-              <span class="bgo-rank-name">{r.name}</span>
-              <span class="bgo-rank-n">{r.total}</span>
-            </li>
-          ))}
-        </ol>
-      )}
-      {me && me.rank > top.length && (
-        <p class="bgo-rank-me">
-          내 순위 {me.rank}위 · {me.total}
-        </p>
-      )}
-    </div>
-  );
-}
-
 // 하리보 빙고: 서버 퀘스트 막대, 3×3 칸(가운데 = 팀 퀘스트), 채운 칸과 줄, 받은 보상, 젤리피 순위
 export function BingoPage(props: { viewer: Member; view: BingoView | null; extras?: BingoExtras | null; block?: BlockBox }) {
   const v = props.view;
@@ -264,8 +234,13 @@ export function BingoPage(props: { viewer: Member; view: BingoView | null; extra
   const lineCells = new Set(v.lines.flatMap((i) => LINES[i]!));
   return (
     <Layout title="하리보 빙고" viewer={props.viewer} active="bingo">
-      {extras && <ServerQuestBar extras={extras} me={props.viewer.user_id} />}
-      {extras && <TeamPanel extras={extras} view={v} me={props.viewer.user_id} />}
+      <div class="bgo-wrap">
+      {extras && (
+        <div class="bgo-quests">
+          <ServerQuestBar extras={extras} me={props.viewer.user_id} />
+          <TeamPanel extras={extras} view={v} me={props.viewer.user_id} />
+        </div>
+      )}
       <div class="bgo">
         <section class="bgo-board" aria-label="빙고판">
           <header class="bgo-top">
@@ -335,10 +310,11 @@ export function BingoPage(props: { viewer: Member; view: BingoView | null; extra
             <p>가운데 칸은 팀 퀘스트예요. 내가 달성하거나 우리 팀이 목표를 채우면 채워져요.</p>
             <p>빙고판은 생명력 주기를 반으로 나눠서, 한 주기에 2번 새로 나와요. 팀과 퀘스트는 주기(2주) 내내 이어져요.</p>
             <p>
-              젤리피 순위는 <a href="/rank">순위</a> 메뉴에서 볼 수 있어요.
+              젤리피 순위는 <a href="/rank?g=bingo">순위</a> 메뉴에서 볼 수 있어요.
             </p>
           </section>
         </aside>
+      </div>
       </div>
       {props.block && <BlockSection box={props.block} />}
     </Layout>

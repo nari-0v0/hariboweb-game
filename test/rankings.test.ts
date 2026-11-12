@@ -51,7 +51,8 @@ describe('순위 메뉴', () => {
     ];
     const p = toPodium(rows, D);
     expect(p.top.map((r) => [r.rank, r.name])).toEqual([[1, '가'], [2, '나'], [2, '다']]);
-    expect(p.me).toEqual({ rank: 4, name: '라', value: 2 });
+    expect(p.me).toMatchObject({ rank: 4, name: '라', value: 2 });
+    expect(p.me!.char).toMatch(/^\/char\//);
     expect(toPodium(rows, '0').me).toBeNull();
     expect(plainPodium([{ name: 'x', value: 5 }, { name: 'y', value: 4 }, { name: 'z', value: 3 }, { name: 'w', value: 1 }]).top).toHaveLength(3);
   });

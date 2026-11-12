@@ -1,3 +1,4 @@
+import { characterUrl } from './character';
 import { cardScore, DAILY_CHIPS, natural, openingPayout, playHand, slotPayout, spinSlots, spinWheel, startHand, WHEEL, type CardMove, type Hand } from './gamble';
 import { GAMBLE_TITLES, GAMBLE_WINNER_ID, stripTitle, titleById, titleItemId } from './titles';
 
@@ -130,16 +131,16 @@ export function publicHand(round: Round) {
   return { player, dealer: round.multiplier === null ? dealer.slice(0, 1) : dealer, score: cardScore(player) };
 }
 
-type RankRow = { name: string; value: number; title_id: string | null };
+type RankRow = { user_id: string; name: string; value: number; title_id: string | null; character_id: string | null; deco_id: string | null };
 const RANK_FIELDS = ['chips', 'best_win', 'all_in_wins'] as const;
 
 export async function gambleRanks(db: D1Database, now: string) {
   const ranks = await db.batch([
-    ...RANK_FIELDS.map((field) => db.prepare(`SELECT m.display_name AS name, a.${field} AS value, p.title_id
+    ...RANK_FIELDS.map((field) => db.prepare(`SELECT a.user_id, m.display_name AS name, a.${field} AS value, p.title_id, p.character_id, p.deco_id
       FROM gamble_accounts a JOIN members m ON m.user_id = a.user_id AND m.active = 1
       LEFT JOIN profiles p ON p.user_id = a.user_id
       WHERE a.${field} > 0 ORDER BY a.${field} DESC, a.user_id LIMIT 10`)),
-    db.prepare(`SELECT m.display_name AS name, SUM(CAST(r.bet * r.multiplier AS INTEGER) - r.bet) AS value, p.title_id
+    db.prepare(`SELECT r.user_id, m.display_name AS name, SUM(CAST(r.bet * r.multiplier AS INTEGER) - r.bet) AS value, p.title_id, p.character_id, p.deco_id
       FROM gamble_rounds r JOIN members m ON m.user_id = r.user_id AND m.active = 1
       LEFT JOIN profiles p ON p.user_id = r.user_id
       JOIN seasons s ON s.id = (SELECT id FROM seasons WHERE starts_at <= ? AND ends_at > ? ORDER BY id DESC LIMIT 1)
@@ -147,9 +148,9 @@ export async function gambleRanks(db: D1Database, now: string) {
       GROUP BY r.user_id ORDER BY value DESC, r.user_id LIMIT 1`).bind(now, now),
   ]);
   // 디스코드는 방장 닉네임을 못 바꾸니, 고른 칭호는 닉네임 대신 여기서 「칭호」로 붙여 보여 줘요.
-  return ranks.map(({ results }) => (results as RankRow[]).map(({ name, value, title_id }) => {
+  return ranks.map(({ results }) => (results as RankRow[]).map(({ user_id, name, value, title_id, character_id, deco_id }) => {
     const title = titleById(title_id);
-    return { value, name: (title ? `「${title.name}」 ` : '') + stripTitle(name) };
+    return { value, name: (title ? `「${title.name}」 ` : '') + stripTitle(name), char: characterUrl(character_id, user_id, deco_id) };
   }));
 }
 
