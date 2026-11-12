@@ -59,6 +59,7 @@ import { GroupPage } from './views/group';
 import { groupViewFor, seasonRanking } from './season';
 import { currentPeriod, grantBingo, markFlag, myBingo, todayPartners, LINE_JELLY, LINE_XP, FULL_JELLY } from './bingo';
 import { BingoPage } from './views/bingo';
+import { bingoExtras } from './team';
 import { GuidePage } from './views/guide';
 import { TitlesPage } from './views/titles';
 import { titleById, titleProgress } from './titles';
@@ -1161,12 +1162,17 @@ members.get('/card/:userId', async (c) => {
 
 members.get('/group', async (c) => {
   const viewer = c.get('viewer');
-  return page(c, <GroupPage viewer={viewer} view={await groupViewFor(c.env.DB, viewer.user_id, Date.now())} />);
+  const view = await groupViewFor(c.env.DB, viewer.user_id, Date.now());
+  // 모둠 퀘스트 8개는 하리보 빙고(팀 퀘스트)로 바뀌었어요. 예전 시즌 퀘스트가 없으면 빙고로 보내요.
+  if (!view || !view.quests.length) return c.redirect('/bingo');
+  return page(c, <GroupPage viewer={viewer} view={view} />);
 });
 
 members.get('/bingo', async (c) => {
   const viewer = c.get('viewer');
-  return page(c, <BingoPage viewer={viewer} view={await myBingo(c.env.DB, viewer.user_id, Date.now())} />);
+  const view = await myBingo(c.env.DB, viewer.user_id, Date.now());
+  const extras = view ? await bingoExtras(c.env.DB, viewer.user_id, view.week.start) : null;
+  return page(c, <BingoPage viewer={viewer} view={view} extras={extras} />);
 });
 
 members.get('/plaza', (c) => page(c, <PlazaPage viewer={c.get('viewer')} guildId={c.env.GUILD_ID} />));

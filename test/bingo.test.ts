@@ -67,13 +67,14 @@ describe('주', () => {
 });
 
 describe('빙고판', () => {
-  it('9칸 모두 다른 종류이고 쉬움 3·보통 4·어려움 2, 같은 주에는 늘 같아요', () => {
+  it('개인 칸 8개 모두 다른 종류이고 쉬움 3·보통 3·어려움 2, 같은 주에는 늘 같아요', () => {
     for (const u of [A, B, C, D]) {
       const board = boardFor('2026-11-02', u);
-      expect(board).toHaveLength(9);
-      expect(new Set(board.map((c) => c.def.id)).size).toBe(9);
+      expect(board).toHaveLength(8);
+      expect(new Set(board.map((c) => c.def.id)).size).toBe(8);
+      expect(board.some((c) => c.def.id === 'new')).toBe(false);
       const count = (d: string) => board.filter((c) => c.diff === d).length;
-      expect([count('easy'), count('normal'), count('hard')]).toEqual([3, 4, 2]);
+      expect([count('easy'), count('normal'), count('hard')]).toEqual([3, 3, 2]);
       expect(boardFor('2026-11-02', u).map((c) => c.def.id)).toEqual(board.map((c) => c.def.id));
     }
     expect(boardFor('2026-11-02', A).map((c) => c.def.id)).not.toEqual(boardFor('2026-11-09', A).map((c) => c.def.id));
@@ -82,10 +83,21 @@ describe('빙고판', () => {
   it('줄과 보상을 세요', () => {
     const week = weekOf(NOW);
     expect(bingoView(week, A, emptyStats())).toMatchObject({ lines: [], filled: 0, full: false, jelly: 0 });
-    const v = bingoView(week, A, full());
+    const v = bingoView(week, A, full(), 'done');
+    expect(v.cells).toHaveLength(9);
+    expect(v.cells[4]).toMatchObject({ id: 'team', center: true, done: true });
     expect(v.lines).toHaveLength(LINES.length);
     expect(v.full).toBe(true);
     expect(v.jelly).toBe(LINES.length * LINE_JELLY + FULL_JELLY);
+  });
+
+  it('가운데 칸(팀 퀘스트): 아직이면 가운데를 지나는 줄은 안 되고, 팀 완료·보너스 칸이면 채워져요', () => {
+    const week = weekOf(NOW);
+    const todo = bingoView(week, A, full(), 'todo');
+    expect(todo.cells[4]!.done).toBe(false);
+    expect(todo.lines).toEqual([0, 2, 3, 5]);
+    expect(bingoView(week, A, full(), 'none').cells[4]!.done).toBe(false);
+    for (const s of ['team-done', 'bonus'] as const) expect(bingoView(week, A, full(), s).full).toBe(true);
   });
 });
 
@@ -143,6 +155,12 @@ describe('줄 보상', () => {
       }
     }
     sql.prepare("INSERT INTO bingo_flag (week, user_id, flag) VALUES (?, ?, 'panel'), (?, ?, 'web')").run(week, id, week, id);
+    // 가운데 칸: 이 시즌 팀 퀘스트 짝과 30분
+    const p = weekOf(NOW);
+    sql.prepare("INSERT OR IGNORE INTO seasons (id, starts_at, ends_at, created_at) VALUES ('s1', ?, ?, 'x')").run(p.start, p.end);
+    sql.prepare("INSERT INTO season_members (season_id, user_id, group_no, start_member, joined_at) VALUES ('s1', ?, 0, 1, 'x')").run(id);
+    sql.prepare("INSERT INTO team_pairs (season_id, group_no, a, b) VALUES ('s1', 0, ?, ?)").run(id, others[0]);
+    sql.prepare("INSERT INTO gq_pair (season_id, group_no, a, b, minutes) VALUES ('s1', 0, ?, ?, 30)").run(id, others[0]);
   }
 
   it('줄마다 한 번만, 9칸을 다 채우면 더 줘요', async () => {
@@ -155,6 +173,8 @@ describe('줄 보상', () => {
     await grantBingo(db, weekOf(NOW), [A], NOW + 1000);
     expect(profileOf(sql, A)).toEqual(want);
     expect((sql.prepare('SELECT COUNT(*) AS n FROM bingo_lines').get() as { n: number }).n).toBe(LINES.length + 1);
+    // 젤리피: 한 줄 1, 9칸 3 (두 번 확인해도 한 번만)
+    expect(sql.prepare("SELECT SUM(amount) AS n, MIN(season_id) AS s FROM jellypi WHERE user_id = ?").get(A)).toEqual({ n: LINES.length + 3, s: 's1' });
   });
 
   it('서버를 떠난 사람은 받지 않아요', async () => {

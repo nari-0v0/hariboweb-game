@@ -12,6 +12,7 @@ import {
   seededRandom,
   shuffle,
 } from './quests';
+import { type Prior, canPair, kidnapStatements, loadPrior, slotOf } from './team';
 
 export const GROUP_SIZE = 10;
 // 시즌 시작 전 이 기간 안에 활동한 사람만 모둠에 넣어요
@@ -31,7 +32,8 @@ export function seasonFrom(start: string, end: string): Season {
 
 // ── 모둠 나누기 ──
 
-export type Person = { id: string; games: string[]; activity: number };
+// slot: 지난 2주에 주로 통화한 시간대(평일/주말 + 저녁/밤/새벽/낮). 없으면 시간대는 안 봐요.
+export type Person = { id: string; games: string[]; activity: number; slot?: string };
 
 // 10명 안팎으로: 91명 → 9모둠(11·10×8), 95명 → 10모둠(10×5·9×5)
 export function groupCount(n: number): number {
@@ -49,6 +51,7 @@ function spread(total: number, groups: number): number[] {
 // 2) 대표 게임 인원에 맞춰 모둠마다 게임을 하나씩 정한 뒤,
 // 3) 많이 노는 사람부터 같은 게임 모둠 중 활동량 합이 제일 적은 곳에 넣어요(나눠 주기).
 // 모둠 인원 차이는 많아야 1명. 게임 역할이 없는 사람은 모둠마다 고르게 나눠요.
+// 시간대(slot)가 있으면 활동량 합이 적은 두 모둠 중 같은 시간대 사람이 더 많은 곳에 넣어요.
 export function planGroups(people: Person[], rand: () => number): Map<string, number> {
   const out = new Map<string, number>();
   const g = groupCount(people.length);
@@ -93,27 +96,55 @@ export function planGroups(people: Person[], rand: () => number): Map<string, nu
   const size = Array<number>(g).fill(0);
   const act = Array<number>(g).fill(0);
   const games = Array.from({ length: g }, () => new Set<string>());
+  const slots = Array.from({ length: g }, () => new Map<string, number>());
   const place = (p: Person, i: number) => {
     out.set(p.id, i);
     size[i]!++;
     act[i]! += p.activity;
     for (const x of p.games) games[i]!.add(x);
+    if (p.slot) slots[i]!.set(p.slot, (slots[i]!.get(p.slot) ?? 0) + 1);
   };
-  const lowest = (candidates: number[]) =>
-    shuffle(candidates, rand).sort((a, b) => act[a]! - act[b]! || size[a]! - size[b]!)[0]!;
+  const lowest = (candidates: number[], slot?: string) => {
+    const sorted = shuffle(candidates, rand).sort((a, b) => act[a]! - act[b]! || size[a]! - size[b]!);
+    if (!slot) return sorted[0]!;
+    return sorted.slice(0, 2).sort((a, b) => (slots[b]!.get(slot) ?? 0) - (slots[a]!.get(slot) ?? 0))[0]!;
+  };
   for (const p of withGames) {
     const open = [...Array(g).keys()].filter((i) => size[i]! < roleCap[i]!);
     if (!open.length) break;
     const mine = open.filter((i) => label[i] === main.get(p.id));
     const labelled = open.filter((i) => label[i] !== null && p.games.includes(label[i]!));
     const sharing = open.filter((i) => p.games.some((x) => games[i]!.has(x)));
-    place(p, lowest(mine.length ? mine : labelled.length ? labelled : sharing.length ? sharing : open));
+    place(p, lowest(mine.length ? mine : labelled.length ? labelled : sharing.length ? sharing : open, p.slot));
   }
   for (const p of [...withGames.filter((x) => !out.has(x.id)), ...without]) {
     const open = [...Array(g).keys()].filter((i) => size[i]! < cap[i]!);
-    place(p, lowest(open));
+    place(p, lowest(open, p.slot));
   }
   return out;
+}
+
+// 팀마다 팀 퀘스트 짝(canPair)이 하나 이상 있게 맞춰요. 짝이 없는 팀이 있으면 다른 팀 사람과 한 명씩 바꿔 봐요
+// (바꾼 뒤에도 두 팀 모두 짝이 있을 때만). 못 맞추면 그대로 두고, 그 팀 가운데 칸은 보너스 칸이 돼요.
+export function ensurePairs(plan: Map<string, number>, people: Person[], can: (a: Person, b: Person) => boolean): Map<string, number> {
+  const byId = new Map(people.map((p) => [p.id, p]));
+  const members = (no: number) => [...plan].filter(([, g]) => g === no).map(([id]) => id);
+  const hasPair = (ids: string[]) => ids.some((a, i) => ids.slice(i + 1).some((b) => can(byId.get(a)!, byId.get(b)!)));
+  for (const no of [...new Set(plan.values())].sort((a, b) => a - b)) {
+    const mine = members(no);
+    if (mine.length < 2 || hasPair(mine)) continue;
+    swap: for (const x of mine)
+      for (const [y, other] of [...plan].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
+        if (other === no) continue;
+        const theirs = members(other);
+        if (hasPair([...mine.filter((u) => u !== x), y]) && hasPair([...theirs.filter((u) => u !== y), x])) {
+          plan.set(x, other);
+          plan.set(y, no);
+          break swap;
+        }
+      }
+  }
+  return plan;
 }
 
 // 시즌 중에 새로 활동한 사람: 게임 역할이 겹치는 모둠 중 제일 작은 곳(없으면 그냥 제일 작은 곳)
@@ -134,7 +165,7 @@ const parseGames = (raw: string | null | undefined): string[] => {
 };
 
 // 시즌이 처음이면 모둠과 퀘스트를 만들어요. 만들었으면 true.
-export async function ensureSeason(db: D1Database, season: Season, nowMs: number, opts: { scrim?: boolean } = {}): Promise<boolean> {
+export async function ensureSeason(db: D1Database, season: Season, nowMs: number, opts: { scrim?: boolean; groupQuests?: boolean } = {}): Promise<boolean> {
   const exists = await db.prepare('SELECT 1 FROM seasons WHERE id = ?').bind(season.id).first();
   if (exists) return false;
   const t = new Date(nowMs).toISOString();
@@ -151,30 +182,18 @@ export async function ensureSeason(db: D1Database, season: Season, nowMs: number
     .all<{ user_id: string; games: string; last_login_at: string | null; profile_at: string | null; recent: number; fallback: number }>();
   // 처음 시즌에는 날마다 통화 기록이 아직 없어서 카드 통화 시간으로 대신 재요
   const useRecent = rows.some((r) => r.recent > 0);
+  const prior: Prior = await loadPrior(db, season);
   const people: Person[] = [];
   for (const r of rows) {
     const activity = useRecent ? r.recent : r.fallback;
     const active = activity > 0 || (r.profile_at ?? '') >= cutoffIso || (r.last_login_at ?? '') >= cutoffIso;
-    if (active) people.push({ id: r.user_id, games: parseGames(r.games), activity });
+    if (active) people.push({ id: r.user_id, games: parseGames(r.games), activity, slot: prior.slot.get(r.user_id) });
   }
   const rand = seededRandom(`season:${season.id}`);
-  const plan = planGroups(people, rand);
+  // 팀(예전 이름 모둠): 게임 역할 겹치게, 많이/적게 노는 사람 섞기, 주로 노는 시간대 겹치게, 팀마다 팀 퀘스트 짝이 있게
+  const plan = ensurePairs(planGroups(people, rand), people, (a, b) => canPair(a, b, prior));
   // 모둠을 만들 사람이 없으면 시즌을 적지 않고 다음 묶음에서 다시 해 봐요
   if (!plan.size) return false;
-
-  // 지난 시즌에 받았던 퀘스트는 되도록 피해요
-  const prev = await db.prepare('SELECT id FROM seasons WHERE id < ? ORDER BY id DESC LIMIT 1').bind(season.id).first<{ id: string }>();
-  const hadBefore = new Map<string, string[]>();
-  if (prev) {
-    const { results } = await db
-      .prepare(
-        `SELECT m.user_id, q.quest_id FROM season_members m
-         JOIN season_quests q ON q.season_id = m.season_id AND q.group_no = m.group_no WHERE m.season_id = ?`,
-      )
-      .bind(prev.id)
-      .all<{ user_id: string; quest_id: string }>();
-    for (const r of results) (hadBefore.get(r.user_id) ?? hadBefore.set(r.user_id, []).get(r.user_id)!).push(r.quest_id);
-  }
 
   const stmts: D1PreparedStatement[] = [
     db.prepare('INSERT INTO seasons (id, starts_at, ends_at, created_at) VALUES (?, ?, ?, ?)').bind(season.id, season.start, season.end, t),
@@ -183,11 +202,12 @@ export async function ensureSeason(db: D1Database, season: Season, nowMs: number
     'INSERT INTO season_members (season_id, user_id, group_no, start_member, joined_at) VALUES (?, ?, ?, 1, ?)',
   );
   for (const [id, no] of plan) stmts.push(addMember.bind(season.id, id, no, t));
-  const addQuest = db.prepare('INSERT INTO season_quests (season_id, group_no, slot, quest_id) VALUES (?, ?, ?, ?)');
-  for (let no = 0; no < groupCount(plan.size); no++) {
-    const seen = new Map<string, number>();
-    for (const [id, g] of plan) if (g === no) for (const q of hadBefore.get(id) ?? []) seen.set(q, (seen.get(q) ?? 0) + 1);
-    pickQuests(rand, { seen, scrim: opts.scrim }).forEach((q, slot) => stmts.push(addQuest.bind(season.id, no, slot, q)));
+  // 하리보 빙고부터 모둠 퀘스트 8개는 만들지 않아요(빙고 가운데 칸 팀 퀘스트로 바뀌었어요).
+  // 예전 퀘스트를 다시 켜고 싶을 때만 opts.groupQuests를 써요.
+  if (opts.groupQuests) {
+    const addQuest = db.prepare('INSERT INTO season_quests (season_id, group_no, slot, quest_id) VALUES (?, ?, ?, ?)');
+    for (let no = 0; no < groupCount(plan.size); no++)
+      pickQuests(rand, { seen: new Map(), scrim: opts.scrim }).forEach((q, slot) => stmts.push(addQuest.bind(season.id, no, slot, q)));
   }
   stmts.push(...snapshotStatements(db, season.id, null));
   try {
@@ -257,6 +277,23 @@ export async function seasonStatements(db: D1Database, p: SeasonPayload, nowMs: 
   for (const [key, n] of voiceDay) {
     const [u, day] = key.split('|') as [string, string];
     stmts.push(addVoiceDay.bind(u, day, n));
+  }
+  // 통화한 시간대(팀을 짤 때 주로 노는 시간대가 겹치게)
+  const voiceSlot = new Map<string, number>();
+  for (const r of p.room_minutes) {
+    const { day, hour } = kstParts(r.at);
+    for (const u of new Set(r.members)) {
+      const key = `${u}|${day}|${slotOf(hour)}`;
+      voiceSlot.set(key, (voiceSlot.get(key) ?? 0) + 1);
+    }
+  }
+  const addVoiceSlot = db.prepare(
+    `INSERT INTO member_voice_slot (user_id, day, slot, minutes) VALUES (?1, ?2, ?3, ?4)
+     ON CONFLICT (user_id, day, slot) DO UPDATE SET minutes = minutes + ?4`,
+  );
+  for (const [key, n] of voiceSlot) {
+    const [u, day, slot] = key.split('|') as [string, string, string];
+    stmts.push(addVoiceSlot.bind(u, day, slot, n));
   }
 
   // 나간 사람은 지금 진행 중인 모든 시즌 모둠에서 빼요(이미 쌓은 기록은 남아요).
@@ -493,6 +530,9 @@ async function groupStatements(
       stmts.push(setRun.bind(sid, g, String(last), current, best));
     }
   }
+
+  // 서버 퀘스트: 초록하리보와 같은 통화방에 있던 분(팀 상관없이 서버 전체)
+  stmts.push(...kidnapStatements(db, sid, p.room_minutes.filter((r) => inSeason(r.at)), newbie));
 
   // 내전(참가만 하면 세요)
   const addScrim = db.prepare(

@@ -1,5 +1,18 @@
 import type { Member } from '../env';
 import { type BingoView, FULL_JELLY, LINE_JELLY, LINE_XP, LINES } from '../bingo';
+import {
+  type BingoExtras,
+  type JellypiRanking,
+  JP_FULL,
+  JP_LINE,
+  JP_SERVER,
+  JP_TEAM,
+  KIDNAP_MIN,
+  SERVER_JELLY,
+  TEAM_GOAL_MIN,
+  TEAM_JELLY,
+  TEAM_PRIOR_MAX,
+} from '../team';
 import { Layout } from './layout';
 
 const DIFF_LABEL = { easy: '쉬움', normal: '보통', hard: '어려움' } as const;
@@ -24,12 +37,123 @@ function lineCoords(i: number) {
   return { x1: x1 - dx, y1: y1 - dy, x2: x2 + dx, y2: y2 + dy };
 }
 
-// 이번 주 빙고: 3×3 칸, 채운 칸과 줄, 받은 보상
-export function BingoPage(props: { viewer: Member; view: BingoView | null }) {
+const TEAM_STATE = {
+  done: '나는 달성!',
+  todo: '나는 아직',
+  'team-done': '팀 완료, 나는 아직',
+  bonus: '보너스 칸',
+  none: '이번 시즌 팀이 없어요',
+} as const;
+
+// 서버 퀘스트: 초록하리보 납치 대소동! (판 위 큰 진행 막대)
+function ServerQuestBar(props: { extras: BingoExtras; me: string }) {
+  const q = props.extras.server;
+  if (!q) return null;
+  const n = Math.min(q.kidnapped.length, q.target);
+  const pct = q.target ? Math.round((n / q.target) * 100) : 0;
+  const joined = q.participants.includes(props.me);
+  return (
+    <section class={`panel bgo-server${q.met ? ' met' : ''}`} aria-label="서버 퀘스트">
+      <div class="bgo-server-head">
+        <span class="bgo-server-tag">서버 퀘스트</span>
+        <h2>초록하리보 납치 대소동!</h2>
+      </div>
+      <p class="bgo-server-text">초록하리보를 통화방으로 납치해 오세요! 같은 방에서 {KIDNAP_MIN}분 함께하면 납치 성공.</p>
+      <div class="bgo-server-bar" aria-hidden="true">
+        <i style={`width:${pct}%`} />
+      </div>
+      <p class="bgo-server-count">
+        납치된 초록하리보 <b>{q.kidnapped.length}</b> / {q.target}명
+        {joined && <span class="bgo-chip">나도 참여!</span>}
+      </p>
+      <p class="bgo-server-reward">
+        시즌이 끝날 때 목표를 채웠으면 참여한 사람 모두 젤리 {SERVER_JELLY}개 + 젤리피 {JP_SERVER}. 못 채우면 아무도 못 받아요.
+      </p>
+    </section>
+  );
+}
+
+// 가운데 칸 팀 퀘스트 자세히
+function TeamPanel(props: { extras: BingoExtras; view: BingoView }) {
+  const t = props.extras.team;
+  const state = props.view.team;
+  if (!t) {
+    return (
+      <section class="panel bgo-team">
+        <h2>👫 팀 퀘스트</h2>
+        <p>이번 시즌 팀이 아직 없어요. 통화방에서 놀면 팀이 생겨요.</p>
+      </section>
+    );
+  }
+  const names = new Map(t.members.map((m) => [m.id, m.name]));
+  const pct = t.target ? Math.round((Math.min(t.achievers.length, t.target) / t.target) * 100) : 100;
+  return (
+    <section class={`panel bgo-team${t.complete ? ' met' : ''}`}>
+      <h2>👫 팀 퀘스트</h2>
+      <p class="bgo-team-text">
+        지난 2주간 {TEAM_PRIOR_MAX}분 미만 통화자와 이번 시즌에 같은 통화방에서 {TEAM_GOAL_MIN}분 함께하기
+      </p>
+      {t.bonus ? (
+        <p class="bgo-team-bonus">우리 팀은 후보가 2명보다 적어서 가운데 칸을 보너스 칸으로 채웠어요. (팀 퀘스트 보상은 없어요)</p>
+      ) : (
+        <>
+          <p class="bgo-team-count">
+            우리 팀 <b>{t.achievers.length}</b> / {t.target}명
+          </p>
+          <div class="bgo-server-bar small" aria-hidden="true">
+            <i style={`width:${pct}%`} />
+          </div>
+          {t.achievers.length > 0 && (
+            <ul class="bgo-stickers" aria-label="달성한 사람">
+              {t.achievers.map((id) => (
+                <li>{names.get(id) ?? '알 수 없음'}</li>
+              ))}
+            </ul>
+          )}
+          <p class={`bgo-team-me s-${state}`}>{TEAM_STATE[state]}</p>
+          <p class="bgo-team-reward">
+            시즌이 끝날 때 팀 목표를 채웠으면 달성한 사람만 젤리 {TEAM_JELLY}개 + 젤리피 {JP_TEAM}.
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
+function RankList(props: { title: string; rank: JellypiRanking }) {
+  const { top, me } = props.rank;
+  return (
+    <div class="bgo-rank">
+      <h3>{props.title}</h3>
+      {top.length === 0 ? (
+        <p class="muted">아직 모은 사람이 없어요.</p>
+      ) : (
+        <ol>
+          {top.map((r) => (
+            <li class={me?.id === r.id ? 'mine' : undefined}>
+              <span class="bgo-rank-no">{r.rank}</span>
+              <span class="bgo-rank-name">{r.name}</span>
+              <span class="bgo-rank-n">{r.total}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+      {me && me.rank > top.length && (
+        <p class="bgo-rank-me">
+          내 순위 {me.rank}위 · {me.total}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// 하리보 빙고: 서버 퀘스트 막대, 3×3 칸(가운데 = 팀 퀘스트), 채운 칸과 줄, 받은 보상, 젤리피 순위
+export function BingoPage(props: { viewer: Member; view: BingoView | null; extras?: BingoExtras | null }) {
   const v = props.view;
+  const extras = props.extras ?? null;
   if (!v) {
     return (
-      <Layout title="이번 주 빙고" viewer={props.viewer} active="bingo">
+      <Layout title="하리보 빙고" viewer={props.viewer} active="bingo">
         <section class="panel message">
           <h1>빙고를 불러오지 못했어요</h1>
           <p class="muted">잠시 뒤에 다시 들어와 주세요.</p>
@@ -48,7 +172,8 @@ export function BingoPage(props: { viewer: Member; view: BingoView | null }) {
   );
   const near = [...nearCells].map((i) => v.cells[i]!);
   return (
-    <Layout title="이번 주 빙고" viewer={props.viewer} active="bingo">
+    <Layout title="하리보 빙고" viewer={props.viewer} active="bingo">
+      {extras && <ServerQuestBar extras={extras} me={props.viewer.user_id} />}
       <div class="bgo">
         <section class="bgo-board" aria-label="빙고판">
           <header class="bgo-top">
@@ -64,17 +189,23 @@ export function BingoPage(props: { viewer: Member; view: BingoView | null }) {
             {v.cells.map((x, i) => {
               const pct = x.done ? 100 : Math.round((x.value / x.target) * 100);
               return (
-                <div class={`bgo-cell d-${x.diff}${x.done ? ' done' : ''}${lineCells.has(i) ? ' in-line' : ''}${nearCells.has(i) ? ' near' : ''}`}>
-                  <span class="bgo-diff" title={DIFF_LABEL[x.diff]}>
-                    <span aria-hidden="true">{DIFF_STARS[x.diff]}</span>
-                    <span class="sr-only">{DIFF_LABEL[x.diff]}</span>
-                  </span>
+                <div class={`bgo-cell d-${x.diff}${x.center ? ' bgo-center' : ''}${x.done ? ' done' : ''}${lineCells.has(i) ? ' in-line' : ''}${nearCells.has(i) ? ' near' : ''}`}>
+                  {x.center ? (
+                    <span class="bgo-diff bgo-diff-team">팀</span>
+                  ) : (
+                    <span class="bgo-diff" title={DIFF_LABEL[x.diff]}>
+                      <span aria-hidden="true">{DIFF_STARS[x.diff]}</span>
+                      <span class="sr-only">{DIFF_LABEL[x.diff]}</span>
+                    </span>
+                  )}
                   <span class="bgo-icon" aria-hidden="true">
                     {x.icon}
                   </span>
                   <span class="bgo-text">{x.text}</span>
                   {x.done ? (
-                    <span class="bgo-stamp">완료</span>
+                    <span class="bgo-stamp">{x.center && v.team === 'bonus' ? '보너스' : '완료'}</span>
+                  ) : x.center ? (
+                    <span class="bgo-count">{extras?.team && !extras.team.bonus ? `우리 팀 ${extras.team.achievers.length}/${extras.team.target}명` : ''}</span>
                   ) : (
                     <span class="bgo-prog">
                       <span class="bgo-bar" aria-hidden="true">
@@ -99,6 +230,7 @@ export function BingoPage(props: { viewer: Member; view: BingoView | null }) {
         </section>
 
         <aside class="bgo-side">
+          {extras && <TeamPanel extras={extras} view={v} />}
           <section class="panel bgo-score">
             <h2>완성한 줄</h2>
             <p class="bgo-big">
@@ -148,12 +280,24 @@ export function BingoPage(props: { viewer: Member; view: BingoView | null }) {
             )}
           </section>
 
+          {extras && (
+            <section class="panel bgo-ranks">
+              <h2>🍬 젤리피 순위</h2>
+              <p class="bgo-rank-help">젤리피는 쓸 수 없는 기록이에요. 빙고 한 줄 {JP_LINE}, 9칸 {JP_FULL}, 팀 퀘스트 {JP_TEAM}, 서버 퀘스트 {JP_SERVER}.</p>
+              <div class="bgo-rank-cols">
+                <RankList title="이번 시즌" rank={extras.ranks.season} />
+                <RankList title="전체" rank={extras.ranks.all} />
+              </div>
+            </section>
+          )}
+
           <section class="bgo-rules">
             <p>활동하면 칸이 저절로 채워져요. 신청이나 인증은 없어요.</p>
             <p>
               한 줄마다 젤리 {LINE_JELLY}개 + 경험치 {LINE_XP}, 9칸을 다 채우면 젤리 {FULL_JELLY}개 더.
             </p>
-            <p>빙고판은 생명력 주기를 반으로 나눠서, 한 주기에 2번 새로 나와요.</p>
+            <p>가운데 칸은 팀 퀘스트예요. 내가 달성하거나 우리 팀이 목표를 채우면 채워져요.</p>
+            <p>빙고판은 생명력 주기를 반으로 나눠서, 한 주기에 2번 새로 나와요. 팀과 퀘스트는 주기(2주) 내내 이어져요.</p>
           </section>
         </aside>
       </div>
