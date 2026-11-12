@@ -119,7 +119,7 @@ function ServerQuestBar(props: { extras: BingoExtras; me: string }) {
 }
 
 // 가운데 칸 팀 퀘스트 자세히
-function TeamPanel(props: { extras: BingoExtras; view: BingoView }) {
+function TeamPanel(props: { extras: BingoExtras; view: BingoView; me: string }) {
   const t = props.extras.team;
   const state = props.view.team;
   if (!t) {
@@ -130,11 +130,24 @@ function TeamPanel(props: { extras: BingoExtras; view: BingoView }) {
       </section>
     );
   }
-  const names = new Map(t.members.map((m) => [m.id, m.name]));
   const pct = t.target ? Math.round((Math.min(t.achievers.length, t.target) / t.target) * 100) : 100;
+  const done = new Set(t.achievers);
+  const mates = t.members.filter((m) => !m.left);
   return (
     <section class={`panel bgo-team${t.complete ? ' met' : ''}`}>
-      <h2>👫 팀 퀘스트</h2>
+      <h2>👫 팀 퀘스트 · {t.no + 1}팀</h2>
+      <div class="bgo-mates">
+        <b>우리 팀원 {mates.length}명{t.bonus ? '' : ' · ✓ 달성'}</b>
+        <ul aria-label="우리 팀원">
+          {mates.map((m) => (
+            <li class={`${done.has(m.id) ? 'done' : ''}${m.id === props.me ? ' me' : ''}`.trim() || undefined}>
+              {done.has(m.id) ? '✓ ' : ''}
+              {m.name}
+              {m.id === props.me ? ' (나)' : ''}
+            </li>
+          ))}
+        </ul>
+      </div>
       <p class="bgo-team-text">
         지난 2주간 {TEAM_PRIOR_MAX}분 미만 통화자와 이번 시즌에 같은 통화방에서 {TEAM_GOAL_MIN}분 함께하기
       </p>
@@ -148,13 +161,6 @@ function TeamPanel(props: { extras: BingoExtras; view: BingoView }) {
           <div class="bgo-server-bar small" aria-hidden="true">
             <i style={`width:${pct}%`} />
           </div>
-          {t.achievers.length > 0 && (
-            <ul class="bgo-stickers" aria-label="달성한 사람">
-              {t.achievers.map((id) => (
-                <li>{names.get(id) ?? '알 수 없음'}</li>
-              ))}
-            </ul>
-          )}
           <p class={`bgo-team-me s-${state}`}>{TEAM_STATE[state]}</p>
           <p class="bgo-team-reward">
             시즌이 끝날 때 팀 목표를 채웠으면 달성한 사람만 젤리 {TEAM_JELLY}개 + 젤리피 {JP_TEAM}.
@@ -275,7 +281,7 @@ export function BingoPage(props: { viewer: Member; view: BingoView | null; extra
         </section>
 
         <aside class="bgo-side">
-          {extras && <TeamPanel extras={extras} view={v} />}
+          {extras && <TeamPanel extras={extras} view={v} me={props.viewer.user_id} />}
           <section class="panel bgo-score">
             <h2>완성한 줄</h2>
             <p class="bgo-big">

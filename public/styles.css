@@ -703,9 +703,12 @@ main.wide { max-width: 1320px; }
 .bgo-team p { margin: 0 0 4px; font-size: .88rem; overflow-wrap: anywhere; }
 .bgo-team-count b { font-size: 1.6rem; color: var(--pink); }
 .bgo-team-bonus { padding: 6px 8px; background: #fff6d6; border: 2px solid var(--ink); }
-.bgo-stickers { list-style: none; display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 6px; padding: 0; }
-.bgo-stickers li { max-width: 100%; padding: 0 8px; font-size: .8rem; font-weight: 700; background: #ffd3e1; border: 2px solid var(--ink); rotate: -2deg; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bgo-stickers li:nth-child(even) { rotate: 2deg; background: #cfe8ff; }
+.bgo-mates { margin: 0 0 8px; }
+.bgo-mates b { display: block; font-size: .85rem; margin-bottom: 4px; }
+.bgo-mates ul { list-style: none; display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; }
+.bgo-mates li { max-width: 100%; padding: 1px 8px; font-size: .8rem; background: #fff; border: 2px solid var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bgo-mates li.done { background: #d9f7d9; font-weight: 700; }
+.bgo-mates li.me { box-shadow: 0 0 0 2px var(--pink); }
 .bgo-team-me { display: inline-block; padding: 0 8px; font-weight: 700; border: 2px solid var(--ink); background: var(--paper); }
 .bgo-team-me.s-done { background: #c9f2d9; }
 .bgo-team-me.s-team-done { background: #fff6d6; }
