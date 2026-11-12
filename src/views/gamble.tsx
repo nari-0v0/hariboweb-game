@@ -26,6 +26,11 @@ function Art({ name }: { name: string }) {
 const BET_STEPS = [1, 5, 10, 100, 1000, 10000];
 const CARD_RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 
+// 나리가 그린 게임별 배경: 게임 방은 정사각형(room), 로비의 게임 고르기 칸은 가로로 긴 그림(lobby).
+// 게임 방에서 제일 크게 보이는 그림(먼저 받기 시작해요).
+const MAIN_ART: Record<Game, string> = { slot: 'slotFrame', roulette: 'wheel', cards: 'cardBack' };
+const gameBackground = (game: Game, kind: 'room' | 'lobby') => `/gamble/bg/${game}-${kind}.webp?v=2`;
+
 function ArtLayer({ name }: { name: string }) {
   const image = GAMBLE_ART[name]?.image;
   return image ? <img class="gb-art-layer" src={image} alt="" /> : null;
@@ -182,7 +187,7 @@ function CardDeck() {
 
 function GameSurface({ game, round, canBet }: { game: Game; round: Round | null; canBet: boolean }) {
   return (
-    <div class={`gb-game-surface gb-surface-${game}`} style={GAMBLE_ART.background?.image ? `--gb-bg:url(${GAMBLE_ART.background.image})` : undefined}>
+    <div class={`gb-game-surface gb-surface-${game}`} style={`--gb-bg:url(${gameBackground(game, 'room')})`}>
       {game === 'slot' && <SlotReels reels={round ? JSON.parse(round.state) as number[] : undefined} />}
       {game === 'roulette' && <RouletteWheel landed={round ? Number(round.state) : undefined} />}
       {game === 'cards' && (round ? <Cards round={round} /> : <CardDeck />)}
@@ -248,10 +253,9 @@ export function GambleLobby(props: {
   const [balanceRank = [], bestRank = [], allInRank = [], seasonRank = []] = props.ranks;
   const notice = noticeText(props.notice);
   return (
-    <Layout title="겜블장" viewer={props.viewer} active="gamble">
+    <Layout title="겜블장" viewer={props.viewer} active="gamble" preloadImages={(Object.keys(GAMES) as Game[]).map((game) => gameBackground(game, 'lobby'))}>
       <div class="gb-page">
         <section class="gb-panel gb-lobby-intro">
-          <ArtLayer name="background" />
           <h1>겜블장 <Art name="slot" /></h1>
           <ChipBalance balance={balance} />
           {props.daily && <p role="status">오늘 칩 1000개 받았어요.</p>}
@@ -266,7 +270,7 @@ export function GambleLobby(props: {
         </section>
         <nav class="gb-games" aria-label="게임 고르기">
           {(Object.keys(GAMES) as Game[]).map((game) => (
-            <a class="gb-panel gb-game-link" href={`/gamble/${game}`}>
+            <a class="gb-panel gb-game-link" href={`/gamble/${game}`} style={`--gb-bg:url(${gameBackground(game, 'lobby')})`}>
               <span class="gb-game-link-icon"><Art name={game} /></span>
               <strong>{GAMES[game]}</strong>
               {game === 'cards' && props.inProgress && <span class="gb-game-progress">진행 중</span>}
@@ -297,7 +301,8 @@ export function GambleRoom(props: {
   const motion = result ?? (hand && hand.token === props.result?.token ? hand : null);
   const notice = noticeText(props.notice);
   return (
-    <Layout title={GAMES[game]} viewer={props.viewer} active="gamble" scripts={[{ src: '/gamble.js?v=3', type: 'module' }]}>
+    <Layout title={GAMES[game]} viewer={props.viewer} active="gamble" scripts={[{ src: '/gamble.js?v=3', type: 'module' }]}
+      preloadImages={[gameBackground(game, 'room'), ...[MAIN_ART[game]].flatMap((name) => GAMBLE_ART[name]?.image ?? [])]}>
       <div class="gb-page gb-room-page">
         <div class="gb-room-bar">
           <a href="/gamble">← 겜블장</a>

@@ -1862,7 +1862,7 @@ main.wide { max-width: 1320px; }
 .gb-reel-symbol .gb-art { width: 1.3em; height: 1.3em; }
 /* 겜블장 배경 그림: 게임 판은 초록 테이블 위에, 로비 첫 상자는 어둡게 덮어 글씨가 잘 보이게 */
 .gb-game-surface[style*="--gb-bg"] {
-  background: var(--gb-bg) center 75% / cover no-repeat;
+  background: var(--gb-bg) center / cover no-repeat;
   border: 3px solid #273551;
   padding: .9rem .6rem;
   color: #fff8e6;
@@ -1940,3 +1940,13 @@ main.wide { max-width: 1320px; }
 .gb-card-back:has(> .gb-art), .gb-card-deck:has(> .gb-art) { border: 0; box-shadow: none; background: none; }
 .gb-card-deck:has(> .gb-art) { width: 3.3rem; height: auto; aspect-ratio: 424 / 592; }
 .gb-card-back .gb-art, .gb-card-deck .gb-art { image-rendering: pixelated; }
+/* 로비의 게임 고르기 칸: 게임마다 나리가 그린 가로 그림을 깔고 글씨는 밝게 */
+.gb-game-link[style*="--gb-bg"] {
+  background: var(--gb-bg) center / cover no-repeat;
+  color: #fff3d6;
+  text-shadow: 0 1px 0 #000, 0 0 4px #000;
+  min-height: 7.5rem;
+}
+.gb-game-link[style*="--gb-bg"]:hover, .gb-game-link[style*="--gb-bg"]:focus-visible { background: var(--gb-bg) center / cover no-repeat; filter: brightness(1.15); }
+.gb-game-link[style*="--gb-bg"] strong { color: #ffd75e; font-size: 1.1rem; }
+.gb-game-link[style*="--gb-bg"] .gb-game-progress { color: #202944; text-shadow: none; }

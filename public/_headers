@@ -19,3 +19,6 @@
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
 /journey/*
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+# 겜블장 그림은 주소 끝 ?v=숫자를 바꿔서 새로 받게 하니, 브라우저에 오래 두고 다시 묻지 않아요.
+/gamble/*
+  Cache-Control: public, max-age=31536000, immutable
