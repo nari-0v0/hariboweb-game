@@ -6,10 +6,12 @@ import { describe, expect, it } from 'vitest';
 import {
   approvedBlocks,
   blockKey,
+  cancelBlock,
   decideBlock,
   isEmptyReason,
   listUnpostedBlocks,
   markBlockPosted,
+  myBlocks,
   parseVerdict,
   requestBlock,
   separateBlocked,
@@ -108,6 +110,28 @@ describe('신청', () => {
     for (const to of [B, C, D]) expect(await requestBlock(db, undefined, A, to, REASON, false, NOW)).toBe('done');
     expect(await requestBlock(db, undefined, A, B, REASON, false, NOW)).toBe('dup');
     expect(await requestBlock(db, undefined, A, ids[4]!, REASON, false, NOW)).toBe('limit');
+  });
+
+  it('승인된 사람도 3명 안에 세고, 풀기로 바로 지워서 다시 고를 수 있어요', async () => {
+    // 나리: 최대 3명까지 제외. 잘못 눌렀거나 다시 같이 놀고 싶으면 풀 수 있어야 해요
+    const { db } = fakeD1();
+    for (const to of [B, C, D]) await requestBlock(db, undefined, A, to, REASON, false, NOW);
+    const [first] = await listUnpostedBlocks(db);
+    await decideBlock(db, first!.id, 'approved', '7'.repeat(18), NOW);
+    expect(await requestBlock(db, undefined, A, ids[4]!, REASON, false, NOW)).toBe('limit');
+    expect(await requestBlock(db, undefined, A, B, REASON, false, NOW)).toBe('dup');
+    const mine = await myBlocks(db, A);
+    expect(mine.map((b) => b.state)).toEqual(['approved', 'review', 'review']);
+    // 남의 요청은 못 풀어요
+    expect(await cancelBlock(db, B, mine[0]!.id)).toBe(false);
+    expect(await cancelBlock(db, A, mine[0]!.id)).toBe(true);
+    expect(await approvedBlocks(db)).toEqual(new Set());
+    expect(await requestBlock(db, undefined, A, ids[4]!, REASON, false, NOW)).toBe('done');
+    // 지운 요청을 나리가 누르면 없는 요청(봇은 "지워졌어요"로 닫아요)
+    expect(await decideBlock(db, mine[0]!.id, 'approved', '7'.repeat(18), NOW)).toBeNull();
+    // 나리가 반려한 요청은 목록과 3명에서 빠져요
+    await decideBlock(db, mine[1]!.id, 'rejected', '7'.repeat(18), NOW);
+    expect((await myBlocks(db, A)).map((b) => b.id)).not.toContain(mine[1]!.id);
   });
 });
 

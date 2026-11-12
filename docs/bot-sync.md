@@ -198,6 +198,8 @@ Content-Type: application/json
 - `POST /api/bot/assign-blocks/:id/decide` `{ "decision": "approve"|"reject", "by": "누른 사람 디스코드 ID" }` → `{ "applied": true|false, "status": "approved|rejected|pending", "decided_at": "ISO|null" }`
   - 대기 중이거나 AI가 거른 요청일 때만 적용돼요. 두 번 눌러도 처음 결정만 남아요(`applied: false`면 이미 처리된 것).
   - 누가 누를 수 있는지(나리만)는 봇이 확인해요.
+  - 없는 요청이면 `404`예요. 신청한 사람이 웹에서 [풀기]를 눌렀거나, 둘 중 한 명이 서버를 떠나 지워진 경우예요. 봇은 메시지를 "지워졌어요"로 닫아요.
+- 한 사람이 제외할 수 있는 사람은 최대 3명(검토 중 + 승인)이에요. 멤버는 `/bingo`에서 [풀기]로 언제든 바로 지울 수 있어요(승인 없이, 다음 팀 짜기부터 적용).
 
 ## 광장 실시간 연결
 

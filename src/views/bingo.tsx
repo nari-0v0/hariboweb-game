@@ -14,19 +14,47 @@ import {
   TEAM_PRIOR_MAX,
 } from '../team';
 import { Layout } from './layout';
-import { BLOCK_HELP, BLOCK_MAX_PENDING, BLOCK_NOTICE, BLOCK_QUESTION, BLOCK_REASON_MAX } from '../assign-block';
+import { BLOCK_HELP, BLOCK_LIMIT_NOTICE, BLOCK_MAX_PENDING, BLOCK_NOTICE, BLOCK_QUESTION, BLOCK_REASON_MAX, BLOCK_UNDO_NOTICE, type MyBlock } from '../assign-block';
 
 // 같이 배정되지 않기: 다시 물을 때 적은 내용을 그대로 보여 줘요
 export type BlockForm = { to: string; reason: string; msg: string; asked: boolean };
-export type BlockBox = { candidates: { id: string; name: string }[]; form?: BlockForm; sent?: boolean };
+export type BlockBox = { candidates: { id: string; name: string }[]; form?: BlockForm; sent?: boolean; mine?: MyBlock[]; undone?: boolean };
 
 function BlockSection(props: { box: BlockBox }) {
-  const { candidates, form, sent } = props.box;
+  const { candidates, form, sent, undone } = props.box;
+  const mine = props.box.mine ?? [];
+  const full = mine.length >= BLOCK_MAX_PENDING;
   return (
-    <details class="panel bgo-block" id="block" open={!!form || !!sent}>
+    <details class="panel bgo-block" id="block" open={!!form || !!sent || !!undone}>
       <summary>🚫 같이 배정되지 않기</summary>
+      <p class="bgo-block-limit">{BLOCK_LIMIT_NOTICE}</p>
+      {mine.length > 0 && (
+        <div class="bgo-block-mine">
+          <b>
+            내가 제외한 사람 {mine.length} / {BLOCK_MAX_PENDING}명
+          </b>
+          <ul>
+            {mine.map((b) => (
+              <li>
+                <span class="bgo-block-name">{b.name}</span>
+                <span class="bgo-block-state">{b.state === 'approved' ? '제외됨' : '검토 중'}</span>
+                <form method="post" action="/bingo/block/cancel#block">
+                  <input type="hidden" name="id" value={String(b.id)} />
+                  <button class="btn btn-small" type="submit">
+                    풀기
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+          <p class="bgo-block-notice">{BLOCK_UNDO_NOTICE}</p>
+        </div>
+      )}
+      {undone && <p class="bgo-block-done">풀었어요. 다음 팀 짜기부터 다시 같은 팀이 될 수 있어요.</p>}
       {sent ? (
         <p class="bgo-block-done">접수했어요.</p>
+      ) : full ? (
+        <p class="bgo-block-msg">이미 {BLOCK_MAX_PENDING}명을 제외했어요. 다른 사람을 제외하려면 위에서 한 명을 풀어 주세요.</p>
       ) : (
         <form method="post" action="/bingo/block#block" class="bgo-block-form">
           <label class="bgo-block-label" for="block-find">
@@ -49,8 +77,14 @@ function BlockSection(props: { box: BlockBox }) {
             {form?.reason ?? ''}
           </textarea>
           {form?.asked && <input type="hidden" name="asked" value="1" />}
-          <p class="bgo-block-notice">{BLOCK_NOTICE}</p>
-          <p class="bgo-block-notice">상대에게는 아무 알림도 가지 않아요. 접수 중인 요청은 {BLOCK_MAX_PENDING}개까지예요.</p>
+          <p class="bgo-block-notice">
+            {BLOCK_NOTICE.map((line, i) => (
+              <>
+                {i > 0 && <br />}
+                {line}
+              </>
+            ))}
+          </p>
           <button class="btn" type="submit">
             보내기
           </button>

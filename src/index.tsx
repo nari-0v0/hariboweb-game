@@ -60,7 +60,7 @@ import { groupViewFor, seasonRanking } from './season';
 import { currentPeriod, grantBingo, markFlag, myBingo, todayPartners, LINE_JELLY, LINE_XP, FULL_JELLY } from './bingo';
 import { BingoPage } from './views/bingo';
 import { KIDNAP_MIN, SERVER_JELLY, TEAM_GOAL_MIN, TEAM_JELLY, TEAM_PRIOR_MAX, bingoExtras, loadServerQuest, loadTeams, myTeamState, rankTeams, seasonAt } from './team';
-import { BLOCK_MAX_PENDING, BLOCK_MORE, blockCandidates, decideBlock, listUnpostedBlocks, markBlockPosted, requestBlock } from './assign-block';
+import { BLOCK_MAX_PENDING, BLOCK_MORE, blockCandidates, cancelBlock, decideBlock, listUnpostedBlocks, markBlockPosted, myBlocks, requestBlock } from './assign-block';
 import { checkNote, cleanNote, hidePraiseNote, markPraiseSeen, praiseBox, praiseDayLabel, PRAISE_NOTE_MAX } from './praise-note';
 import type { BlockForm } from './views/bingo';
 import { GuidePage } from './views/guide';
@@ -1098,12 +1098,14 @@ members.get('/group', async (c) => {
 async function bingoPage(c: Context<AppEnv>, form?: BlockForm) {
   const viewer = c.get('viewer');
   const view = await myBingo(c.env.DB, viewer.user_id, Date.now());
-  const [extras, candidates] = await Promise.all([
+  const [extras, candidates, mine] = await Promise.all([
     view ? bingoExtras(c.env.DB, viewer.user_id, view.week.start) : Promise.resolve(null),
     blockCandidates(c.env.DB, viewer.user_id),
+    myBlocks(c.env.DB, viewer.user_id),
   ]);
   const sent = c.req.query('blocked') === '1';
-  return page(c, <BingoPage viewer={viewer} view={view} extras={extras} block={{ candidates, form, sent }} />);
+  const undone = c.req.query('unblocked') === '1';
+  return page(c, <BingoPage viewer={viewer} view={view} extras={extras} block={{ candidates, form, sent, mine, undone }} />);
 }
 
 members.get('/bingo', (c) => bingoPage(c));
@@ -1121,12 +1123,21 @@ members.post('/bingo/block', async (c) => {
   const msg = {
     self: '나 자신은 고를 수 없어요.',
     unknown: '지금 서버에 있는 멤버를 골라 주세요.',
-    dup: '이 멤버에 대한 요청이 이미 접수돼 있어요.',
-    limit: `접수 중인 요청은 ${BLOCK_MAX_PENDING}개까지예요. 처리된 뒤에 다시 적어 주세요.`,
+    dup: '이 멤버는 이미 제외했거나 검토 중이에요.',
+    limit: `최대 ${BLOCK_MAX_PENDING}명까지 배정을 제외시킬 수 있어요. 다른 사람을 제외하려면 위에서 한 명을 풀어 주세요.`,
     empty: BLOCK_MORE,
     more: BLOCK_MORE,
   }[result];
   return bingoPage(c, { to, reason, msg, asked: asked || result === 'more' });
+});
+
+// 같이 배정되지 않기 풀기(내 요청만). 승인 없이 바로 지워요.
+members.post('/bingo/block/cancel', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const body = await c.req.parseBody();
+  const id = Number(body.id);
+  if (Number.isSafeInteger(id) && id > 0) await cancelBlock(c.env.DB, c.get('viewer').user_id, id);
+  return c.redirect('/bingo?unblocked=1#block');
 });
 
 members.get('/plaza', (c) => page(c, <PlazaPage viewer={c.get('viewer')} guildId={c.env.GUILD_ID} />));

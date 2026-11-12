@@ -681,6 +681,15 @@ main.wide { max-width: 1320px; }
 .bgo-block-help, .bgo-block-notice { margin: 0; font-size: .8rem; color: var(--ink-soft); overflow-wrap: anywhere; }
 .bgo-block-msg { margin: 0; padding: 6px 8px; font-size: .85rem; background: #fff6d6; border: 2px solid var(--ink); }
 .bgo-block-done { margin: 10px 0 0; font-weight: 700; }
+.bgo-block-limit { margin: 10px 0 0; font-weight: 700; color: var(--pink); }
+.bgo-block-mine { margin-top: 10px; }
+.bgo-block-mine b { font-size: .9rem; }
+.bgo-block-mine ul { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 4px; }
+.bgo-block-mine li { display: flex; align-items: center; gap: 8px; padding: 4px 8px; background: #fff; border: 2px solid var(--ink); }
+.bgo-block-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bgo-block-state { font-size: .8rem; color: var(--ink-soft); }
+.bgo-block-mine form { margin: 0; }
+.bgo-block-mine .btn { margin: 0; }
 .bgo-block .btn { justify-self: start; margin-top: 4px; }
 .bgo-server { max-width: 940px; margin: 8px auto 4px; padding: 14px 18px; background: #e9fbef; color: var(--ink); }
 .bgo-server.met { background: #fff6d6; }
