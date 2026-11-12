@@ -1,6 +1,6 @@
 import type { Member } from '../env';
 import { GAMBLE_ART, SLOT_ART } from '../gamble-art';
-import { CHERRY_PAIR, ROULETTE, SLOTS, WHEEL, rankOf } from '../gamble';
+import { CHERRY_PAIR, ROULETTE, SLOTS, WHEEL, payback, rankOf } from '../gamble';
 import { gambleDay, publicHand, type GambleAccount, type Game, type Round } from '../gamble-db';
 import { Layout } from './layout';
 
@@ -76,57 +76,26 @@ function SlotReels({ reels }: { reels?: number[] }) {
   );
 }
 
-// 판에는 20칸을 모두 같은 크기로 그려요. 배수가 있는 8칸이 0배 칸 사이사이에 고르게 흩어지게 놓아요.
-// (확률은 WHEEL 그대로이고, 여기는 그리는 순서만 정해요.)
-const WHEEL_PAYING = [1, 2, 1, 3, 1, 2, 1, 10];
-const WHEEL_ORDER: number[] = (() => {
-  const zeros = WHEEL.length - WHEEL_PAYING.length;
-  const out: number[] = [];
-  let placedZeros = 0;
-  WHEEL_PAYING.forEach((payout, n) => {
-    // n번째 배수 칸 앞까지 놓여 있어야 할 0배 칸 수만큼 채워요.
-    const due = Math.round(((n + 1) * zeros) / WHEEL_PAYING.length);
-    for (; placedZeros < due; placedZeros++) out.push(0);
-    out.push(payout);
-  });
-  return out;
-})();
-const SECTOR = 360 / WHEEL.length;
-// WHEEL 번호 i가 판의 몇 번째 칸(k)에 그려지는지
-const WHEEL_POS = (() => {
-  const free = new Map<number, number[]>();
-  WHEEL.forEach((p, i) => free.set(p, [...(free.get(p) ?? []), i]));
-  const pos: number[] = [];
-  WHEEL_ORDER.forEach((payout, k) => { pos[free.get(payout)!.shift()!] = k; });
-  if (WHEEL_ORDER.length !== WHEEL.length || [...free.values()].some((l) => l.length)) throw new Error('룰렛 칸 순서가 WHEEL과 안 맞아요');
-  return pos;
-})();
-// 고급 카지노 느낌: 0배는 칠흑, 배수 칸은 짙은 보석색(에메랄드·와인·사파이어), 10배만 금색.
-const PAYOUT_COLORS: Record<number, string> = {
-  0: '#141217', 1: '#0e4d35', 2: '#6d1426', 3: '#1c3466', 5: '#4a2266', 10: '#c9a227',
-};
-// 칸 사이에 가는 금색 줄을 그어요.
-const WHEEL_FILL = `conic-gradient(from -${SECTOR / 2}deg, ${WHEEL_ORDER.map((payout, k) =>
-  `#b8913a ${k * SECTOR}deg ${k * SECTOR + 0.8}deg, ${PAYOUT_COLORS[payout]} ${k * SECTOR + 0.8}deg ${(k + 1) * SECTOR}deg`).join(', ')})`;
+// 룰렛 판 그림(나리 그림)은 같은 크기 8칸이에요. 12시 방향 칸부터 시계 방향으로 이 배수예요.
+// 나올 확률은 그림 크기와 상관없이 서버의 ROULETTE(WHEEL)가 정하고, 여기서는 나온 배수 칸으로 판을 돌려 세워요.
+const DISC_SLICES = [0, 0.5, 1, 1.5, 2, 3, 5, 10];
+const SLICE = 360 / DISC_SLICES.length;
+if (ROULETTE.some(({ payout }) => !DISC_SLICES.includes(payout))) throw new Error('룰렛 판 그림에 없는 배수가 있어요');
 
 function RouletteWheel({ landed: raw }: { landed?: number }) {
-  // 예전 40칸 룰렛 판 결과 번호는 지금 판에 없으니 멈춘 칸 표시 없이 그려요.
+  // 예전 판(40칸·20칸) 결과 번호는 지금 판에 없을 수 있어서, 그때는 멈춘 칸 없이 그려요.
   const landed = raw !== undefined && raw < WHEEL.length ? raw : undefined;
-  const landedAt = landed === undefined ? -1 : WHEEL_POS[landed]!;
+  const slice = landed === undefined ? 0 : DISC_SLICES.indexOf(WHEEL[landed]!);
+  // 칸 한가운데만 서지 않게, 결과 번호에 따라 칸 안에서 조금씩 다른 자리에 서요(칸 폭 45도 중 ±15도).
+  const wobble = landed === undefined ? 0 : ((landed * 37) % 31) - 15;
   return (
     <div class={`gb-wheel-stage${GAMBLE_ART.wheel?.image ? ' gb-wheel-stage--rim' : ''}`}>
       <div class="gb-wheel-pointer" aria-hidden="true"><Art name="pointer" /></div>
       <div class="gb-wheel-viewport">
-        <div class="gb-wheel-disc" data-gb-landed={landed}
-          style={`--gb-wheel-fill:${WHEEL_FILL};--gb-wheel-stop:${-WHEEL_POS[landed ?? 0]! * SECTOR}deg`}
-          aria-hidden="true">
-          {/* 배수가 있는 칸에만 숫자를 적어요. 검은 칸은 0배예요. */}
-          {WHEEL_ORDER.map((payout, k) => payout > 0 && (
-            <span class={`gb-wheel-label${payout >= 5 ? ' gb-wheel-label--big' : ''}`} aria-current={k === landedAt ? 'true' : undefined}
-              style={`--gb-wheel-angle:${k * SECTOR}deg`}>×{payout}</span>
-          ))}
+        <div class="gb-wheel-disc gb-wheel-disc--art" data-gb-landed={landed}
+          style={`--gb-wheel-stop:${-(slice * SLICE + wobble)}deg`} aria-hidden="true">
+          <img class="gb-wheel-disc-img" src={GAMBLE_ART.wheelDisc!.image} alt="" />
         </div>
-        {landed !== undefined && <div class="gb-wheel-hub" data-gb-reveal="">{WHEEL[landed]}배</div>}
       </div>
       {/* 테두리 그림은 판과 같이 돌지 않게 판 바깥에 덮어요. */}
       <ArtLayer name="wheel" />
@@ -203,7 +172,7 @@ function GameSurface({ game, round, canBet }: { game: Game; round: Round | null;
 
 function Result({ round, balance }: { round: Round; balance: number }) {
   const multiplier = round.multiplier!;
-  const net = round.bet * (multiplier - 1);
+  const net = payback(round.bet, multiplier) - round.bet;
   return (
     <div class="gb-round-result" aria-live="polite" data-gb-reveal>
       <h2>{net > 0 ? `칩 ${chips(net)}개 이겼어요!` : net < 0 ? `칩 ${chips(-net)}개 잃었어요` : '본전이에요'}</h2>
@@ -223,7 +192,7 @@ function GameRules({ game }: { game: Game }) {
           <p><Art name="cherry" /> 2개는 {CHERRY_PAIR}배예요.</p>
         </>
       )}
-      {game === 'roulette' && <p>1배는 본전이에요. {ROULETTE.map(({ payout, count }) => `${payout}배 ${count}칸`).join(' · ')}</p>}
+      {game === 'roulette' && <p>1배는 본전이고, 0.5배·1.5배는 받을 칩을 내림해요. 나올 확률: {ROULETTE.map(({ payout, count }) => `${payout}배 ${count}%`).join(' · ')}</p>}
       {game === 'cards' && <p>딜러는 17점부터 멈춰요. 승리 2배 · 첫 두 장으로 21을 만들어 이기면 3배 · 비기면 1배</p>}
     </details>
   );

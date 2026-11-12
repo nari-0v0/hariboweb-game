@@ -1968,3 +1968,6 @@ main.wide { max-width: 1320px; }
   color: #f3d27a; font-size: 7cqw; font-weight: 700; text-shadow: 0 1px #000;
 }
 .gb-game-surface[style*="--gb-bg"] .gb-wheel-stage { width: min(92%, 20rem); margin: 0 auto; }
+/* 나리가 그린 룰렛 판(8칸): 그림을 통째로 돌려요. */
+.gb-wheel-disc--art { background: none; border: 0; }
+.gb-wheel-disc-img { display: block; width: 100%; height: 100%; image-rendering: pixelated; }

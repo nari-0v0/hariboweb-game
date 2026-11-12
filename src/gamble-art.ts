@@ -15,6 +15,7 @@ export const GAMBLE_ART: Record<string, GambleArt> = {
   coin: { text: '🪙', image: '/gamble/chip.webp?v=2' },
   slotFrame: { text: '', image: '/gamble/slot-frame.webp?v=2' },
   wheel: { text: '', image: '/gamble/wheel-rim.webp?v=2' },
+  wheelDisc: { text: '', image: '/gamble/wheel-disc.webp?v=1' },
   pointer: { text: '▼', image: '/gamble/pointer.webp?v=2' },
   cardBack: { text: '🂠', image: '/gamble/card-back.webp?v=2' },
   cardFront: { text: '' },
