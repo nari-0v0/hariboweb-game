@@ -295,6 +295,8 @@ export async function applySync(
     stmts.push(db.prepare('DELETE FROM rooms WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM jellypi WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM room_likes WHERE from_id = ?1 OR to_id = ?1').bind(id));
+    // 같이 배정되지 않기 요청도(신청했든 받았든) 지워요. 사유가 채널에 새로 올라가지 않게요.
+    stmts.push(db.prepare('DELETE FROM assign_blocks WHERE from_id = ?1 OR to_id = ?1').bind(id));
     stmts.push(db.prepare("UPDATE purchases SET status = 'failed', reason = 'left' WHERE user_id = ? AND status = 'pending'").bind(id));
   }
 

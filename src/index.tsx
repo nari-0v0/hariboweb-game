@@ -60,6 +60,8 @@ import { groupViewFor, seasonRanking } from './season';
 import { currentPeriod, grantBingo, markFlag, myBingo, todayPartners, LINE_JELLY, LINE_XP, FULL_JELLY } from './bingo';
 import { BingoPage } from './views/bingo';
 import { bingoExtras } from './team';
+import { BLOCK_MAX_PENDING, BLOCK_MORE, blockCandidates, decideBlock, listUnpostedBlocks, markBlockPosted, requestBlock } from './assign-block';
+import type { BlockForm } from './views/bingo';
 import { GuidePage } from './views/guide';
 import { TitlesPage } from './views/titles';
 import { titleById, titleProgress } from './titles';
@@ -311,6 +313,41 @@ app.post('/api/bot/refunds/:id', async (c) => {
 });
 
 const isDiscordId = (v: unknown): v is string => typeof v === 'string' && /^\d{17,20}$/.test(v);
+
+// 같이 배정되지 않기: 봇이 아직 안 올린 요청을 가져가 비공개 채널에 올리고, 올린 메시지 번호와 나리의 결정을 알려요.
+app.get('/api/bot/assign-blocks', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  return c.json({ blocks: await listUnpostedBlocks(c.env.DB) });
+});
+
+app.post('/api/bot/assign-blocks/:id/posted', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  const id = Number(c.req.param('id'));
+  let body: { message_id?: unknown };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'bad_json' }, 400);
+  }
+  if (!Number.isSafeInteger(id) || !isDiscordId(body.message_id)) return c.json({ error: 'bad_id' }, 400);
+  return c.json({ ok: true, changed: await markBlockPosted(c.env.DB, id, body.message_id, Date.now()) });
+});
+
+app.post('/api/bot/assign-blocks/:id/decide', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  const id = Number(c.req.param('id'));
+  let body: { decision?: unknown; by?: unknown };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'bad_json' }, 400);
+  }
+  if (!Number.isSafeInteger(id) || !isDiscordId(body.by)) return c.json({ error: 'bad_id' }, 400);
+  if (body.decision !== 'approve' && body.decision !== 'reject') return c.json({ error: 'bad_decision' }, 400);
+  const r = await decideBlock(c.env.DB, id, body.decision === 'approve' ? 'approved' : 'rejected', body.by, Date.now());
+  if (!r) return c.json({ error: 'not_found' }, 404);
+  return c.json(r);
+});
 
 // 디스코드 고정 패널 "내 카드". 봇이 이 정보로 카드 그림과 안내를 만들어요.
 app.get('/api/bot/card/:id', async (c) => {
@@ -1168,11 +1205,38 @@ members.get('/group', async (c) => {
   return page(c, <GroupPage viewer={viewer} view={view} />);
 });
 
-members.get('/bingo', async (c) => {
+async function bingoPage(c: Context<AppEnv>, form?: BlockForm) {
   const viewer = c.get('viewer');
   const view = await myBingo(c.env.DB, viewer.user_id, Date.now());
-  const extras = view ? await bingoExtras(c.env.DB, viewer.user_id, view.week.start) : null;
-  return page(c, <BingoPage viewer={viewer} view={view} extras={extras} />);
+  const [extras, candidates] = await Promise.all([
+    view ? bingoExtras(c.env.DB, viewer.user_id, view.week.start) : Promise.resolve(null),
+    blockCandidates(c.env.DB, viewer.user_id),
+  ]);
+  const sent = c.req.query('blocked') === '1';
+  return page(c, <BingoPage viewer={viewer} view={view} extras={extras} block={{ candidates, form, sent }} />);
+}
+
+members.get('/bingo', (c) => bingoPage(c));
+
+// 같이 배정되지 않기 신청. 다시 물어야 하면 적은 내용을 그대로 두고 화면을 다시 보여 줘요.
+members.post('/bingo/block', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const body = await c.req.parseBody();
+  const to = String(body.to ?? '');
+  const reason = String(body.reason ?? '');
+  const asked = body.asked === '1';
+  if (!isDiscordId(to)) return bingoPage(c, { to: '', reason, msg: '같이 배정되지 않을 멤버를 골라 주세요.', asked });
+  const result = await requestBlock(c.env.DB, c.env.AI, c.get('viewer').user_id, to, reason, asked, Date.now());
+  if (result === 'done') return c.redirect('/bingo?blocked=1#block');
+  const msg = {
+    self: '나 자신은 고를 수 없어요.',
+    unknown: '지금 서버에 있는 멤버를 골라 주세요.',
+    dup: '이 멤버에 대한 요청이 이미 접수돼 있어요.',
+    limit: `접수 중인 요청은 ${BLOCK_MAX_PENDING}개까지예요. 처리된 뒤에 다시 적어 주세요.`,
+    empty: BLOCK_MORE,
+    more: BLOCK_MORE,
+  }[result];
+  return bingoPage(c, { to, reason, msg, asked: asked || result === 'more' });
 });
 
 members.get('/plaza', (c) => page(c, <PlazaPage viewer={c.get('viewer')} guildId={c.env.GUILD_ID} />));

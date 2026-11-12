@@ -220,3 +220,21 @@ addEventListener('pageshow', (e) => {
   };
   setInterval(check, 1000);
 })();
+
+// 같이 배정되지 않기: 이름으로 멤버 목록 좁히기
+(() => {
+  document.querySelectorAll('input[data-filter]').forEach((input) => {
+    const select = document.getElementById(input.dataset.filter);
+    if (!select) return;
+    input.addEventListener('input', () => {
+      const q = input.value.trim().toLowerCase();
+      let first = null;
+      for (const opt of select.options) {
+        const show = !q || opt.textContent.toLowerCase().includes(q);
+        opt.hidden = !show;
+        if (show && !first) first = opt;
+      }
+      if (first && (select.selectedIndex < 0 || select.options[select.selectedIndex].hidden)) first.selected = true;
+    });
+  });
+})();

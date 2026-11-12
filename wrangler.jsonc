@@ -15,6 +15,8 @@
     }
   ],
   // 광장(같이 돌아다니는 지도) 실시간 연결. 무료 요금제는 SQLite 방식만 쓸 수 있어요.
+  // Workers AI(무료 사용량): 같이 배정되지 않기 사유 검토
+  "ai": { "binding": "AI" },
   "durable_objects": {
     "bindings": [{ "name": "PLAZA", "class_name": "PlazaRoom" }]
   },

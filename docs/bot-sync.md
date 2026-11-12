@@ -174,6 +174,17 @@ Content-Type: application/json
   `cells`는 왼쪽 위부터 9칸, `lines`는 채운 줄 번호(0~2 가로, 3~5 세로, 6·7 대각선), `unit`이 `"min"`이면 값이 분이에요.
 - 알림(DM·채팅)은 보내지 않아요. 고정 패널과 웹 `/bingo`에서만 보여요.
 
+## 같이 배정되지 않기
+
+멤버가 웹 `/bingo`에서 적은 요청을 봇이 비공개 채널에 올리고, 나리가 [승인]/[반려]를 눌러요. 승인된 짝은 다음 팀 짜기와 시즌 중간 합류에서 같은 팀에 넣지 않아요. 모두 `Authorization: Bearer <BOT_SYNC_SECRET>`.
+
+- `GET /api/bot/assign-blocks` → `{ "blocks": [{ "id": 1, "from": {"id","name"}, "to": {"id","name"}, "reason": "...", "ai_verdict": "ok|vague|null", "ai_summary": "한 줄 요약|null", "created_at": "ISO" }] }`
+  - 아직 채널에 안 올린 대기 요청, 오래된 것부터 최대 10개. AI가 장난·내용 없음으로 본 요청(`ai_rejected`)은 오지 않아요.
+- `POST /api/bot/assign-blocks/:id/posted` `{ "message_id": "디스코드 메시지 ID" }` → `{ "ok": true, "changed": true|false }` (처음 한 번만 적혀요)
+- `POST /api/bot/assign-blocks/:id/decide` `{ "decision": "approve"|"reject", "by": "누른 사람 디스코드 ID" }` → `{ "applied": true|false, "status": "approved|rejected|pending", "decided_at": "ISO|null" }`
+  - 대기 중일 때만 적용돼요. 두 번 눌러도 처음 결정만 남아요(`applied: false`면 이미 처리된 것).
+  - 누가 누를 수 있는지(나리만)는 봇이 확인해요.
+
 ## 광장 실시간 연결
 
 광장(`/plaza`)은 같이 돌아다니는 지도예요. 봇은 웹소켓 하나로 이어져서 통화방 모습과 통화방 채팅을 보내고, 방 옮기기 요청을 받아요. 아무것도 저장하지 않아요(통화방 모습만 다시 깨어날 때를 위해 광장 안에 들고 있어요).

@@ -673,6 +673,15 @@ main.wide { max-width: 1320px; }
 .bgo-rules p::before { content: '· '; }
 
 /* 하리보 빙고: 서버 퀘스트 막대, 팀 퀘스트, 젤리피 순위 */
+.bgo-block { max-width: 940px; margin: 20px auto 0; padding: 12px 18px; color: var(--ink); }
+.bgo-block summary { cursor: pointer; font-weight: 700; }
+.bgo-block-form { display: grid; gap: 6px; margin-top: 10px; }
+.bgo-block-label { font-weight: 700; font-size: .9rem; margin-top: 6px; overflow-wrap: anywhere; }
+.bgo-block-find, .bgo-block select, .bgo-block textarea { width: 100%; box-sizing: border-box; font: inherit; padding: 6px 8px; background: #fff; color: var(--ink); border: 2px solid var(--ink); }
+.bgo-block-help, .bgo-block-notice { margin: 0; font-size: .8rem; color: var(--ink-soft); overflow-wrap: anywhere; }
+.bgo-block-msg { margin: 0; padding: 6px 8px; font-size: .85rem; background: #fff6d6; border: 2px solid var(--ink); }
+.bgo-block-done { margin: 10px 0 0; font-weight: 700; }
+.bgo-block .btn { justify-self: start; margin-top: 4px; }
 .bgo-server { max-width: 940px; margin: 8px auto 4px; padding: 14px 18px; background: #e9fbef; color: var(--ink); }
 .bgo-server.met { background: #fff6d6; }
 .bgo-server-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

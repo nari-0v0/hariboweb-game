@@ -14,6 +14,51 @@ import {
   TEAM_PRIOR_MAX,
 } from '../team';
 import { Layout } from './layout';
+import { BLOCK_HELP, BLOCK_MAX_PENDING, BLOCK_NOTICE, BLOCK_QUESTION, BLOCK_REASON_MAX } from '../assign-block';
+
+// 같이 배정되지 않기: 다시 물을 때 적은 내용을 그대로 보여 줘요
+export type BlockForm = { to: string; reason: string; msg: string; asked: boolean };
+export type BlockBox = { candidates: { id: string; name: string }[]; form?: BlockForm; sent?: boolean };
+
+function BlockSection(props: { box: BlockBox }) {
+  const { candidates, form, sent } = props.box;
+  return (
+    <details class="panel bgo-block" id="block" open={!!form || !!sent}>
+      <summary>🚫 같이 배정되지 않기</summary>
+      {sent ? (
+        <p class="bgo-block-done">접수했어요.</p>
+      ) : (
+        <form method="post" action="/bingo/block#block" class="bgo-block-form">
+          <label class="bgo-block-label" for="block-find">
+            멤버
+          </label>
+          <input id="block-find" class="bgo-block-find" type="search" placeholder="이름으로 찾기" autocomplete="off" data-filter="block-to" />
+          <select id="block-to" name="to" required size={5}>
+            {candidates.map((m) => (
+              <option value={m.id} selected={form?.to === m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+          <label class="bgo-block-label" for="block-reason">
+            {BLOCK_QUESTION}
+          </label>
+          <p class="bgo-block-help">{BLOCK_HELP}</p>
+          {form?.msg && <p class="bgo-block-msg">{form.msg}</p>}
+          <textarea id="block-reason" name="reason" rows={4} maxlength={BLOCK_REASON_MAX} required>
+            {form?.reason ?? ''}
+          </textarea>
+          {form?.asked && <input type="hidden" name="asked" value="1" />}
+          <p class="bgo-block-notice">{BLOCK_NOTICE}</p>
+          <p class="bgo-block-notice">상대에게는 아무 알림도 가지 않아요. 접수 중인 요청은 {BLOCK_MAX_PENDING}개까지예요.</p>
+          <button class="btn" type="submit">
+            보내기
+          </button>
+        </form>
+      )}
+    </details>
+  );
+}
 
 const DIFF_LABEL = { easy: '쉬움', normal: '보통', hard: '어려움' } as const;
 const DIFF_STARS = { easy: '★', normal: '★★', hard: '★★★' } as const;
@@ -148,7 +193,7 @@ function RankList(props: { title: string; rank: JellypiRanking }) {
 }
 
 // 하리보 빙고: 서버 퀘스트 막대, 3×3 칸(가운데 = 팀 퀘스트), 채운 칸과 줄, 받은 보상, 젤리피 순위
-export function BingoPage(props: { viewer: Member; view: BingoView | null; extras?: BingoExtras | null }) {
+export function BingoPage(props: { viewer: Member; view: BingoView | null; extras?: BingoExtras | null; block?: BlockBox }) {
   const v = props.view;
   const extras = props.extras ?? null;
   if (!v) {
@@ -301,6 +346,7 @@ export function BingoPage(props: { viewer: Member; view: BingoView | null; extra
           </section>
         </aside>
       </div>
+      {props.block && <BlockSection box={props.block} />}
     </Layout>
   );
 }
