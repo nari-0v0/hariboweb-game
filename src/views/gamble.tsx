@@ -78,43 +78,40 @@ function SlotReels({ reels }: { reels?: number[] }) {
 
 // 룰렛판은 40칸(서버 WHEEL 번호, 확률 그대로)을 같은 배수끼리 묶어 넓은 칸 19개로 그려요.
 // [배수, 칸 수]: 0배 22 · 1배 8 · 2배 6 · 3배 2 · 5배 1 · 10배 1 = 40칸. 같은 배수끼리는 붙지 않게 놓아요.
-const WHEEL_RUNS: [number, number][] = [
-  [0, 3], [1, 2], [0, 3], [2, 2], [0, 3], [1, 2], [0, 3], [3, 1], [0, 3], [2, 2],
-  [0, 3], [1, 2], [0, 2], [5, 1], [1, 2], [2, 2], [0, 2], [10, 1], [3, 1],
-];
+// 판에는 40칸을 모두 같은 크기로 그려요. 배수가 있는 18칸이 0배 칸 사이사이에 고르게 흩어지게 놓아요.
+// (확률은 WHEEL 그대로이고, 여기는 그리는 순서만 정해요.)
+const WHEEL_PAYING = [1, 2, 1, 3, 1, 2, 1, 5, 1, 2, 1, 2, 1, 3, 2, 1, 10, 2];
+const WHEEL_ORDER: number[] = (() => {
+  const zeros = WHEEL.length - WHEEL_PAYING.length;
+  const out: number[] = [];
+  let placedZeros = 0;
+  WHEEL_PAYING.forEach((payout, n) => {
+    // n번째 배수 칸 앞까지 놓여 있어야 할 0배 칸 수만큼 채워요.
+    const due = Math.round(((n + 1) * zeros) / WHEEL_PAYING.length);
+    for (; placedZeros < due; placedZeros++) out.push(0);
+    out.push(payout);
+  });
+  return out;
+})();
 const SECTOR = 360 / WHEEL.length;
-// WHEEL 번호 i가 판의 몇 번째 자리(k)에 그려지는지, 그리고 그 자리가 어느 묶음(run)인지
-const { WHEEL_POS, RUN_OF } = (() => {
+// WHEEL 번호 i가 판의 몇 번째 칸(k)에 그려지는지
+const WHEEL_POS = (() => {
   const free = new Map<number, number[]>();
   WHEEL.forEach((p, i) => free.set(p, [...(free.get(p) ?? []), i]));
   const pos: number[] = [];
-  const runOf: number[] = [];
-  let k = 0;
-  WHEEL_RUNS.forEach(([payout, count], r) => {
-    for (let j = 0; j < count; j++, k++) {
-      const i = free.get(payout)!.shift()!;
-      pos[i] = k;
-      runOf[i] = r;
-    }
-  });
-  if (k !== WHEEL.length || [...free.values()].some((l) => l.length)) throw new Error('룰렛 칸 묶음이 WHEEL과 안 맞아요');
-  return { WHEEL_POS: pos, RUN_OF: runOf };
+  WHEEL_ORDER.forEach((payout, k) => { pos[free.get(payout)!.shift()!] = k; });
+  if (WHEEL_ORDER.length !== WHEEL.length || [...free.values()].some((l) => l.length)) throw new Error('룰렛 칸 순서가 WHEEL과 안 맞아요');
+  return pos;
 })();
-const RUN_COLORS: Record<number, string> = {
-  1: '#1f6b3a', 2: '#2f5fa8', 3: '#7b3fa0', 5: '#c26a12', 10: '#d4a017',
+const PAYOUT_COLORS: Record<number, string> = {
+  0: '#1b1820', 1: '#1f7a43', 2: '#2c62b8', 3: '#8040b0', 5: '#d0701a', 10: '#e0b024',
 };
-let zeroNo = 0;
-const RUN_DRAW = WHEEL_RUNS.reduce<{ from: number; to: number; payout: number; color: string }[]>((list, [payout, count]) => {
-  const from = list.length ? list[list.length - 1]!.to : 0;
-  const color = payout === 0 ? (zeroNo++ % 2 ? '#7a1420' : '#1d1d24') : RUN_COLORS[payout]!;
-  return [...list, { from, to: from + count * SECTOR, payout, color }];
-}, []);
-// 칸 사이에 금색 줄을 그어요.
-const WHEEL_FILL = `conic-gradient(from -${SECTOR / 2}deg, ${RUN_DRAW.map(({ from, to, color }) =>
-  `#e8c25a ${from}deg ${from + 0.8}deg, ${color} ${from + 0.8}deg ${to}deg`).join(', ')})`;
+// 칸 사이에 가는 금색 줄을 그어요.
+const WHEEL_FILL = `conic-gradient(from -${SECTOR / 2}deg, ${WHEEL_ORDER.map((payout, k) =>
+  `#c9a23a ${k * SECTOR}deg ${k * SECTOR + 0.6}deg, ${PAYOUT_COLORS[payout]} ${k * SECTOR + 0.6}deg ${(k + 1) * SECTOR}deg`).join(', ')})`;
 
 function RouletteWheel({ landed }: { landed?: number }) {
-  const landedRun = landed === undefined ? -1 : RUN_OF[landed];
+  const landedAt = landed === undefined ? -1 : WHEEL_POS[landed]!;
   return (
     <div class={`gb-wheel-stage${GAMBLE_ART.wheel?.image ? ' gb-wheel-stage--rim' : ''}`}>
       <div class="gb-wheel-pointer" aria-hidden="true"><Art name="pointer" /></div>
@@ -122,11 +119,13 @@ function RouletteWheel({ landed }: { landed?: number }) {
         <div class="gb-wheel-disc" data-gb-landed={landed}
           style={`--gb-wheel-fill:${WHEEL_FILL};--gb-wheel-stop:${-WHEEL_POS[landed ?? 0]! * SECTOR}deg`}
           aria-hidden="true">
-          {RUN_DRAW.map(({ from, to, payout }, r) => (
-            <span class={`gb-wheel-label${payout >= 5 ? ' gb-wheel-label--big' : ''}`} aria-current={r === landedRun ? 'true' : undefined}
-              style={`--gb-wheel-angle:${(from + to) / 2 - SECTOR / 2}deg`}>{payout}배</span>
+          {/* 배수가 있는 칸에만 숫자를 적어요. 검은 칸은 0배예요. */}
+          {WHEEL_ORDER.map((payout, k) => payout > 0 && (
+            <span class={`gb-wheel-label${payout >= 5 ? ' gb-wheel-label--big' : ''}`} aria-current={k === landedAt ? 'true' : undefined}
+              style={`--gb-wheel-angle:${k * SECTOR}deg`}>×{payout}</span>
           ))}
         </div>
+        {landed !== undefined && <div class="gb-wheel-hub" data-gb-reveal="">{WHEEL[landed]}배</div>}
       </div>
       {/* 테두리 그림은 판과 같이 돌지 않게 판 바깥에 덮어요. */}
       <ArtLayer name="wheel" />

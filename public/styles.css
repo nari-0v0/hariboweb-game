@@ -1737,20 +1737,20 @@ main.wide { max-width: 1320px; }
 }
 .gb-wheel-label {
   position: absolute;
-  left: calc(50% + 34% * sin(var(--gb-wheel-angle)));
-  top: calc(50% - 34% * cos(var(--gb-wheel-angle)));
+  left: calc(50% + 38% * sin(var(--gb-wheel-angle)));
+  top: calc(50% - 38% * cos(var(--gb-wheel-angle)));
   translate: -50% -50%;
   /* 글자를 바깥쪽으로 눕혀서 좁은 칸에도 겹치지 않게 해요. */
   rotate: calc(var(--gb-wheel-angle) - 90deg);
   padding: .1em .25em;
   color: #fff8e6;
   text-shadow: 0 1px #000, 0 0 3px #000;
-  font-size: 4.2cqw;
+  font-size: 3.6cqw;
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
 }
-.gb-wheel-label--big { font-size: 4.6cqw; }
+.gb-wheel-label--big { font-size: 4cqw; }
 .gb-wheel-label[aria-current="true"] { border-radius: 2px; }
 .gb-room:not(.gb-motion-running) .gb-wheel-label[aria-current="true"] {
   background: #fff8d2;
@@ -1950,3 +1950,13 @@ main.wide { max-width: 1320px; }
 .gb-game-link[style*="--gb-bg"]:hover, .gb-game-link[style*="--gb-bg"]:focus-visible { background: var(--gb-bg) center / cover no-repeat; filter: brightness(1.15); }
 .gb-game-link[style*="--gb-bg"] strong { color: #ffd75e; font-size: 1.1rem; }
 .gb-game-link[style*="--gb-bg"] .gb-game-progress { color: #202944; text-shadow: none; }
+/* 룰렛 가운데 금색 동그라미: 멈춘 뒤 나온 배수를 크게 보여 줘요. */
+.gb-wheel-viewport { position: relative; }
+.gb-wheel-hub {
+  position: absolute; left: 50%; top: 50%; translate: -50% -50%;
+  display: grid; place-items: center;
+  width: 30%; aspect-ratio: 1; border-radius: 50%;
+  background: #e8b830;
+  border: 3px solid #5a3a08; box-shadow: 0 0 0 3px #1b1820, 0 4px 10px #0008;
+  color: #3a2200; font-size: 6.5cqw; font-weight: 700; text-shadow: 0 1px #fff6;
+}
