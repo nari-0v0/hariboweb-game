@@ -56,14 +56,16 @@ export type PraiseBox = { unread: number; total: number; items: PraiseBoxItem[] 
 export async function praiseBox(db: D1Database, userId: string, limit = 20): Promise<PraiseBox> {
   const seen = await db.prepare('SELECT praise_seen_at FROM profiles WHERE user_id = ?').bind(userId).first<{ praise_seen_at: string | null }>();
   const since = seen?.praise_seen_at ?? '';
+  // 떠났다가 다시 들어온 사람은 다시 들어온 뒤에 받은 칭찬만 보여요
+  const fresh = "created_at >= COALESCE((SELECT reset_at FROM members WHERE user_id = ?1), '')";
   const [rows, counts] = await Promise.all([
     db
-      .prepare('SELECT rowid AS id, day, note, note_hidden, created_at FROM praises WHERE to_id = ? ORDER BY created_at DESC LIMIT ?')
+      .prepare(`SELECT rowid AS id, day, note, note_hidden, created_at FROM praises WHERE to_id = ?1 AND ${fresh} ORDER BY created_at DESC LIMIT ?2`)
       .bind(userId, limit)
       .all<{ id: number; day: string; note: string | null; note_hidden: number; created_at: string }>(),
     db
-      .prepare('SELECT COUNT(*) AS total, SUM(CASE WHEN substr(created_at, 1, 24) > ? THEN 1 ELSE 0 END) AS unread FROM praises WHERE to_id = ?')
-      .bind(since, userId)
+      .prepare(`SELECT COUNT(*) AS total, SUM(CASE WHEN substr(created_at, 1, 24) > ?2 THEN 1 ELSE 0 END) AS unread FROM praises WHERE to_id = ?1 AND ${fresh}`)
+      .bind(userId, since)
       .first<{ total: number; unread: number | null }>(),
   ]);
   return {

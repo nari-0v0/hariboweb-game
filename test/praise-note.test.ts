@@ -102,14 +102,19 @@ describe('칭찬함', () => {
     expect((await praiseBox(db, C)).items[0]).toMatchObject({ note: null, hidden: true });
   });
 
-  it('떠난 멤버의 칭찬함은 지우고, 오늘 것은 한마디만 지워요', async () => {
+  it('떠난 멤버의 한마디는 지우고, 보낸 사람 기록(빙고 집계)은 남기고, 다시 들어와도 예전 칭찬은 안 보여요', async () => {
     const { sql, db } = fakeD1();
     await givePraise(db, A, C, '2026-11-10', '예전 칭찬');
     await givePraise(db, B, C, '2026-11-12', '오늘 칭찬');
-    const parsed = parseSync({ batch_id: `${new Date(NOW).toISOString()}-left`, removed: [C] });
+    const parsed = parseSync({ batch_id: `${new Date().toISOString()}-left`, removed: [C] });
     if (!parsed.ok) throw new Error(parsed.error);
-    await applySync(db, parsed.value, NOW);
-    expect(sql.prepare('SELECT from_id, day, note FROM praises').all()).toEqual([{ from_id: B, day: '2026-11-12', note: null }]);
+    await applySync(db, parsed.value, Date.now() + 1000);
+    expect(sql.prepare('SELECT from_id, note FROM praises ORDER BY from_id').all()).toEqual([
+      { from_id: A, note: null },
+      { from_id: B, note: null },
+    ]);
+    sql.prepare("UPDATE members SET active = 1 WHERE user_id = ?").run(C);
+    expect(await praiseBox(db, C)).toMatchObject({ total: 0, unread: 0, items: [] });
   });
 });
 
