@@ -1,3 +1,5 @@
+import { askAi } from './ai';
+
 // 같이 배정되지 않기: 멤버가 "다시 같은 팀에 배정되고 싶지 않은 사람"과 사유를 적으면,
 // Workers AI(무료 사용량)가 사유를 한 번 검토하고, 하리보봇이 비공개 채널에 올려 나리가 [승인]/[반려]를 눌러요.
 // 승인된 짝은 다음 팀 짜기와 시즌 중간 합류에서 같은 팀에 넣지 않아요. 기간은 없어요(출시 초기화 때 다시 시작).
@@ -26,7 +28,6 @@ export function isEmptyReason(raw: string): boolean {
 
 export type AiVerdict = { verdict: 'ok' | 'vague' | 'reject'; summary: string };
 
-const AI_MODEL = '@cf/meta/llama-3.1-8b-instruct';
 const AI_PROMPT = `너는 디스코드 게임 모임의 팀 배정 도우미야. 한 멤버가 "다른 멤버와 같은 팀에 배정되고 싶지 않다"며 사유를 적었어.
 사유를 읽고 JSON 한 줄로만 답해: {"verdict":"ok|vague|reject","summary":"한국어 한 줄 요약(40자 이내)"}
 - ok: 어떤 일이 있었는지, 왜 불편한지 구체적으로 적혀 있음
@@ -36,20 +37,8 @@ const AI_PROMPT = `너는 디스코드 게임 모임의 팀 배정 도우미야.
 
 // AI가 없거나(로컬·바인딩 없음) 실패하거나 무료 사용량이 끝나면 null: 기다리지 않고 규칙 검사만으로 넘겨요.
 export async function reviewReason(ai: Ai | undefined, reason: string): Promise<AiVerdict | null> {
-  if (!ai) return null;
-  try {
-    const out = (await ai.run(AI_MODEL as Parameters<Ai['run']>[0], {
-      messages: [
-        { role: 'system', content: AI_PROMPT },
-        { role: 'user', content: reason.slice(0, BLOCK_REASON_MAX) },
-      ],
-      max_tokens: 120,
-    } as never)) as { response?: unknown };
-    return parseVerdict(typeof out?.response === 'string' ? out.response : '');
-  } catch (e) {
-    console.error('배정 제외 AI 검토 실패(규칙 검사만으로 넘겨요)', e);
-    return null;
-  }
+  const text = await askAi(ai, AI_PROMPT, reason.slice(0, BLOCK_REASON_MAX), 120, '배정 제외');
+  return text ? parseVerdict(text) : null;
 }
 
 export function parseVerdict(text: string): AiVerdict | null {

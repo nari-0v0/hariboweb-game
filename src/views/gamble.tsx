@@ -11,11 +11,11 @@ const DESCRIPTIONS = {
   cards: '21을 넘기지 않고 딜러보다 가까우면 이겨요.',
 };
 const NOTICES: Record<string, string> = {
-  bet: '가진 칩 안에서 1개 이상 걸어 주세요.',
+  bet: '가진 젤칩 안에서 1개 이상 걸어 주세요.',
   active: '진행 중인 카드 21을 먼저 끝내 주세요.',
   fast: '너무 빨라요. 잠깐 뒤에 다시 걸어 주세요.',
-  rescue: '다시 시작할 칩 1000개를 받았어요.',
-  'no-rescue': '오늘 이미 다시 시작했거나, 아직 칩이나 진행 중인 카드 21이 있어요.',
+  rescue: '다시 시작할 젤칩 1000개를 받았어요.',
+  'no-rescue': '오늘 이미 다시 시작했거나, 아직 젤칩이나 진행 중인 카드 21이 있어요.',
 };
 const chips = (n: number) => n.toLocaleString('ko-KR');
 
@@ -45,9 +45,9 @@ function BetForm({ game, balance, previousBet }: { game: Game; balance: number; 
       <input type="hidden" name="token" value={crypto.randomUUID()} />
       <input type="hidden" name="bet" value={bet} />
       <div class="gb-bet-display">
-        <span>걸 칩</span><output class="gb-bet-amount" aria-label="걸 칩">{chips(bet)}개</output>
+        <span>걸 젤칩</span><output class="gb-bet-amount" aria-label="걸 젤칩">{chips(bet)}개</output>
       </div>
-      <div class="gb-bet-steps" role="group" aria-label="걸 칩 고르기">
+      <div class="gb-bet-steps" role="group" aria-label="걸 젤칩 고르기">
         {BET_STEPS.map((step) => <button class="gb-button gb-amount-button" type="button" data-gb-bet={step} disabled={!balance}><span>+{step >= 1000 ? `${step / 1000}천`.replace('10천', '1만') : step}</span></button>)}
         <button class="gb-button" type="button" data-gb-bet="all" disabled={!balance}>올인</button>
         <button class="gb-button" type="button" data-gb-bet="clear" disabled={!balance}>지우기</button>
@@ -176,8 +176,8 @@ function Result({ round, balance }: { round: Round; balance: number }) {
   const net = payback(round.bet, multiplier) - round.bet;
   return (
     <div class="gb-round-result" aria-live="polite" data-gb-reveal>
-      <h2>{net > 0 ? `칩 ${chips(net)}개 이겼어요!` : net < 0 ? `칩 ${chips(-net)}개 잃었어요` : '본전이에요'}</h2>
-      <p>{round.game === 'roulette' && `룰렛 ${Number(round.state) + 1}번째 칸 · `}{multiplier}배 · 지금 가진 칩 <strong>{chips(balance)}개</strong></p>
+      <h2>{net > 0 ? `젤칩 ${chips(net)}개 이겼어요!` : net < 0 ? `젤칩 ${chips(-net)}개 잃었어요` : '본전이에요'}</h2>
+      <p>{round.game === 'roulette' && `룰렛 ${Number(round.state) + 1}번째 칸 · `}{multiplier}배 · 지금 가진 젤칩 <strong>{chips(balance)}개</strong></p>
     </div>
   );
 }
@@ -193,7 +193,7 @@ function GameRules({ game }: { game: Game }) {
           <p><Art name="cherry" /> 2개는 {CHERRY_PAIR}배예요.</p>
         </>
       )}
-      {game === 'roulette' && <p>1배는 본전이고, 0.5배·1.5배는 받을 칩을 내림해요. 나올 확률: {ROULETTE.map(({ payout, count }) => `${payout}배 ${count}%`).join(' · ')}</p>}
+      {game === 'roulette' && <p>1배는 본전이고, 0.5배·1.5배는 받을 젤칩을 내림해요. 나올 확률: {ROULETTE.map(({ payout, count }) => `${payout}배 ${count}%`).join(' · ')}</p>}
       {game === 'cards' && <p>딜러는 17점부터 멈춰요. 승리 2배 · 첫 두 장으로 21을 만들어 이기면 3배 · 비기면 1배</p>}
     </details>
   );
@@ -212,7 +212,7 @@ function Ranking({ title, rows, unit }: { title: string; rows: Rank[]; unit: str
 const noticeText = (key?: string) => key && Object.hasOwn(NOTICES, key) ? NOTICES[key] : null;
 
 function ChipBalance({ balance }: { balance: number }) {
-  return <p class="gb-room-balance">가진 칩 <strong class="gb-balance">{chips(balance)}개</strong></p>;
+  return <p class="gb-room-balance">가진 젤칩 <strong class="gb-balance">{chips(balance)}개</strong></p>;
 }
 
 export function GambleLobby(props: {
@@ -228,7 +228,7 @@ export function GambleLobby(props: {
         <section class="gb-panel gb-lobby-intro">
           <h1>겜블장 <Art name="slot" /></h1>
           <ChipBalance balance={balance} />
-          {props.daily && <p role="status">오늘 칩 1000개 받았어요.</p>}
+          {props.daily && <p role="status">오늘 젤칩 1000개 받았어요.</p>}
           {notice && <p role="status">{notice}</p>}
           {balance === 0 && !props.inProgress && props.account?.rescue_day !== gambleDay(props.now) && (
             <form method="post" action="/gamble/rescue">
@@ -236,7 +236,7 @@ export function GambleLobby(props: {
               <button class="gb-button" type="submit">다시 시작</button>
             </form>
           )}
-          <p>칩은 겜블장 전용이에요. 젤리로 바꾸거나 상점에서 쓸 수 없고, 순위와 칭호에만 쓰여요.</p>
+          <p>젤칩은 겜블장 전용이에요. 젤리로 바꾸거나 상점에서 쓸 수 없고, 순위와 칭호에만 쓰여요.</p>
         </section>
         <nav class="gb-games" aria-label="게임 고르기">
           {(Object.keys(GAMES) as Game[]).map((game) => (
@@ -250,10 +250,10 @@ export function GambleLobby(props: {
         </nav>
         <h2>겜블장 순위</h2>
         <div class="gb-games">
-          <Ranking title="가진 칩" rows={balanceRank} unit="개" />
-          <Ranking title="한 번에 딴 최고 칩" rows={bestRank} unit="개" />
+          <Ranking title="가진 젤칩" rows={balanceRank} unit="개" />
+          <Ranking title="한 번에 딴 최고 젤칩" rows={bestRank} unit="개" />
           <Ranking title="올인 승리" rows={allInRank} unit="회" />
-          <Ranking title="이번 시즌 누적 딴 칩 1등" rows={seasonRank} unit="개" />
+          <Ranking title="이번 시즌 누적 딴 젤칩 1등" rows={seasonRank} unit="개" />
         </div>
         <p><a href="/titles">겜블장 칭호 보기</a></p>
       </div>
@@ -278,7 +278,7 @@ export function GambleRoom(props: {
           <a href="/gamble">← 겜블장</a>
           <ChipBalance balance={balance} />
           {game !== 'cards' && props.hand && <a class="gb-resume" href="/gamble/cards">진행 중인 카드 21로 가기</a>}
-          {props.daily && <p role="status">오늘 칩 1000개 받았어요.</p>}
+          {props.daily && <p role="status">오늘 젤칩 1000개 받았어요.</p>}
         </div>
         <section class="gb-panel gb-room" aria-label={GAMES[game]} data-gb-settled={result ? 'yes' : undefined}
           data-gb-motion={motion?.game} data-gb-key={motion ? `${motion.token}:${motion.revision}:${result ? 'done' : 'active'}` : undefined}>
@@ -288,7 +288,7 @@ export function GambleRoom(props: {
           {result && <Result round={result} balance={balance} />}
           {hand ? (
             <>
-              <p>건 칩 {chips(hand.bet)}개 · 한국 시간 자정이 되면 자동으로 멈춰요.</p>
+              <p>건 젤칩 {chips(hand.bet)}개 · 한국 시간 자정이 되면 자동으로 멈춰요.</p>
               <form class="gb-form" method="post" action="/gamble/cards" data-gb-card-actions="">
                 <input type="hidden" name="token" value={hand.token} />
                 <input type="hidden" name="revision" value={hand.revision} />
@@ -299,8 +299,8 @@ export function GambleRoom(props: {
           ) : (
             <div data-gb-reveal>
               <BetForm game={game} balance={balance} previousBet={result?.bet} />
-              {balance === 0 && <p><a href="/gamble">겜블장에서 칩 받기</a></p>}
-              <noscript>걸 칩을 바꾸려면 자바스크립트를 켜 주세요.</noscript>
+              {balance === 0 && <p><a href="/gamble">겜블장에서 젤칩 받기</a></p>}
+              <noscript>걸 젤칩을 바꾸려면 자바스크립트를 켜 주세요.</noscript>
             </div>
           )}
           <GameRules game={game} />

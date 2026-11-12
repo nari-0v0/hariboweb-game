@@ -297,6 +297,9 @@ export async function applySync(
     stmts.push(db.prepare('DELETE FROM room_likes WHERE from_id = ?1 OR to_id = ?1').bind(id));
     // 같이 배정되지 않기 요청도(신청했든 받았든) 지워요. 사유가 채널에 새로 올라가지 않게요.
     stmts.push(db.prepare('DELETE FROM assign_blocks WHERE from_id = ?1 OR to_id = ?1').bind(id));
+    // 받은 칭찬의 한마디는 지워요. 칭찬 기록 자체는 보낸 사람의 하루 횟수·빙고 집계에 쓰여서 남기고,
+    // 칭찬함은 reset_at 뒤에 받은 것만 보여 줘요(다시 들어와도 예전 칭찬은 안 보여요).
+    stmts.push(db.prepare('UPDATE praises SET note = NULL WHERE to_id = ?').bind(id));
     stmts.push(db.prepare("UPDATE purchases SET status = 'failed', reason = 'left' WHERE user_id = ? AND status = 'pending'").bind(id));
   }
 

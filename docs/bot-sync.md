@@ -133,14 +133,17 @@ Content-Type: application/json
   { "id": "ID", "name": "닉네임", "intro": "", "level": 12, "level_name": "친구", "ratio": 0.35,
     "tier": "silver", "tier_label": "은색", "jelly": 45, "dogam": { "owned": 23, "total": 58 },
     "best": { "id": "ID", "name": "젤리곰", "level": 12 }, "praise_left": 2,
+    "praise_box": { "unread": 1, "total": 4, "items": [{ "day": "2026-11-12", "date": "11월 12일", "note": "오늘 캐리 고마워요", "unread": true }] },
     "palette": { "rim": "#6b7a90", "body": ["#eef2f8", "..."], "ring": ["#f4f7fb", "#9aa8bc"], "sky": ["#a9dcff", "#e6f6ff"],
                  "ground": "#8fd67a", "plate": ["#ffffff", "#dfe5ee"], "ink": "#2a2030", "sparkle": false },
     "character_url": "https://.../char/girl-01-0.png", "page_url": "https://.../me" }
   ```
   `palette`는 웹 카드와 같은 색이에요(`src/palette.ts`). 봇은 이 색으로 디스코드용 카드 그림을 그려요.
+  `praise_box`는 칭찬함이에요. 최근 5개, 보낸 사람은 없어요(DB에만 있어요). `note`가 `null`이면 한마디 없는 칭찬이거나 받은 사람이 숨긴 한마디예요. 이 요청으로 칭찬함을 본 것으로 쳐서, 다음 요청부터 `unread`가 0이 돼요. 화면 안내는 "받는 사람에게는 보낸 사람이 보이지 않아요."만 써요.
 - `GET /api/bot/praise/<디스코드ID>` → `{"given":["오늘 이미 칭찬한 ID"],"left":2,"partners":[{"id":"ID","minutes":42}]}`
   - `partners`: 웹에 쌓인 `room_minutes`로 본 오늘(한국 날짜) 같이 통화한 사람. 봇은 오늘 기록을 메모리에만 들고 있어서 재시작하면 비니까, 봇 기록과 이 목록을 합쳐서 칭찬할 사람을 보여 줘요. 웹은 하루치 짝만 3일 동안 남겨요.
-- `POST /api/bot/praise` `{"from":"ID","to":"ID"}` → `{"result":"done","jelly":true,"left":2}`
+- `POST /api/bot/praise` `{"from":"ID","to":"ID","note":"한마디(선택, 100자)"}` → `{"result":"done","jelly":true,"left":2,"note":"sent"}`
+  - `note`(응답): `sent`(한마디도 전함), `filtered`(비꼬기·욕이라 한마디는 빼고 칭찬만 전함), `none`(한마디 없음 또는 칭찬이 안 됨). 한마디는 Workers AI(무료 사용량)로 검사하고, AI가 없거나 한도가 끝나면 욕설 단어 검사만 해요.
   - `result`: `done`, `already`(오늘 이미 그 사람에게 줌), `limit`(오늘 3번 다 씀), `self`, `not_member`
   - 오늘 같이 통화했거나 내전을 뛴 사람인지는 봇이 확인하고 보내요(봇 기록 + 위 `partners`).
   - 하루(한국 날짜) 3번, 같은 사람에게는 하루 1번. 받은 사람은 하루 3개까지 칭찬 1번에 도감 젤리 1개를 받아요(`jelly`).

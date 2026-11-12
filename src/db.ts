@@ -621,6 +621,7 @@ export async function givePraise(
   fromId: string,
   toId: string,
   day = kstDay(),
+  note: string | null = null,
 ): Promise<{ result: PraiseResult; jelly: boolean; left: number }> {
   if (fromId === toId) return { result: 'self', jelly: false, left: (await praiseToday(db, fromId, day)).left };
   const mark = `${now()}#${crypto.randomUUID()}`;
@@ -628,16 +629,16 @@ export async function givePraise(
   await db.batch([
     db
       .prepare(
-        `INSERT INTO praises (day, from_id, to_id, jelly, created_at)
+        `INSERT INTO praises (day, from_id, to_id, jelly, created_at, note)
          SELECT ?1, ?2, ?3,
                 (SELECT COUNT(*) FROM praises WHERE day = ?1 AND to_id = ?3 AND jelly = 1) < ?6,
-                ?4
+                ?4, ?7
          WHERE (SELECT COUNT(*) FROM praises WHERE day = ?1 AND from_id = ?2) < ?5
            AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)
            AND EXISTS (SELECT 1 FROM members WHERE user_id = ?3 AND active = 1)
          ON CONFLICT DO NOTHING`,
       )
-      .bind(day, fromId, toId, mark, PRAISE_PER_DAY, PRAISE_JELLY_PER_DAY),
+      .bind(day, fromId, toId, mark, PRAISE_PER_DAY, PRAISE_JELLY_PER_DAY, note),
     db
       .prepare(
         `INSERT INTO profiles (user_id, dogam_jelly, updated_at) SELECT ?3, 1, ?5 WHERE ${mine}

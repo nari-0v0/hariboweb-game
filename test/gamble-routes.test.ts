@@ -61,7 +61,7 @@ describe('겜블장 로비와 게임 방', () => {
     expect(response.status).toBe(200);
     const html = await response.text();
     for (const game of GAMES) expect(html).toContain(`href="/gamble/${game}"`);
-    expect(html).toContain('오늘 칩 1000개 받았어요.');
+    expect(html).toContain('오늘 젤칩 1000개 받았어요.');
     expect(html).toContain('href="/titles"');
     expect(html).not.toContain('class="gb-bet-steps"');
   });
