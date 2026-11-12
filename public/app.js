@@ -212,7 +212,8 @@ addEventListener('pageshow', (e) => {
       cover.className = 'devtools-cover';
       cover.setAttribute('role', 'alert');
       cover.textContent = '개발자 도구를 닫아 주세요. 닫으면 다시 이용할 수 있어요.';
-      document.body.append(cover);
+      // 화면 내용을 통째로 지워서, 개발자 도구의 Elements 칸에도 가림막만 보이게 해요(닫으면 새로고침으로 되살려요)
+      document.body.replaceChildren(cover);
     } else if (!open && cover) {
       location.reload();
     }
