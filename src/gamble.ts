@@ -6,9 +6,10 @@ export const SLOTS = [
   { weight: 3, payout: 10 },
 ] as const;
 export const CHERRY_PAIR = 2;
+// 2026-11-12 나리: 칸을 넓게 보이려고 20칸으로 줄였어요(5배 칸 없음). 평균 1.05배.
 export const ROULETTE = [
-  { payout: 0, count: 22 }, { payout: 1, count: 8 }, { payout: 2, count: 6 },
-  { payout: 3, count: 2 }, { payout: 5, count: 1 }, { payout: 10, count: 1 },
+  { payout: 0, count: 12 }, { payout: 1, count: 4 }, { payout: 2, count: 2 },
+  { payout: 3, count: 1 }, { payout: 10, count: 1 },
 ] as const;
 export const WHEEL = ROULETTE.flatMap(({ payout, count }) => Array<number>(count).fill(payout));
 

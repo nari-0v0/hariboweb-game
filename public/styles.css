@@ -1743,14 +1743,14 @@ main.wide { max-width: 1320px; }
   /* 글자를 바깥쪽으로 눕혀서 좁은 칸에도 겹치지 않게 해요. */
   rotate: calc(var(--gb-wheel-angle) - 90deg);
   padding: .1em .25em;
-  color: #fff8e6;
+  color: #f3d27a;
   text-shadow: 0 1px #000, 0 0 3px #000;
-  font-size: 3.6cqw;
+  font-size: 5.2cqw;
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
 }
-.gb-wheel-label--big { font-size: 4cqw; }
+.gb-wheel-label--big { font-size: 5.6cqw; color: #2a1a00; text-shadow: 0 1px #fff3; }
 .gb-wheel-label[aria-current="true"] { border-radius: 2px; }
 .gb-room:not(.gb-motion-running) .gb-wheel-label[aria-current="true"] {
   background: #fff8d2;
@@ -1861,10 +1861,17 @@ main.wide { max-width: 1320px; }
 .gb-wheel-pointer .gb-art { width: 1.6rem; height: 3.4rem; }
 .gb-reel-symbol .gb-art { width: 1.3em; height: 1.3em; }
 /* 겜블장 배경 그림: 게임 판은 초록 테이블 위에, 로비 첫 상자는 어둡게 덮어 글씨가 잘 보이게 */
+/* 배경 그림이 정사각형이라 칸도 정사각형으로 만들어 그림이 잘리지 않게 해요.
+   그림 테두리 장식 안쪽에 내용이 오도록 안쪽 여백을 넉넉히 둬요. */
 .gb-game-surface[style*="--gb-bg"] {
   background: var(--gb-bg) center / cover no-repeat;
   border: 3px solid #273551;
-  padding: .9rem .6rem;
+  aspect-ratio: 1;
+  width: min(100%, 30rem);
+  margin-inline: auto;
+  display: grid;
+  align-content: center;
+  padding: 8%;
   color: #fff8e6;
   text-shadow: 0 1px 2px #000;
 }
@@ -1956,7 +1963,8 @@ main.wide { max-width: 1320px; }
   position: absolute; left: 50%; top: 50%; translate: -50% -50%;
   display: grid; place-items: center;
   width: 30%; aspect-ratio: 1; border-radius: 50%;
-  background: #e8b830;
-  border: 3px solid #5a3a08; box-shadow: 0 0 0 3px #1b1820, 0 4px 10px #0008;
-  color: #3a2200; font-size: 6.5cqw; font-weight: 700; text-shadow: 0 1px #fff6;
+  background: #141217;
+  border: 3px solid #c9a227; box-shadow: 0 0 0 2px #5a4310, 0 4px 10px #0008;
+  color: #f3d27a; font-size: 7cqw; font-weight: 700; text-shadow: 0 1px #000;
 }
+.gb-game-surface[style*="--gb-bg"] .gb-wheel-stage { width: min(92%, 20rem); margin: 0 auto; }

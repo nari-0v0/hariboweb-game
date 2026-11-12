@@ -76,11 +76,9 @@ function SlotReels({ reels }: { reels?: number[] }) {
   );
 }
 
-// 룰렛판은 40칸(서버 WHEEL 번호, 확률 그대로)을 같은 배수끼리 묶어 넓은 칸 19개로 그려요.
-// [배수, 칸 수]: 0배 22 · 1배 8 · 2배 6 · 3배 2 · 5배 1 · 10배 1 = 40칸. 같은 배수끼리는 붙지 않게 놓아요.
-// 판에는 40칸을 모두 같은 크기로 그려요. 배수가 있는 18칸이 0배 칸 사이사이에 고르게 흩어지게 놓아요.
+// 판에는 20칸을 모두 같은 크기로 그려요. 배수가 있는 8칸이 0배 칸 사이사이에 고르게 흩어지게 놓아요.
 // (확률은 WHEEL 그대로이고, 여기는 그리는 순서만 정해요.)
-const WHEEL_PAYING = [1, 2, 1, 3, 1, 2, 1, 5, 1, 2, 1, 2, 1, 3, 2, 1, 10, 2];
+const WHEEL_PAYING = [1, 2, 1, 3, 1, 2, 1, 10];
 const WHEEL_ORDER: number[] = (() => {
   const zeros = WHEEL.length - WHEEL_PAYING.length;
   const out: number[] = [];
@@ -103,14 +101,17 @@ const WHEEL_POS = (() => {
   if (WHEEL_ORDER.length !== WHEEL.length || [...free.values()].some((l) => l.length)) throw new Error('룰렛 칸 순서가 WHEEL과 안 맞아요');
   return pos;
 })();
+// 고급 카지노 느낌: 0배는 칠흑, 배수 칸은 짙은 보석색(에메랄드·와인·사파이어), 10배만 금색.
 const PAYOUT_COLORS: Record<number, string> = {
-  0: '#1b1820', 1: '#1f7a43', 2: '#2c62b8', 3: '#8040b0', 5: '#d0701a', 10: '#e0b024',
+  0: '#141217', 1: '#0e4d35', 2: '#6d1426', 3: '#1c3466', 5: '#4a2266', 10: '#c9a227',
 };
 // 칸 사이에 가는 금색 줄을 그어요.
 const WHEEL_FILL = `conic-gradient(from -${SECTOR / 2}deg, ${WHEEL_ORDER.map((payout, k) =>
-  `#c9a23a ${k * SECTOR}deg ${k * SECTOR + 0.6}deg, ${PAYOUT_COLORS[payout]} ${k * SECTOR + 0.6}deg ${(k + 1) * SECTOR}deg`).join(', ')})`;
+  `#b8913a ${k * SECTOR}deg ${k * SECTOR + 0.8}deg, ${PAYOUT_COLORS[payout]} ${k * SECTOR + 0.8}deg ${(k + 1) * SECTOR}deg`).join(', ')})`;
 
-function RouletteWheel({ landed }: { landed?: number }) {
+function RouletteWheel({ landed: raw }: { landed?: number }) {
+  // 예전 40칸 룰렛 판 결과 번호는 지금 판에 없으니 멈춘 칸 표시 없이 그려요.
+  const landed = raw !== undefined && raw < WHEEL.length ? raw : undefined;
   const landedAt = landed === undefined ? -1 : WHEEL_POS[landed]!;
   return (
     <div class={`gb-wheel-stage${GAMBLE_ART.wheel?.image ? ' gb-wheel-stage--rim' : ''}`}>

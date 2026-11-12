@@ -68,11 +68,12 @@ describe('겜블장 배당', () => {
     expect(weightedPayout / total ** 3).toBeLessThanOrEqual(1.05);
   });
 
-  it('룰렛의 40칸 구성과 기대값', () => {
-    expect(WHEEL).toHaveLength(40);
-    expect([0, 1, 2, 3, 5, 10].map((n) => WHEEL.filter((v) => v === n).length)).toEqual([22, 8, 6, 2, 1, 1]);
+  it('룰렛의 20칸 구성과 기대값', () => {
+    expect(WHEEL).toHaveLength(20);
+    expect([0, 1, 2, 3, 10].map((n) => WHEEL.filter((v) => v === n).length)).toEqual([12, 4, 2, 1, 1]);
+    expect(WHEEL[WHEEL.length - 1]).toBe(10);
     const mean = WHEEL.reduce((sum, n) => sum + n, 0) / WHEEL.length;
-    expect(mean).toBeCloseTo(1.025);
+    expect(mean).toBeCloseTo(1.05);
     expect(mean).toBeGreaterThanOrEqual(1.02);
     expect(mean).toBeLessThanOrEqual(1.05);
   });
