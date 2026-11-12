@@ -172,7 +172,7 @@ function TeamPanel(props: { extras: BingoExtras; view: BingoView; me: string }) 
   const state = props.view.team;
   if (!t) {
     return (
-      <section class="panel bgo-team">
+      <section class="panel bgo-team bgo-wide">
         <h2>👫 팀 퀘스트</h2>
         <p>이번 시즌 팀이 아직 없어요. 통화방에서 놀면 팀이 생겨요.</p>
       </section>
@@ -182,7 +182,7 @@ function TeamPanel(props: { extras: BingoExtras; view: BingoView; me: string }) 
   const done = new Set(t.achievers);
   const mates = t.members.filter((m) => !m.left);
   return (
-    <section class={`panel bgo-team${t.complete ? ' met' : ''}`}>
+    <section class={`panel bgo-team bgo-wide${t.complete ? ' met' : ''}`}>
       <h2>👫 팀 퀘스트 · {t.no + 1}팀</h2>
       <div class="bgo-mates">
         <b>우리 팀원 {mates.length}명{t.bonus ? '' : ' · ✓ 달성'}</b>
@@ -262,17 +262,10 @@ export function BingoPage(props: { viewer: Member; view: BingoView | null; extra
   }
   const endShown = new Date(Date.parse(v.week.end) - 1).toISOString();
   const lineCells = new Set(v.lines.flatMap((i) => LINES[i]!));
-  // 한 칸만 더 채우면 줄이 되는 칸
-  const nearCells = new Set(
-    LINES.flatMap((l) => {
-      const left = l.filter((x) => !v.cells[x]!.done);
-      return left.length === 1 ? left : [];
-    }),
-  );
-  const near = [...nearCells].map((i) => v.cells[i]!);
   return (
     <Layout title="하리보 빙고" viewer={props.viewer} active="bingo">
       {extras && <ServerQuestBar extras={extras} me={props.viewer.user_id} />}
+      {extras && <TeamPanel extras={extras} view={v} me={props.viewer.user_id} />}
       <div class="bgo">
         <section class="bgo-board" aria-label="빙고판">
           <header class="bgo-top">
@@ -280,15 +273,20 @@ export function BingoPage(props: { viewer: Member; view: BingoView | null; extra
               <span class="bgo-letter">빙</span>
               <span class="bgo-letter">고</span>
             </h1>
-            <span class="bgo-week">
-              {shortDay(v.week.start)} ~ {shortDay(endShown)}
-            </span>
+            <div class="bgo-top-right">
+              <span class="bgo-week">
+                {shortDay(v.week.start)} ~ {shortDay(endShown)}
+              </span>
+              <span class="bgo-tally" title="완성한 줄 · 받은 젤리 · 카드 경험치">
+                {v.full ? '9칸 완성!' : `${v.lines.length}줄 완성`} · 🍬 {v.jelly} · 경험치 +{v.xp}
+              </span>
+            </div>
           </header>
           <div class="bgo-grid">
             {v.cells.map((x, i) => {
               const pct = x.done ? 100 : Math.round((x.value / x.target) * 100);
               return (
-                <div class={`bgo-cell d-${x.diff}${x.center ? ' bgo-center' : ''}${x.done ? ' done' : ''}${lineCells.has(i) ? ' in-line' : ''}${nearCells.has(i) ? ' near' : ''}`}>
+                <div class={`bgo-cell d-${x.diff}${x.center ? ' bgo-center' : ''}${x.done ? ' done' : ''}${lineCells.has(i) ? ' in-line' : ''}`}>
                   {x.center ? (
                     <span class="bgo-diff bgo-diff-team">팀</span>
                   ) : (
@@ -329,67 +327,6 @@ export function BingoPage(props: { viewer: Member; view: BingoView | null; extra
         </section>
 
         <aside class="bgo-side">
-          {extras && <TeamPanel extras={extras} view={v} me={props.viewer.user_id} />}
-          <section class="panel bgo-score">
-            <h2>완성한 줄</h2>
-            <p class="bgo-big">
-              <b>{v.lines.length}</b> / {LINES.length}줄
-            </p>
-            <div class="bgo-pips" aria-hidden="true">
-              {LINES.map((_, i) => (
-                <i class={i < v.lines.length ? 'on' : undefined} />
-              ))}
-            </div>
-            <dl class="bgo-got">
-              <div>
-                <dt>받은 젤리</dt>
-                <dd>{v.jelly}개</dd>
-              </div>
-              <div>
-                <dt>카드 경험치</dt>
-                <dd>+{v.xp}</dd>
-              </div>
-            </dl>
-          </section>
-
-          <section class={`panel bgo-next${v.full ? ' all' : ''}`}>
-            {v.full ? (
-              <>
-                <h2>9칸 다 채웠어요!</h2>
-                <p>젤리 {FULL_JELLY}개를 더 받았어요. 다음 판을 기다려 주세요.</p>
-              </>
-            ) : near.length > 0 ? (
-              <>
-                <h2>한 칸만 더 채우면 빙고!</h2>
-                <ul>
-                  {near.map((x) => (
-                    <li>
-                      <span aria-hidden="true">{x.icon}</span> {x.text}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            ) : (
-              <>
-                <h2>다 채우기까지</h2>
-                <p>
-                  {v.filled} / 9칸 채웠어요. 다 채우면 젤리 {FULL_JELLY}개를 더 받아요.
-                </p>
-              </>
-            )}
-          </section>
-
-          {extras && (
-            <section class="panel bgo-ranks">
-              <h2>🍬 젤리피 순위</h2>
-              <p class="bgo-rank-help">젤리피는 쓸 수 없는 기록이에요. 빙고 한 줄 {JP_LINE}, 9칸 {JP_FULL}, 팀 퀘스트 {JP_TEAM}, 서버 퀘스트 {JP_SERVER}.</p>
-              <div class="bgo-rank-cols">
-                <RankList title="이번 시즌" rank={extras.ranks.season} />
-                <RankList title="전체" rank={extras.ranks.all} />
-              </div>
-            </section>
-          )}
-
           <section class="bgo-rules">
             <p>활동하면 칸이 저절로 채워져요. 신청이나 인증은 없어요.</p>
             <p>
@@ -397,6 +334,9 @@ export function BingoPage(props: { viewer: Member; view: BingoView | null; extra
             </p>
             <p>가운데 칸은 팀 퀘스트예요. 내가 달성하거나 우리 팀이 목표를 채우면 채워져요.</p>
             <p>빙고판은 생명력 주기를 반으로 나눠서, 한 주기에 2번 새로 나와요. 팀과 퀘스트는 주기(2주) 내내 이어져요.</p>
+            <p>
+              젤리피 순위는 <a href="/rank">순위</a> 메뉴에서 볼 수 있어요.
+            </p>
           </section>
         </aside>
       </div>

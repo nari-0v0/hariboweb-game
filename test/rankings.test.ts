@@ -1,0 +1,73 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+import { describe, expect, it } from 'vitest';
+import { loadRankings, plainPodium, toPodium } from '../src/rankings';
+
+const ids = Array.from({ length: 6 }, (_, i) => `${i + 1}`.repeat(18));
+const [A, B, C, D] = ids as [string, string, string, string];
+const NOW = Date.parse('2026-11-03T03:00:00Z');
+
+function fakeD1() {
+  const sql = new DatabaseSync(':memory:');
+  const dir = join(process.cwd(), 'migrations');
+  for (const f of readdirSync(dir).filter((n) => n.endsWith('.sql')).sort()) sql.exec(readFileSync(join(dir, f), 'utf8'));
+  const stmt = (query: string, args: unknown[] = []) => ({
+    query,
+    args,
+    bind: (...a: unknown[]) => stmt(query, a),
+    all: async () => ({ results: sql.prepare(query).all(...(args as never[])) }),
+    first: async () => sql.prepare(query).get(...(args as never[])) ?? null,
+    run: async () => ({ meta: { changes: Number(sql.prepare(query).run(...(args as never[])).changes) } }),
+  });
+  const db = {
+    prepare: (q: string) => stmt(q),
+    batch: async (list: ReturnType<typeof stmt>[]) => {
+      sql.exec('BEGIN');
+      try {
+        for (const s of list) sql.prepare(s.query).run(...(s.args as never[]));
+        sql.exec('COMMIT');
+      } catch (e) {
+        sql.exec('ROLLBACK');
+        throw e;
+      }
+      return [];
+    },
+  };
+  for (const id of ids) {
+    sql.prepare("INSERT INTO members (user_id, display_name, active, updated_at) VALUES (?, ?, 1, 'x')").run(id, `m${id[0]}`);
+    sql.prepare('INSERT INTO profiles (user_id, solo_xp, updated_at) VALUES (?, 0, ?)').run(id, '2026-11-01T00:00:00.000Z');
+  }
+  return { sql, db: db as unknown as D1Database };
+}
+
+describe('순위 메뉴', () => {
+  it('3위까지, 같은 값은 같은 순위, 내 순위는 따로', () => {
+    const rows = [
+      { user_id: A, name: '가', value: 9 },
+      { user_id: B, name: '나', value: 7 },
+      { user_id: C, name: '다', value: 7 },
+      { user_id: D, name: '라', value: 2 },
+    ];
+    const p = toPodium(rows, D);
+    expect(p.top.map((r) => [r.rank, r.name])).toEqual([[1, '가'], [2, '나'], [2, '다']]);
+    expect(p.me).toEqual({ rank: 4, name: '라', value: 2 });
+    expect(toPodium(rows, '0').me).toBeNull();
+    expect(plainPodium([{ name: 'x', value: 5 }, { name: 'y', value: 4 }, { name: 'z', value: 3 }, { name: 'w', value: 1 }]).top).toHaveLength(3);
+  });
+
+  it('도감·원정대·사건파일은 지금 있는 멤버만 세요', async () => {
+    const { sql, db } = fakeD1();
+    const card = sql.prepare("INSERT INTO cards (owner_id, target_id, xp, first_met, updated_at) VALUES (?, ?, 1, 'x', 'x')");
+    for (const t of [B, C, D]) card.run(A, t);
+    card.run(B, A);
+    card.run(B, ids[4]!);
+    sql.prepare('UPDATE members SET active = 0 WHERE user_id = ?').run(ids[4]!);
+    sql.prepare("INSERT INTO escape_rewards (user_id, case_id, run_id, claimed_at) VALUES (?, ?, 'r', 'x')").run(C, 'c1');
+    const r = await loadRankings(db, B, NOW);
+    expect(r.dogam.top.map((x) => [x.name, x.value])).toEqual([['m1', 3], ['m2', 1]]);
+    expect(r.dogam.me).toMatchObject({ rank: 2, value: 1 });
+    expect(r.escape.top.map((x) => x.name)).toEqual(['m3']);
+    expect(r.journey.top).toEqual([]);
+  });
+});

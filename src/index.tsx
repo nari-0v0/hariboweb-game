@@ -60,6 +60,8 @@ import { groupViewFor, seasonRanking } from './season';
 import { currentPeriod, grantBingo, markFlag, myBingo, todayPartners, LINE_JELLY, LINE_XP, FULL_JELLY } from './bingo';
 import { BingoPage } from './views/bingo';
 import { KIDNAP_MIN, SERVER_JELLY, TEAM_GOAL_MIN, TEAM_JELLY, TEAM_PRIOR_MAX, bingoExtras, loadServerQuest, loadTeams, myTeamState, rankTeams, seasonAt } from './team';
+import { loadRankings } from './rankings';
+import { RankPage } from './views/rank';
 import { BLOCK_MAX_PENDING, BLOCK_MORE, blockCandidates, cancelBlock, decideBlock, listUnpostedBlocks, markBlockPosted, myBlocks, requestBlock } from './assign-block';
 import { checkNote, cleanNote, hidePraiseNote, markPraiseSeen, praiseBox, praiseDayLabel, PRAISE_NOTE_MAX } from './praise-note';
 import type { BlockForm } from './views/bingo';
@@ -1109,6 +1111,12 @@ async function bingoPage(c: Context<AppEnv>, form?: BlockForm) {
 }
 
 members.get('/bingo', (c) => bingoPage(c));
+
+// 순위 메뉴: 도감·빙고(젤리피)·원정대·사건파일·겜블장 1~3위와 내 순위
+members.get('/rank', async (c) => {
+  const viewer = c.get('viewer');
+  return page(c, <RankPage viewer={viewer} ranks={await loadRankings(c.env.DB, viewer.user_id, Date.now())} />);
+});
 
 // 같이 배정되지 않기 신청. 다시 물어야 하면 적은 내용을 그대로 두고 화면을 다시 보여 줘요.
 members.post('/bingo/block', async (c) => {
