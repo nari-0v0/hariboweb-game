@@ -64,6 +64,8 @@ export type JourneyState = {
   lv: number;
   xp: number;
   coins: number;
+  banked?: number; // 끝날 때 훈련소에 모인 젤코인(같은 장을 또 하면 줄어요)
+  bankPct?: number;
   skills: Partial<Record<SkillId, number>>;
   pending: Pending | null;
   queuedLevels: number; // 아직 고르지 않은 레벨업
@@ -89,8 +91,11 @@ export const PERKS: Record<PerkId, { name: string; icon: string; per: number; ma
   def: { name: '맷집 훈련', icon: '🧱', per: 1, max: 5, text: (l) => `시작 방어력 +${l}` },
 };
 export const PERK_IDS = Object.keys(PERKS) as PerkId[];
+// 같은 장을 또 끝낼수록 훈련소에 모이는 젤코인이 줄어요(나리 2026-11-13): 처음 100%, 두 번째 50%, 세 번째 25%, 그 뒤 10%.
+export const BANK_RATES = [100, 50, 25, 10];
+export const bankRate = (finishedBefore: number) => BANK_RATES[Math.min(Math.max(0, finishedBefore), BANK_RATES.length - 1)]!;
 export const perkCost = (lv: number) => 20 + lv * 15; // 지금 단계에서 다음 단계로 가는 값
-// 장을 깰수록 훈련 한도가 늘어요(열린 장 하나마다 처음 한도의 절반씩).
+// 열린 장이 늘수록 훈련 한도가 늘어요(열린 장 하나마다 처음 한도의 절반씩). 열린 장 = 앞 장을 깼고 도감 조건도 채운 장.
 export const perkMax = (id: PerkId, unlocked: number) => PERKS[id].max + Math.floor(PERKS[id].max / 2) * (Math.max(1, unlocked) - 1);
 
 export function startJourney(seed: string, perks: Perks = NO_PERKS, ch = 1): JourneyState {

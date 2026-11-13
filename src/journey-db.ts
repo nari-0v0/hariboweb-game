@@ -1,7 +1,7 @@
 import { kstDay } from './db';
 import { MAX_CHAPTER } from './journey-chapters';
 import { dogamProgress, journeyOpenTo } from './unlock';
-import { DAILY_REWARD_JOURNEYS, NO_PERKS, PERKS, perkMax, actJourney, decodeJourney, journeyJelly, journeyXp, perkCost, startJourney, type JourneyAction, type JourneyState, type PerkId, type Perks } from './journey';
+import { DAILY_REWARD_JOURNEYS, NO_PERKS, PERKS, perkMax, actJourney, bankRate, decodeJourney, journeyJelly, journeyXp, perkCost, startJourney, type JourneyAction, type JourneyState, type PerkId, type Perks } from './journey';
 
 export type JourneyRow = { id: string; user_id: string; state: string; rev: number; status: string; day: number; cleared: number; xp: number; jelly: number; reward_day: string | null };
 export type JourneyRun = { row: JourneyRow; state: JourneyState };
@@ -18,7 +18,7 @@ export async function getJourney(db: D1Database, user: string, id: string): Prom
   return decode(await db.prepare('SELECT * FROM journey_runs WHERE user_id = ? AND id = ?').bind(user, id).first<JourneyRow>());
 }
 
-export type JourneyRecord = { best: number; clears: number; rewardedToday: number; unlocked: number }; // unlocked = 갈 수 있는 가장 높은 장
+export type JourneyRecord = { best: number; clears: number; rewardedToday: number; unlocked: number; finished: Record<number, number> }; // unlocked = 대장을 깨서 열린 가장 높은 장, finished = 장마다 끝낸 판 수
 export async function journeyRecord(db: D1Database, user: string, day = kstDay()): Promise<JourneyRecord> {
   const r = await db
     .prepare(
@@ -29,7 +29,13 @@ export async function journeyRecord(db: D1Database, user: string, day = kstDay()
     )
     .bind(user, day)
     .first<{ best: number; clears: number; today: number; top: number }>();
-  return { best: r?.best ?? 0, clears: r?.clears ?? 0, rewardedToday: r?.today ?? 0, unlocked: Math.min(MAX_CHAPTER, (r?.top ?? 0) + 1) };
+  const { results } = await db
+    .prepare("SELECT chapter, COUNT(*) AS n FROM journey_runs WHERE user_id = ? AND status = 'done' GROUP BY chapter")
+    .bind(user)
+    .all<{ chapter: number; n: number }>();
+  const finished: Record<number, number> = {};
+  for (const x of results) finished[x.chapter] = x.n;
+  return { best: r?.best ?? 0, clears: r?.clears ?? 0, rewardedToday: r?.today ?? 0, unlocked: Math.min(MAX_CHAPTER, (r?.top ?? 0) + 1), finished };
 }
 
 // 강화 주머니(모은 동전 + 강화 단계)
@@ -41,10 +47,10 @@ export async function journeyBank(db: D1Database, user: string): Promise<Journey
 
 // 강화 한 단계. 동전이 모자라거나 끝까지 올렸거나 다른 화면에서 먼저 샀으면 false.
 export async function buyPerk(db: D1Database, user: string, id: PerkId, now = new Date()): Promise<boolean> {
-  const [bank, record] = await Promise.all([journeyBank(db, user), journeyRecord(db, user)]);
+  const [bank, record, dogam] = await Promise.all([journeyBank(db, user), journeyRecord(db, user), dogamProgress(db, user)]);
   const lv = bank[id];
   const cost = perkCost(lv);
-  const max = perkMax(id, record.unlocked);
+  const max = perkMax(id, Math.min(record.unlocked, journeyOpenTo(dogam)));
   if (lv >= max || bank.coins < cost) return false;
   const r = await db
     .prepare(`UPDATE journey_bank SET coins = coins - ?3, ${id} = ${id} + 1, updated_at = ?5 WHERE user_id = ?1 AND ${id} = ?2 AND coins >= ?3 AND ${id} < ?4`)
@@ -87,6 +93,15 @@ export async function actJourneyRun(db: D1Database, user: string, id: string, re
   if (!run || run.row.status !== 'going' || run.row.rev !== rev) return 'stale';
   const s = actJourney(run.state, act);
   if (!s) return 'bad';
+  if (s.done) {
+    // 같은 장을 전에 몇 번 끝냈는지에 따라 훈련소에 모이는 젤코인이 줄어요.
+    const before = await db
+      .prepare("SELECT COUNT(*) AS n FROM journey_runs WHERE user_id = ? AND chapter = ? AND status = 'done'")
+      .bind(user, s.ch ?? 1)
+      .first<{ n: number }>();
+    s.bankPct = bankRate(before?.n ?? 0);
+    s.banked = Math.floor((s.coins * s.bankPct) / 100);
+  }
   const t = now.toISOString();
   const token = crypto.randomUUID();
   const day = kstDay(now);
@@ -105,7 +120,7 @@ export async function actJourneyRun(db: D1Database, user: string, id: string, re
       .bind(id, user, token, JSON.stringify(s), t, s.done ? 1 : 0, day, journeyXp(s.day, s.cleared, s.ch ?? 1), journeyJelly(s.cleared), s.day, s.cleared ? 1 : 0, rev),
   ];
   if (s.done) {
-    // 남은 동전은 보상 횟수와 상관없이 강화 주머니로 (이번 저장이 성공했을 때만)
+    // 남은 동전(같은 장을 또 하면 줄어든 만큼)은 보상 횟수와 상관없이 강화 주머니로 (이번 저장이 성공했을 때만)
     stmts.push(
       db
         .prepare(
@@ -113,7 +128,7 @@ export async function actJourneyRun(db: D1Database, user: string, id: string, re
            SELECT user_id, ?3, ?4 FROM journey_runs WHERE id = ?1 AND mutation = ?2 AND status = 'done'
            ON CONFLICT (user_id) DO UPDATE SET coins = journey_bank.coins + excluded.coins, updated_at = excluded.updated_at`,
         )
-        .bind(id, token, s.coins, t),
+        .bind(id, token, s.banked ?? s.coins, t),
     );
     stmts.push(
       db
