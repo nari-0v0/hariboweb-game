@@ -453,7 +453,7 @@ app.get('/api/bot/group/:id', async (c) => {
   const id = c.req.param('id');
   if (!isDiscordId(id)) return c.json({ error: 'bad_id' }, 400);
   const view = await groupViewFor(c.env.DB, id, Date.now());
-  if (!view) return c.json({ group: null, page_url: baseUrl(c) + '/group' });
+  if (!view) return c.json({ group: null, page_url: baseUrl(c) + '/bingo' });
   return c.json({
     group: {
       no: view.groupNo + 1,
@@ -467,7 +467,7 @@ app.get('/api/bot/group/:id', async (c) => {
       me: view.me,
       today_top: view.todayTop,
     },
-    page_url: baseUrl(c) + '/group',
+    page_url: baseUrl(c) + '/bingo',
   });
 });
 
@@ -475,12 +475,12 @@ app.get('/api/bot/group/:id', async (c) => {
 app.get('/api/bot/ranking', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
   const view = await seasonRanking(c.env.DB, Date.now());
-  if (!view) return c.json({ ranking: null, page_url: baseUrl(c) + '/group' });
+  if (!view) return c.json({ ranking: null, page_url: baseUrl(c) + '/bingo' });
   return c.json({
     season: { start: view.season.start, end: view.season.end },
     ranking: view.ranking.map((r) => ({ no: r.no + 1, rank: r.rank, done: r.done, total: r.total, minutes: r.minutes, size: r.size })),
     today_top: view.todayTop.map((t) => ({ name: t.name, minutes: t.minutes, group: t.group + 1 })),
-    page_url: baseUrl(c) + '/group',
+    page_url: baseUrl(c) + '/bingo',
   });
 });
 
