@@ -95,3 +95,12 @@ it('나가기 직전 통화 1분은 탈퇴와 같은 묶음에 와도 팀 통화
   }, 'leaver'), at)).toBe('applied');
   expect(sql.prepare('SELECT minutes FROM gq_pair').get()).toEqual({ minutes: 30 });
 });
+
+it('봇이 주기를 못 보낸 동안의 임시 주 짝 기록도 짝 고르기에 들어가요', async () => {
+  const { db, sql } = fakeD1();
+  sql.prepare("INSERT INTO bingo_pair (week, a, b, minutes) VALUES ('w2026-11-02', ?, ?, 10)").run(A, B);
+  sql.prepare("INSERT INTO bingo_pair (week, a, b, minutes) VALUES ('w2026-10-12', ?, ?, 99)").run(A, C); // 2주보다 전
+  const prior = await loadPrior(db, SEASON);
+  expect(prior.minutes.get(`${A}|${B}`)).toBe(10);
+  expect(prior.minutes.get(`${A}|${C}`)).toBeUndefined();
+});

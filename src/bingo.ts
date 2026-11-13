@@ -449,8 +449,15 @@ const PRIOR_RECHECK_MS = 7 * DAY_MS;
 export async function myBingo(db: D1Database, userId: string, nowMs: number): Promise<BingoView | null> {
   const periods = await loadPeriods(db, nowMs);
   const now = periodFor(nowMs, periods);
-  const prior = periodFor(Date.parse(now.start) - 1, periods);
-  if (prior.id !== now.id && nowMs - Date.parse(prior.end) < PRIOR_RECHECK_MS) {
+  // 끝난 지 PRIOR_RECHECK_MS 안의 진짜 기간 전부 + 바로 앞 기간(임시 주일 수 있어요). 사이에 임시 주가 끼어도 빠지지 않게.
+  const nowIso = new Date(nowMs).toISOString();
+  const recent = (p: Week) => {
+    const end = p.end < now.start ? p.end : now.start; // 임시 주는 다음 기간이 시작할 때 끝난 걸로 봐요
+    return p.id !== now.id && p.start < now.start && end <= nowIso && nowMs - Date.parse(end) < PRIOR_RECHECK_MS;
+  };
+  const priors = new Map<string, Week>();
+  for (const p of [...periods, periodFor(Date.parse(now.start) - 1, periods)]) if (recent(p)) priors.set(p.id, p);
+  for (const prior of priors.values()) {
     await grantBingo(db, prior, [userId], nowMs).catch((e) => console.error('지난 빙고 보상 확인 실패', e));
   }
   return (await grantBingo(db, now, [userId], nowMs)).get(userId) ?? null;
