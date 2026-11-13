@@ -15,6 +15,8 @@ export type CardProps = {
   xp: number;
   // 'own' = 내 카드, 'pair' = 도감 속 친구 카드, 'unknown' = 아직 못 만난 멤버
   kind: 'own' | 'pair' | 'unknown';
+  // 그림 위 이름표를 바꿀 때(예: 다른 사람 도감의 본인 카드)
+  label?: string;
   faded?: boolean;
   no?: string;
   stats: [string, string][];
@@ -28,7 +30,7 @@ export function Card(p: CardProps) {
   const { level } = progress(p.xp);
   const unknown = p.kind === 'unknown';
   const tier = unknown ? 'plain' : tierFor(level);
-  const label = unknown ? '???' : p.kind === 'own' ? '나의 카드' : levelName(level);
+  const label = unknown ? '???' : p.label ?? (p.kind === 'own' ? '나의 카드' : levelName(level));
   const theme = unknown ? 'basic' : themeOrBasic(p.theme);
   const classes = ['card', `theme-${theme}`, `tier-${tier}`, ...(unknown ? [] : tierEffects(level)), `size-${p.size ?? 'small'}`];
   if (p.faded) classes.push('faded');

@@ -256,8 +256,11 @@ export function DogamPage(props: {
   entries: DogamEntry[];
   owned: number;
   total: number;
+  // 다른 사람 도감을 볼 때 그 사람 본인 카드(맨 앞 칸)
+  ownerProfile?: Profile;
 }) {
   const mine = props.owner.user_id === props.viewer.user_id;
+  const self = !mine ? props.ownerProfile : undefined;
   const pct = props.total ? Math.round((props.owned / props.total) * 100) : 0;
   const left = props.entries.filter((e) => !e.active).length;
   const title = mine ? '내 도감' : `${props.owner.display_name}님의 도감`;
@@ -298,6 +301,27 @@ export function DogamPage(props: {
           </div>
         </section>
         <div class="grid">
+          {self && (
+            <div class="grid-item is-self">
+              <Card
+                id={props.owner.user_id}
+                character={self.character_id}
+                deco={self.deco_id}
+                kind="own"
+                label="본인 카드"
+                name={props.owner.display_name}
+                title={titleName(self.title_id)}
+                theme={self.theme_id}
+                intro={self.intro}
+                xp={self.solo_xp}
+                stats={[
+                  ['레벨', String(progress(self.solo_xp).level)],
+                  ['도감', `${props.owned}/${props.total}`],
+                  ['경험치', self.solo_xp.toLocaleString('ko-KR')],
+                ]}
+              />
+            </div>
+          )}
           {props.entries.map((e) => {
             const state = !e.active ? 'left' : e.owned ? 'owned' : 'unknown';
             const lv = progress(e.xp).level;
