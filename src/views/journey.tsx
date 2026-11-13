@@ -564,7 +564,7 @@ function Result(props: { run: JourneyRun; art: string; name: string; unlocked: n
       <p>
         {run.row.xp > 0
           ? `보상: 내 카드 경험치 +${run.row.xp}${run.row.jelly ? `, 도감 젤리 +${run.row.jelly}` : ''}`
-          : `오늘 경험치 보상은 이미 ${DAILY_REWARD_JOURNEYS}번 받았어요. 내일 다시 받을 수 있어요.${run.row.jelly ? ` 원정대 완주 보상: 도감 젤리 +${run.row.jelly}` : ''}`}
+          : `이 판을 끝낸 날에는 경험치 보상(하루 ${DAILY_REWARD_JOURNEYS}번)을 이미 다 받아서 이번 판은 경험치가 없어요. 다음 날 다시 받을 수 있어요.${run.row.jelly ? ` 원정대 완주 보상: 도감 젤리 +${run.row.jelly}` : ''}`}
       </p>
       {props.going
         ? <a class="btn btn-primary" href="/expedition/go#now">진행 중인 원정 이어 하기</a>

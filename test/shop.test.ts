@@ -44,6 +44,9 @@ describe('jelly shop items', () => {
     expect(rewardNeed(REWARD_COUNT, 101)).toBe(100);
     expect(canUse(reward, new Set(), REWARD_STEP, 101)).toBe(false);
     for (let r = 2; r <= REWARD_COUNT; r++) expect(rewardNeed(r, 96)).toBeGreaterThan(rewardNeed(r - 1, 96));
+    // 인원이 적어 최소 장수(3장씩)가 인원보다 크면, 도감을 다 채웠을 때 마지막 캐릭터까지 열려요
+    expect(rewardNeed(REWARD_COUNT, 60)).toBe(59);
+    expect(rewardNeed(1, 60)).toBe(REWARD_STEP);
   });
 
   it('keeps the basic theme free and locks the rest until bought', () => {

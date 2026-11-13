@@ -1,5 +1,5 @@
 import { characterUrl } from './character';
-import { gambleMyRanks, gambleRanks } from './gamble-db';
+import { expireAllHands, gambleMyRanks, gambleRanks } from './gamble-db';
 import { seasonAt } from './team';
 
 // 순위 메뉴(/rank): 도감·빙고(젤리피)·원정대·사건파일·겜블장. 지금 서버에 있는 멤버만, 3위까지 + 내 순위.
@@ -52,6 +52,7 @@ export async function loadRankings(db: D1Database, userId: string, nowMs: number
   const want = (t: NonNullable<typeof tab>) => !tab || tab === t;
   const none = Promise.resolve([] as Raw[]);
   const now = new Date(nowMs).toISOString();
+  if (want('gamble')) await expireAllHands(db, now).catch((e) => console.error('지난 카드 21 정산 실패', e));
   const season = await seasonAt(db, now);
   const jellypi = (seasonId: string | null) =>
     rows(

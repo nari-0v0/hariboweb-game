@@ -126,6 +126,15 @@ export async function expireHand(db: D1Database, user: string, now: string) {
   return null;
 }
 
+// 자정이 지나 저절로 멈춘 카드 21을 누구 것이든 정산해요(그 사람이 안 들어와도 순위에 바로 반영되게).
+export async function expireAllHands(db: D1Database, now: string) {
+  const { results } = await db
+    .prepare(`SELECT * FROM gamble_rounds WHERE game = 'cards' AND settled_at IS NULL AND expires_at <= ? LIMIT 50`)
+    .bind(now)
+    .all<Round>();
+  for (const round of results) await updateHand(db, round, 'stand', now, true);
+}
+
 export function publicHand(round: Round) {
   const { player, dealer }: Hand = JSON.parse(round.state);
   return { player, dealer: round.multiplier === null ? dealer.slice(0, 1) : dealer, score: cardScore(player) };

@@ -147,7 +147,13 @@ describe('도감 칭호', () => {
   it('목록에서 빠진 칭호를 고른 채면 떼요', async () => {
     const { db } = setup();
     await equipTitle(db, A, 'old-title');
+    // 닉네임에 이미 붙은 뒤에 목록에서 빠져도 떼요
+    await settleTitle(db, A, 'old-title', null);
     expect(await listTitleJobs(db)).toEqual([{ user: A, id: '', title: null }]);
     expect((await titleState(db, A)).title_id).toBeNull();
+    // 붙기 전에 빠졌으면 뗄 것도 없어요. 지금 목록에 있는 칭호를 고른 사람은 건드리지 않아요
+    await equipTitle(db, B, 'old-title');
+    await equipTitle(db, A, 'shop-1');
+    expect(await listTitleJobs(db)).toEqual([{ user: A, id: 'shop-1', title: 'MOOD' }]);
   });
 });

@@ -82,7 +82,7 @@ import {
 } from './title-db';
 
 import { GambleLobby, GambleRoom } from './views/gamble';
-import { activeHand, betChips, betTooSoon, claimDaily, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, moveHand, rescueChips, type Game } from './gamble-db';
+import { activeHand, betChips, betTooSoon, claimDaily, expireAllHands, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, moveHand, rescueChips, type Game } from './gamble-db';
 import { prefetchAllowed } from './prefetch';
 import { EscapePage } from './views/escape';
 import { JourneyPage } from './views/journey';
@@ -411,10 +411,12 @@ app.post('/api/bot/praise', async (c) => {
   if (!isDiscordId(body.from) || !isDiscordId(body.to)) return c.json({ error: 'bad_id' }, 400);
   if (body.note != null && (typeof body.note !== 'string' || [...body.note].length > PRAISE_NOTE_MAX * 2)) return c.json({ error: 'bad_note' }, 400);
   // 한마디는 비꼬기·욕이면 빼고 칭찬만 전해요. 이미 줬거나 한도면 AI에 묻지 않아요.
-  const status = await praiseToday(c.env.DB, body.from);
+  // 한도 확인과 저장이 같은 날짜를 쓰게 한 번만 정해요(자정에 걸쳐도 한마디가 사라지지 않게).
+  const day = kstDay();
+  const status = await praiseToday(c.env.DB, body.from, day);
   const asked = cleanNote(body.note) !== '';
   const check = asked && status.left > 0 && !status.given.includes(body.to) ? await checkNote(c.env.AI, body.note) : { note: null, filtered: false };
-  const result = await givePraise(c.env.DB, body.from, body.to, kstDay(), check.note);
+  const result = await givePraise(c.env.DB, body.from, body.to, day, check.note);
   // 칭찬 주기·받기 빙고 칸이 채워졌으면 줄 보상을 줘요(실패해도 칭찬은 끝났어요)
   if (result.result === 'done') {
     const now = Date.now();
@@ -838,6 +840,7 @@ members.get('/gamble', async (c) => {
   const now = new Date().toISOString();
   const expired = await expireHand(db, user, now);
   if (expired) return c.redirect(gambleRoomUrl('cards', expired));
+  await expireAllHands(db, now).catch((e) => console.error('지난 카드 21 정산 실패', e));
   const daily = await claimDaily(db, user, now);
   const [account, hand, ranks] = await Promise.all([
     gambleAccount(db, user), activeHand(db, user), gambleRanks(db, now),
@@ -855,6 +858,8 @@ members.get('/gamble/:game', async (c) => {
   const db = c.env.DB;
   const now = new Date().toISOString();
   const expired = await expireHand(db, user, now);
+  // 다른 방에 먼저 들어와도 자정에 멈춘 카드 21 결과를 보여 줘요.
+  if (expired && game !== 'cards') return c.redirect(gambleRoomUrl('cards', expired));
   const daily = await claimDaily(db, user, now);
   const token = (game === 'cards' ? expired : null) ?? c.req.query('r');
   const [account, hand, round] = await Promise.all([
@@ -894,7 +899,9 @@ members.post('/gamble/cards', async (c) => {
   if (!uuid(token) || typeof revision !== 'string' || !/^[0-9]{1,2}$/.test(revision) ||
     (move !== 'hit' && move !== 'stand')) return c.redirect(gambleRoomUrl('cards'), 303);
   const user = c.get('viewer').user_id;
-  await moveHand(c.env.DB, user, token, Number(revision), move, new Date().toISOString());
+  const moved = await moveHand(c.env.DB, user, token, Number(revision), move, new Date().toISOString());
+  // 다른 탭에서 이미 진행해 이 버튼이 옛것이면 알려 줘요.
+  if (!moved && (await activeHand(c.env.DB, user))?.token === token) return c.redirect(`${gambleRoomUrl('cards')}?n=stale`, 303);
   return c.redirect(gambleRoomUrl('cards', token), 303);
 });
 
