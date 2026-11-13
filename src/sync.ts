@@ -34,7 +34,8 @@ const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object
 const isCount = (v: unknown, max = MAX_XP): v is number => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= max;
 const isTime = (v: unknown): v is string => typeof v === 'string' && !Number.isNaN(Date.parse(v));
 const isDay = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
-const isText = (v: unknown, max: number): v is string => typeof v === 'string' && v.length >= 1 && v.length <= max;
+// 길이는 글자(코드 포인트) 수로 세요. 봇(파이썬)이 자르는 방식과 같아야 이모지가 든 이름에 묶음 전체가 거절되지 않아요.
+const isText = (v: unknown, max: number): v is string => typeof v === 'string' && v.length >= 1 && [...v].length <= max;
 const isIds = (v: unknown, min: number, max: number): v is string[] =>
   Array.isArray(v) && v.length >= min && v.length <= max && v.every((x) => typeof x === 'string' && ID.test(x));
 
@@ -59,7 +60,7 @@ export function parseSync(raw: unknown): Result {
   const members: SyncPayload['members'] = [];
   for (const m of rawMembers!) {
     if (!isObj(m) || typeof m.id !== 'string' || !ID.test(m.id)) return { ok: false, error: 'members.id가 잘못됐어요' };
-    if (typeof m.name !== 'string' || m.name.length < 1 || m.name.length > 100)
+    if (!isText(m.name, 100))
       return { ok: false, error: `members.name이 잘못됐어요 (${m.id})` };
     const avatar = m.avatar_url ?? null;
     if (avatar !== null && (typeof avatar !== 'string' || !avatar.startsWith('https://')))

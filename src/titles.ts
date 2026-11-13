@@ -24,7 +24,8 @@ export type TitleRule =
   | { kind: 'praiseGave'; count: number }
   | { kind: 'voiceHours'; hours: number }; // 같이 통화한 시간(카드마다 더해서)
 
-export type Title = { id: string; name: string; group: string; rule: TitleRule };
+// retired: 지금은 얻을 수 없는 칭호(예전 모둠 퀘스트 8개). 이미 얻은 사람에게만 보여요.
+export type Title = { id: string; name: string; group: string; rule: TitleRule; retired?: boolean };
 
 // ── 상점 칭호: [묶음, 값(도감 젤리), 이름들] ─────────────
 // id는 이 목록 순서대로 shop-1, shop-2 … 로 정해져요. 새 칭호는 맨 뒤에만 더하고, 중간에 넣거나 빼지 마세요.
@@ -43,7 +44,7 @@ const SHOP_GROUPS: [string, number, string][] = [
 
 // ── 활동으로 얻는 칭호: 단계마다 [조건 값, 이름] ─────────────
 // id는 조건으로 정해져요(예: lv-30). 값을 바꾸면 id도 바뀌니 조심하세요.
-type Ladder = { group: string; id: string; steps: [number, string][]; rule: (v: number) => TitleRule };
+type Ladder = { group: string; id: string; steps: [number, string][]; rule: (v: number) => TitleRule; retired?: boolean };
 const steps = (values: number[], names: string): [number, string][] => {
   const n = names.split(' ');
   if (n.length !== values.length) throw new Error(`칭호 단계 수가 달라요: ${names}`);
@@ -72,13 +73,14 @@ const LADDERS: Ladder[] = [
     ([seasons, names]): Ladder => ({
       group: '모둠 퀘스트',
       id: `rate-s${seasons}`,
+      retired: true,
       rule: (pct) => ({ kind: 'questRate', rate: pct / 100, seasons }),
       steps: steps([30, 50, 70, 80, 90, 100], names),
     }),
   ),
-  { group: '모둠 퀘스트', id: 'clear', rule: (count) => ({ kind: 'fullClear', count }),
+  { group: '모둠 퀘스트', id: 'clear', retired: true, rule: (count) => ({ kind: 'fullClear', count }),
     steps: steps([1, 2, 3, 5, 7, 10, 15, 20], '올클 더블클 PRO 클리어 행운7 텐클 무패 전설팀') },
-  { group: '모둠 퀘스트', id: 'season', rule: (count) => ({ kind: 'seasons', count }),
+  { group: '시즌', id: 'season', rule: (count) => ({ kind: 'seasons', count }),
     steps: steps([1, 2, 3, 5, 10, 20], '신입 재학생 고학년 고참 원년 화석') },
   { group: '빙고', id: 'bingo', rule: (count) => ({ kind: 'bingo', count }),
     steps: steps([1, 5, 10, 20, 30, 50, 75, 100, 150, 200], '첫빙고 빙고 럭키 빙고러 빙고광 빙고킹 행운아 잭팟 대박빙고 빙고신') },
@@ -112,10 +114,12 @@ export const TITLES: Title[] = [
     names.split(' ').map((name): Title => ({ id: `shop-${++shopNo}`, name, group, rule: { kind: 'shop', price } })),
   ),
   ...GAMBLE_TITLES,
-  ...LADDERS.flatMap((l) => l.steps.map(([v, name]): Title => ({ id: `${l.id}-${v}`, name, group: l.group, rule: l.rule(v) }))),
+  ...LADDERS.flatMap((l) => l.steps.map(([v, name]): Title => ({ id: `${l.id}-${v}`, name, group: l.group, rule: l.rule(v), ...(l.retired ? { retired: true } : {}) }))),
 ];
 
 export const TITLE_GROUPS = [...new Set(TITLES.map((t) => t.group))];
+// 이 사람에게 보여 줄 칭호(지금은 못 얻는 칭호는 이미 가진 사람에게만)
+export const visibleTitles = (owned: Set<string>): Title[] => TITLES.filter((t) => !t.retired || owned.has(t.id));
 const BY_ID = new Map(TITLES.map((t) => [t.id, t]));
 export const titleById = (id: unknown): Title | undefined => (typeof id === 'string' ? BY_ID.get(id) : undefined);
 export const titleName = (id: string | null | undefined): string | null => (id ? (BY_ID.get(id)?.name ?? null) : null);
@@ -173,13 +177,15 @@ export function titleProgress(t: Title, s: TitleStats): TitleProgress {
     case 'cards':
       return count(s.cards, r.count, `도감 카드 ${r.count}장 모으기`, '장');
     case 'questRate': {
-      const done = s.seasons.reduce((a, x) => a + x.done, 0);
-      const total = s.seasons.reduce((a, x) => a + x.total, 0);
+      // 모둠 퀘스트가 있던 시즌만 세요(빙고 이후 시즌은 모둠 퀘스트가 없어요)
+      const quest = s.seasons.filter((x) => x.total > 0);
+      const done = quest.reduce((a, x) => a + x.done, 0);
+      const total = quest.reduce((a, x) => a + x.total, 0);
       const rate = total ? done / total : 0;
       return {
-        ok: s.seasons.length >= r.seasons && rate >= r.rate,
+        ok: quest.length >= r.seasons && rate >= r.rate,
         text: `시즌 ${r.seasons}번 이상, 모둠 퀘스트 성공률 ${Math.round(r.rate * 100)}% 이상`,
-        now: `시즌 ${s.seasons.length}번 · ${Math.floor(rate * 100)}%`,
+        now: `시즌 ${quest.length}번 · ${Math.floor(rate * 100)}%`,
       };
     }
     case 'fullClear':

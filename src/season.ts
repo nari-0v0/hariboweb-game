@@ -727,6 +727,8 @@ export const ENDED_GRACE_MS = 30 * 60 * 1000;
 export async function evaluateSeason(db: D1Database, seasonId: string, nowMs: number): Promise<number> {
   const end = await db.prepare('SELECT ends_at FROM seasons WHERE id = ?').bind(seasonId).first<{ ends_at: string }>();
   if (!end) return 0;
+  // 하리보 빙고부터는 모둠 퀘스트 8개를 만들지 않아요. 확인할 퀘스트가 없으면 무거운 기록 읽기(동기화마다 수천 줄)를 건너뛰어요.
+  if (!(await db.prepare('SELECT 1 FROM season_quests WHERE season_id = ? AND done_at IS NULL LIMIT 1').bind(seasonId).first())) return 0;
   // 시즌이 끝난 직후의 마지막 묶음(끝나기 직전 활동)은 지금 상태로 계산해요. 그 뒤로는 끝난 시즌 기록만 써요.
   const loaded = await loadGroups(db, seasonId, null, Date.parse(end.ends_at) + ENDED_GRACE_MS <= nowMs);
   if (!loaded) return 0;
