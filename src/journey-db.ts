@@ -61,10 +61,11 @@ export async function journeyBank(db: D1Database, user: string): Promise<Journey
 const matPath = (ch: number) => `$."${ch}"`;
 
 // 장비 한 단계. +N에는 N장 재료와 젤코인이 들어요. 모자라거나 끝까지 올렸거나 다른 화면에서 먼저 했으면 false.
-export async function upgradeGear(db: D1Database, user: string, id: GearId, now = new Date()): Promise<boolean> {
+// seen = 화면에 보이던 단계(오래된 화면에서 누르면 다음 단계 값을 내지 않게).
+export async function upgradeGear(db: D1Database, user: string, id: GearId, now = new Date(), seen?: number): Promise<boolean> {
   const bank = await journeyBank(db, user);
   const lv = bank[id];
-  if (lv >= GEAR_MAX) return false;
+  if (lv >= GEAR_MAX || (seen !== undefined && seen !== lv)) return false;
   const need = gearNeed(lv + 1);
   if ((bank.mats[need.ch] ?? 0) < need.mats || bank.coins < need.coins) return false;
   const r = await db
@@ -79,9 +80,10 @@ export async function upgradeGear(db: D1Database, user: string, id: GearId, now 
 }
 
 // 강화 한 단계. 동전이 모자라거나 끝까지 올렸거나 다른 화면에서 먼저 샀으면 false.
-export async function buyPerk(db: D1Database, user: string, id: PerkId, now = new Date()): Promise<boolean> {
+export async function buyPerk(db: D1Database, user: string, id: PerkId, now = new Date(), seen?: number): Promise<boolean> {
   const [bank, record, dogam] = await Promise.all([journeyBank(db, user), journeyRecord(db, user), dogamProgress(db, user)]);
   const lv = bank[id];
+  if (seen !== undefined && seen !== lv) return false;
   const cost = perkCost(lv);
   const max = perkMax(id, Math.min(record.unlocked, journeyOpenTo(dogam)));
   if (lv >= max || bank.coins < cost) return false;

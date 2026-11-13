@@ -960,12 +960,19 @@ members.post('/api/journey/act', async (c) => {
     return c.redirect('/expedition/go?n=error#now', 303);
   }
 });
+// 화면에 보이던 단계(없으면 확인하지 않아요: 배포 전에 열어 둔 화면)
+function seenLevel(v: unknown): number | undefined {
+  const n = Number(v);
+  return v !== undefined && v !== '' && Number.isSafeInteger(n) && n >= 0 ? n : undefined;
+}
 members.post('/api/journey/perk', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  const k = String((await c.req.parseBody()).k ?? '');
+  const body = await c.req.parseBody();
+  const k = String(body.k ?? '');
+  const seen = seenLevel(body.lv);
   if (!Object.hasOwn(PERKS, k)) return c.redirect('/expedition/go?n=bad#perks', 303);
   try {
-    const ok = await buyPerk(c.env.DB, c.get('viewer').user_id, k as PerkId);
+    const ok = await buyPerk(c.env.DB, c.get('viewer').user_id, k as PerkId, new Date(), seen);
     return c.redirect(`/expedition/go?prep=train&n=${ok ? 'perk' : 'noperk'}#perks`, 303);
   } catch (e) {
     console.error('원정 강화 실패', e);
@@ -974,10 +981,12 @@ members.post('/api/journey/perk', async (c) => {
 });
 members.post('/api/journey/gear', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  const k = String((await c.req.parseBody()).k ?? '');
+  const body = await c.req.parseBody();
+  const k = String(body.k ?? '');
+  const seen = seenLevel(body.lv);
   if (!Object.hasOwn(GEAR, k)) return c.redirect('/expedition/go?n=bad#perks', 303);
   try {
-    const ok = await upgradeGear(c.env.DB, c.get('viewer').user_id, k as GearId);
+    const ok = await upgradeGear(c.env.DB, c.get('viewer').user_id, k as GearId, new Date(), seen);
     return c.redirect(`/expedition/go?prep=gear&n=${ok ? 'gear' : 'nogear'}#perks`, 303);
   } catch (e) {
     console.error('원정 장비 강화 실패', e);

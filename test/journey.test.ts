@@ -187,6 +187,16 @@ describe('원정대 저장과 보상', () => {
     bank = await journeyBank(db, 'me');
     expect(bank.armor).toBe(0);
   });
+  it('오래된 화면(다른 단계)에서 누르면 다음 단계 값을 내지 않아요', async () => {
+    const { db, sql } = database();
+    sql.prepare(`INSERT INTO journey_bank (user_id, coins, mats, updated_at) VALUES ('me', 1000, '{"1":9}', 'x')`).run();
+    expect(await buyPerk(db, 'me', 'atk', new Date(), 0)).toBe(true);
+    expect(await buyPerk(db, 'me', 'atk', new Date(), 0)).toBe(false); // 두 번째 탭의 Lv.0 화면
+    expect(await upgradeGear(db, 'me', 'armor', new Date(), 1)).toBe(false);
+    expect(await upgradeGear(db, 'me', 'armor', new Date(), 0)).toBe(true);
+    const bank = await journeyBank(db, 'me');
+    expect([bank.atk, bank.armor]).toEqual([1, 1]);
+  });
   it('주운 재료는 끝날 때 그 장 칸에 모이고(젤코인이 0%여도), 처음 대장을 깨면 2개 더 받아요', async () => {
     const { db } = database();
     for (let i = 0; i < 6; i++) {

@@ -214,15 +214,6 @@ export async function applySync(
     }
   }
 
-  // 하리보 빙고 팀 퀘스트 짝과 서버 퀘스트 목표(시즌마다 처음 한 번). 이 기능 전에 시작한 시즌도 여기서 정해요.
-  if (p.season && Date.parse(p.season.start) <= nowMs && nowMs < Date.parse(p.season.end)) {
-    try {
-      if (await db.prepare('SELECT 1 FROM seasons WHERE id = ?').bind(p.season.id).first()) await ensureSeasonQuests(db, p.season, nowMs);
-    } catch (e) {
-      console.error('팀·서버 퀘스트 만들기 실패', e);
-    }
-  }
-
   const stmts: D1PreparedStatement[] = [
     db.prepare('INSERT INTO sync_batches (batch_id, applied_at) VALUES (?, ?)').bind(p.batch_id, t),
     db.prepare('DELETE FROM sync_batches WHERE applied_at < ?').bind(new Date(nowMs - SYNC_BATCH_KEEP_DAYS * DAY_MS).toISOString()),
@@ -324,6 +315,16 @@ export async function applySync(
     if (String(e).includes('UNIQUE') && String(e).includes('sync_batches')) return 'duplicate';
     throw e;
   }
+  // 하리보 빙고 팀 퀘스트 짝과 서버 퀘스트 목표(시즌마다 처음 한 번). 이 기능 전에 시작한 시즌도 여기서 정해요.
+  // 이번 묶음의 통화 기록을 저장한 뒤에 정해요(시즌 시작 직전 통화가 첫 묶음에 같이 와도 짝 고르기에 들어가게).
+  if (p.season && Date.parse(p.season.start) <= nowMs && nowMs < Date.parse(p.season.end)) {
+    try {
+      if (await db.prepare('SELECT 1 FROM seasons WHERE id = ?').bind(p.season.id).first()) await ensureSeasonQuests(db, p.season, nowMs);
+    } catch (e) {
+      console.error('팀·서버 퀘스트 만들기 실패', e);
+    }
+  }
+
   // 다 채운 퀘스트 확인(실패해도 동기화는 끝났어요. 다음 묶음 때 다시 확인해요)
   try {
     const seen = new Set<string>();

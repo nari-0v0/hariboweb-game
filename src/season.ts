@@ -394,7 +394,10 @@ async function groupStatements(
   const seen = new Set<string>();
   for (const r of p.room_minutes) if (inSeason(r.at)) for (const u of r.members) seen.add(u);
   for (const s of p.scrims) if (inSeason(s.at)) for (const u of s.members) seen.add(u);
-  for (const a of p.attendance) seen.add(a.id);
+  // 출석은 시즌 날짜 안의 것만(지난 시즌 날짜의 늦은 출석으로 새 시즌 모둠에 들어가지 않게)
+  const seasonFirstDay = season.id;
+  const seasonLastDay = kstParts(new Date(endMs - 1).toISOString()).day;
+  for (const a of p.attendance) if (a.day >= seasonFirstDay && a.day <= seasonLastDay) seen.add(a.id);
   const { results: info } = await db
     .prepare('SELECT user_id, games, is_newbie, active FROM members WHERE user_id IN (SELECT value FROM json_each(?))')
     .bind(JSON.stringify([...seen]))
@@ -573,11 +576,9 @@ async function groupStatements(
   }
 
   // 출석
-  const startDay = season.id;
-  const endDay = kstParts(new Date(endMs - 1).toISOString()).day;
   const addAttend = db.prepare('INSERT OR IGNORE INTO gq_attend (season_id, user_id, day) VALUES (?, ?, ?)');
   for (const a of p.attendance)
-    if (group.has(a.id) && a.day >= startDay && a.day <= endDay) stmts.push(addAttend.bind(sid, a.id, a.day));
+    if (group.has(a.id) && a.day >= seasonFirstDay && a.day <= seasonLastDay) stmts.push(addAttend.bind(sid, a.id, a.day));
 
   return stmts;
 }

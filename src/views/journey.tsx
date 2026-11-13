@@ -701,6 +701,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
           return (
             <form method="post" action="/api/journey/perk" class="jp-row-form">
               <input type="hidden" name="k" value={id} />
+              <input type="hidden" name="lv" value={lv} />
               <button type="submit" class="jp-row" disabled={full || bank.coins < cost}>
                 <span class="jp-row-icon" aria-hidden="true">
                   {info.icon}
@@ -744,6 +745,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
           return (
             <form method="post" action="/api/journey/gear" class="jp-gear-form">
               <input type="hidden" name="k" value={id} />
+              <input type="hidden" name="lv" value={lv} />
               <div class={`jp-item${full ? ' full' : ''}`}>
                 <div class="jp-item-pic">
                   <span aria-hidden="true">{info.icon}</span>
