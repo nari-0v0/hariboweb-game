@@ -177,6 +177,23 @@ describe('줄 보상', () => {
     expect(sql.prepare("SELECT SUM(amount) AS n, MIN(season_id) AS s FROM jellypi WHERE user_id = ?").get(A)).toEqual({ n: LINES.length + 3, s: 's1' });
   });
 
+  it('기간 마지막 순간에 내 카드를 열어도 그 판에 보상을 줘요', async () => {
+    const { sql, db } = fakeD1();
+    const week = weekOf(NOW);
+    const user = Array.from({ length: 100 }, (_, i) => `7${String(i).padStart(17, '0')}`)
+      .find((id) => boardFor(week.id, id).some((cell) => cell.def.id === 'web'))!;
+    sql.prepare("INSERT INTO members (user_id, display_name, active, updated_at) VALUES (?, 'test', 1, 'x')").run(user);
+    fill(sql, user);
+    sql.prepare("DELETE FROM bingo_flag WHERE week = ? AND user_id = ? AND flag = 'web'").run(week.id, user);
+    await grantBingo(db, week, [user], NOW);
+    expect(profileOf(sql, user).dogam_jelly).toBeLessThan(LINES.length * LINE_JELLY + FULL_JELLY);
+    expect(await markFlag(db, user, 'web', Date.parse(week.end) - 1)).toBe(true);
+    const want = { dogam_jelly: LINES.length * LINE_JELLY + FULL_JELLY, solo_xp: LINES.length * LINE_XP };
+    expect(profileOf(sql, user)).toEqual(want);
+    expect(await markFlag(db, user, 'web', Date.parse(week.end) - 1)).toBe(false);
+    expect(profileOf(sql, user)).toEqual(want);
+  });
+
   it('서버를 떠난 사람은 받지 않아요', async () => {
     const { sql, db } = fakeD1();
     fill(sql, B);
