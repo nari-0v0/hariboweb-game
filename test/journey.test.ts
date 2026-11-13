@@ -363,3 +363,24 @@ describe('원정대 스킬 고르는 날', () => {
     expect(seen).toBeGreaterThan(0);
   });
 });
+
+describe('깬 장 다시 돌기 재료', () => {
+  it('이미 깬 장은 재료가 덜 나와요(대장도 가끔만)', () => {
+    const strong = { atk: 20, hp: 20, def: 10 };
+    const play = (farm: boolean) => {
+      let mats = 0;
+      for (let i = 0; i < 200; i++) {
+        let s = startJourney(`farm-${i}`, strong, 1, { weapon: 3, armor: 3, charm: 3 });
+        s.farm = farm;
+        for (let k = 0; k < 500 && !s.done; k++) s = actJourney(s, { a: 'idle' })!;
+        mats += s.mats ?? 0;
+      }
+      return mats;
+    };
+    const fresh = play(false);
+    const farm = play(true);
+    expect(fresh).toBeGreaterThan(200); // 대장은 꼭 1개
+    expect(farm).toBeGreaterThan(0);
+    expect(farm).toBeLessThan(fresh * 0.55);
+  });
+});
