@@ -293,7 +293,9 @@ export async function markFlag(db: D1Database, userId: string, flag: 'panel' | '
     .prepare('INSERT OR IGNORE INTO bingo_flag (week, user_id, flag) VALUES (?, ?, ?)')
     .bind(period.id, userId, flag)
     .run();
-  return (res.meta?.changes ?? 0) > 0;
+  const fresh = (res.meta?.changes ?? 0) > 0;
+  if (fresh) await grantBingo(db, period, [userId], nowMs);
+  return fresh;
 }
 
 // ── 읽기 ──
