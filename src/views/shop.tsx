@@ -1,3 +1,4 @@
+import { JELLY_PER_CARD_STEP, LEVEL_STEP } from '../sync';
 import type { NickJob, Profile, Purchase } from '../db';
 import type { Member } from '../env';
 import { PRICES, SERVICES, SHOP_ITEMS, canUse, rewardNeed, serviceItem, servicePrice, type ShopItem } from '../shop';
@@ -36,7 +37,7 @@ const NICK_FAIL_TEXT: Record<string, string> = {
 };
 
 // 도감 젤리 모으는 법(나리가 정한 규칙이 바뀌면 같이 바꿔요)
-export const JELLY_HOWTO = '출석 1개, 하루 통화 3시간 3개, 도감 카드 레벨이 오를 때마다 1개';
+export const JELLY_HOWTO = `출석 1개, 하루 통화 3시간 3개, 도감 카드가 ${LEVEL_STEP}레벨 오를 때마다 ${JELLY_PER_CARD_STEP}개, 빙고·칭찬·게임 보상(자세한 건 사용설명서)`;
 
 // 오류가 났을 때 방장에게 문의하는 카카오톡 오픈채팅
 import { OWNER_CONTACT_URL } from '../contact';

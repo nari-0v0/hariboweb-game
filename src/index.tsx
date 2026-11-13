@@ -618,8 +618,7 @@ members.post('/api/me/praise/:id/hide', async (c) => {
 });
 
 members.post('/api/me/profile', async (c) => {
-  const origin = c.req.header('Origin');
-  if (origin && origin !== new URL(c.req.url).origin) return c.text('잘못된 요청이에요', 403);
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
   const viewer = c.get('viewer');
   const form = await c.req.parseBody();
   const intro = String(form.intro ?? '').replace(/\s+/g, ' ').trim();

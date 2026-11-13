@@ -7,3 +7,4 @@ work/
 
 # Arena skill working files
 .arena/
+__pycache__/

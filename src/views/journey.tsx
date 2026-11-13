@@ -29,6 +29,7 @@ import {
   type BattleFx,
   type JourneyState,
   type SkillId,
+  JOURNEY_FINISH_JELLY,
 } from '../journey';
 import { FOES, PROPS, ZONE_NAMES, spriteSvg, zoneFor, type Zone } from '../journey-art';
 import { SPRITES } from '../sprites.gen';
@@ -555,12 +556,12 @@ function Result(props: { run: JourneyRun; art: string; name: string; unlocked: n
           : `남은 젤코인 🪙 ${s.banked ?? s.coins}개를 `}
         <a href="#perks">원정 준비소</a>에 모았어요.
         {(s.matsBanked ?? 0) > 0 && ` 강화 재료 ${material(s.ch ?? 1).icon} ${material(s.ch ?? 1).name} ×${s.matsBanked}도 가방에 넣었어요.`}
-        {s.bankPct !== undefined && s.bankPct < 100 && <span class="hint"> 이미 깬 장을 다시 돌면 하루에 모이는 젤코인이 줄어요. 아직 못 깬 장은 언제나 100%예요.</span>}
+        {s.bankPct !== undefined && s.bankPct < 100 && <span class="hint"> 이미 깬 장은 다시 돌수록 모이는 젤코인이 줄어요(날이 바뀌어도 그대로). 아직 못 깬 장은 언제나 100%예요.</span>}
       </p>
       <p>
         {run.row.xp > 0
           ? `보상: 내 카드 경험치 +${run.row.xp}${run.row.jelly ? `, 도감 젤리 +${run.row.jelly}` : ''}`
-          : `오늘 보상은 이미 ${DAILY_REWARD_JOURNEYS}번 받았어요. 내일 다시 받을 수 있어요.`}
+          : `오늘 경험치 보상은 이미 ${DAILY_REWARD_JOURNEYS}번 받았어요. 내일 다시 받을 수 있어요.${run.row.jelly ? ` 원정대 완주 보상: 도감 젤리 +${run.row.jelly}` : ''}`}
       </p>
       {props.going
         ? <a class="btn btn-primary" href="/expedition/go#now">진행 중인 원정 이어 하기</a>
@@ -810,7 +811,7 @@ export function JourneyPage(props: {
               </p>
               <p>장이 올라갈수록 몬스터 레벨이 20씩 올라가요(1장 Lv.1~20, 2장 Lv.21~40…).</p>
               <p>
-                하루 첫 {DAILY_REWARD_JOURNEYS}판은 끝날 때 내 카드 경험치를 받고(멀리 갈수록, 높은 장일수록 많이), 원정대를 끝까지(9장 대장까지) 처음 깨면 도감 젤리 10개를 받아요. 남은
+                하루 첫 {DAILY_REWARD_JOURNEYS}판은 끝날 때 내 카드 경험치를 받고(멀리 갈수록, 높은 장일수록 많이), 원정대를 끝까지(9장 대장까지) 처음 깨면 도감 젤리 {JOURNEY_FINISH_JELLY}개를 받아요. 남은
                 젤코인과 강화 재료는 원정 준비소에 모여요.
               </p>
             </div>
