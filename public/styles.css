@@ -1547,6 +1547,9 @@ main.wide { max-width: 1320px; }
 .esc-chip { padding: 0 6px; border: 2px solid #1d1930; background: var(--paper); color: var(--ink); font-size: .78rem; white-space: nowrap; }
 .esc-game .jr-hud { margin-bottom: 8px; }
 .esc-game .esc-frame { max-width: none; }
+.esc-rooms { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
+.esc-rooms .esc-form { margin: 0; }
+.esc-room-here { opacity: .65; cursor: default; }
 .esc-game .esc-bag { max-width: none; margin: 8px 0 0; border-color: #6b6390; background: #3b3556; color: var(--paper); }
 .esc-game .esc-item { color: var(--ink); }
 .esc-game .esc-talk { max-width: none; margin: 0; }

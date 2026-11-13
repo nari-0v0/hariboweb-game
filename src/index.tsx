@@ -1046,7 +1046,7 @@ members.post('/api/escape/act', async (c) => {
   const id = String(body.run ?? ''), rev = Number(body.rev), a = String(body.a ?? '');
   const str = (k: string) => String(body[k] ?? '').slice(0, 40);
   const act =
-    a === 'tap' ? { a, o: str('o') } as const
+    a === 'tap' || a === 'go' ? { a, o: str('o') } as const
     : a === 'use' ? { a, o: str('o'), i: str('i') } as const
     : a === 'code' ? { a, o: str('o'), v: escCodeValue(body, String(body.v ?? '').slice(0, 900)) } as const
     : a === 'answer' ? { a, n: Number(body.n), ...(body.m0 !== undefined ? { m: [0, 1, 2].map((k) => body[`m${k}`]).filter((v) => v !== undefined).map(Number) } : {}) } as const

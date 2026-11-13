@@ -334,11 +334,19 @@ export type EscAction =
   | { a: 'combine'; i: string; j: string }
   | { a: 'hint' }
   | { a: 'hint2'; o: string }
-  | { a: 'coin'; k: number };
+  | { a: 'coin'; k: number }
+  | { a: 'go'; o: string }; // 열린 방으로 바로 가기(o = 방 id)
 export type EscGrade = 'S' | 'A' | 'B' | 'C';
 
 export function startEscape(c: EscCase): EscState {
   return { v: 1, scene: c.scenes[0]!.id, inv: [], opened: [], seen: [], shown: [], clues: [], mistakes: 0, hints: 0, focus: null, msg: c.intro, tone: 'info', done: false };
+}
+
+// 열린 방: 처음 방, 그리고 이미 열어서 지나갈 수 있게 된 문이 이어 주는 방(방 목록 순서).
+export function openScenes(c: EscCase, s: EscState): string[] {
+  const open = new Set([c.scenes[0]!.id, s.scene]);
+  for (const o of c.objects) if (o.goto && s.seen.includes(o.id) && !isLocked(s, o)) open.add(o.goto);
+  return c.scenes.map((x) => x.id).filter((id) => open.has(id));
 }
 
 export const visible = (c: EscCase, s: EscState, o: EscObject) => o.scene === s.scene && (!o.hidden || s.shown.includes(o.id));
@@ -458,6 +466,15 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
     if (!(f && isLocked(old, f) && c.hints[k]!.until === f.id)) s.focus = null;
     s.msg = `💡 ${c.hints[k]!.text}`;
     s.tone = 'info';
+    return s;
+  }
+  if (act.a === 'go') {
+    if (act.o === s.scene || !openScenes(c, s).includes(act.o)) return null;
+    s.scene = act.o;
+    s.focus = null;
+    s.msg = `${c.scenes.find((x) => x.id === act.o)!.name}(으)로 왔어요.`;
+    s.tone = 'info';
+    s.fx = 'move';
     return s;
   }
   if (act.a === 'coin') {

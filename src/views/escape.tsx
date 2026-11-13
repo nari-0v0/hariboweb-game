@@ -1,6 +1,6 @@
 import type { Member } from '../env';
 import type { EscRun } from '../escape-db';
-import { ESCAPE_CASES, ESC_XP, escapeUnlockIndex, bigHint, canAnswer, coinSpots, coinsLeft, escGrade, isLocked, puzzleNo, visible, type EscGrade, type EscObject } from '../escape';
+import { ESCAPE_CASES, ESC_XP, escapeUnlockIndex, bigHint, canAnswer, coinSpots, coinsLeft, escGrade, isLocked, openScenes, puzzleNo, visible, type EscGrade, type EscObject } from '../escape';
 import { casePics, itemPic } from '../case-art';
 import { ROOMS, roomSrc, roomSrcSet, type Hotspot, type RoomKey } from '../case-rooms';
 import { ROOM_BLUR } from '../room-blur.gen';
@@ -393,7 +393,9 @@ function Play(props: { run: EscRun; art: string; name: string }) {
   const bg: RoomKey = scene.bg ?? 'office';
   const room = ROOMS[bg];
   const placed = things.filter((o) => o.at);
-  const backs = things.filter((o) => !o.at && o.goto && !o.face);
+  const open = openScenes(def, s);
+  // 그림에 자리가 없는 문은 버튼으로 둬요. 이미 열린 방으로 가는 문은 아래 방 버튼과 겹쳐서 빼요.
+  const backs = things.filter((o) => !o.at && o.goto && !o.face && !(open.includes(o.goto) && !isLocked(s, o)));
   const loose = things.filter((o) => !o.at && !(o.goto && !o.face));
   // 사람은 처음엔 방 안에 서 있다가, 그 사람 문제를 풀면 방 아래 카드 줄로 내려가요(방 안을 덜 가려요).
   const met = loose.filter((o) => o.face && (o.lock ? !isLocked(s, o) : s.seen.includes(o.id)));
@@ -478,6 +480,22 @@ function Play(props: { run: EscRun; art: string; name: string }) {
                 {lens && s.fx !== 'move' && <Loupe bg={bg} h={lens} msg={s.msg} name={focusObj!.name} hots={hots} />}
               </div>
             </div>
+            {open.length > 1 && (
+              <nav class="esc-rooms" aria-label="열린 방">
+                {open.map((id) => {
+                  const name = def.scenes.find((x) => x.id === id)!.name;
+                  return id === s.scene ? (
+                    <span class="btn btn-small esc-room-here" aria-current="true">
+                      📍 {name}
+                    </span>
+                  ) : (
+                    <Act run={run} a="go" o={id} cls="btn btn-small">
+                      🚪 {name}
+                    </Act>
+                  );
+                })}
+              </nav>
+            )}
             {met.length > 0 && (
               <div class="esc-actors" aria-label="이야기를 나눈 사람">
                 {met.map((o) => <Thing run={run} o={o} />)}
