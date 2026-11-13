@@ -18,24 +18,19 @@ export async function getJourney(db: D1Database, user: string, id: string): Prom
   return decode(await db.prepare('SELECT * FROM journey_runs WHERE user_id = ? AND id = ?').bind(user, id).first<JourneyRow>());
 }
 
-export type JourneyRecord = { best: number; clears: number; rewardedToday: number; unlocked: number; finished: Record<number, number> }; // unlocked = 대장을 깨서 열린 가장 높은 장, finished = 장마다 끝낸 판 수
+export type JourneyRecord = { best: number; clears: number; rewardedToday: number; finishedToday: number; unlocked: number }; // unlocked = 대장을 깨서 열린 가장 높은 장
 export async function journeyRecord(db: D1Database, user: string, day = kstDay()): Promise<JourneyRecord> {
   const r = await db
     .prepare(
       `SELECT COALESCE(MAX((chapter - 1) * 20 + day), 0) AS best, COALESCE(SUM(cleared), 0) AS clears,
          COALESCE(MAX(CASE WHEN cleared = 1 THEN chapter ELSE 0 END), 0) AS top,
-         COALESCE(SUM(CASE WHEN reward_day = ?2 AND xp > 0 THEN 1 ELSE 0 END), 0) AS today
+         COALESCE(SUM(CASE WHEN reward_day = ?2 AND xp > 0 THEN 1 ELSE 0 END), 0) AS today,
+         COALESCE(SUM(CASE WHEN reward_day = ?2 THEN 1 ELSE 0 END), 0) AS played
        FROM journey_runs WHERE user_id = ?1 AND status = 'done'`,
     )
     .bind(user, day)
-    .first<{ best: number; clears: number; today: number; top: number }>();
-  const { results } = await db
-    .prepare("SELECT chapter, COUNT(*) AS n FROM journey_runs WHERE user_id = ? AND status = 'done' GROUP BY chapter")
-    .bind(user)
-    .all<{ chapter: number; n: number }>();
-  const finished: Record<number, number> = {};
-  for (const x of results) finished[x.chapter] = x.n;
-  return { best: r?.best ?? 0, clears: r?.clears ?? 0, rewardedToday: r?.today ?? 0, unlocked: Math.min(MAX_CHAPTER, (r?.top ?? 0) + 1), finished };
+    .first<{ best: number; clears: number; today: number; played: number; top: number }>();
+  return { best: r?.best ?? 0, clears: r?.clears ?? 0, rewardedToday: r?.today ?? 0, finishedToday: r?.played ?? 0, unlocked: Math.min(MAX_CHAPTER, (r?.top ?? 0) + 1) };
 }
 
 // 강화 주머니(모은 동전 + 강화 단계)
@@ -94,10 +89,10 @@ export async function actJourneyRun(db: D1Database, user: string, id: string, re
   const s = actJourney(run.state, act);
   if (!s) return 'bad';
   if (s.done) {
-    // 같은 장을 전에 몇 번 끝냈는지에 따라 훈련소에 모이는 젤코인이 줄어요.
+    // 오늘(한국 날짜) 이미 끝낸 판 수에 따라 훈련소에 모이는 젤코인이 줄어요.
     const before = await db
-      .prepare("SELECT COUNT(*) AS n FROM journey_runs WHERE user_id = ? AND chapter = ? AND status = 'done'")
-      .bind(user, s.ch ?? 1)
+      .prepare("SELECT COUNT(*) AS n FROM journey_runs WHERE user_id = ? AND reward_day = ? AND status = 'done'")
+      .bind(user, kstDay(now))
       .first<{ n: number }>();
     s.bankPct = bankRate(before?.n ?? 0);
     s.banked = Math.floor((s.coins * s.bankPct) / 100);

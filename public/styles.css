@@ -2192,4 +2192,4 @@ main.wide { max-width: 1320px; }
 .bgo-wrap + .bgo-block { max-width: 600px; }
 @media (min-width: 1000px) { .bgo-wrap + .bgo-block { max-width: 1140px; } }
 .bgo-wide h2 { margin: 0 0 6px; font-size: 1.05rem; }
-.jr-rate { font-size: .68rem; color: #ffe08a; }
+.jr-rate { margin: 8px 0 0; font-size: .78rem; color: #ffe08a; text-align: center; }

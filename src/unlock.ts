@@ -17,9 +17,9 @@ export const JOURNEY_NEEDS: Need[] = [
   { cards: 15 },
   { cards: 25 },
   { cards: 35 },
-  { cards: 40, lv: 10, lvCards: 5 },
-  { cards: 50, lv: 20, lvCards: 5 },
-  { cards: 60, lv: 30, lvCards: 5 },
+  { cards: 40, lv: 20, lvCards: 5 },
+  { cards: 50, lv: 30, lvCards: 5 },
+  { cards: 60, lv: 40, lvCards: 5 },
 ];
 
 // 사건파일: 목록 순서대로 5개씩 묶어요.
@@ -32,8 +32,8 @@ export const ESCAPE_STEPS: Need[] = [
   { cards: 35, lv: 10, lvCards: 3 },
   { cards: 40, lv: 10, lvCards: 6 },
   { cards: 50, lv: 20, lvCards: 3 },
-  { cards: 60, lv: 20, lvCards: 6 },
-  { cards: 70, lv: 30, lvCards: 5 },
+  { cards: 60, lv: 30, lvCards: 5 },
+  { cards: 70, lv: 40, lvCards: 5 },
 ];
 export const ESCAPE_STEP_SIZE = 5;
 

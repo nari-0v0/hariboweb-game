@@ -151,17 +151,18 @@ describe('원정대 저장과 보상', () => {
     const { db } = database();
     expect(await beginJourney(db, 'gone')).toBeNull();
   });
-  it('같은 장을 또 끝내면 훈련소에 모이는 젤코인이 100% → 50% → 25% → 10%로 줄어요', async () => {
+  it('오늘 끝낸 판이 많을수록 훈련소에 모이는 젤코인이 100% → 50% → 25% → 0%로 줄어요', async () => {
     const { db } = database();
     let total = 0;
-    for (const pct of [100, 50, 25, 10, 10]) {
+    for (const pct of [100, 50, 25, 0, 0]) {
       const r = await playToEnd(db);
       expect(r.state.bankPct).toBe(pct);
       expect(r.state.banked).toBe(Math.floor((r.state.coins * pct) / 100));
       total += r.state.banked!;
     }
     expect((await journeyBank(db, 'me')).coins).toBe(total);
-    expect((await journeyRecord(db, 'me')).finished[1]).toBe(5);
+    expect((await journeyRecord(db, 'me')).finishedToday).toBe(5);
+    expect((await journeyRecord(db, 'me', '2099-01-01')).finishedToday).toBe(0);
   });
   it('훈련 한도는 도감으로 열린 장까지만 늘어요', async () => {
     const { db, sql } = database();

@@ -9,9 +9,9 @@ describe('도감으로 원정대·사건파일 열기', () => {
     expect(journeyOpenTo(p(0))).toBe(3);
     expect(journeyOpenTo(p(15))).toBe(4);
     expect(journeyOpenTo(p(35))).toBe(6);
-    expect(journeyOpenTo(p(40, [10, 10, 12, 15, 19]))).toBe(7);
-    expect(journeyOpenTo(p(60, [30, 30, 30, 30, 30]))).toBe(9);
-    expect(journeyOpenTo(p(60, [20, 20, 20, 20, 29]))).toBe(8);
+    expect(journeyOpenTo(p(40, [20, 20, 22, 25, 29]))).toBe(7);
+    expect(journeyOpenTo(p(60, [40, 40, 40, 40, 40]))).toBe(9);
+    expect(journeyOpenTo(p(60, [30, 30, 30, 30, 39]))).toBe(8);
     expect(journeyNeed(1).cards).toBe(0);
     expect(meets(journeyNeed(7), p(45, [10, 10]))).toBe(false);
   });
