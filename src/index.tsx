@@ -86,8 +86,8 @@ import { activeHand, betChips, betTooSoon, claimDaily, expireHand, gambleAccount
 import { prefetchAllowed } from './prefetch';
 import { EscapePage } from './views/escape';
 import { JourneyPage } from './views/journey';
-import { activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney } from './journey-db';
-import { PERKS, type PerkId } from './journey';
+import { activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from './journey-db';
+import { GEAR, PERKS, type GearId, type PerkId } from './journey';
 import { activeEscape, actEscapeRun, beginEscape, escapeOpen, escapeRecord, getEscape, quitEscape } from './escape-db';
 import { escCase } from './escape';
 
@@ -969,6 +969,18 @@ members.post('/api/journey/perk', async (c) => {
     return c.redirect(`/expedition/go?n=${ok ? 'perk' : 'noperk'}#perks`, 303);
   } catch (e) {
     console.error('원정 강화 실패', e);
+    return c.redirect('/expedition/go?n=error#perks', 303);
+  }
+});
+members.post('/api/journey/gear', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const k = String((await c.req.parseBody()).k ?? '');
+  if (!Object.hasOwn(GEAR, k)) return c.redirect('/expedition/go?n=bad#perks', 303);
+  try {
+    const ok = await upgradeGear(c.env.DB, c.get('viewer').user_id, k as GearId);
+    return c.redirect(`/expedition/go?n=${ok ? 'gear' : 'nogear'}#perks`, 303);
+  } catch (e) {
+    console.error('원정 장비 강화 실패', e);
     return c.redirect('/expedition/go?n=error#perks', 303);
   }
 });

@@ -64,8 +64,11 @@ export type JourneyState = {
   lv: number;
   xp: number;
   coins: number;
-  banked?: number; // 끝날 때 훈련소에 모인 젤코인(같은 장을 또 하면 줄어요)
+  banked?: number; // 끝날 때 훈련소에 모인 젤코인(오늘 많이 할수록 줄어요)
   bankPct?: number;
+  farm?: boolean; // 이미 대장을 깬 장을 다시 돈 판
+  mats?: number; // 이번 판에 주운 그 장의 강화 재료
+  matsBanked?: number; // 끝날 때 가방에 넣은 재료(첫 대장 보너스 포함)
   skills: Partial<Record<SkillId, number>>;
   pending: Pending | null;
   queuedLevels: number; // 아직 고르지 않은 레벨업
@@ -91,17 +94,56 @@ export const PERKS: Record<PerkId, { name: string; icon: string; per: number; ma
   def: { name: '맷집 훈련', icon: '🧱', per: 1, max: 5, text: (l) => `시작 방어력 +${l}` },
 };
 export const PERK_IDS = Object.keys(PERKS) as PerkId[];
-// 같은 장을 또 끝낼수록 훈련소에 모이는 젤코인이 줄어요(나리 2026-11-13): 처음 100%, 두 번째 50%, 세 번째 25%, 그 뒤 10%.
-export const BANK_RATES = [100, 50, 25, 10];
-export const bankRate = (finishedBefore: number) => BANK_RATES[Math.min(Math.max(0, finishedBefore), BANK_RATES.length - 1)]!;
+// 젤코인 파밍 막기(나리 2026-11-13): 아직 못 깬 장은 언제나 100%.
+// 이미 깬 장을 다시 돌면 하루에 파밍한 판 수로 줄어요: 첫 판 100%, 두 번째 50%, 세 번째 25%, 그 뒤 0%.
+export const BANK_RATES = [100, 50, 25, 0];
+export const bankRate = (farmedToday: number) => BANK_RATES[Math.min(Math.max(0, farmedToday), BANK_RATES.length - 1)]!;
 export const perkCost = (lv: number) => 20 + lv * 15; // 지금 단계에서 다음 단계로 가는 값
-// 열린 장이 늘수록 훈련 한도가 늘어요(열린 장 하나마다 처음 한도의 절반씩). 열린 장 = 앞 장을 깼고 도감 조건도 채운 장.
-export const perkMax = (id: PerkId, unlocked: number) => PERKS[id].max + Math.floor(PERKS[id].max / 2) * (Math.max(1, unlocked) - 1);
 
-export function startJourney(seed: string, perks: Perks = NO_PERKS, ch = 1): JourneyState {
-  const maxHp = 100 + PERKS.hp.per * perks.hp;
+// 장비 강화(나리 2026-11-13): 훈련은 젤코인으로 조금씩, 장비는 장마다 나오는 재료로 한 단계씩 크게.
+// +N 강화에는 N장 재료가 필요해서, 장을 깰수록 차례로 강해져요.
+export type GearId = 'weapon' | 'armor' | 'charm';
+export type Gear = Record<GearId, number>;
+export const NO_GEAR: Gear = { weapon: 0, armor: 0, charm: 0 };
+export const GEAR: Record<GearId, { name: string; icon: string; stat: string; per: number }> = {
+  weapon: { name: '무기', icon: '🗡️', stat: '공격력', per: 3 },
+  armor: { name: '갑옷', icon: '🛡️', stat: '방어력', per: 2 },
+  charm: { name: '장신구', icon: '💍', stat: '체력', per: 20 },
+};
+export const GEAR_IDS = Object.keys(GEAR) as GearId[];
+export const GEAR_MAX = 9;
+// 장마다 나오는 재료
+export const MATERIALS = [
+  { icon: '🍃', name: '말랑 잎' },
+  { icon: '🌱', name: '새싹 씨앗' },
+  { icon: '🪵', name: '뿌리 조각' },
+  { icon: '🌵', name: '가시 조각' },
+  { icon: '💧', name: '안개 방울' },
+  { icon: '💎', name: '메아리 수정' },
+  { icon: '❄️', name: '서리 결정' },
+  { icon: '🔶', name: '호박 조각' },
+  { icon: '🔥', name: '화산석' },
+];
+export const material = (ch: number) => MATERIALS[Math.min(MATERIALS.length, Math.max(1, ch)) - 1]!;
+export const gearNeed = (next: number) => ({ ch: next, mats: 2 + Math.floor((next - 1) / 3), coins: 20 * next }); // +next로 가는 값
+// 뒤 장 재료로 올린 단계일수록 더 많이 올라요(장마다 몬스터가 세지는 만큼).
+export const GEAR_GROW = 0.18;
+export function gearBonus(id: GearId, lv: number): number {
+  const L = Math.min(GEAR_MAX, Math.max(0, Math.floor(lv)));
+  return Math.round(GEAR[id].per * (L + (GEAR_GROW * L * (L - 1)) / 2));
+}
+export const gearText = (id: GearId, lv: number) => `${GEAR[id].stat} +${gearBonus(id, lv)}`;
+// 재료가 나올 확률: 보통 몬스터 5%, 이벤트 싸움 10%, 강한 적 30%, 대장은 꼭 1개(처음 깨면 끝날 때 2개 더)
+export const DROP = { foe: 0.05, event: 0.1, elite: 0.3 };
+export const FIRST_CLEAR_BONUS = 2;
+// 열린 장이 늘수록 훈련 한도가 늘어요(열린 장 하나마다 처음 한도의 절반씩). 열린 장 = 앞 장을 깼고 도감 조건도 채운 장.
+export const perkMax = (id: PerkId, unlocked: number) => PERKS[id].max + Math.floor(PERKS[id].max * 0.3) * (Math.max(1, unlocked) - 1);
+
+export function startJourney(seed: string, perks: Perks = NO_PERKS, ch = 1, gear: Partial<Gear> = NO_GEAR): JourneyState {
+  const g = (id: GearId) => gearBonus(id, gear[id] ?? 0);
+  const maxHp = 100 + PERKS.hp.per * perks.hp + g('charm');
   return {
-    v: 1, seed, ch, day: 0, hp: maxHp, maxHp, atk: 12 + PERKS.atk.per * perks.atk, def: 2 + PERKS.def.per * perks.def, lv: 1, xp: 0, coins: 10, skills: {}, pending: null, queuedLevels: 0,
+    v: 1, seed, ch, day: 0, hp: maxHp, maxHp, atk: 12 + PERKS.atk.per * perks.atk + g('weapon'), def: 2 + PERKS.def.per * perks.def + g('armor'), lv: 1, xp: 0, coins: 10, skills: {}, pending: null, queuedLevels: 0,
     today: [{ icon: '🎒', text: `${ch}장 ${chapterOf(ch).name}! 가방을 메고 출발해요. "다음 날"을 눌러 나아가요.` }], journal: [], kills: 0, done: false, cleared: false,
   };
 }
@@ -138,7 +180,7 @@ function gainCoins(s: JourneyState, n: number) {
 }
 
 // 자동 전투. 결과 요약만 적어요.
-function battle(s: JourneyState, m: Monster, power: number, r: () => number, lines: Line[]) {
+function battle(s: JourneyState, m: Monster, power: number, r: () => number, lines: Line[], drop = 0) {
   const st = stat(s);
   const cp = chapterPower(s.ch);
   let mhp = Math.round((20 + s.day * 5) * power * cp);
@@ -184,6 +226,11 @@ function battle(s: JourneyState, m: Monster, power: number, r: () => number, lin
   s.kills += 1;
   const coins = gainCoins(s, Math.round((4 + s.day) * power * cp));
   lines.push({ icon: m.emoji, text: `${m.name}${obj(m.name)} ${turns}턴 만에 물리쳤어요! 체력 ${s.hp - start >= 0 ? '+' : ''}${s.hp - start}, 젤코인 +${coins}`, tone: 'good' });
+  if (drop > 0 && rng(`${s.seed}:${s.day}:drop`)() < drop) {
+    s.mats = (s.mats ?? 0) + 1;
+    const mt = material(s.ch ?? 1);
+    lines.push({ icon: mt.icon, text: `강화 재료 ${mt.name}${obj(mt.name)} 주웠어요!`, tone: 'good' });
+  }
   gainXp(s, Math.round((12 + s.day * 2) * power), lines);
   return true;
 }
@@ -220,7 +267,7 @@ function nextDay(s: JourneyState): Line[] {
   if (s.day === DAYS) {
     const boss = chapterOf(s.ch).boss;
     lines.push({ icon: '🌋', text: `마지막 날! ${boss.name}${(boss.name.charCodeAt(boss.name.length - 1) - 0xac00) % 28 > 0 ? '이' : '가'} 나타났어요!` });
-    if (battle(s, boss, 1.65, r, lines)) {
+    if (battle(s, boss, 1.65, r, lines, 1)) {
       s.done = true;
       s.cleared = true;
       lines.push({ icon: '🏆', text: `${boss.name}${obj(boss.name)} 물리쳤어요! 원정 성공!`, tone: 'good' });
@@ -230,14 +277,14 @@ function nextDay(s: JourneyState): Line[] {
   }
   if (s.day === ELITE_DAY) {
     lines.push({ icon: '⚠️', text: '숲 한가운데서 커다란 그림자가…' });
-    battle(s, chapterOf(s.ch).elite, 1.6, r, lines);
+    battle(s, chapterOf(s.ch).elite, 1.6, r, lines, DROP.elite);
     finish(s, lines);
     return lines;
   }
   const roll = r();
   if (roll < 0.46) {
     const foes = chapterOf(s.ch).foes;
-    battle(s, foes[Math.floor(r() * foes.length)]!, 1, r, lines);
+    battle(s, foes[Math.floor(r() * foes.length)]!, 1, r, lines, DROP.foe);
   } else if (roll < 0.6) {
     const c = r();
     if (c < 0.4) lines.push({ icon: '🎁', text: `보물 상자! 젤코인 +${gainCoins(s, 8 + s.day)}`, tone: 'good' });
@@ -304,7 +351,7 @@ function resolveEvent(s: JourneyState, id: EventId, n: number, lines: Line[]) {
       lines.push({ icon: '🧸', text: '젤리곰이 고맙다며 힘 구미를 줬어요. 공격력 +5', tone: 'good' });
     }
   } else if (id === 'fork') {
-    if (n === 0) battle(s, chapterOf(s.ch).foes[Math.floor(r() * chapterOf(s.ch).foes.length)]!, 1.3, r, lines);
+    if (n === 0) battle(s, chapterOf(s.ch).foes[Math.floor(r() * chapterOf(s.ch).foes.length)]!, 1.3, r, lines, DROP.event);
     else {
       const heal = Math.min(st.maxHp - s.hp, Math.round(st.maxHp * 0.45));
       s.hp += heal;

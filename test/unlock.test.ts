@@ -7,11 +7,11 @@ const p = (cards: number, levels: number[] = []): DogamProgress => ({ cards, lev
 describe('도감으로 원정대·사건파일 열기', () => {
   it('원정대 1~3장은 그냥, 그 뒤는 카드 장 수, 더 깊으면 카드 레벨도 필요해요', () => {
     expect(journeyOpenTo(p(0))).toBe(3);
-    expect(journeyOpenTo(p(15))).toBe(4);
-    expect(journeyOpenTo(p(35))).toBe(6);
-    expect(journeyOpenTo(p(40, [10, 10, 12, 15, 19]))).toBe(7);
-    expect(journeyOpenTo(p(60, [30, 30, 30, 30, 30]))).toBe(9);
-    expect(journeyOpenTo(p(60, [20, 20, 20, 20, 29]))).toBe(8);
+    expect(journeyOpenTo(p(10))).toBe(4);
+    expect(journeyOpenTo(p(30))).toBe(6);
+    expect(journeyOpenTo(p(35, [10, 10, 12, 14, 14]))).toBe(7);
+    expect(journeyOpenTo(p(55, [20, 20, 20, 20, 20]))).toBe(9);
+    expect(journeyOpenTo(p(55, [15, 15, 15, 15, 19]))).toBe(8);
     expect(journeyNeed(1).cards).toBe(0);
     expect(meets(journeyNeed(7), p(45, [10, 10]))).toBe(false);
   });
@@ -20,7 +20,7 @@ describe('도감으로 원정대·사건파일 열기', () => {
     expect(free).toHaveLength(5);
     expect(ESCAPE_CASES.filter((c) => c.level === 1).every((c) => free.includes(c))).toBe(true);
     const needs = ESCAPE_CASES.map((c) => escapeNeed(escapeUnlockIndex(c.id)).cards);
-    expect(Math.max(...needs)).toBe(70);
+    expect(Math.max(...needs)).toBe(55);
     for (const c of ESCAPE_CASES) expect(escapeUnlockIndex(c.id)).toBeGreaterThanOrEqual(0);
   });
   it('조건 글에 지금 몇 장인지도 보여 줘요', () => {

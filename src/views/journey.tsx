@@ -9,6 +9,14 @@ import {
   OFFERS,
   PERKS,
   PERK_IDS,
+  GEAR,
+  GEAR_IDS,
+  GEAR_MAX,
+  MATERIALS,
+  gearBonus,
+  gearNeed,
+  gearText,
+  material,
   SKILLS,
   perkCost,
   perkMax,
@@ -35,8 +43,10 @@ const NOTICES: Record<string, PopupLine[]> = {
   ],
   bad: [{ title: '알림', text: '지금은 그렇게 할 수 없어요.' }],
   quit: [{ title: '알림', text: '원정을 그만두고 돌아왔어요.' }],
-  perk: [{ title: '강화 완료', text: '다음 원정부터 더 강해져요.' }],
+  perk: [{ title: '훈련 완료', text: '다음 원정부터 더 강해져요.' }],
   noperk: [{ title: '알림', text: '젤코인이 모자라거나 이미 끝까지 올렸어요.' }],
+  gear: [{ title: '장비 강화 성공!', text: '다음 원정부터 더 강해져요.' }],
+  nogear: [{ title: '알림', text: '재료나 젤코인이 모자라요.' }],
   error: [
     { title: '오류', text: '오류가 발생하였습니다.', bad: true },
     { title: '오류', text: '방장에게 문의해주세요.', bad: true, contact: true },
@@ -450,7 +460,7 @@ function Play(props: { run: JourneyRun; art: string; name: string }) {
 
 // 장 고르기: 열린 장만 누를 수 있어요. 기본은 가장 높은 장.
 // 앞 장 대장을 이겨야 하고, 4장부터는 도감 카드도 모아야 열려요(src/unlock.ts).
-function ChapterPick(props: { unlocked: number; dogam: DogamProgress; finished: Record<number, number>; again?: boolean }) {
+function ChapterPick(props: { unlocked: number; dogam: DogamProgress; today: number; again?: boolean }) {
   const pick = Math.min(props.unlocked, journeyOpenTo(props.dogam));
   return (
     <form method="post" action="/api/journey/start" class="jr-chapters">
@@ -469,7 +479,6 @@ function ChapterPick(props: { unlocked: number; dogam: DogamProgress; finished: 
               <b>{c.n}장</b>
               <span class="jr-chapter-name">{open ? c.name : c.n <= props.unlocked ? '📖 도감이 필요해요' : '잠겨 있어요'}</span>
               <span class="hint">{chapterLevels(c.n)}</span>
-              {open && <span class="jr-rate" title="이 장을 끝내면 남은 젤코인 중 훈련소에 모이는 몫이에요. 같은 장을 또 할수록 줄어요.">🪙 {bankRate(props.finished[c.n] ?? 0)}%</span>}
               {need.cards > 0 && (
                 <span class={`jr-need${dogamOk ? ' ok' : ''}`} title={needText(need, props.dogam)}>
                   {dogamOk ? '📖 도감 ✓' : `📖 ${shortNeed(need)}`}
@@ -479,6 +488,9 @@ function ChapterPick(props: { unlocked: number; dogam: DogamProgress; finished: 
           );
         })}
       </div>
+      <p class="jr-rate">
+        🪙 아직 못 깬 장은 젤코인이 다 모여요. 이미 깬 장을 다시 돌면 오늘 {props.today}판째라 다음 판은 <b>{bankRate(props.today)}%</b>만 모여요 (100% → 50% → 25% → 0%, 내일 다시 100%)
+      </p>
       <button class="btn btn-primary jr-depart" type="submit">
         🎒 {props.again ? '다시 떠나기' : '원정 떠나기'}
       </button>
@@ -486,7 +498,7 @@ function ChapterPick(props: { unlocked: number; dogam: DogamProgress; finished: 
   );
 }
 
-function Result(props: { run: JourneyRun; art: string; name: string; unlocked: number; dogam: DogamProgress; finished: Record<number, number> }) {
+function Result(props: { run: JourneyRun; art: string; name: string; unlocked: number; dogam: DogamProgress; today: number }) {
   const { run } = props;
   const s = run.state;
   return (
@@ -510,32 +522,83 @@ function Result(props: { run: JourneyRun; art: string; name: string; unlocked: n
         {s.banked !== undefined && s.bankPct !== undefined && s.bankPct < 100
           ? `남은 젤코인 🪙 ${s.coins}개 중 ${s.bankPct}%인 🪙 ${s.banked}개를 `
           : `남은 젤코인 🪙 ${s.banked ?? s.coins}개를 `}
-        <a href="#perks">원정 훈련소</a>에 모았어요.
-        {s.bankPct !== undefined && s.bankPct < 100 && <span class="hint"> 같은 장을 또 하면 훈련소에 모이는 젤코인이 줄어요. 새 장에 가면 다시 100%예요.</span>}
+        <a href="#perks">원정 준비소</a>에 모았어요.
+        {(s.matsBanked ?? 0) > 0 && ` 강화 재료 ${material(s.ch ?? 1).icon} ${material(s.ch ?? 1).name} ×${s.matsBanked}도 가방에 넣었어요.`}
+        {s.bankPct !== undefined && s.bankPct < 100 && <span class="hint"> 이미 깬 장을 다시 돌면 하루에 모이는 젤코인이 줄어요. 아직 못 깬 장은 언제나 100%예요.</span>}
       </p>
       <p>
         {run.row.xp > 0
           ? `보상: 내 카드 경험치 +${run.row.xp}${run.row.jelly ? `, 도감 젤리 +${run.row.jelly}` : ''}`
           : `오늘 보상은 이미 ${DAILY_REWARD_JOURNEYS}번 받았어요. 내일 다시 받을 수 있어요.`}
       </p>
-      <ChapterPick unlocked={props.unlocked} dogam={props.dogam} finished={props.finished} again />
+      <ChapterPick unlocked={props.unlocked} dogam={props.dogam} today={props.today} again />
     </section>
   );
 }
 
-// 영구 강화: 원정이 끝날 때 남은 동전으로 다음 원정의 시작 능력치를 올려요.
-function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number }) { // unlocked = 열린 장(대장 + 도감 조건)
+// 원정 준비소: 훈련(젤코인으로 조금씩) + 장비 강화(장마다 나오는 재료로 한 단계씩)
+const BASE = { atk: 12, hp: 100, def: 2 };
+const STAT_ROWS = [
+  { icon: '⚔️', name: '공격력', base: BASE.atk, perk: 'atk', gear: 'weapon' },
+  { icon: '❤️', name: '체력', base: BASE.hp, perk: 'hp', gear: 'charm' },
+  { icon: '🛡️', name: '방어력', base: BASE.def, perk: 'def', gear: 'armor' },
+] as const;
+
+function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number; art: string; name: string }) {
   const { bank } = props;
+  const later = props.going ? '지금 원정이 끝난 뒤 ' : '';
   return (
-    <section class="panel jr-perks" id="perks">
-      <h2>🏋️ 원정 훈련소</h2>
+    <section class="panel jp" id="perks">
+      <div class="jp-head">
+        <h2>🏕️ 원정 준비소</h2>
+        <span class="jp-coins" title="모은 젤코인">
+          🪙 {bank.coins}
+        </span>
+      </div>
       <p class="hint">
-        원정이 끝나면 남은 젤코인이 여기 모여요(그만두기는 빼고). 같은 장을 또 할수록 모이는 몫이 줄어요(100% → 50% → 25% → 10%). 훈련 한도는 열린 장이 늘수록 커져요. 훈련은 영원히 남고, {props.going ? '지금 원정이 끝난 뒤 ' : ''}다음 원정부터 적용돼요.
+        훈련은 젤코인으로 조금씩, 장비는 장마다 나오는 재료로 한 단계씩 크게 강해져요. +N 장비에는 N장 재료가 필요해요. 모두 {later}다음 원정부터 적용돼요.
       </p>
-      <p class="jr-bank">
-        모은 젤코인 <b>🪙 {bank.coins}</b>
-      </p>
-      <div class="jr-cards">
+      <div class="jp-hero">
+        <div class="jp-hero-pic">
+          <img src={props.art} alt={props.name} width={96} height={96} loading="lazy" />
+        </div>
+        <ul class="jp-stats">
+          {STAT_ROWS.map((r) => {
+            const perk = PERKS[r.perk].per * bank[r.perk];
+            const gear = gearBonus(r.gear, bank[r.gear]);
+            return (
+              <li>
+                <span class="jp-stat-icon" aria-hidden="true">
+                  {r.icon}
+                </span>
+                <span class="jp-stat-name">{r.name}</span>
+                <strong>{r.base + perk + gear}</strong>
+                <small>
+                  기본 {r.base} · 훈련 +{perk} · 장비 +{gear}
+                </small>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      <h3 class="jp-sub">🎒 재료 가방</h3>
+      <div class="jp-bag">
+        {MATERIALS.map((m, i) => {
+          const n = bank.mats[i + 1] ?? 0;
+          const known = i + 1 <= props.unlocked;
+          return (
+            <span class={`jp-mat${n ? '' : ' empty'}${known ? '' : ' unknown'}`} title={known ? `${i + 1}장에서 나와요` : '아직 못 가 본 장'}>
+              <span aria-hidden="true">{known ? m.icon : '❔'}</span>
+              <span class="jp-mat-name">{known ? m.name : `${i + 1}장 재료`}</span>
+              <b>×{n}</b>
+            </span>
+          );
+        })}
+      </div>
+
+      <h3 class="jp-sub">🏋️ 훈련</h3>
+      <div class="jp-train">
         {PERK_IDS.map((id) => {
           const info = PERKS[id];
           const lv = bank[id];
@@ -543,23 +606,75 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number 
           const full = lv >= max;
           const cost = perkCost(lv);
           return (
-            <form method="post" action="/api/journey/perk" class="jr-perk">
+            <form method="post" action="/api/journey/perk" class="jp-row-form">
               <input type="hidden" name="k" value={id} />
-              <button type="submit" class="jr-card" disabled={full || bank.coins < cost}>
-                <span class="jr-card-icon" aria-hidden="true">
+              <button type="submit" class="jp-row" disabled={full || bank.coins < cost}>
+                <span class="jp-row-icon" aria-hidden="true">
                   {info.icon}
                 </span>
-                <b>{info.name}</b>
-                <span class="tag">
-                  Lv.{lv}/{max}
+                <span class="jp-row-main">
+                  <span class="jp-row-top">
+                    <b>{info.name}</b>
+                    <span class="jp-lv">
+                      Lv.{lv}
+                      <small>/{max}</small>
+                    </span>
+                  </span>
+                  <span class="jp-bar" aria-hidden="true">
+                    <i style={`width:${Math.round((Math.min(lv, max) / Math.max(1, max)) * 100)}%`} />
+                  </span>
+                  <span class="jp-row-next">{full ? `${info.text(lv)} · 이 장까지는 끝! 새 장이 열리면 더 올라가요` : `${info.text(lv)} → 다음 ${info.text(lv + 1)}`}</span>
                 </span>
-                <span class="jr-card-text">{lv > 0 ? info.text(lv) : '아직 안 했어요'}</span>
-                <span class="jr-card-text">{full ? '끝까지 올렸어요' : `다음: ${info.text(lv + 1)} · 🪙 ${cost}`}</span>
+                <span class={`jp-price${full ? ' done' : ''}`}>{full ? 'MAX' : `🪙 ${cost}`}</span>
               </button>
             </form>
           );
         })}
       </div>
+
+      <h3 class="jp-sub">⚒️ 장비 강화</h3>
+      <div class="jp-gear">
+        {GEAR_IDS.map((id) => {
+          const info = GEAR[id];
+          const lv = bank[id];
+          const full = lv >= GEAR_MAX;
+          const need = gearNeed(lv + 1);
+          const mat = material(need.ch);
+          const have = bank.mats[need.ch] ?? 0;
+          const seen = need.ch <= props.unlocked;
+          const ok = !full && have >= need.mats && bank.coins >= need.coins;
+          return (
+            <form method="post" action="/api/journey/gear" class="jp-gear-form">
+              <input type="hidden" name="k" value={id} />
+              <div class={`jp-item${full ? ' full' : ''}`}>
+                <div class="jp-item-pic">
+                  <span aria-hidden="true">{info.icon}</span>
+                  <b class="jp-plus">+{lv}</b>
+                </div>
+                <b>{info.name}</b>
+                <span class="jp-item-now">{gearText(id, lv)}</span>
+                {full ? (
+                  <span class="jp-item-need">끝까지 강화했어요!</span>
+                ) : (
+                  <>
+                    <span class="jp-item-next">+{lv + 1}: {gearText(id, lv + 1)}</span>
+                    <span class={`jp-item-need${have >= need.mats ? ' ok' : ''}`}>
+                      {seen ? `${mat.icon} ${mat.name}` : `❔ ${need.ch}장 재료`} {have}/{need.mats}
+                    </span>
+                    <span class={`jp-item-need${bank.coins >= need.coins ? ' ok' : ''}`}>🪙 {need.coins}</span>
+                  </>
+                )}
+                <button type="submit" class={`btn btn-small jp-up${ok ? ' btn-primary' : ''}`} disabled={!ok}>
+                  {full ? 'MAX' : seen ? '강화' : `${need.ch}장에서 재료 모으기`}
+                </button>
+              </div>
+            </form>
+          );
+        })}
+      </div>
+      <p class="hint jp-drop">
+        재료는 그 장의 몬스터에게서 가끔(강한 적은 더 자주) 나오고, 대장은 꼭 1개 줘요. 처음 대장을 깨면 2개 더 받아요. 이미 깬 장을 하루 4판 넘게 돌면 재료도 안 모여요.
+      </p>
     </section>
   );
 }
@@ -596,12 +711,12 @@ export function JourneyPage(props: {
               <p>장이 올라갈수록 몬스터 레벨이 20씩 올라가요(1장 Lv.1~20, 2장 Lv.21~40…).</p>
               <p>
                 하루 첫 {DAILY_REWARD_JOURNEYS}판은 끝날 때 내 카드 경험치를 받고(멀리 갈수록, 높은 장일수록 많이), 대장을 이기면 도감 젤리 1개도 받아요. 남은
-                젤코인은 훈련소에 모여요.
+                젤코인과 강화 재료는 원정 준비소에 모여요.
               </p>
             </div>
           </details>
         </div>
-        {run ? <Play run={run} art={props.art} name={name} /> : result ? <Result run={result} art={props.art} name={name} unlocked={record.unlocked} dogam={props.dogam} finished={record.finished} /> : null}
+        {run ? <Play run={run} art={props.art} name={name} /> : result ? <Result run={result} art={props.art} name={name} unlocked={record.unlocked} dogam={props.dogam} today={record.farmedToday} /> : null}
         {!run && !result && (
           <section class="jr-game jr-lobby" id="now">
             <div class="jr-lobby-stage" style={`--jr-bg:url(/journey/bg/${zoneFor(1)}.webp)`}>
@@ -619,10 +734,10 @@ export function JourneyPage(props: {
               </div>
             </div>
             <h2 class="jr-pick-title">어느 장으로 떠날까요?</h2>
-            <ChapterPick unlocked={record.unlocked} dogam={props.dogam} finished={record.finished} />
+            <ChapterPick unlocked={record.unlocked} dogam={props.dogam} today={record.farmedToday} />
           </section>
         )}
-        <PerkPanel bank={props.bank} going={!!run} unlocked={Math.min(record.unlocked, journeyOpenTo(props.dogam))} />
+        <PerkPanel bank={props.bank} going={!!run} unlocked={Math.min(record.unlocked, journeyOpenTo(props.dogam))} art={props.art} name={name} />
         <FictionNote />
       </div>
     </Layout>

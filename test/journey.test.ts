@@ -2,8 +2,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DAYS, actJourney, autoChoice, decodeJourney, journeyXp, perkMax, startJourney, stat, type JourneyState } from '../src/journey';
-import { actJourneyRun, activeJourney, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney } from '../src/journey-db';
+import { DAYS, actJourney, autoChoice, decodeJourney, journeyXp, perkMax, gearBonus, FIRST_CLEAR_BONUS, startJourney, stat, type JourneyState } from '../src/journey';
+import { actJourneyRun, activeJourney, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from '../src/journey-db';
 
 function database() {
   const sql = new DatabaseSync(':memory:');
@@ -151,17 +151,53 @@ describe('원정대 저장과 보상', () => {
     const { db } = database();
     expect(await beginJourney(db, 'gone')).toBeNull();
   });
-  it('같은 장을 또 끝내면 훈련소에 모이는 젤코인이 100% → 50% → 25% → 10%로 줄어요', async () => {
-    const { db } = database();
-    let total = 0;
-    for (const pct of [100, 50, 25, 10, 10]) {
+  it('아직 못 깬 장은 죽어도 젤코인이 다 모이고, 이미 깬 장을 다시 돌면 하루에 100% → 50% → 25% → 0%', async () => {
+    const { db, sql } = database();
+    // 대장을 깬 적 없는 1장: 몇 판을 돌아도 100%
+    for (let i = 0; i < 3; i++) {
       const r = await playToEnd(db);
-      expect(r.state.bankPct).toBe(pct);
+      if (r.state.cleared) break;
+      expect([r.state.farm, r.state.bankPct]).toEqual([false, 100]);
+    }
+    // 1장 대장을 깼다고 치면, 그 뒤 1장은 파밍
+    sql.prepare("INSERT INTO journey_runs (id, user_id, state, started_at, updated_at, chapter, status, cleared) VALUES ('c1', 'me', '{}', 'x', 'x', 1, 'done', 1)").run();
+    const before = (await journeyBank(db, 'me')).coins;
+    let total = 0;
+    for (const pct of [100, 50, 25, 0, 0]) {
+      const r = await playToEnd(db);
+      expect([r.state.farm, r.state.bankPct]).toEqual([true, pct]);
       expect(r.state.banked).toBe(Math.floor((r.state.coins * pct) / 100));
       total += r.state.banked!;
     }
-    expect((await journeyBank(db, 'me')).coins).toBe(total);
-    expect((await journeyRecord(db, 'me')).finished[1]).toBe(5);
+    expect((await journeyBank(db, 'me')).coins).toBe(before + total);
+    expect((await journeyRecord(db, 'me')).farmedToday).toBe(5);
+    expect((await journeyRecord(db, 'me', '2099-01-01')).farmedToday).toBe(0);
+  });
+  it('장비는 그 단계 장의 재료와 젤코인으로 올리고, 다음 원정부터 세져요', async () => {
+    const { db, sql } = database();
+    sql.prepare(`INSERT INTO journey_bank (user_id, coins, mats, updated_at) VALUES ('me', 100, '{"1":3}', 'x')`).run();
+    expect(await upgradeGear(db, 'me', 'weapon')).toBe(true); // +1: 1장 재료 2개, 젤코인 20
+    let bank = await journeyBank(db, 'me');
+    expect([bank.weapon, bank.coins, bank.mats[1]]).toEqual([1, 80, 1]);
+    expect(await upgradeGear(db, 'me', 'armor')).toBe(false); // 1장 재료 1개뿐
+    expect(await upgradeGear(db, 'me', 'weapon')).toBe(false); // +2는 2장 재료
+    const id = (await beginJourney(db, 'me'))!;
+    const run = (await getJourney(db, 'me', id))!;
+    expect(run.state.atk).toBe(12 + gearBonus('weapon', 1));
+    bank = await journeyBank(db, 'me');
+    expect(bank.armor).toBe(0);
+  });
+  it('주운 재료는 끝날 때 그 장 칸에 모이고, 처음 대장을 깨면 2개 더 받아요', async () => {
+    const { db } = database();
+    for (let i = 0; i < 6; i++) {
+      const r = await playToEnd(db);
+      const expected = (r.state.mats ?? 0) + (r.state.cleared && !r.state.farm ? FIRST_CLEAR_BONUS : 0);
+      expect(r.state.matsBanked).toBe(r.state.bankPct ? expected : 0);
+    }
+    const bank = await journeyBank(db, 'me');
+    const runs = await db.prepare("SELECT state FROM journey_runs WHERE user_id = 'me' AND status = 'done'").all<{ state: string }>();
+    const sum = runs.results.reduce((n, x) => n + (JSON.parse(x.state).matsBanked ?? 0), 0);
+    expect(bank.mats[1] ?? 0).toBe(sum);
   });
   it('훈련 한도는 도감으로 열린 장까지만 늘어요', async () => {
     const { db, sql } = database();
