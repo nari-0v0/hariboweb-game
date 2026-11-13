@@ -2,13 +2,16 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import app from '../src/index';
+import type { Env } from '../src/env';
 import { levelFromXp } from '../src/levels';
 import { applySync, batchTime, isStaleBatch, levelSql, parseSync } from '../src/sync';
 
 const A = '111111111111111111';
 const B = '222222222222222222';
 const STARTED = new Date().toISOString(); // 테스트 묶음 번호 앞에 붙는 만든 시각
+vi.mock('../src/plaza-room', () => ({ PlazaRoom: class {} }));
 
 // D1에서 쓰는 만큼만 흉내 내요. batch는 한 트랜잭션이에요.
 function fakeD1() {
@@ -65,6 +68,23 @@ describe('levelSql', () => {
       expect(row.l).toBe(levelFromXp(xp));
     }
   });
+});
+
+it('활동이 이미 반영된 묶음을 다시 받으면 빠진 첫 선물만 지급해요', async () => {
+  const { sql, db } = fakeD1();
+  const payload = batch('retry-starter', 0, { solo_xp: [{ id: A, xp: 20 }] });
+  await applySync(db, payload);
+  expect(jellyOf(sql, A)).toBe(0);
+  const env = { DB: db, BOT_SYNC_SECRET: 'test' } as Env;
+  for (let i = 0; i < 2; i++) {
+    const response = await app.request('/api/bot/sync', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer test', 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }, env);
+    expect(await response.json()).toEqual({ ok: true, result: 'duplicate' });
+  }
+  expect(sql.prepare('SELECT solo_xp, dogam_jelly FROM profiles WHERE user_id = ?').get(A)).toEqual({ solo_xp: 20, dogam_jelly: 5 });
 });
 
 describe('applySync dogam jelly', () => {
