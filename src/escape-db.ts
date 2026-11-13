@@ -1,4 +1,5 @@
-import { ESC_XP, actEscape, decodeEscape, escCase, escGrade, escJelly, startEscape, type EscAction, type EscCase, type EscGrade, type EscState } from './escape';
+import { dogamProgress, escapeNeed, meets } from './unlock';
+import { ESC_XP, escapeUnlockIndex, actEscape, decodeEscape, escCase, escGrade, escJelly, startEscape, type EscAction, type EscCase, type EscGrade, type EscState } from './escape';
 
 export type EscRow = { id: string; user_id: string; case_id: string; state: string; rev: number; status: string; grade: string | null; xp: number; jelly: number };
 export type EscRun = { row: EscRow; def: EscCase; state: EscState };
@@ -26,9 +27,18 @@ export async function escapeRecord(db: D1Database, user: string): Promise<Map<st
 }
 
 // 새 사건 시작. 하던 사건이 있으면 그 사건으로 이어가요. 지금 있는 멤버만 시작할 수 있어요.
+// 사건 목록 순서대로 처음 5개는 그냥, 그 뒤로는 도감 조건을 채워야 열려요(src/unlock.ts).
+export async function escapeOpen(db: D1Database, user: string, caseId: string): Promise<boolean> {
+  const i = escapeUnlockIndex(caseId);
+  if (i < 0) return false;
+  const need = escapeNeed(i);
+  return need.cards === 0 || meets(need, await dogamProgress(db, user));
+}
+
 export async function beginEscape(db: D1Database, user: string, caseId: string, now = new Date()): Promise<string | null> {
   const def = escCase(caseId);
   if (!def) return null;
+  if (!(await escapeOpen(db, user, caseId))) return null;
   const going = await activeEscape(db, user);
   if (going) return going.row.id;
   const id = crypto.randomUUID();

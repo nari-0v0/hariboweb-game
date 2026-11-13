@@ -2,7 +2,9 @@ import type { Member } from '../env';
 import { GAMBLE_ART, SLOT_ART } from '../gamble-art';
 import { CHERRY_PAIR, ROULETTE, SLOTS, WHEEL, payback, rankOf } from '../gamble';
 import { gambleDay, publicHand, type GambleAccount, type Game, type Round } from '../gamble-db';
+import { plainPodium } from '../rankings';
 import { Layout } from './layout';
+import { PodiumBoard } from './podium';
 
 const GAMES = { slot: '슬롯', roulette: '배수 룰렛', cards: '카드 21(블랙잭)' };
 const DESCRIPTIONS = {
@@ -200,14 +202,6 @@ function GameRules({ game }: { game: Game }) {
 }
 
 type Rank = { name: string; value: number };
-function Ranking({ title, rows, unit }: { title: string; rows: Rank[]; unit: string }) {
-  return (
-    <section class="gb-panel">
-      <h3>{title}</h3>
-      {rows.length ? <ol class="gb-ranking">{rows.map(({ name, value }) => <li>{name} · <strong>{chips(value)}{unit}</strong></li>)}</ol> : <p>아직 기록이 없어요.</p>}
-    </section>
-  );
-}
 
 const noticeText = (key?: string) => key && Object.hasOwn(NOTICES, key) ? NOTICES[key] : null;
 
@@ -248,14 +242,20 @@ export function GambleLobby(props: {
             </a>
           ))}
         </nav>
-        <h2>겜블장 순위</h2>
-        <div class="gb-games">
-          <Ranking title="가진 젤칩" rows={balanceRank} unit="개" />
-          <Ranking title="한 번에 딴 최고 젤칩" rows={bestRank} unit="개" />
-          <Ranking title="올인 승리" rows={allInRank} unit="회" />
-          <Ranking title="이번 시즌 누적 딴 젤칩 1등" rows={seasonRank} unit="개" />
-        </div>
-        <p><a href="/titles">겜블장 칭호 보기</a></p>
+        <section class="gb-rank">
+          <h2>🏆 겜블장 순위</h2>
+          {seasonRank[0] && (
+            <p class="rk-champ">
+              <span aria-hidden="true">👑</span> 이번 시즌 누적 딴 젤칩 1등 <b>{seasonRank[0].name}</b> · {chips(seasonRank[0].value)}개
+            </p>
+          )}
+          <div class="rk-trio">
+            <PodiumBoard title="가진 젤칩" icon="🪙" podium={plainPodium(balanceRank)} show={(v) => `${chips(v)}개`} />
+            <PodiumBoard title="한 번에 딴 최고 젤칩" icon="💥" podium={plainPodium(bestRank)} show={(v) => `${chips(v)}개`} />
+            <PodiumBoard title="올인 승리" icon="🔥" podium={plainPodium(allInRank)} show={(v) => `${chips(v)}회`} />
+          </div>
+          <p class="gb-rank-links"><a href="/rank">다른 게임 순위 보기</a> · <a href="/titles">겜블장 칭호 보기</a></p>
+        </section>
       </div>
     </Layout>
   );

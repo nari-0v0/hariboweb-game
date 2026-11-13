@@ -59,8 +59,11 @@ import { GroupPage } from './views/group';
 import { groupViewFor, seasonRanking } from './season';
 import { currentPeriod, grantBingo, markFlag, myBingo, todayPartners, LINE_JELLY, LINE_XP, FULL_JELLY } from './bingo';
 import { BingoPage } from './views/bingo';
-import { bingoExtras } from './team';
-import { BLOCK_MAX_PENDING, BLOCK_MORE, blockCandidates, decideBlock, listUnpostedBlocks, markBlockPosted, requestBlock } from './assign-block';
+import { KIDNAP_MIN, SERVER_JELLY, TEAM_GOAL_MIN, TEAM_JELLY, TEAM_PRIOR_MAX, bingoExtras, loadServerQuest, loadTeams, myTeamState, rankTeams, seasonAt } from './team';
+import { loadRankings } from './rankings';
+import { dogamProgress } from './unlock';
+import { RankPage, rankTab } from './views/rank';
+import { BLOCK_MAX_PENDING, BLOCK_MORE, blockCandidates, cancelBlock, decideBlock, listUnpostedBlocks, markBlockPosted, myBlocks, requestBlock } from './assign-block';
 import { checkNote, cleanNote, hidePraiseNote, markPraiseSeen, praiseBox, praiseDayLabel, PRAISE_NOTE_MAX } from './praise-note';
 import type { BlockForm } from './views/bingo';
 import { GuidePage } from './views/guide';
@@ -80,21 +83,13 @@ import {
 
 import { GambleLobby, GambleRoom } from './views/gamble';
 import { activeHand, betChips, betTooSoon, claimDaily, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, moveHand, rescueChips, type Game } from './gamble-db';
-import { ExpeditionPage } from './views/expedition';
 import { prefetchAllowed } from './prefetch';
-import { act, currentRun, getRun, listCandidates, myRecord, myRole, quitRun, setRole, startRun } from './expedition-db';
-import { isRole } from './expedition';
-import { CasesPage } from './views/cases';
 import { EscapePage } from './views/escape';
 import { JourneyPage } from './views/journey';
 import { activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney } from './journey-db';
 import { PERKS, type PerkId } from './journey';
-import { activeEscape, actEscapeRun, beginEscape, escapeRecord, getEscape, quitEscape } from './escape-db';
+import { activeEscape, actEscapeRun, beginEscape, escapeOpen, escapeRecord, getEscape, quitEscape } from './escape-db';
 import { escCase } from './escape';
-import { StoryPage } from './views/story';
-import { activeStory, actStory, beginStory, getStory, storyMarks, uuid } from './story-db';
-import type { StoryAction } from './story';
-import { accuse, caseRecord, currentCase, getCase, lookAt, quitCase, startCase } from './cases-db';
 
 export { PlazaRoom } from './plaza-room';
 
@@ -492,6 +487,49 @@ app.get('/api/bot/ranking', async (c) => {
   });
 });
 
+// 디스코드 고정 패널 "우리 팀": 빙고 가운데 칸 팀 퀘스트와 서버 퀘스트(초록하리보 납치 대소동!).
+// 달성한 사람 이름만 보여 줘요(후보·짝은 보여 주지 않아요).
+app.get('/api/bot/team/:id', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  const id = c.req.param('id');
+  if (!isDiscordId(id)) return c.json({ error: 'bad_id' }, 400);
+  const x = await bingoExtras(c.env.DB, id, new Date().toISOString());
+  const t = x.team;
+  const names = new Map(t?.members.map((m) => [m.id, m.name]) ?? []);
+  return c.json({
+    season: x.season ? { start: x.season.start, end: x.season.end } : null,
+    team: t
+      ? {
+          no: t.no + 1,
+          members: t.members.filter((m) => !m.left).map((m) => ({ id: m.id, name: m.name })),
+          target: t.target,
+          achievers: t.achievers.map((a) => ({ id: a, name: names.get(a) ?? '알 수 없음' })),
+          complete: t.complete,
+          bonus: t.bonus,
+          me: myTeamState(t, id),
+        }
+      : null,
+    server: x.server ? { target: x.server.target, kidnapped: x.server.kidnapped.length, met: x.server.met, joined: x.server.participants.includes(id) } : null,
+    rules: { goal_min: TEAM_GOAL_MIN, prior_max: TEAM_PRIOR_MAX, kidnap_min: KIDNAP_MIN, team_jelly: TEAM_JELLY, server_jelly: SERVER_JELLY },
+    page_url: baseUrl(c) + '/bingo',
+  });
+});
+
+// 지금 시즌 팀 순위(고정 패널 본문 그림). 시즌이나 팀이 없으면 ranking: null
+app.get('/api/bot/teams', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  const now = new Date().toISOString();
+  const season = await seasonAt(c.env.DB, now);
+  if (!season) return c.json({ season: null, ranking: null, server: null, page_url: baseUrl(c) + '/bingo' });
+  const [teams, server] = await Promise.all([loadTeams(c.env.DB, season.id), loadServerQuest(c.env.DB, season.id)]);
+  return c.json({
+    season: { start: season.start, end: season.end },
+    ranking: teams.size ? rankTeams(teams.values()).map((r) => ({ ...r, no: r.no + 1 })) : null,
+    server: server ? { target: server.target, kidnapped: server.kidnapped.length, met: server.met } : null,
+    page_url: baseUrl(c) + '/bingo',
+  });
+});
+
 // 광장 실시간 연결(봇). 통화방 모습과 통화방 채팅을 보내고, 방 옮기기 요청을 받아요.
 app.get('/api/bot/plaza', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
@@ -602,54 +640,6 @@ const sameOrigin = (c: Context<AppEnv>) => {
   const origin = c.req.header('Origin');
   return !origin || origin === new URL(c.req.url).origin;
 };
-
-// 완성 원고 모드도 기존 로그인·현재 멤버·캐릭터 선택 미들웨어 안에서만 열려요.
-members.use('/api/story/*', bodyLimit({ maxSize: 4096, onError: c => c.text('입력이 너무 길어요', 413) }));
-for (const kind of ['case', 'expedition'] as const) {
-  const url = kind === 'case' ? '/cases/story' : '/expedition/story';
-  members.get(url, async c => {
-    const viewer = c.get('viewer');
-    c.header('Cache-Control', 'no-store');
-    const [active, marks, candidates] = await Promise.all([
-      activeStory(c.env.DB, viewer.user_id, kind), storyMarks(c.env.DB, viewer.user_id), listCandidates(c.env.DB, viewer.user_id),
-    ]);
-    const id = c.req.query('r');
-    const result = !active && uuid(id) ? await getStory(c.env.DB, viewer.user_id, id) : null;
-    return page(c, <StoryPage viewer={viewer} kind={kind} run={active ?? (result?.row.kind === kind && result.state.phase === 'done' ? result : null)} candidates={candidates} marks={marks} notice={c.req.query('n')} />);
-  });
-}
-members.post('/api/story/start', async c => {
-  c.header('Cache-Control', 'no-store');
-  // 새 변경 API는 Origin 필수. 일반 브라우저의 POST form은 Origin을 보냅니다.
-  if (c.req.header('Origin') !== new URL(c.req.url).origin) return c.text('잘못된 요청이에요', 403);
-  if (!/^application\/x-www-form-urlencoded(?:;|$)/i.test(c.req.header('Content-Type') ?? '')) return c.text('잘못된 입력이에요', 400);
-  const raw = await c.req.text();
-  if (raw.length > 4096) return c.text('입력이 너무 길어요', 413);
-  const b = new URLSearchParams(raw);
-  const kind = b.get('kind'), content = b.get('content'), request = b.get('request');
-  if ((kind !== 'case' && kind !== 'expedition') || !content || !uuid(request) || ['kind', 'content', 'request'].some(k => b.getAll(k).length !== 1)) return c.text('잘못된 입력이에요', 400);
-  const url = kind === 'case' ? '/cases/story' : '/expedition/story';
-  try {
-    const id = await beginStory(c.env.DB, c.get('viewer').user_id, kind, content, b.getAll('m'), request);
-    return c.redirect(id ? `${url}?r=${id}#now` : `${url}?n=bad`, 303);
-  } catch (err) { console.error('이야기 시작 실패', err); return c.redirect(`${url}?n=error`, 303); }
-});
-members.post('/api/story/act', async c => {
-  c.header('Cache-Control', 'no-store');
-  if (c.req.header('Origin') !== new URL(c.req.url).origin) return c.text('잘못된 요청이에요', 403);
-  if (!/^application\/x-www-form-urlencoded(?:;|$)/i.test(c.req.header('Content-Type') ?? '')) return c.text('잘못된 입력이에요', 400);
-  const raw = await c.req.text();
-  if (raw.length > 4096) return c.text('입력이 너무 길어요', 413);
-  const b = new URLSearchParams(raw), id = b.get('run'), at = b.get('at'), action = b.get('action'), choice = b.get('choice');
-  if (!uuid(id) || !at || !/^(0|[1-9][0-9]{0,5})$/.test(at) || !action || !['look', 'answer', 'promise', 'choose', 'quit', 'inspect', 'connect', 'reconstruct', 'scout', 'rotate', 'survey', 'return', 'skill', 'jelly'].includes(action) || choice === null || choice.length > 100 || ['run', 'at', 'action', 'choice'].some(k => b.getAll(k).length !== 1)) return c.text('잘못된 입력이에요', 400);
-  const user = c.get('viewer').user_id, run = await getStory(c.env.DB, user, id);
-  if (!run) return c.text('이야기를 찾을 수 없어요', 404);
-  const url = run.row.kind === 'case' ? '/cases/story' : '/expedition/story';
-  try {
-    const result = await actStory(c.env.DB, user, id, Number(at), { action: action as StoryAction['action'], choice });
-    return c.redirect(`${url}?r=${id}${result === 'ok' ? '' : `&n=${result}`}#now`, 303);
-  } catch (err) { console.error('이야기 진행 실패', err); return c.redirect(`${url}?r=${id}&n=error#now`, 303); }
-});
 
 // 상점: 매점(잡다매점: 디스코드 물건·성별 바꾸기)과 꾸미기(테마·꾸밈 캐릭터) 탭. 칭호 탭은 /titles예요.
 async function shopPage(c: Context<AppEnv>, tab: 'store' | 'deco') {
@@ -835,6 +825,7 @@ members.post('/api/titles/buy', async (c) => {
   return c.redirect(`/titles?n=${result === 'done' ? 'bought' : result}&t=${encodeURIComponent(t.id)}`);
 });
 
+const uuid = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 const isGambleGame = (value: unknown): value is Game => value === 'slot' || value === 'roulette' || value === 'cards';
 const gambleRoomUrl = (game: Game, token?: string) => `/gamble/${game}${token ? `?r=${token}` : ''}`;
 
@@ -921,91 +912,22 @@ members.post('/gamble/rescue', async (c) => {
   return c.redirect(rescued ? '/gamble?n=rescue' : '/gamble?n=no-rescue', 303);
 });
 
-members.get('/expedition', async (c) => {
-  const viewer = c.get('viewer');
-  const db = c.env.DB;
-  const run = await currentRun(db, viewer.user_id);
-  const rid = c.req.query('r');
-  const [result, record, candidates, role] = await Promise.all([
-    !run && rid ? getRun(db, viewer.user_id, rid) : Promise.resolve(null),
-    myRecord(db, viewer.user_id),
-    run ? Promise.resolve([]) : listCandidates(db, viewer.user_id),
-    myRole(db, viewer.user_id),
-  ]);
-  // 뒤로 가기로 지난 원정 화면이 다시 보이지 않게, 브라우저가 이 화면을 저장해 두지 않고 늘 새로 받아요
-  c.header('Cache-Control', 'no-store');
-  return page(
-    c,
-    <ExpeditionPage
-      viewer={viewer}
-      run={run}
-      result={result?.row.status === 'done' ? result : null}
-      record={record}
-      candidates={candidates}
-      role={role}
-      notice={c.req.query('n')}
-    />,
-  );
-});
-
-members.post('/api/expedition/start', async (c) => {
-  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  const viewer = c.get('viewer');
-  const body = await c.req.parseBody({ all: true });
-  const raw = body.m;
-  const ids = (Array.isArray(raw) ? raw : raw === undefined ? [] : [raw]).map(String);
-  const r = await startRun(c.env.DB, viewer.user_id, ids);
-  return c.redirect(r === 'started' ? '/expedition#now' : `/expedition?n=${r}`);
-});
-
-members.post('/api/expedition/act', async (c) => {
-  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  const viewer = c.get('viewer');
-  const body = await c.req.parseBody();
-  const at = Number(body.at);
-  const choice = Number(body.c);
-  if (!Number.isInteger(at) || !Number.isInteger(choice) || at < 0 || choice < 0) return c.redirect('/expedition');
-  try {
-    const r = await act(c.env.DB, viewer.user_id, String(body.run ?? ''), at, choice);
-    if (r.result === 'done' && r.runId) return c.redirect(`/expedition?r=${encodeURIComponent(r.runId)}#now`);
-  } catch (e) {
-    console.error('원정 진행 실패', e);
-    return c.redirect('/expedition?n=error');
-  }
-  // 이미 반영됐거나 엉뚱한 차례면 지금 화면을 다시 보여 줘요(#now: 결과가 바로 보이게 원정 칸으로 내려가요)
-  return c.redirect('/expedition#now');
-});
-
-members.post('/api/expedition/quit', async (c) => {
-  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  const run = String((await c.req.parseBody()).run ?? '');
-  const quit = await quitRun(c.env.DB, c.get('viewer').user_id, run);
-  return c.redirect(quit ? '/expedition?n=quit' : '/expedition');
-});
-
-members.post('/api/expedition/role', async (c) => {
-  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  const role = (await c.req.parseBody()).role;
-  if (!isRole(role)) return c.redirect('/expedition');
-  await setRole(c.env.DB, c.get('viewer').user_id, role);
-  return c.redirect('/expedition?n=role');
-});
-
 // 하리보 원정대 (하루 모험판): 하루씩 나아가며 싸우고 스킬을 골라요. 자동 선택(방치)도 돼요.
 const JR_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 members.get('/expedition/go', async (c) => {
   const viewer = c.get('viewer');
   c.header('Cache-Control', 'no-store');
-  const [run, record, profile, bank] = await Promise.all([
+  const [run, record, profile, bank, dogam] = await Promise.all([
     activeJourney(c.env.DB, viewer.user_id),
     journeyRecord(c.env.DB, viewer.user_id),
     getProfile(c.env.DB, viewer.user_id),
     journeyBank(c.env.DB, viewer.user_id),
+    dogamProgress(c.env.DB, viewer.user_id),
   ]);
   const rid = c.req.query('r') ?? '';
   const done = !run && JR_ID.test(rid) ? await getJourney(c.env.DB, viewer.user_id, rid) : null;
   const art = characterUrl(profile.character_id, viewer.user_id, profile.deco_id);
-  return page(c, <JourneyPage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} record={record} bank={bank} notice={c.req.query('n')} />);
+  return page(c, <JourneyPage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} record={record} bank={bank} dogam={dogam} notice={c.req.query('n')} />);
 });
 members.post('/api/journey/start', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
@@ -1062,11 +984,11 @@ const ESC_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 members.get('/cases/room', async (c) => {
   const viewer = c.get('viewer');
   c.header('Cache-Control', 'no-store');
-  const [run, best, profile] = await Promise.all([activeEscape(c.env.DB, viewer.user_id), escapeRecord(c.env.DB, viewer.user_id), getProfile(c.env.DB, viewer.user_id)]);
+  const [run, best, profile, dogam] = await Promise.all([activeEscape(c.env.DB, viewer.user_id), escapeRecord(c.env.DB, viewer.user_id), getProfile(c.env.DB, viewer.user_id), dogamProgress(c.env.DB, viewer.user_id)]);
   const art = characterUrl(profile.character_id, viewer.user_id, profile.deco_id);
   const rid = c.req.query('r') ?? '';
   const done = !run && ESC_ID.test(rid) ? await getEscape(c.env.DB, viewer.user_id, rid) : null;
-  return page(c, <EscapePage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} best={best} notice={c.req.query('n')} list={c.req.query('list') === '1'} />);
+  return page(c, <EscapePage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} best={best} dogam={dogam} notice={c.req.query('n')} list={c.req.query('list') === '1'} />);
 });
 members.post('/api/escape/start', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
@@ -1075,6 +997,8 @@ members.post('/api/escape/start', async (c) => {
     const user = c.get('viewer').user_id;
     const want = String(body.case ?? '');
     // 사건 목록에서 다른 사건을 고르면 하던 사건은 덮고 새로 열어요.
+    // 도감 조건이 안 되는 사건이면 하던 사건을 덮지 않고 돌아가요.
+    if (!(await escapeOpen(c.env.DB, user, want))) return c.redirect('/cases/room?list=1&n=locked', 303);
     if (body.switch === '1' && escCase(want)) {
       const going = await activeEscape(c.env.DB, user);
       if (going && going.row.case_id !== want) await quitEscape(c.env.DB, user, going.row.id);
@@ -1116,12 +1040,12 @@ members.post('/api/escape/act', async (c) => {
     const r = await actEscapeRun(c.env.DB, user, id, rev, act);
     if (r !== 'ok') return c.redirect(`/cases/room?n=${r}#now`, 303);
     // 다시 불러오기(리다이렉트) 없이 바로 화면을 그려 보내요. 한 번 왕복이 줄어서 빨라요.
-    const [after, best, profile] = await Promise.all([getEscape(c.env.DB, user, id), escapeRecord(c.env.DB, user), getProfile(c.env.DB, user)]);
+    const [after, best, profile, dogam] = await Promise.all([getEscape(c.env.DB, user, id), escapeRecord(c.env.DB, user), getProfile(c.env.DB, user), dogamProgress(c.env.DB, user)]);
     const done = after?.row.status === 'done';
     c.header('Cache-Control', 'no-store');
     const viewer = c.get('viewer');
     const art = characterUrl(profile.character_id, user, profile.deco_id);
-    return page(c, <EscapePage viewer={viewer} art={art} run={done ? null : after} result={done ? after : null} best={best} url={done ? `/cases/room?r=${id}#now` : '/cases/room#now'} />);
+    return page(c, <EscapePage viewer={viewer} art={art} run={done ? null : after} result={done ? after : null} best={best} dogam={dogam} url={done ? `/cases/room?r=${id}#now` : '/cases/room#now'} />);
   } catch (e) {
     console.error('사건 진행 실패', e);
     return c.redirect('/cases/room?n=error#now', 303);
@@ -1134,64 +1058,10 @@ members.post('/api/escape/quit', async (c) => {
   return c.redirect(ok ? '/cases/room?n=quit' : '/cases/room', 303);
 });
 
-// 하리보 사건파일
-members.get('/cases', async (c) => {
-  const viewer = c.get('viewer');
-  const db = c.env.DB;
-  const rid = c.req.query('r');
-  const [run, record] = await Promise.all([currentCase(db, viewer.user_id), caseRecord(db, viewer.user_id)]);
-  const result = !run && rid ? await getCase(db, viewer.user_id, rid) : null;
-  // 뒤로 가기로 지난 사건 화면이 다시 보이지 않게 늘 새로 받아요
-  c.header('Cache-Control', 'no-store');
-  return page(
-    c,
-    <CasesPage viewer={viewer} run={run} result={result?.row.status === 'done' ? result : null} record={record} notice={c.req.query('n')} />,
-  );
-});
-
-members.post('/api/cases/start', async (c) => {
-  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  const r = await startCase(c.env.DB, c.get('viewer').user_id, String((await c.req.parseBody()).case ?? ''));
-  return c.redirect(r === 'started' ? '/cases#now' : `/cases?n=${r}`);
-});
-
-members.post('/api/cases/look', async (c) => {
-  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  const body = await c.req.parseBody();
-  const at = Number(body.at);
-  const spot = Number(body.spot);
-  if (!Number.isInteger(at) || !Number.isInteger(spot)) return c.redirect('/cases#now');
-  try {
-    await lookAt(c.env.DB, c.get('viewer').user_id, String(body.run ?? ''), at, spot);
-  } catch (e) {
-    console.error('사건 조사 실패', e);
-    return c.redirect('/cases?n=error');
-  }
-  return c.redirect('/cases#now');
-});
-
-members.post('/api/cases/accuse', async (c) => {
-  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  const body = await c.req.parseBody();
-  const num = (v: unknown) => (v === undefined || v === '' ? NaN : Number(v));
-  const answer = { culprit: num(body.culprit), method: num(body.method), motive: num(body.motive) };
-  if (![answer.culprit, answer.method, answer.motive].every(Number.isInteger)) return c.redirect('/cases?n=need_answer#now');
-  try {
-    const r = await accuse(c.env.DB, c.get('viewer').user_id, String(body.run ?? ''), Number(body.at), answer);
-    if (r.result === 'done' && r.runId) return c.redirect(`/cases?r=${encodeURIComponent(r.runId)}#now`);
-    if (r.result === 'bad') return c.redirect('/cases?n=need_look#now');
-  } catch (e) {
-    console.error('사건 지목 실패', e);
-    return c.redirect('/cases?n=error');
-  }
-  return c.redirect('/cases#now');
-});
-
-members.post('/api/cases/quit', async (c) => {
-  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  const quit = await quitCase(c.env.DB, c.get('viewer').user_id, String((await c.req.parseBody()).run ?? ''));
-  return c.redirect(quit ? '/cases?n=quit' : '/cases');
-});
+// 예전 사건파일·원정대 주소는 지금 게임으로 보내요(옛 게임과 보상은 없앴어요).
+for (const [from, to] of [['/cases', '/cases/room'], ['/cases/story', '/cases/room'], ['/expedition', '/expedition/go'], ['/expedition/story', '/expedition/go']] as const) {
+  members.get(from, (c) => c.redirect(to, 301));
+}
 
 members.get('/dogam', async (c) => {
   const viewer = c.get('viewer');
@@ -1234,15 +1104,23 @@ members.get('/group', async (c) => {
 async function bingoPage(c: Context<AppEnv>, form?: BlockForm) {
   const viewer = c.get('viewer');
   const view = await myBingo(c.env.DB, viewer.user_id, Date.now());
-  const [extras, candidates] = await Promise.all([
+  const [extras, candidates, mine] = await Promise.all([
     view ? bingoExtras(c.env.DB, viewer.user_id, view.week.start) : Promise.resolve(null),
     blockCandidates(c.env.DB, viewer.user_id),
+    myBlocks(c.env.DB, viewer.user_id),
   ]);
   const sent = c.req.query('blocked') === '1';
-  return page(c, <BingoPage viewer={viewer} view={view} extras={extras} block={{ candidates, form, sent }} />);
+  const undone = c.req.query('unblocked') === '1';
+  return page(c, <BingoPage viewer={viewer} view={view} extras={extras} block={{ candidates, form, sent, mine, undone }} />);
 }
 
 members.get('/bingo', (c) => bingoPage(c));
+
+// 순위 메뉴: 도감·빙고(젤리피)·원정대·사건파일·겜블장 1~3위와 내 순위
+members.get('/rank', async (c) => {
+  const viewer = c.get('viewer');
+  return page(c, <RankPage viewer={viewer} ranks={await loadRankings(c.env.DB, viewer.user_id, Date.now())} tab={rankTab(c.req.query('g'))} />);
+});
 
 // 같이 배정되지 않기 신청. 다시 물어야 하면 적은 내용을 그대로 두고 화면을 다시 보여 줘요.
 members.post('/bingo/block', async (c) => {
@@ -1257,12 +1135,21 @@ members.post('/bingo/block', async (c) => {
   const msg = {
     self: '나 자신은 고를 수 없어요.',
     unknown: '지금 서버에 있는 멤버를 골라 주세요.',
-    dup: '이 멤버에 대한 요청이 이미 접수돼 있어요.',
-    limit: `접수 중인 요청은 ${BLOCK_MAX_PENDING}개까지예요. 처리된 뒤에 다시 적어 주세요.`,
+    dup: '이 멤버는 이미 제외했거나 검토 중이에요.',
+    limit: `최대 ${BLOCK_MAX_PENDING}명까지 배정을 제외시킬 수 있어요. 다른 사람을 제외하려면 위에서 한 명을 풀어 주세요.`,
     empty: BLOCK_MORE,
     more: BLOCK_MORE,
   }[result];
   return bingoPage(c, { to, reason, msg, asked: asked || result === 'more' });
+});
+
+// 같이 배정되지 않기 풀기(내 요청만). 승인 없이 바로 지워요.
+members.post('/bingo/block/cancel', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const body = await c.req.parseBody();
+  const id = Number(body.id);
+  if (Number.isSafeInteger(id) && id > 0) await cancelBlock(c.env.DB, c.get('viewer').user_id, id);
+  return c.redirect('/bingo?unblocked=1#block');
 });
 
 members.get('/plaza', (c) => page(c, <PlazaPage viewer={c.get('viewer')} guildId={c.env.GUILD_ID} />));

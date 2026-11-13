@@ -70,16 +70,16 @@ describe('levelSql', () => {
 describe('applySync dogam jelly', () => {
   it('gives three jelly per 10-level step, once per step, to both card owners', async () => {
     const { sql, db } = fakeD1();
-    await applySync(db, batch('b1', 100)); // 레벨 7
+    await applySync(db, batch('b1', 200)); // 레벨 7
     expect(jellyOf(sql, A)).toBe(0);
-    await applySync(db, batch('b2', 100)); // 200xp → 레벨 10
+    await applySync(db, batch('b2', 200)); // 400xp → 레벨 10
     expect(jellyOf(sql, A)).toBe(3);
     expect(jellyOf(sql, B)).toBe(3);
-    await applySync(db, batch('b3', 10)); // 210xp, 그대로 레벨 10
+    await applySync(db, batch('b3', 20)); // 420xp, 그대로 레벨 10
     expect(jellyOf(sql, A)).toBe(3);
-    expect(await applySync(db, batch('b2', 100))).toBe('duplicate');
+    expect(await applySync(db, batch('b2', 200))).toBe('duplicate');
     expect(jellyOf(sql, A)).toBe(3);
-    await applySync(db, batch('b4', 1800)); // 2010xp → 레벨 30, 단계 2개 더
+    await applySync(db, batch('b4', 3600)); // 4020xp → 레벨 30, 단계 2개 더
     expect(jellyOf(sql, A)).toBe(9);
   });
 
@@ -98,7 +98,7 @@ describe('applySync dogam jelly', () => {
     const line = migration.split('\n').find((l) => l.startsWith('UPDATE cards SET jelly_level'))!;
     sql.exec(line);
     const row = sql.prepare('SELECT jelly_level FROM cards').get() as { jelly_level: number };
-    expect(row.jelly_level).toBe(levelFromXp(500));
+    expect(row.jelly_level).toBe(15); // 이 마이그레이션은 예전 곡선(2.25)으로 계산했어요
   });
 });
 

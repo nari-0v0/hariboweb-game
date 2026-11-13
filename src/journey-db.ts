@@ -1,5 +1,6 @@
 import { kstDay } from './db';
 import { MAX_CHAPTER } from './journey-chapters';
+import { dogamProgress, journeyOpenTo } from './unlock';
 import { DAILY_REWARD_JOURNEYS, NO_PERKS, PERKS, perkMax, actJourney, decodeJourney, journeyJelly, journeyXp, perkCost, startJourney, type JourneyAction, type JourneyState, type PerkId, type Perks } from './journey';
 
 export type JourneyRow = { id: string; user_id: string; state: string; rev: number; status: string; day: number; cleared: number; xp: number; jelly: number; reward_day: string | null };
@@ -56,7 +57,9 @@ export async function buyPerk(db: D1Database, user: string, id: PerkId, now = ne
 export async function beginJourney(db: D1Database, user: string, chapter = 1, now = new Date()): Promise<string | null> {
   const going = await activeJourney(db, user);
   if (going) return going.row.id;
-  const ch = Math.min(chapter, (await journeyRecord(db, user)).unlocked);
+  // 앞 장을 깼고(unlocked), 도감 조건도 채운 장까지만 떠날 수 있어요.
+  const [record, dogam] = await Promise.all([journeyRecord(db, user), dogamProgress(db, user)]);
+  const ch = Math.min(chapter, record.unlocked, journeyOpenTo(dogam));
   if (!Number.isSafeInteger(ch) || ch < 1) return null;
   const id = crypto.randomUUID();
   const t = now.toISOString();

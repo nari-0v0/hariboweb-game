@@ -2,7 +2,7 @@
 // 날마다 전투·상자·샘·상인·휴식 같은 일이 무작위로 생기고, 전투는 자동으로 치러요.
 // 레벨이 오르면 스킬 3개 중 하나를 고르고, 10일째 강한 적, 20일째 보스를 이기면 원정 성공이에요.
 // 모든 무작위는 판 씨앗(seed)과 날짜로 정해져서, 서버가 같은 입력에 늘 같은 결과를 내요.
-import { rng } from './expedition';
+import { rng } from './rng';
 import { chapterOf, chapterPower, type Monster } from './journey-chapters';
 
 export const DAYS = 20;

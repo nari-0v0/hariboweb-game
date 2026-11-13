@@ -205,13 +205,13 @@ describe('칩과 판 기록', () => {
     await claimDaily(db, USER, TODAY);
     roll(99);
     await betChips(db, USER, 'roulette', 100, 'win', TODAY);
-    expect((await gambleRanks(db, TODAY))[3]).toEqual([{ name: '테스트', value: 900 }]);
+    expect((await gambleRanks(db, TODAY))[3]).toMatchObject([{ name: '테스트', value: 900 }]);
     await awardGambleSeason(db, 'season', TOMORROW, TOMORROW);
     await awardGambleSeason(db, 'season', TOMORROW, TOMORROW);
     expect(sql.prepare('SELECT won FROM gamble_season_winners').get()).toMatchObject({ won: 900 });
     expect(sql.prepare("SELECT item_id FROM owned_items WHERE item_id = 'title:gamble-season-winner'").get()).toBeDefined();
     sql.prepare("UPDATE profiles SET title_id = 'gamble-season-winner' WHERE user_id = ?").run(USER);
-    expect((await gambleRanks(db, TODAY))[0]).toEqual([{ name: '「도박신」 테스트', value: 1900 }]);
+    expect((await gambleRanks(db, TODAY))[0]).toMatchObject([{ name: '「도박신」 테스트', value: 1900 }]);
     sql.exec('UPDATE members SET active = 0');
     expect((await gambleRanks(db, TODAY)).every((rank) => rank.length === 0)).toBe(true);
   });

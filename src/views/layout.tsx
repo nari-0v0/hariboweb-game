@@ -3,7 +3,7 @@ import { PREFETCH_RULES } from '../prefetch';
 import type { Child } from 'hono/jsx';
 import type { Member } from '../env';
 
-type NavKey = 'me' | 'dogam' | 'shop' | 'plaza' | 'group' | 'bingo' | 'titles' | 'expedition' | 'gamble' | 'cases' | 'guide';
+type NavKey = 'me' | 'dogam' | 'shop' | 'plaza' | 'group' | 'bingo' | 'titles' | 'expedition' | 'gamble' | 'cases' | 'rank' | 'guide';
 
 export function Layout(props: {
   title: string;
@@ -31,7 +31,7 @@ export function Layout(props: {
         <link rel="preload" href="/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin="" />
         {props.preloadImages?.map((href) => <link rel="preload" href={href} as="image" fetchpriority="high" />)}
         <link rel="icon" type="image/png" href="/char/deco/explorer.png" />
-        <link rel="stylesheet" href="/styles.css?v=praise-box-1" />
+        <link rel="stylesheet" href="/styles.css?v=unlock-1" />
         <script src="/app.js?v=praise-box-1" defer></script>
         {props.scripts?.map((script) => typeof script === 'string'
           ? <script src={script} defer></script>
@@ -68,6 +68,7 @@ export function Layout(props: {
               {nav('expedition', '/expedition/go', '원정대', '🧭')}
               {nav('gamble', '/gamble', '겜블장', '🎰')}
               {nav('cases', '/cases/room', '사건파일', '🔎')}
+              {nav('rank', '/rank', '순위', '🏆')}
               {nav('shop', '/shop', '상점', '🍬')}
               {nav('guide', '/guide', '사용설명서', '📘')}
               <div class="menu-foot">

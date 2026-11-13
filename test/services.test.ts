@@ -128,16 +128,16 @@ describe('도감 축하(두 사람 카드 10레벨마다)', () => {
     const C = '100000000000000003';
     sql.prepare("INSERT INTO members (user_id, display_name, active, updated_at) VALUES (?, 'b', 1, 'x'), (?, 'c', 0, 'x')").run(B, C);
     const card = sql.prepare("INSERT INTO cards (owner_id, target_id, xp, first_met, updated_at) VALUES (?, ?, ?, 'x', 'x')");
-    card.run(A, B, 2000); // Lv.30
-    card.run(B, A, 2000); // 반대쪽 카드는 안 봐요
-    card.run(A, C, 5000); // 떠난 멤버
+    card.run(A, B, 4000); // Lv.30
+    card.run(B, A, 4000); // 반대쪽 카드는 안 봐요
+    card.run(A, C, 10000); // 떠난 멤버
     expect(await listCheers(db)).toEqual([{ a: A, b: B, level: 30 }]);
     expect(await markCheer(db, A, B, 30)).toBe(true);
     expect(await markCheer(db, A, B, 30)).toBe(false);
     expect(await listCheers(db)).toEqual([]);
-    sql.prepare('UPDATE cards SET xp = 2400 WHERE owner_id = ? AND target_id = ?').run(A, B); // Lv.33
+    sql.prepare('UPDATE cards SET xp = 4800 WHERE owner_id = ? AND target_id = ?').run(A, B); // Lv.33
     expect(await listCheers(db)).toEqual([]);
-    sql.prepare('UPDATE cards SET xp = 3500 WHERE owner_id = ? AND target_id = ?').run(A, B); // Lv.40
+    sql.prepare('UPDATE cards SET xp = 7000 WHERE owner_id = ? AND target_id = ?').run(A, B); // Lv.40
     expect(await listCheers(db)).toEqual([{ a: A, b: B, level: 40 }]);
   });
 });

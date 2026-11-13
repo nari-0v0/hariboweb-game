@@ -26,10 +26,10 @@ describe('levels', () => {
     expect(tierEffects(75)).toEqual(['ring-gold', 'fx-sparkle', 'fx-shine']);
   });
 
-  it('takes about a year at one hour (60 XP) a day', () => {
+  it('takes about two years at one hour (60 XP) a day', () => {
     const days = xpForLevel(100) / 60;
-    expect(days).toBeGreaterThan(350);
-    expect(days).toBeLessThan(380);
+    expect(days).toBeGreaterThan(700);
+    expect(days).toBeLessThan(760);
   });
 
   it('reports progress inside a level', () => {

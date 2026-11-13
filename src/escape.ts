@@ -300,6 +300,10 @@ export const ESCAPE_CASES: EscCase[] = [...TALK_CASES, ...STORY_SEEDS.map((x, i)
 
 export const escCase = (id: string) => ESCAPE_CASES.find((c) => c.id === id);
 
+// 도감으로 여는 순서: 입문 사건(★)이 먼저, 그다음 목록 순서. 처음 5개(입문 3개 + 맨 위 2개)는 그냥 할 수 있어요.
+const UNLOCK_ORDER = [...ESCAPE_CASES.filter((c) => c.level === 1), ...ESCAPE_CASES.filter((c) => c.level !== 1)].map((c) => c.id);
+export const escapeUnlockIndex = (id: string) => UNLOCK_ORDER.indexOf(id);
+
 export type EscState = {
   v: 1;
   scene: string;

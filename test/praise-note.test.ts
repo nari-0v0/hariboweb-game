@@ -118,6 +118,20 @@ describe('칭찬함', () => {
   });
 });
 
+describe('떠난 멤버 정리', () => {
+  it('산 기록·남은 닉네임 변경권·젤칩을 지워서, 다시 들어와도 돌아오지 않아요', async () => {
+    const { sql, db } = fakeD1();
+    sql.prepare("INSERT INTO purchases (id, user_id, item_id, price, status, created_at) VALUES ('p1', ?, 'svc:nickname', 5, 'done', 'x')").run(C);
+    sql.prepare("INSERT INTO nick_jobs (id, user_id, front, status, created_at) VALUES ('n1', ?, '새이름', 'pending', 'x')").run(C);
+    sql.prepare("INSERT INTO gamble_accounts (user_id, chips) VALUES (?, 5000)").run(C);
+    const parsed = parseSync({ batch_id: `${new Date().toISOString()}-left2`, removed: [C] });
+    if (!parsed.ok) throw new Error(parsed.error);
+    await applySync(db, parsed.value, Date.now() + 1000);
+    for (const t of ['purchases', 'nick_jobs', 'gamble_accounts'])
+      expect(sql.prepare(`SELECT COUNT(*) AS n FROM ${t} WHERE user_id = ?`).get(C)).toEqual({ n: 0 });
+  });
+});
+
 describe('봇 칭찬 API', () => {
   const call = (env: Env, path: string, body?: unknown) =>
     app.request(path, { method: body ? 'POST' : 'GET', headers: { Authorization: 'Bearer s', 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }, env);

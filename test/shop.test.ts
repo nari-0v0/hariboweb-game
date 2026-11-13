@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { DECO_CHARACTERS } from '../src/characters';
-import { PRICES, REWARD_COUNT, REWARD_STEP, SHOP_ITEMS, canUse, canUseTheme, rewardNeed, shopItem } from '../src/shop';
+import { DECO_PRICES, PRICES, REWARD_COUNT, REWARD_STEP, SHOP_ITEMS, canUse, canUseTheme, rewardNeed, shopItem } from '../src/shop';
 import { THEMES } from '../src/themes';
 
 describe('jelly shop items', () => {
   it('sells every theme except basic and lists every deco character once', () => {
     const themes = SHOP_ITEMS.filter((i) => i.kind === 'theme');
     expect(themes.map((i) => i.key)).toEqual(THEMES.filter((t) => t.id !== 'basic').map((t) => t.id));
-    expect(themes.every((i) => i.price === PRICES.theme)).toBe(true);
+    // 나리: 테마는 20개부터, 물건마다 값이 달라요
+    expect(themes.every((i) => i.price! >= PRICES.theme)).toBe(true);
+    expect(new Set(themes.map((i) => i.price)).size).toBe(themes.length);
     const deco = SHOP_ITEMS.filter((i) => i.kind === 'deco');
     expect(deco.length).toBe(DECO_CHARACTERS.length);
     expect(new Set(SHOP_ITEMS.map((i) => i.id)).size).toBe(SHOP_ITEMS.length);
@@ -17,7 +19,10 @@ describe('jelly shop items', () => {
     const rewards = SHOP_ITEMS.filter((i) => i.price === null);
     expect(rewards.length).toBe(25);
     expect(rewards.map((i) => i.rewardRank)).toEqual(rewards.map((_, n) => n + 1));
-    expect(SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price !== null).every((i) => i.price === PRICES.deco)).toBe(true);
+    // 나리: 꾸밈 캐릭터는 30개부터, 값이 여러 가지예요. 파는 캐릭터는 모두 값 표에 있어요
+    const sold = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price !== null);
+    expect(sold.every((i) => i.price! >= PRICES.deco && DECO_PRICES[i.key] === i.price)).toBe(true);
+    expect(new Set(sold.map((i) => i.price)).size).toBeGreaterThan(3);
   });
 
   it('only finds real items', () => {

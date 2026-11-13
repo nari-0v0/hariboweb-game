@@ -1,7 +1,7 @@
-// 레벨 L에 도달하는 데 필요한 누적 경험치: 2.25 × (L-1)² (올림)
-// 한 사람과 하루 1시간(60XP)씩 같이 놀면 약 1년(367일)에 만렙 100이 돼요.
+// 레벨 L에 도달하는 데 필요한 누적 경험치: 4.5 × (L-1)² (올림)
+// 한 사람과 하루 1시간(60XP)씩 같이 놀면 약 2년(735일)에 만렙 100이 돼요(나리 2026-11-13: 예전 2.25에서 두 배로 어렵게).
 export const MAX_LEVEL = 100;
-const XP_SCALE = 2.25;
+export const XP_SCALE = 4.5;
 
 export function xpForLevel(level: number): number {
   return Math.ceil(XP_SCALE * (level - 1) ** 2);

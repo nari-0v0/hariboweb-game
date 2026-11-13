@@ -300,7 +300,10 @@ export async function applySync(
     // 받은 칭찬의 한마디는 지워요. 칭찬 기록 자체는 보낸 사람의 하루 횟수·빙고 집계에 쓰여서 남기고,
     // 칭찬함은 reset_at 뒤에 받은 것만 보여 줘요(다시 들어와도 예전 칭찬은 안 보여요).
     stmts.push(db.prepare('UPDATE praises SET note = NULL WHERE to_id = ?').bind(id));
-    stmts.push(db.prepare("UPDATE purchases SET status = 'failed', reason = 'left' WHERE user_id = ? AND status = 'pending'").bind(id));
+    // 산 기록(남은 닉네임 변경권, 벌점·경고 지우기 값)도 지워요. 다시 들어오면 처음부터예요.
+    // 겜블장 젤칩·판 기록은 members.active가 0이 될 때 DB 트리거(gamble_member_left)가 지워요.
+    stmts.push(db.prepare('DELETE FROM purchases WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM nick_jobs WHERE user_id = ?').bind(id));
   }
 
   // 주간 빙고 기록(통화방 1분, 출석)도 같은 트랜잭션에

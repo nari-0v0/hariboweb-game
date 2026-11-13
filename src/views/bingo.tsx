@@ -2,9 +2,6 @@ import type { Member } from '../env';
 import { type BingoView, FULL_JELLY, LINE_JELLY, LINE_XP, LINES } from '../bingo';
 import {
   type BingoExtras,
-  type JellypiRanking,
-  JP_FULL,
-  JP_LINE,
   JP_SERVER,
   JP_TEAM,
   KIDNAP_MIN,
@@ -14,19 +11,61 @@ import {
   TEAM_PRIOR_MAX,
 } from '../team';
 import { Layout } from './layout';
-import { BLOCK_HELP, BLOCK_MAX_PENDING, BLOCK_NOTICE, BLOCK_QUESTION, BLOCK_REASON_MAX } from '../assign-block';
+import { BLOCK_HELP, BLOCK_LIMIT_NOTICE, BLOCK_MAX_PENDING, BLOCK_NOTICE, BLOCK_QUESTION, BLOCK_REASON_MAX, BLOCK_UNDO_NOTICE, type MyBlock } from '../assign-block';
 
 // 같이 배정되지 않기: 다시 물을 때 적은 내용을 그대로 보여 줘요
 export type BlockForm = { to: string; reason: string; msg: string; asked: boolean };
-export type BlockBox = { candidates: { id: string; name: string }[]; form?: BlockForm; sent?: boolean };
+export type BlockBox = { candidates: { id: string; name: string }[]; form?: BlockForm; sent?: boolean; mine?: MyBlock[]; undone?: boolean };
 
 function BlockSection(props: { box: BlockBox }) {
-  const { candidates, form, sent } = props.box;
+  const { candidates, form, sent, undone } = props.box;
+  const mine = props.box.mine ?? [];
+  const full = mine.length >= BLOCK_MAX_PENDING;
   return (
-    <details class="panel bgo-block" id="block" open={!!form || !!sent}>
+    <details class="panel bgo-block" id="block" open={!!form || !!sent || !!undone}>
       <summary>🚫 같이 배정되지 않기</summary>
+      <p class="bgo-block-limit">{BLOCK_LIMIT_NOTICE}</p>
+      {mine.length > 0 && (
+        <div class="bgo-block-mine">
+          <b>
+            내가 제외한 사람 {mine.length} / {BLOCK_MAX_PENDING}명
+          </b>
+          <ul>
+            {mine.map((b) => (
+              <li>
+                <span class="bgo-block-name">{b.name}</span>
+                <span class="bgo-block-state">{b.state === 'approved' ? '제외됨' : '검토 중'}</span>
+                <button class="btn btn-small" type="button" popovertarget={`unblock-${b.id}`}>
+                  풀기
+                </button>
+                <div class="bgo-pop" id={`unblock-${b.id}`} popover="auto">
+                  <p class="bgo-pop-title">정말 풀까요?</p>
+                  <p>
+                    <b>{b.name}</b>님과 다음 팀 짜기부터 다시 같은 팀이 될 수 있어요.
+                  </p>
+                  <div class="bgo-pop-btns">
+                    <form method="post" action="/bingo/block/cancel#block">
+                      <input type="hidden" name="id" value={String(b.id)} />
+                      <button class="btn btn-small btn-primary" type="submit">
+                        네, 풀게요
+                      </button>
+                    </form>
+                    <button class="btn btn-small" type="button" popovertarget={`unblock-${b.id}`} popovertargetaction="hide">
+                      아니요
+                    </button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <p class="bgo-block-notice">{BLOCK_UNDO_NOTICE}</p>
+        </div>
+      )}
+      {undone && <p class="bgo-block-done">풀었어요. 다음 팀 짜기부터 다시 같은 팀이 될 수 있어요.</p>}
       {sent ? (
         <p class="bgo-block-done">접수했어요.</p>
+      ) : full ? (
+        <p class="bgo-block-msg">이미 {BLOCK_MAX_PENDING}명을 제외했어요. 다른 사람을 제외하려면 위에서 한 명을 풀어 주세요.</p>
       ) : (
         <form method="post" action="/bingo/block#block" class="bgo-block-form">
           <label class="bgo-block-label" for="block-find">
@@ -49,8 +88,14 @@ function BlockSection(props: { box: BlockBox }) {
             {form?.reason ?? ''}
           </textarea>
           {form?.asked && <input type="hidden" name="asked" value="1" />}
-          <p class="bgo-block-notice">{BLOCK_NOTICE}</p>
-          <p class="bgo-block-notice">상대에게는 아무 알림도 가지 않아요. 접수 중인 요청은 {BLOCK_MAX_PENDING}개까지예요.</p>
+          <p class="bgo-block-notice">
+            {BLOCK_NOTICE.map((line, i) => (
+              <>
+                {i > 0 && <br />}
+                {line}
+              </>
+            ))}
+          </p>
           <button class="btn" type="submit">
             보내기
           </button>
@@ -119,22 +164,35 @@ function ServerQuestBar(props: { extras: BingoExtras; me: string }) {
 }
 
 // 가운데 칸 팀 퀘스트 자세히
-function TeamPanel(props: { extras: BingoExtras; view: BingoView }) {
+function TeamPanel(props: { extras: BingoExtras; view: BingoView; me: string }) {
   const t = props.extras.team;
   const state = props.view.team;
   if (!t) {
     return (
-      <section class="panel bgo-team">
+      <section class="panel bgo-team bgo-wide">
         <h2>👫 팀 퀘스트</h2>
         <p>이번 시즌 팀이 아직 없어요. 통화방에서 놀면 팀이 생겨요.</p>
       </section>
     );
   }
-  const names = new Map(t.members.map((m) => [m.id, m.name]));
   const pct = t.target ? Math.round((Math.min(t.achievers.length, t.target) / t.target) * 100) : 100;
+  const done = new Set(t.achievers);
+  const mates = t.members.filter((m) => !m.left);
   return (
-    <section class={`panel bgo-team${t.complete ? ' met' : ''}`}>
-      <h2>👫 팀 퀘스트</h2>
+    <section class={`panel bgo-team bgo-wide${t.complete ? ' met' : ''}`}>
+      <h2>👫 팀 퀘스트 · {t.no + 1}팀</h2>
+      <div class="bgo-mates">
+        <b>우리 팀원 {mates.length}명{t.bonus ? '' : ' · ✓ 달성'}</b>
+        <ul aria-label="우리 팀원">
+          {mates.map((m) => (
+            <li class={`${done.has(m.id) ? 'done' : ''}${m.id === props.me ? ' me' : ''}`.trim() || undefined}>
+              {done.has(m.id) ? '✓ ' : ''}
+              {m.name}
+              {m.id === props.me ? ' (나)' : ''}
+            </li>
+          ))}
+        </ul>
+      </div>
       <p class="bgo-team-text">
         지난 2주간 {TEAM_PRIOR_MAX}분 미만 통화자와 이번 시즌에 같은 통화방에서 {TEAM_GOAL_MIN}분 함께하기
       </p>
@@ -148,13 +206,6 @@ function TeamPanel(props: { extras: BingoExtras; view: BingoView }) {
           <div class="bgo-server-bar small" aria-hidden="true">
             <i style={`width:${pct}%`} />
           </div>
-          {t.achievers.length > 0 && (
-            <ul class="bgo-stickers" aria-label="달성한 사람">
-              {t.achievers.map((id) => (
-                <li>{names.get(id) ?? '알 수 없음'}</li>
-              ))}
-            </ul>
-          )}
           <p class={`bgo-team-me s-${state}`}>{TEAM_STATE[state]}</p>
           <p class="bgo-team-reward">
             시즌이 끝날 때 팀 목표를 채웠으면 달성한 사람만 젤리 {TEAM_JELLY}개 + 젤리피 {JP_TEAM}.
@@ -162,33 +213,6 @@ function TeamPanel(props: { extras: BingoExtras; view: BingoView }) {
         </>
       )}
     </section>
-  );
-}
-
-function RankList(props: { title: string; rank: JellypiRanking }) {
-  const { top, me } = props.rank;
-  return (
-    <div class="bgo-rank">
-      <h3>{props.title}</h3>
-      {top.length === 0 ? (
-        <p class="muted">아직 모은 사람이 없어요.</p>
-      ) : (
-        <ol>
-          {top.map((r) => (
-            <li class={me?.id === r.id ? 'mine' : undefined}>
-              <span class="bgo-rank-no">{r.rank}</span>
-              <span class="bgo-rank-name">{r.name}</span>
-              <span class="bgo-rank-n">{r.total}</span>
-            </li>
-          ))}
-        </ol>
-      )}
-      {me && me.rank > top.length && (
-        <p class="bgo-rank-me">
-          내 순위 {me.rank}위 · {me.total}
-        </p>
-      )}
-    </div>
   );
 }
 
@@ -208,17 +232,15 @@ export function BingoPage(props: { viewer: Member; view: BingoView | null; extra
   }
   const endShown = new Date(Date.parse(v.week.end) - 1).toISOString();
   const lineCells = new Set(v.lines.flatMap((i) => LINES[i]!));
-  // 한 칸만 더 채우면 줄이 되는 칸
-  const nearCells = new Set(
-    LINES.flatMap((l) => {
-      const left = l.filter((x) => !v.cells[x]!.done);
-      return left.length === 1 ? left : [];
-    }),
-  );
-  const near = [...nearCells].map((i) => v.cells[i]!);
   return (
     <Layout title="하리보 빙고" viewer={props.viewer} active="bingo">
-      {extras && <ServerQuestBar extras={extras} me={props.viewer.user_id} />}
+      <div class="bgo-wrap">
+      {extras && (
+        <div class="bgo-quests">
+          <ServerQuestBar extras={extras} me={props.viewer.user_id} />
+          <TeamPanel extras={extras} view={v} me={props.viewer.user_id} />
+        </div>
+      )}
       <div class="bgo">
         <section class="bgo-board" aria-label="빙고판">
           <header class="bgo-top">
@@ -226,15 +248,20 @@ export function BingoPage(props: { viewer: Member; view: BingoView | null; extra
               <span class="bgo-letter">빙</span>
               <span class="bgo-letter">고</span>
             </h1>
-            <span class="bgo-week">
-              {shortDay(v.week.start)} ~ {shortDay(endShown)}
-            </span>
+            <div class="bgo-top-right">
+              <span class="bgo-week">
+                {shortDay(v.week.start)} ~ {shortDay(endShown)}
+              </span>
+              <span class="bgo-tally" title="완성한 줄 · 받은 젤리 · 카드 경험치">
+                {v.full ? '9칸 완성!' : `${v.lines.length}줄 완성`} · 🍬 {v.jelly} · 경험치 +{v.xp}
+              </span>
+            </div>
           </header>
           <div class="bgo-grid">
             {v.cells.map((x, i) => {
               const pct = x.done ? 100 : Math.round((x.value / x.target) * 100);
               return (
-                <div class={`bgo-cell d-${x.diff}${x.center ? ' bgo-center' : ''}${x.done ? ' done' : ''}${lineCells.has(i) ? ' in-line' : ''}${nearCells.has(i) ? ' near' : ''}`}>
+                <div class={`bgo-cell d-${x.diff}${x.center ? ' bgo-center' : ''}${x.done ? ' done' : ''}${lineCells.has(i) ? ' in-line' : ''}`}>
                   {x.center ? (
                     <span class="bgo-diff bgo-diff-team">팀</span>
                   ) : (
@@ -275,67 +302,6 @@ export function BingoPage(props: { viewer: Member; view: BingoView | null; extra
         </section>
 
         <aside class="bgo-side">
-          {extras && <TeamPanel extras={extras} view={v} />}
-          <section class="panel bgo-score">
-            <h2>완성한 줄</h2>
-            <p class="bgo-big">
-              <b>{v.lines.length}</b> / {LINES.length}줄
-            </p>
-            <div class="bgo-pips" aria-hidden="true">
-              {LINES.map((_, i) => (
-                <i class={i < v.lines.length ? 'on' : undefined} />
-              ))}
-            </div>
-            <dl class="bgo-got">
-              <div>
-                <dt>받은 젤리</dt>
-                <dd>{v.jelly}개</dd>
-              </div>
-              <div>
-                <dt>카드 경험치</dt>
-                <dd>+{v.xp}</dd>
-              </div>
-            </dl>
-          </section>
-
-          <section class={`panel bgo-next${v.full ? ' all' : ''}`}>
-            {v.full ? (
-              <>
-                <h2>9칸 다 채웠어요!</h2>
-                <p>젤리 {FULL_JELLY}개를 더 받았어요. 다음 판을 기다려 주세요.</p>
-              </>
-            ) : near.length > 0 ? (
-              <>
-                <h2>한 칸만 더 채우면 빙고!</h2>
-                <ul>
-                  {near.map((x) => (
-                    <li>
-                      <span aria-hidden="true">{x.icon}</span> {x.text}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            ) : (
-              <>
-                <h2>다 채우기까지</h2>
-                <p>
-                  {v.filled} / 9칸 채웠어요. 다 채우면 젤리 {FULL_JELLY}개를 더 받아요.
-                </p>
-              </>
-            )}
-          </section>
-
-          {extras && (
-            <section class="panel bgo-ranks">
-              <h2>🍬 젤리피 순위</h2>
-              <p class="bgo-rank-help">젤리피는 쓸 수 없는 기록이에요. 빙고 한 줄 {JP_LINE}, 9칸 {JP_FULL}, 팀 퀘스트 {JP_TEAM}, 서버 퀘스트 {JP_SERVER}.</p>
-              <div class="bgo-rank-cols">
-                <RankList title="이번 시즌" rank={extras.ranks.season} />
-                <RankList title="전체" rank={extras.ranks.all} />
-              </div>
-            </section>
-          )}
-
           <section class="bgo-rules">
             <p>활동하면 칸이 저절로 채워져요. 신청이나 인증은 없어요.</p>
             <p>
@@ -343,8 +309,12 @@ export function BingoPage(props: { viewer: Member; view: BingoView | null; extra
             </p>
             <p>가운데 칸은 팀 퀘스트예요. 내가 달성하거나 우리 팀이 목표를 채우면 채워져요.</p>
             <p>빙고판은 생명력 주기를 반으로 나눠서, 한 주기에 2번 새로 나와요. 팀과 퀘스트는 주기(2주) 내내 이어져요.</p>
+            <p>
+              젤리피 순위는 <a href="/rank?g=bingo">순위</a> 메뉴에서 볼 수 있어요.
+            </p>
           </section>
         </aside>
+      </div>
       </div>
       {props.block && <BlockSection box={props.block} />}
     </Layout>

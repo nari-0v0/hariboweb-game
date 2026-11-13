@@ -6,10 +6,12 @@ import { describe, expect, it } from 'vitest';
 import {
   approvedBlocks,
   blockKey,
+  cancelBlock,
   decideBlock,
   isEmptyReason,
   listUnpostedBlocks,
   markBlockPosted,
+  myBlocks,
   parseVerdict,
   requestBlock,
   separateBlocked,
@@ -109,14 +111,46 @@ describe('신청', () => {
     expect(await requestBlock(db, undefined, A, B, REASON, false, NOW)).toBe('dup');
     expect(await requestBlock(db, undefined, A, ids[4]!, REASON, false, NOW)).toBe('limit');
   });
+
+  it('승인된 사람도 3명 안에 세고, 풀기로 바로 지워서 다시 고를 수 있어요', async () => {
+    // 나리: 최대 3명까지 제외. 잘못 눌렀거나 다시 같이 놀고 싶으면 풀 수 있어야 해요
+    const { db } = fakeD1();
+    for (const to of [B, C, D]) await requestBlock(db, undefined, A, to, REASON, false, NOW);
+    const [first] = await listUnpostedBlocks(db);
+    await decideBlock(db, first!.id, 'approved', '7'.repeat(18), NOW);
+    expect(await requestBlock(db, undefined, A, ids[4]!, REASON, false, NOW)).toBe('limit');
+    expect(await requestBlock(db, undefined, A, B, REASON, false, NOW)).toBe('dup');
+    const mine = await myBlocks(db, A);
+    expect(mine.map((b) => b.state)).toEqual(['approved', 'review', 'review']);
+    // 남의 요청은 못 풀어요
+    expect(await cancelBlock(db, B, mine[0]!.id)).toBe(false);
+    expect(await cancelBlock(db, A, mine[0]!.id)).toBe(true);
+    expect(await approvedBlocks(db)).toEqual(new Set());
+    expect(await requestBlock(db, undefined, A, ids[4]!, REASON, false, NOW)).toBe('done');
+    // 지운 요청을 나리가 누르면 없는 요청(봇은 "지워졌어요"로 닫아요)
+    expect(await decideBlock(db, mine[0]!.id, 'approved', '7'.repeat(18), NOW)).toBeNull();
+    // 나리가 반려한 요청은 목록과 3명에서 빠져요
+    await decideBlock(db, mine[1]!.id, 'rejected', '7'.repeat(18), NOW);
+    expect((await myBlocks(db, A)).map((b) => b.id)).not.toContain(mine[1]!.id);
+  });
 });
 
 describe('봇', () => {
+  it('AI가 거른 요청도 나리 채널에 올라가고, 나리가 승인하면 뒤집혀요', async () => {
+    const { db } = fakeD1();
+    await requestBlock(db, fakeAi('{"verdict":"reject","summary":"장난"}'), A, C, '바보바보바보', false, NOW);
+    expect(await requestBlock(db, fakeAi('{"verdict":"reject","summary":"장난"}'), A, C, '바보바보바보', false, NOW)).toBe('dup');
+    const [b] = await listUnpostedBlocks(db);
+    expect(b).toMatchObject({ to: { id: C }, status: 'ai_rejected', ai_verdict: 'reject' });
+    expect(await decideBlock(db, b!.id, 'approved', '7'.repeat(18), NOW)).toMatchObject({ applied: true, status: 'approved' });
+    expect(await approvedBlocks(db)).toEqual(new Set([blockKey(A, C)]));
+  });
+
   it('안 올린 요청 → 올림 표시 → 결정은 처음 한 번만', async () => {
     const { db } = fakeD1();
     await requestBlock(db, undefined, A, B, REASON, false, NOW);
     const [b] = await listUnpostedBlocks(db);
-    expect(b).toMatchObject({ from: { id: A, name: 'm1' }, to: { id: B, name: 'm2' }, reason: REASON });
+    expect(b).toMatchObject({ from: { id: A, name: 'm1' }, to: { id: B, name: 'm2' }, reason: REASON, status: 'pending' });
     expect(await markBlockPosted(db, b!.id, '1'.repeat(19), NOW)).toBe(true);
     expect(await markBlockPosted(db, b!.id, '2'.repeat(19), NOW)).toBe(false);
     expect(await markBlockPosted(db, b!.id, '1'.repeat(19), NOW + 1)).toBe(true); // 응답을 못 받아 다시 보내도 그대로
