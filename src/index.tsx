@@ -601,7 +601,7 @@ members.get('/me', async (c) => {
     getProfile(c.env.DB, viewer.user_id),
     listDogam(c.env.DB, viewer.user_id),
     getOwnedItems(c.env.DB, viewer.user_id),
-    praiseBox(c.env.DB, viewer.user_id),
+    praiseBox(c.env.DB, viewer.user_id, 20, true),
   ]);
   if (box.unread) await markPraiseSeen(c.env.DB, viewer.user_id, seenThrough).catch((e) => console.error('칭찬함 읽음 표시 실패', e));
   const { owned, total } = completion(entries);

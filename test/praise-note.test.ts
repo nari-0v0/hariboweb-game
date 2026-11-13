@@ -90,6 +90,9 @@ describe('칭찬함', () => {
     ]);
     expect(JSON.stringify(box)).not.toContain(A);
     expect(JSON.stringify(box)).not.toContain(B);
+    // 봇 카드는 최근 limit개만, 웹 칭찬함(allUnread)은 안 읽은 건 다 보여 줘요
+    expect((await praiseBox(db, C, 1)).items).toHaveLength(1);
+    expect((await praiseBox(db, C, 1, true)).items).toHaveLength(2);
     await markPraiseSeen(db, C, Date.now() + 1000);
     expect((await praiseBox(db, C)).unread).toBe(0);
   });
