@@ -2,8 +2,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DAYS, actJourney, autoChoice, decodeJourney, journeyXp, startJourney, stat, type JourneyState } from '../src/journey';
-import { actJourneyRun, activeJourney, beginJourney, getJourney, journeyRecord, quitJourney } from '../src/journey-db';
+import { DAYS, actJourney, autoChoice, decodeJourney, journeyXp, perkMax, startJourney, stat, type JourneyState } from '../src/journey';
+import { actJourneyRun, activeJourney, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney } from '../src/journey-db';
 
 function database() {
   const sql = new DatabaseSync(':memory:');
@@ -150,6 +150,29 @@ describe('원정대 저장과 보상', () => {
   it('떠난 멤버는 떠날 수 없어요', async () => {
     const { db } = database();
     expect(await beginJourney(db, 'gone')).toBeNull();
+  });
+  it('같은 장을 또 끝내면 훈련소에 모이는 젤코인이 100% → 50% → 25% → 10%로 줄어요', async () => {
+    const { db } = database();
+    let total = 0;
+    for (const pct of [100, 50, 25, 10, 10]) {
+      const r = await playToEnd(db);
+      expect(r.state.bankPct).toBe(pct);
+      expect(r.state.banked).toBe(Math.floor((r.state.coins * pct) / 100));
+      total += r.state.banked!;
+    }
+    expect((await journeyBank(db, 'me')).coins).toBe(total);
+    expect((await journeyRecord(db, 'me')).finished[1]).toBe(5);
+  });
+  it('훈련 한도는 도감으로 열린 장까지만 늘어요', async () => {
+    const { db, sql } = database();
+    // 1~4장 대장을 깼다고 치고(도감 카드 0장이라 열린 장은 3장까지), 젤코인을 넉넉히
+    for (let ch = 1; ch <= 4; ch++)
+      sql.prepare("INSERT INTO journey_runs (id, user_id, state, started_at, updated_at, chapter, status, cleared) VALUES (?, 'me', '{}', 'x', 'x', ?, 'done', 1)").run(`c${ch}`, ch);
+    sql.prepare("INSERT INTO journey_bank (user_id, coins, updated_at) VALUES ('me', 999999, 'x')").run();
+    let n = 0;
+    while (await buyPerk(db, 'me', 'def')) n++;
+    expect(n).toBe(perkMax('def', 3));
+    expect(perkMax('def', 3)).toBeLessThan(perkMax('def', 5));
   });
 });
 
