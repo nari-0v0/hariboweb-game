@@ -52,6 +52,7 @@ const NOTICES: Record<string, PopupLine[]> = {
   gear: [{ title: '장비 강화 성공!', text: '다음 원정부터 더 강해져요.' }],
   nogear: [{ title: '알림', text: '재료나 젤코인이 모자라요.' }],
   kitcoins: [{ title: '알림', text: '젤코인이 모자라서 준비물을 살 수 없어요.' }],
+  stalepick: [{ title: '알림', text: '화면을 연 사이 갈 수 있는 장이나 준비물 값이 바뀌었어요. 젤코인은 그대로예요. 새 화면에서 다시 골라 주세요.' }],
   error: [
     { title: '오류', text: '오류가 발생하였습니다.', bad: true },
     { title: '오류', text: '방장에게 문의해주세요.', bad: true, contact: true },
@@ -455,6 +456,7 @@ function Play(props: { run: JourneyRun; art: string; name: string }) {
       </div>
       <form method="post" action="/api/journey/quit" class="jr-quit">
         <input type="hidden" name="run" value={run.row.id} />
+        <input type="hidden" name="rev" value={String(run.row.rev)} />
         <button class="btn btn-small btn-ghost" type="submit">
           원정 그만두기 (보상 없음)
         </button>
@@ -465,10 +467,11 @@ function Play(props: { run: JourneyRun; art: string; name: string }) {
 
 // 장 고르기: 열린 장만 누를 수 있어요. 기본은 가장 높은 장.
 // 앞 장 대장을 이겨야 하고, 4장부터는 도감 카드도 모아야 열려요(src/unlock.ts).
-function ChapterPick(props: { unlocked: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number; again?: boolean }) {
+function ChapterPick(props: { unlocked: number; top: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number; again?: boolean }) {
   const pick = Math.min(props.unlocked, journeyOpenTo(props.dogam));
   return (
     <form method="post" action="/api/journey/start" class="jr-chapters">
+      <input type="hidden" name="kl" value={pick} />
       <div class="jr-chapter-list">
         {CHAPTERS.map((c) => {
           const need = journeyNeed(c.n);
@@ -484,7 +487,7 @@ function ChapterPick(props: { unlocked: number; dogam: DogamProgress; farmed: Re
               <b>{c.n}장</b>
               <span class="jr-chapter-name">{open ? c.name : c.n <= props.unlocked ? '📖 도감이 필요해요' : '잠겨 있어요'}</span>
               <span class="hint">{chapterLevels(c.n)}</span>
-              {open && c.n < props.unlocked && (
+              {open && c.n <= props.top && (
                 <span class="jr-farm" title="이미 깬 장을 다시 돌 때 모이는 젤코인">
                   🪙 {bankRate(props.farmed[c.n] ?? 0)}%
                 </span>
@@ -530,7 +533,7 @@ function ChapterPick(props: { unlocked: number; dogam: DogamProgress; farmed: Re
   );
 }
 
-function Result(props: { run: JourneyRun; art: string; name: string; unlocked: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number; going: boolean }) {
+function Result(props: { run: JourneyRun; art: string; name: string; unlocked: number; top: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number; going: boolean }) {
   const { run } = props;
   const s = run.state;
   return (
@@ -561,11 +564,11 @@ function Result(props: { run: JourneyRun; art: string; name: string; unlocked: n
       <p>
         {run.row.xp > 0
           ? `보상: 내 카드 경험치 +${run.row.xp}${run.row.jelly ? `, 도감 젤리 +${run.row.jelly}` : ''}`
-          : `오늘 경험치 보상은 이미 ${DAILY_REWARD_JOURNEYS}번 받았어요. 내일 다시 받을 수 있어요.${run.row.jelly ? ` 원정대 완주 보상: 도감 젤리 +${run.row.jelly}` : ''}`}
+          : `이 판을 끝낸 날에는 경험치 보상(하루 ${DAILY_REWARD_JOURNEYS}번)을 이미 다 받아서 이번 판은 경험치가 없어요. 다음 날 다시 받을 수 있어요.${run.row.jelly ? ` 원정대 완주 보상: 도감 젤리 +${run.row.jelly}` : ''}`}
       </p>
       {props.going
         ? <a class="btn btn-primary" href="/expedition/go#now">진행 중인 원정 이어 하기</a>
-        : <ChapterPick unlocked={props.unlocked} dogam={props.dogam} farmed={props.farmed} coins={props.coins} again />}
+        : <ChapterPick unlocked={props.unlocked} top={props.top} dogam={props.dogam} farmed={props.farmed} coins={props.coins} again />}
     </section>
   );
 }
@@ -817,7 +820,7 @@ export function JourneyPage(props: {
             </div>
           </details>
         </div>
-        {result ? <Result run={result} art={props.art} name={name} unlocked={record.unlocked} dogam={props.dogam} farmed={record.farmed} coins={props.bank.coins} going={!!run} /> : run ? <Play run={run} art={props.art} name={name} /> : null}
+        {result ? <Result run={result} art={props.art} name={name} unlocked={record.unlocked} top={record.top} dogam={props.dogam} farmed={record.farmed} coins={props.bank.coins} going={!!run} /> : run ? <Play run={run} art={props.art} name={name} /> : null}
         {!run && !result && (
           <section class="jr-game jr-lobby" id="now">
             <div class="jr-lobby-stage" style={`--jr-bg:url(/journey/bg/${zoneFor(1)}.webp)`}>
@@ -835,7 +838,7 @@ export function JourneyPage(props: {
               </div>
             </div>
             <h2 class="jr-pick-title">어느 장으로 떠날까요?</h2>
-            <ChapterPick unlocked={record.unlocked} dogam={props.dogam} farmed={record.farmed} coins={props.bank.coins} />
+            <ChapterPick unlocked={record.unlocked} top={record.top} dogam={props.dogam} farmed={record.farmed} coins={props.bank.coins} />
           </section>
         )}
         <PerkPanel bank={props.bank} going={!!run} unlocked={Math.min(record.unlocked, journeyOpenTo(props.dogam))} art={props.art} name={name} tab={prepTab(props.prep)} />

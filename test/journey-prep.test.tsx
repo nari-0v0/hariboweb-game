@@ -18,7 +18,7 @@ vi.mock('../src/journey-db', async (original) => ({
 }));
 
 const VIEWER: Member = { user_id: '100000000000000001', display_name: '테스트', avatar_url: null, joined_at: null, is_newbie: 0, active: 1, gender_chosen_at: '2026-01-01' };
-const RECORD: JourneyRecord = { best: 0, clears: 3, rewardedToday: 0, farmed: { 1: 2 }, unlocked: 4 };
+const RECORD: JourneyRecord = { best: 0, clears: 3, rewardedToday: 0, farmed: { 1: 2 }, unlocked: 4, top: 3 };
 const BANK: JourneyBank = { coins: 180, atk: 1, hp: 0, def: 0, weapon: 1, armor: 0, charm: 0, mats: { 1: 3, 2: 1 } };
 
 async function render(prep?: string) {

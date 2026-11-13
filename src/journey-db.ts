@@ -18,7 +18,7 @@ export async function getJourney(db: D1Database, user: string, id: string): Prom
   return decode(await db.prepare('SELECT * FROM journey_runs WHERE user_id = ? AND id = ?').bind(user, id).first<JourneyRow>());
 }
 
-export type JourneyRecord = { best: number; clears: number; rewardedToday: number; farmed: Record<number, number>; unlocked: number }; // farmed: 장마다 이미 깬 뒤 다시 돈 판 수(평생) // unlocked = 대장을 깨서 열린 가장 높은 장
+export type JourneyRecord = { best: number; clears: number; rewardedToday: number; farmed: Record<number, number>; unlocked: number; top: number }; // farmed: 장마다 이미 깬 뒤 다시 돈 판 수(평생) // unlocked = 대장을 깨서 열린 가장 높은 장
 export async function journeyRecord(db: D1Database, user: string, day = kstDay()): Promise<JourneyRecord> {
   const r = await db
     .prepare(
@@ -29,7 +29,7 @@ export async function journeyRecord(db: D1Database, user: string, day = kstDay()
     )
     .bind(user, day)
     .first<{ best: number; clears: number; today: number; top: number }>();
-  return { best: r?.best ?? 0, clears: r?.clears ?? 0, rewardedToday: r?.today ?? 0, farmed: await farmedByChapter(db, user), unlocked: Math.min(MAX_CHAPTER, (r?.top ?? 0) + 1) };
+  return { best: r?.best ?? 0, clears: r?.clears ?? 0, rewardedToday: r?.today ?? 0, farmed: await farmedByChapter(db, user), unlocked: Math.min(MAX_CHAPTER, (r?.top ?? 0) + 1), top: r?.top ?? 0 };
 }
 
 // 장마다 이미 깬 뒤 다시 돈 판 수(날짜와 상관없이 전부)
@@ -97,14 +97,17 @@ export async function buyPerk(db: D1Database, user: string, id: PerkId, now = ne
 // 새 원정. 하던 원정이 있으면 그걸 이어가요. 지금 있는 멤버만 떠날 수 있어요.
 // 출발 준비물이 있으면 그 값을 강화 주머니에서 빼고 떠나요(젤코인이 모자라면 NO_COINS).
 export const NO_COINS = 'nocoins';
-export async function beginJourney(db: D1Database, user: string, chapter = 1, now = new Date(), kit: KitId[] = []): Promise<string | null> {
+// 화면을 연 뒤 고른 장이 잠겼거나 준비물 값이 바뀌었으면(STALE) 떠나지 않고 새 화면을 보여 줘요.
+export const STALE_PICK = 'stalepick';
+export async function beginJourney(db: D1Database, user: string, chapter = 1, now = new Date(), kit: KitId[] = [], shownLevel?: number): Promise<string | null> {
   const going = await activeJourney(db, user);
   if (going) return going.row.id;
   // 앞 장을 깼고(unlocked), 도감 조건도 채운 장까지만 떠날 수 있어요.
   const [record, dogam] = await Promise.all([journeyRecord(db, user), dogamProgress(db, user)]);
   const level = Math.min(record.unlocked, journeyOpenTo(dogam));
-  const ch = Math.min(chapter, level);
-  if (!Number.isSafeInteger(ch) || ch < 1) return null;
+  if (!Number.isSafeInteger(chapter) || chapter < 1) return null;
+  if (chapter > level || (kit.length > 0 && shownLevel !== undefined && shownLevel !== level)) return STALE_PICK;
+  const ch = chapter;
   const id = crypto.randomUUID();
   const t = now.toISOString();
   const bank = await journeyBank(db, user);
@@ -137,9 +140,13 @@ export async function beginJourney(db: D1Database, user: string, chapter = 1, no
   return now2?.row.id ?? null;
 }
 
-export async function quitJourney(db: D1Database, user: string, id: string): Promise<boolean> {
+// rev를 주면 화면에 보이던 판 순번과 같을 때만 그만둬요(다른 탭에서 진행한 판을 옛 버튼으로 잃지 않게).
+export async function quitJourney(db: D1Database, user: string, id: string, rev?: number): Promise<boolean> {
   const t = new Date().toISOString();
-  const r = await db.prepare("UPDATE journey_runs SET status = 'quit', updated_at = ?3, ended_at = ?3 WHERE id = ?1 AND user_id = ?2 AND status = 'going'").bind(id, user, t).run();
+  const r = await db
+    .prepare("UPDATE journey_runs SET status = 'quit', updated_at = ?3, ended_at = ?3 WHERE id = ?1 AND user_id = ?2 AND status = 'going' AND (?4 IS NULL OR rev = ?4)")
+    .bind(id, user, t, rev ?? null)
+    .run();
   return (r.meta.changes ?? 0) > 0;
 }
 

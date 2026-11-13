@@ -19,6 +19,7 @@ vi.mock('../src/gamble-db', async (original) => ({
   betChips: vi.fn(),
   betTooSoon: async () => false,
   claimDaily: async () => true,
+  expireAllHands: async () => {},
   expireHand: vi.fn(async () => null as string | null),
   gambleAccount: async () => ({ chips: 15 }),
   gambleRanks: async () => [],
@@ -115,9 +116,14 @@ describe('겜블장 로비와 게임 방', () => {
     const cards = await (await request('/gamble/cards')).text();
     expect(cards).toContain('가려진 카드');
     expect(cards).not.toContain('action="/gamble/cards/play"');
+    vi.mocked(moveHand).mockResolvedValueOnce(true);
     const post = await request('/gamble/cards', { token: TOKEN, revision: '0', move: 'stand' });
     expect(post.status).toBe(303);
     expect(post.headers.get('location')).toBe(`/gamble/cards?r=${TOKEN}`);
     expect(moveHand).toHaveBeenCalledWith(ENV.DB, USER, TOKEN, 0, 'stand', expect.any(String));
+    // 다른 탭에서 이미 진행해서 옛 버튼이 거절되면 알려 줘요
+    vi.mocked(moveHand).mockResolvedValueOnce(false);
+    const stale = await request('/gamble/cards', { token: TOKEN, revision: '0', move: 'stand' });
+    expect(stale.headers.get('location')).toBe('/gamble/cards?n=stale');
   });
 });

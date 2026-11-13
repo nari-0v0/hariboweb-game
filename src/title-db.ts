@@ -106,12 +106,16 @@ export async function buyTitle(db: D1Database, userId: string, t: Title): Promis
   if (t.rule.kind !== 'shop') return 'not_for_sale';
   const result = await buyWithJelly(db, userId, titleItemId(t.id), t.rule.price);
   if (result === 'done') {
-    // 결과는 칭호 화면에서 바로 보여 줘요(상점 결과 팝업에 또 뜨지 않게)
-    const { results } = await db
-      .prepare(`SELECT id FROM purchases WHERE user_id = ? AND item_id = ? AND seen_at IS NULL`)
-      .bind(userId, titleItemId(t.id))
-      .all<{ id: string }>();
-    await markPurchasesSeen(db, userId, results.map((r) => r.id));
+    // 결과는 칭호 화면에서 바로 보여 줘요(상점 결과 팝업에 또 뜨지 않게). 이 정리가 실패해도 산 건 산 거예요.
+    try {
+      const { results } = await db
+        .prepare(`SELECT id FROM purchases WHERE user_id = ? AND item_id = ? AND seen_at IS NULL`)
+        .bind(userId, titleItemId(t.id))
+        .all<{ id: string }>();
+      await markPurchasesSeen(db, userId, results.map((r) => r.id));
+    } catch (e) {
+      console.error('칭호 구매 팝업 정리 실패', e);
+    }
   }
   return result;
 }
@@ -121,6 +125,12 @@ export async function buyTitle(db: D1Database, userId: string, t: Title): Promis
 export type TitleJob = { user: string; id: string; title: string | null };
 
 export async function listTitleJobs(db: D1Database, limit = 50): Promise<TitleJob[]> {
+  // 목록에서 빠진 칭호를 고른 채였으면(닉네임에 이미 붙은 사람도) 고른 것을 비워요. 그러면 봇이 닉네임에서 떼요.
+  // 조건에 "지금 목록에 없는 칭호"를 넣어서, 그 사이 새로 고른 칭호는 건드리지 않아요.
+  await db
+    .prepare(`UPDATE profiles SET title_id = NULL WHERE title_id IS NOT NULL AND title_id NOT IN (SELECT value FROM json_each(?))`)
+    .bind(JSON.stringify(TITLES.map((x) => x.id)))
+    .run();
   const { results } = await db
     .prepare(
       `SELECT p.user_id, p.title_id FROM profiles p INDEXED BY profiles_title_pending
@@ -130,10 +140,6 @@ export async function listTitleJobs(db: D1Database, limit = 50): Promise<TitleJo
     )
     .bind(limit)
     .all<{ user_id: string; title_id: string | null }>();
-  // 목록에서 빠진 칭호를 고른 채였으면 고른 것을 비워요(그러면 봇이 닉네임에서 떼요)
-  const gone = results.filter((r) => r.title_id && !titleById(r.title_id)).map((r) => r.user_id);
-  if (gone.length)
-    await db.batch(gone.map((u) => db.prepare('UPDATE profiles SET title_id = NULL WHERE user_id = ?').bind(u)));
   return results.map((r) => {
     const t = titleById(r.title_id);
     // 목록에서 빠진 칭호는 떼요

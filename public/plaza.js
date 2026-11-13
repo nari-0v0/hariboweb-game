@@ -24,6 +24,7 @@
   let voiceOf = new Map(); // 사람 id -> 통화방 id ('elsewhere'는 광장에 안 보이는 방)
   let botOnline = false;
   let lastAsked = null;
+  let blockedRoom = null; // 통화방에 없거나 봇이 꺼져서 못 옮긴 방(나중에 되면 다시 해 봐요)
   let stillSince = 0;
   let lastSent = 0;
   let sentX = null;
@@ -216,12 +217,15 @@
     const room = roomAt(me.x, me.y);
     if (!room) {
       lastAsked = null;
+      blockedRoom = null;
       return;
     }
     if (room.id === lastAsked) return;
     lastAsked = room.id;
+    blockedRoom = null;
     const mine = voiceOf.get(me.id);
     if (mine === room.id) return;
+    if (!mine || !botOnline) blockedRoom = room.id;
     if (!mine) return toast('먼저 디스코드에서 아무 통화방에 들어와 주세요. 그다음 여기서 방을 옮길 수 있어요.', discordLink(room.id));
     if (!botOnline) return toast('디스코드 연결을 기다리는 중이라 지금은 통화방을 못 옮겨요.');
     send({ t: 'join', ch: room.id });
@@ -236,6 +240,14 @@
       lastAsked = null;
       checkRoom();
     }, 3100);
+  }
+
+  // 디스코드 통화에 들어왔거나 봇이 돌아오면, 못 옮겼던 방에 아직 서 있을 때 다시 옮겨 봐요
+  function retryBlocked() {
+    if (!blockedRoom || !me || roomAt(me.x, me.y)?.id !== blockedRoom) return;
+    if (!voiceOf.get(me.id) || !botOnline) return;
+    lastAsked = null;
+    checkRoom();
   }
 
   const REASONS = {
@@ -278,10 +290,12 @@
       }
       case 'voice':
         setLayout(msg.layout, msg.elsewhere);
+        retryBlocked();
         break;
       case 'bot':
         botOnline = !!msg.online;
         refreshStatus();
+        retryBlocked();
         break;
       case 'chat': {
         const walker = players.get(msg.id);

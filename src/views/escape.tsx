@@ -1,6 +1,6 @@
 import type { Member } from '../env';
 import type { EscRun } from '../escape-db';
-import { ESCAPE_CASES, ESC_XP, escapeUnlockIndex, bigHint, canAnswer, coinSpots, coinsLeft, escGrade, isLocked, openScenes, puzzleNo, visible, type EscGrade, type EscObject } from '../escape';
+import { ESCAPE_CASES, ESC_XP, escapeUnlockIndex, bigHint, canAnswer, coinSpots, coinsLeft, escGrade, hintIndex, isLocked, openScenes, puzzleNo, visible, type EscGrade, type EscObject } from '../escape';
 import { casePics, itemPic } from '../case-art';
 import { ROOMS, roomSrc, roomSrcSet, type Hotspot, type RoomKey } from '../case-rooms';
 import { ROOM_BLUR } from '../room-blur.gen';
@@ -550,7 +550,7 @@ function Play(props: { run: EscRun; art: string; name: string }) {
                 📁 사건 목록
               </a>
               <Act run={run} a="hint" cls="btn btn-small">
-                {left > 0 ? '💡 힌트 (동전 1개)' : '💡 힌트 (등급 감점)'}
+                {(s.seenHints ?? []).includes(hintIndex(def, s)) ? '💡 힌트 다시 보기 (무료)' : left > 0 ? '💡 힌트 (동전 1개)' : '💡 힌트 (등급 감점)'}
               </Act>
               <a class="btn btn-small" href="#notes">
                 📒 수첩 {s.clues.length}/{allClues.length}
@@ -567,6 +567,7 @@ function Play(props: { run: EscRun; art: string; name: string }) {
           <span class="hint">물건을 눌러 살펴보세요. 방 곳곳을 누르면 숨은 힌트 동전이 있어요.</span>
           <form method="post" action="/api/escape/quit">
             <input type="hidden" name="run" value={run.row.id} />
+            <input type="hidden" name="rev" value={String(run.row.rev)} />
             <button class="btn btn-small btn-ghost" type="submit">
               사건 덮기
             </button>
@@ -681,7 +682,8 @@ function Result(props: { run: EscRun; going: boolean }) {
           ? `처음 해결 보상: 내 카드 경험치 +${run.row.xp}${run.row.jelly ? `, 도감 젤리 +${run.row.jelly}` : ''}`
           : '이 사건은 전에 해결해서 이번에는 보상이 없어요. 더 좋은 등급에 도전해 보세요!'}
       </p>
-      <a class="btn btn-primary" href="/cases/room">
+      {/* 하던 사건이 없으면 사건 목록이 바로 아래에 있어요. 결과는 그대로 두고 목록으로 내려가요. */}
+      <a class="btn btn-primary" href={props.going ? '/cases/room' : '#case-list'}>
         {props.going ? '진행 중인 사건 이어 하기' : '다른 사건 고르기'}
       </a>
     </section>
@@ -721,7 +723,7 @@ export function EscapePage(props: {
         </div>
         {result ? <Result run={result} going={!!run} /> : run && !props.list ? <Play run={run} art={props.art} name={props.viewer.display_name} /> : null}
         {(!run || props.list) && (
-          <section class="jr-game esc-game esc-shelf">
+          <section class="jr-game esc-game esc-shelf" id="case-list">
             <h2 class="jr-pick-title">어떤 사건 파일을 열까요?</h2>
             {run && (
               <p class="esc-going">

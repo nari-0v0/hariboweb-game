@@ -199,6 +199,20 @@ describe('칩과 판 기록', () => {
     expect((await gambleAccount(db, USER))?.chips).toBe(1000);
   });
 
+  it('1젤칩 올인이 1.5배(내림하면 본전)면 올인 승리도 시즌 우승 후보도 아니다', async () => {
+    const { db, sql } = fixture();
+    sql.prepare("INSERT INTO seasons (id, starts_at, ends_at, created_at) VALUES ('season', ?, ?, ?)").run('2026-11-01T00:00:00.000Z', TOMORROW, TODAY);
+    await claimDaily(db, USER, TODAY);
+    sql.prepare('UPDATE gamble_accounts SET chips = 1 WHERE user_id = ?').run(USER);
+    roll(70);
+    const r = await betChips(db, USER, 'roulette', 1, 'even', TODAY);
+    expect(r?.multiplier).toBe(1.5);
+    expect(await gambleAccount(db, USER)).toMatchObject({ chips: 1, won: 0, all_in_wins: 0 });
+    expect((await gambleRanks(db, TODAY))[3]).toEqual([]);
+    await awardGambleSeason(db, 'season', TOMORROW, TOMORROW);
+    expect(sql.prepare('SELECT * FROM gamble_season_winners').get()).toBeUndefined();
+  });
+
   it('시즌 우승을 한 번 기록하고 떠난 멤버는 순위에서 제외한다', async () => {
     const { db, sql } = fixture();
     sql.prepare("INSERT INTO seasons (id, starts_at, ends_at, created_at) VALUES ('season', ?, ?, ?)").run('2026-11-01T00:00:00.000Z', TOMORROW, TODAY);

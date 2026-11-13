@@ -126,6 +126,15 @@ export async function expireHand(db: D1Database, user: string, now: string) {
   return null;
 }
 
+// 자정이 지나 저절로 멈춘 카드 21을 누구 것이든 정산해요(그 사람이 안 들어와도 순위에 바로 반영되게).
+export async function expireAllHands(db: D1Database, now: string) {
+  const { results } = await db
+    .prepare(`SELECT * FROM gamble_rounds WHERE game = 'cards' AND settled_at IS NULL AND expires_at <= ? LIMIT 50`)
+    .bind(now)
+    .all<Round>();
+  for (const round of results) await updateHand(db, round, 'stand', now, true);
+}
+
 export function publicHand(round: Round) {
   const { player, dealer }: Hand = JSON.parse(round.state);
   return { player, dealer: round.multiplier === null ? dealer.slice(0, 1) : dealer, score: cardScore(player) };
@@ -158,7 +167,7 @@ export async function gambleRanks(db: D1Database, now: string) {
       FROM gamble_rounds r JOIN members m ON m.user_id = r.user_id AND m.active = 1
       LEFT JOIN profiles p ON p.user_id = r.user_id
       JOIN seasons s ON s.id = (SELECT id FROM seasons WHERE starts_at <= ? AND ends_at > ? ORDER BY id DESC LIMIT 1)
-      WHERE r.settled_at >= s.starts_at AND r.settled_at < s.ends_at AND r.multiplier > 1
+      WHERE r.settled_at >= s.starts_at AND r.settled_at < s.ends_at AND CAST(r.bet * r.multiplier AS INTEGER) > r.bet
       GROUP BY r.user_id ORDER BY value DESC, r.user_id LIMIT 1`).bind(now, now),
   ]);
   // 디스코드는 방장 닉네임을 못 바꾸니, 고른 칭호는 닉네임 대신 여기서 「칭호」로 붙여 보여 줘요.
@@ -178,10 +187,24 @@ export async function awardGambleSeason(db: D1Database, seasonId: string, end: s
       SELECT s.id, r.user_id, SUM(CAST(r.bet * r.multiplier AS INTEGER) - r.bet) AS won, ?
       FROM seasons s JOIN gamble_rounds r ON r.settled_at >= s.starts_at AND r.settled_at < s.ends_at
       JOIN members m ON m.user_id = r.user_id AND m.active = 1
-      WHERE s.id = ? AND r.multiplier > 1
+      WHERE s.id = ? AND CAST(r.bet * r.multiplier AS INTEGER) > r.bet
       GROUP BY r.user_id ORDER BY won DESC, r.user_id LIMIT 1`).bind(now, seasonId),
     db.prepare(`INSERT OR IGNORE INTO owned_items (user_id, item_id, acquired_at)
       SELECT user_id, ?, awarded_at FROM gamble_season_winners WHERE season_id = ? AND changes() = 1`)
       .bind(titleItemId(GAMBLE_WINNER_ID), seasonId),
   ]);
+}
+
+// 끝난 지 2주 안 된 시즌 중 겜블 우승이 아직 안 적힌 시즌을 다시 정산해요.
+// (봇이 시즌 끝 전후로 30분 넘게 멈춰서 시즌 마무리 확인을 건너뛰어도 우승 칭호가 빠지지 않게)
+export async function awardEndedGambleSeasons(db: D1Database, nowMs: number) {
+  const t = new Date(nowMs).toISOString();
+  const { results } = await db
+    .prepare(
+      `SELECT id, ends_at FROM seasons s WHERE ends_at <= ?1 AND ends_at > ?2
+       AND NOT EXISTS (SELECT 1 FROM gamble_season_winners w WHERE w.season_id = s.id)`,
+    )
+    .bind(t, new Date(nowMs - 14 * 86_400_000).toISOString())
+    .all<{ id: string; ends_at: string }>();
+  for (const r of results) await awardGambleSeason(db, r.id, r.ends_at, t);
 }

@@ -39,7 +39,8 @@ export const REWARD_STEP = 3; // 멤버가 적을 때도 캐릭터마다 최소 
 // 마지막 캐릭터는 도감을 다 채워야 열려요. 사람이 늘거나 줄면 같이 바뀌어요.
 export function rewardNeed(rank: number, members: number): number {
   const others = Math.max(0, members - 1);
-  return Math.max(rank * REWARD_STEP, Math.ceil((rank * others) / REWARD_COUNT));
+  // 도감을 다 채우면(나 빼고 모든 멤버 카드) 어떤 캐릭터든 열려요. 최소 장수가 인원보다 커지면 인원까지만 요구해요.
+  return Math.min(Math.max(1, others), Math.max(rank * REWARD_STEP, Math.ceil((rank * others) / REWARD_COUNT)));
 }
 
 export type ShopItem = {

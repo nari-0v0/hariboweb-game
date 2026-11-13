@@ -253,10 +253,12 @@ export async function buyGenderChange(
   userId: string,
   pool: CharacterPool,
   price: number,
-): Promise<'done' | 'same' | 'not_enough_jelly'> {
+  shown?: string, // 확인 화면에서 보여 준 캐릭터. 그 사이 바뀌었으면 사지 않고 새 미리보기를 보여 줘요.
+): Promise<'done' | 'same' | 'not_enough_jelly' | 'changed'> {
   return retrySigConflict(async () => {
     const plan = await planCharacterPool(db, userId, pool);
     if (plan.same) return 'same';
+    if (shown !== undefined && plan.character !== shown) return 'changed';
     const id = crypto.randomUUID();
     const t = now();
     const won = 'EXISTS (SELECT 1 FROM purchases WHERE id = ?1)';
@@ -273,7 +275,10 @@ export async function buyGenderChange(
         .prepare(`UPDATE profiles SET dogam_jelly = dogam_jelly - ?3, character_id = ?4, character_sig = ?5, updated_at = ?6 WHERE user_id = ?2 AND ${won}`)
         .bind(id, userId, price, plan.character, plan.sig, t),
     ]);
-    return (await db.prepare('SELECT 1 FROM purchases WHERE id = ?').bind(id).first()) ? 'done' : 'not_enough_jelly';
+    if (await db.prepare('SELECT 1 FROM purchases WHERE id = ?').bind(id).first()) return 'done';
+    // 그 사이 다른 탭에서 먼저 캐릭터가 바뀌어 못 샀으면 잔액 부족이 아니라고 알려요.
+    const cur = await db.prepare('SELECT character_id FROM profiles WHERE user_id = ?').bind(userId).first<{ character_id: string | null }>();
+    return (cur?.character_id ?? null) !== plan.before ? 'changed' : 'not_enough_jelly';
   });
 }
 

@@ -1,6 +1,6 @@
 import type { Member } from '../env';
 import { GAMBLE_ART, SLOT_ART } from '../gamble-art';
-import { CHERRY_PAIR, ROULETTE, SLOTS, WHEEL, payback, rankOf } from '../gamble';
+import { CHERRY_PAIR, ROULETTE, SLOTS, payback, rankOf } from '../gamble';
 import { gambleDay, publicHand, type GambleAccount, type Game, type Round } from '../gamble-db';
 import { plainPodium } from '../rankings';
 import { Layout } from './layout';
@@ -16,6 +16,7 @@ const NOTICES: Record<string, string> = {
   bet: '가진 젤칩 안에서 1개 이상 걸어 주세요.',
   active: '진행 중인 카드 21을 먼저 끝내 주세요.',
   fast: '너무 빨라요. 잠깐 뒤에 다시 걸어 주세요.',
+  stale: '다른 화면에서 이미 진행했어요. 지금 판을 보여 드려요.',
   rescue: '다시 시작할 젤칩 1000개를 받았어요.',
   'rescue-day-changed': '날짜가 바뀌었어요. 지금 잔액을 확인한 뒤 다시 시도해 주세요.',
   'no-rescue': '오늘 이미 다시 시작했거나, 아직 젤칩이나 진행 중인 카드 21이 있어요.',
@@ -86,10 +87,10 @@ const DISC_SLICES = [0, 0.5, 1, 1.5, 2, 3, 5, 10];
 const SLICE = 360 / DISC_SLICES.length;
 if (ROULETTE.some(({ payout }) => !DISC_SLICES.includes(payout))) throw new Error('룰렛 판 그림에 없는 배수가 있어요');
 
-function RouletteWheel({ landed: raw }: { landed?: number }) {
-  // 예전 판(40칸·20칸) 결과 번호는 지금 판에 없을 수 있어서, 그때는 멈춘 칸 없이 그려요.
-  const landed = raw !== undefined && raw < WHEEL.length ? raw : undefined;
-  const slice = landed === undefined ? 0 : DISC_SLICES.indexOf(WHEEL[landed]!);
+function RouletteWheel({ landed: raw, multiplier }: { landed?: number; multiplier?: number | null }) {
+  // 멈출 칸은 저장된 배수로 정해요(확률표가 바뀌어도 그림과 실제 받은 칩이 같게). 그림에 없는 배수면 멈춘 칸 없이 그려요.
+  const slice = multiplier == null ? -1 : DISC_SLICES.indexOf(multiplier);
+  const landed = raw !== undefined && slice >= 0 ? raw : undefined;
   // 칸 한가운데만 서지 않게, 결과 번호에 따라 칸 안에서 조금씩 다른 자리에 서요(칸 폭 45도 중 ±15도).
   const wobble = landed === undefined ? 0 : ((landed * 37) % 31) - 15;
   return (
@@ -97,7 +98,7 @@ function RouletteWheel({ landed: raw }: { landed?: number }) {
       <div class="gb-wheel-pointer" aria-hidden="true"><Art name="pointer" /></div>
       <div class="gb-wheel-viewport">
         <div class="gb-wheel-disc gb-wheel-disc--art" data-gb-landed={landed}
-          style={`--gb-wheel-stop:${-(slice * SLICE + wobble)}deg`} aria-hidden="true">
+          style={`--gb-wheel-stop:${-(Math.max(slice, 0) * SLICE + wobble)}deg`} aria-hidden="true">
           <img class="gb-wheel-disc-img" src={GAMBLE_ART.wheelDisc!.image} alt="" />
         </div>
       </div>
@@ -162,7 +163,7 @@ function GameSurface({ game, round, canBet }: { game: Game; round: Round | null;
   return (
     <div class={`gb-game-surface gb-surface-${game}`} style={`--gb-bg:url(${gameBackground(game, 'room')})`}>
       {game === 'slot' && <SlotReels reels={round ? JSON.parse(round.state) as number[] : undefined} />}
-      {game === 'roulette' && <RouletteWheel landed={round ? Number(round.state) : undefined} />}
+      {game === 'roulette' && <RouletteWheel landed={round ? Number(round.state) : undefined} multiplier={round?.multiplier} />}
       {game === 'cards' && (round ? <Cards round={round} /> : <CardDeck />)}
       {canBet && (
         <div class="gb-coin-drop" aria-hidden="true">
@@ -180,7 +181,7 @@ function Result({ round, balance }: { round: Round; balance: number }) {
   return (
     <div class="gb-round-result" aria-live="polite" data-gb-reveal>
       <h2>{net > 0 ? `젤칩 ${chips(net)}개 이겼어요!` : net < 0 ? `젤칩 ${chips(-net)}개 잃었어요` : '본전이에요'}</h2>
-      <p>{round.game === 'roulette' && `룰렛 ${Number(round.state) + 1}번째 칸 · `}{multiplier}배 · 지금 가진 젤칩 <strong>{chips(balance)}개</strong></p>
+      <p>{multiplier}배 · 지금 가진 젤칩 <strong>{chips(balance)}개</strong></p>
     </div>
   );
 }

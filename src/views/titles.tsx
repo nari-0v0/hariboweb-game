@@ -27,7 +27,7 @@ function applyText(s: TitleState): { text: string; retry?: boolean } | null {
   if (!want)
     return s.title_note ? { text: '디스코드 닉네임에서 칭호를 떼지 못했어요(봇보다 높은 역할일 수 있어요). 다시 떼어 볼 수 있어요.', retry: true } : null;
   if (s.title_note === 'too_long') return { text: '닉네임이 길어서 칭호를 붙이지 못했어요(디스코드 닉네임은 32자까지). 닉네임을 줄인 뒤 다시 붙여 보세요.', retry: true };
-  if (s.title_note === 'forbidden') return { text: '하리보봇이 이 멤버의 닉네임은 바꿀 수 없어요(봇보다 높은 역할). 웹 카드에만 보여요.' };
+  if (s.title_note === 'forbidden') return { text: '하리보봇이 이 멤버의 닉네임은 바꿀 수 없어요(봇보다 높은 역할). 웹 카드에만 보여요. 역할 순서를 고쳤다면 다시 붙여 볼 수 있어요.', retry: true };
   if (s.title_note) return { text: '디스코드 닉네임에 붙이지 못했어요.', retry: true };
   return { text: '디스코드 닉네임 앞에 붙어 있어요.' };
 }

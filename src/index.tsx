@@ -82,11 +82,11 @@ import {
 } from './title-db';
 
 import { GambleLobby, GambleRoom } from './views/gamble';
-import { activeHand, betChips, betTooSoon, claimDaily, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, moveHand, rescueChips, type Game } from './gamble-db';
+import { activeHand, betChips, betTooSoon, claimDaily, expireAllHands, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, moveHand, rescueChips, type Game } from './gamble-db';
 import { prefetchAllowed } from './prefetch';
 import { EscapePage } from './views/escape';
 import { JourneyPage } from './views/journey';
-import { NO_COINS, activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from './journey-db';
+import { NO_COINS, STALE_PICK, activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from './journey-db';
 import { GEAR, PERKS, cleanKit, type GearId, type PerkId } from './journey';
 import { activeEscape, actEscapeRun, beginEscape, escapeOpen, escapeRecord, getEscape, quitEscape } from './escape-db';
 
@@ -411,10 +411,12 @@ app.post('/api/bot/praise', async (c) => {
   if (!isDiscordId(body.from) || !isDiscordId(body.to)) return c.json({ error: 'bad_id' }, 400);
   if (body.note != null && (typeof body.note !== 'string' || [...body.note].length > PRAISE_NOTE_MAX * 2)) return c.json({ error: 'bad_note' }, 400);
   // 한마디는 비꼬기·욕이면 빼고 칭찬만 전해요. 이미 줬거나 한도면 AI에 묻지 않아요.
-  const status = await praiseToday(c.env.DB, body.from);
+  // 한도 확인과 저장이 같은 날짜를 쓰게 한 번만 정해요(자정에 걸쳐도 한마디가 사라지지 않게).
+  const day = kstDay();
+  const status = await praiseToday(c.env.DB, body.from, day);
   const asked = cleanNote(body.note) !== '';
   const check = asked && status.left > 0 && !status.given.includes(body.to) ? await checkNote(c.env.AI, body.note) : { note: null, filtered: false };
-  const result = await givePraise(c.env.DB, body.from, body.to, kstDay(), check.note);
+  const result = await givePraise(c.env.DB, body.from, body.to, day, check.note);
   // 칭찬 주기·받기 빙고 칸이 채워졌으면 줄 보상을 줘요(실패해도 칭찬은 끝났어요)
   if (result.result === 'done') {
     const now = Date.now();
@@ -551,8 +553,8 @@ members.use('*', async (c, next) => {
   c.set('viewer', viewer);
   // 브라우저가 미리 받기만 하는 요청은 읽기만 하는 화면에만 답해요(열기만 해도 기록이 바뀌는 화면은 실제로 열 때만)
   if (isPrefetch(c) && !prefetchAllowed(c.req.path)) return c.body(null, 503);
-  // 방문 시각 기록은 응답을 기다리게 하지 않고 뒤에서 해요
-  const touch = touchVisit(c.env.DB, viewer, Date.now()).catch((e) => console.error('방문 기록 실패', e));
+  // 방문 시각 기록은 응답을 기다리게 하지 않고 뒤에서 해요. 브라우저 미리 받기는 실제 방문이 아니라서 안 적어요.
+  const touch = isPrefetch(c) ? Promise.resolve() : touchVisit(c.env.DB, viewer, Date.now()).catch((e) => console.error('방문 기록 실패', e));
   try {
     c.executionCtx.waitUntil(touch);
   } catch {
@@ -599,7 +601,7 @@ members.get('/me', async (c) => {
     getProfile(c.env.DB, viewer.user_id),
     listDogam(c.env.DB, viewer.user_id),
     getOwnedItems(c.env.DB, viewer.user_id),
-    praiseBox(c.env.DB, viewer.user_id),
+    praiseBox(c.env.DB, viewer.user_id, 20, true),
   ]);
   if (box.unread) await markPraiseSeen(c.env.DB, viewer.user_id, seenThrough).catch((e) => console.error('칭찬함 읽음 표시 실패', e));
   const { owned, total } = completion(entries);
@@ -684,20 +686,22 @@ members.get('/shop/gender', async (c) => {
   const profile = await getProfile(c.env.DB, viewer.user_id);
   const to = poolOf(profile.character_id) === 'boy' ? 'girl' : 'boy';
   const plan = await planCharacterPool(c.env.DB, viewer.user_id, to);
-  return page(c, <GenderChangePage viewer={viewer} to={to} character={plan.character} jelly={profile.dogam_jelly} />);
+  return page(c, <GenderChangePage viewer={viewer} to={to} character={plan.character} jelly={profile.dogam_jelly} changed={c.req.query('n') === 'changed'} />);
 });
 
 members.post('/api/shop/gender', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  const pool = (await c.req.parseBody()).pool;
+  const body = await c.req.parseBody();
+  const pool = body.pool;
   if (!isCharacterPool(pool)) return c.redirect('/shop?n=error');
   let result: Awaited<ReturnType<typeof buyGenderChange>>;
   try {
-    result = await buyGenderChange(c.env.DB, c.get('viewer').user_id, pool, PRICES.gender);
+    result = await buyGenderChange(c.env.DB, c.get('viewer').user_id, pool, PRICES.gender, typeof body.character === 'string' ? body.character : undefined);
   } catch (e) {
     console.error('성별 바꾸기 실패', e);
     return c.redirect('/shop?n=error');
   }
+  if (result === 'changed') return c.redirect('/shop/gender?n=changed');
   return c.redirect(result === 'done' ? '/shop' : result === 'same' ? '/shop?n=gender_same' : '/shop?n=not_enough_jelly');
 });
 
@@ -838,6 +842,7 @@ members.get('/gamble', async (c) => {
   const now = new Date().toISOString();
   const expired = await expireHand(db, user, now);
   if (expired) return c.redirect(gambleRoomUrl('cards', expired));
+  await expireAllHands(db, now).catch((e) => console.error('지난 카드 21 정산 실패', e));
   const daily = await claimDaily(db, user, now);
   const [account, hand, ranks] = await Promise.all([
     gambleAccount(db, user), activeHand(db, user), gambleRanks(db, now),
@@ -855,6 +860,8 @@ members.get('/gamble/:game', async (c) => {
   const db = c.env.DB;
   const now = new Date().toISOString();
   const expired = await expireHand(db, user, now);
+  // 다른 방에 먼저 들어와도 자정에 멈춘 카드 21 결과를 보여 줘요.
+  if (expired && game !== 'cards') return c.redirect(gambleRoomUrl('cards', expired));
   const daily = await claimDaily(db, user, now);
   const token = (game === 'cards' ? expired : null) ?? c.req.query('r');
   const [account, hand, round] = await Promise.all([
@@ -894,7 +901,9 @@ members.post('/gamble/cards', async (c) => {
   if (!uuid(token) || typeof revision !== 'string' || !/^[0-9]{1,2}$/.test(revision) ||
     (move !== 'hit' && move !== 'stand')) return c.redirect(gambleRoomUrl('cards'), 303);
   const user = c.get('viewer').user_id;
-  await moveHand(c.env.DB, user, token, Number(revision), move, new Date().toISOString());
+  const moved = await moveHand(c.env.DB, user, token, Number(revision), move, new Date().toISOString());
+  // 다른 탭에서 이미 진행해 이 버튼이 옛것이면 알려 줘요.
+  if (!moved && (await activeHand(c.env.DB, user))?.token === token) return c.redirect(`${gambleRoomUrl('cards')}?n=stale`, 303);
   return c.redirect(gambleRoomUrl('cards', token), 303);
 });
 
@@ -931,8 +940,10 @@ members.post('/api/journey/start', async (c) => {
   try {
     const body = await c.req.parseBody({ all: true });
     const ch = Number(Array.isArray(body.ch) ? body.ch[0] : (body.ch ?? 1));
-    const id = await beginJourney(c.env.DB, c.get('viewer').user_id, Number.isSafeInteger(ch) && ch >= 1 ? ch : 1, new Date(), cleanKit(body.kit));
+    const shown = Number(Array.isArray(body.kl) ? body.kl[0] : body.kl);
+    const id = await beginJourney(c.env.DB, c.get('viewer').user_id, Number.isSafeInteger(ch) && ch >= 1 ? ch : 1, new Date(), cleanKit(body.kit), Number.isSafeInteger(shown) ? shown : undefined);
     if (id === NO_COINS) return c.redirect('/expedition/go?n=kitcoins', 303);
+    if (id === STALE_PICK) return c.redirect('/expedition/go?n=stalepick', 303);
     return c.redirect(id ? '/expedition/go#now' : '/expedition/go?n=bad', 303);
   } catch (e) {
     console.error('원정 시작 실패', e);
@@ -971,8 +982,11 @@ members.post('/api/journey/perk', async (c) => {
   const seen = seenLevel(body.lv);
   if (!Object.hasOwn(PERKS, k)) return c.redirect('/expedition/go?n=bad#perks', 303);
   try {
-    const ok = await buyPerk(c.env.DB, c.get('viewer').user_id, k as PerkId, new Date(), seen);
-    return c.redirect(`/expedition/go?prep=train&n=${ok ? 'perk' : 'noperk'}#perks`, 303);
+    const user = c.get('viewer').user_id;
+    const ok = await buyPerk(c.env.DB, user, k as PerkId, new Date(), seen);
+    // 다른 화면에서 먼저 올려서 거절됐으면 "모자라요" 대신 그렇게 알려 줘요
+    const why = ok ? 'perk' : seen !== undefined && (await journeyBank(c.env.DB, user))[k as PerkId] !== seen ? 'stale' : 'noperk';
+    return c.redirect(`/expedition/go?prep=train&n=${why}#perks`, 303);
   } catch (e) {
     console.error('원정 강화 실패', e);
     return c.redirect('/expedition/go?n=error#perks', 303);
@@ -985,8 +999,10 @@ members.post('/api/journey/gear', async (c) => {
   const seen = seenLevel(body.lv);
   if (!Object.hasOwn(GEAR, k)) return c.redirect('/expedition/go?n=bad#perks', 303);
   try {
-    const ok = await upgradeGear(c.env.DB, c.get('viewer').user_id, k as GearId, new Date(), seen);
-    return c.redirect(`/expedition/go?prep=gear&n=${ok ? 'gear' : 'nogear'}#perks`, 303);
+    const user = c.get('viewer').user_id;
+    const ok = await upgradeGear(c.env.DB, user, k as GearId, new Date(), seen);
+    const why = ok ? 'gear' : seen !== undefined && (await journeyBank(c.env.DB, user))[k as GearId] !== seen ? 'stale' : 'nogear';
+    return c.redirect(`/expedition/go?prep=gear&n=${why}#perks`, 303);
   } catch (e) {
     console.error('원정 장비 강화 실패', e);
     return c.redirect('/expedition/go?n=error#perks', 303);
@@ -994,9 +1010,10 @@ members.post('/api/journey/gear', async (c) => {
 });
 members.post('/api/journey/quit', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  const id = String((await c.req.parseBody()).run ?? '');
-  const ok = JR_ID.test(id) && (await quitJourney(c.env.DB, c.get('viewer').user_id, id));
-  return c.redirect(ok ? '/expedition/go?n=quit' : '/expedition/go', 303);
+  const body = await c.req.parseBody();
+  const id = String(body.run ?? ''), rev = Number(body.rev);
+  const ok = JR_ID.test(id) && (await quitJourney(c.env.DB, c.get('viewer').user_id, id, Number.isSafeInteger(rev) ? rev : undefined));
+  return c.redirect(ok ? '/expedition/go?n=quit' : '/expedition/go?n=stale', 303);
 });
 
 // 하리보 사건파일 (방탈출판): 물건을 눌러 찾고 퍼즐을 풀어요.
@@ -1074,9 +1091,10 @@ members.post('/api/escape/act', async (c) => {
 });
 members.post('/api/escape/quit', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  const id = String((await c.req.parseBody()).run ?? '');
-  const ok = ESC_ID.test(id) && (await quitEscape(c.env.DB, c.get('viewer').user_id, id));
-  return c.redirect(ok ? '/cases/room?n=quit' : '/cases/room', 303);
+  const body = await c.req.parseBody();
+  const id = String(body.run ?? ''), rev = Number(body.rev);
+  const ok = ESC_ID.test(id) && (await quitEscape(c.env.DB, c.get('viewer').user_id, id, Number.isSafeInteger(rev) ? rev : undefined));
+  return c.redirect(ok ? '/cases/room?n=quit' : '/cases/room?n=stale', 303);
 });
 
 // 예전 사건파일·원정대 주소는 지금 게임으로 보내요(옛 게임과 보상은 없앴어요).
@@ -1140,7 +1158,8 @@ members.get('/bingo', (c) => bingoPage(c));
 // 순위 메뉴: 도감·빙고(젤리피)·원정대·사건파일·겜블장 1~3위와 내 순위
 members.get('/rank', async (c) => {
   const viewer = c.get('viewer');
-  return page(c, <RankPage viewer={viewer} ranks={await loadRankings(c.env.DB, viewer.user_id, Date.now())} tab={rankTab(c.req.query('g'))} />);
+  const tab = rankTab(c.req.query('g'));
+  return page(c, <RankPage viewer={viewer} ranks={await loadRankings(c.env.DB, viewer.user_id, Date.now(), tab)} tab={tab} />);
 });
 
 // 같이 배정되지 않기 신청. 다시 물어야 하면 적은 내용을 그대로 두고 화면을 다시 보여 줘요.
