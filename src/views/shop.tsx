@@ -180,8 +180,8 @@ export function ShopPage(props: {
   const decoReward = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price === null);
   const nameOf = (id: string) => SHOP_ITEMS.find((i) => i.id === id)?.name ?? serviceItem(id)?.name ?? (id === 'change:gender' ? '성별 바꾸기' : id);
   const popup = props.results.flatMap((p) => resultLines(p, nameOf(p.item_id)));
-  const notice = props.notice ? NOTICES[props.notice] : undefined;
-  if (notice && !popup.length) popup.push(...notice);
+  const notice = props.notice && Object.hasOwn(NOTICES, props.notice) ? NOTICES[props.notice] : undefined;
+  if (notice) popup.unshift(...notice);
 
   const head = <ShopHead jelly={profile.dogam_jelly} tab={props.tab} />;
   return (
@@ -303,7 +303,7 @@ export function ShopPage(props: {
 
           <section class="panel">
             <h2>꾸밈 캐릭터</h2>
-            <p class="muted">사면 내 카드 그림이 이 캐릭터로 바뀌어요. 언제든 기본 캐릭터로 돌아갈 수 있어요.</p>
+            <p class="muted">구매한 캐릭터에서 ‘쓰기’를 누르면 내 카드 그림이 바뀌어요. 언제든 기본 캐릭터로 돌아갈 수 있어요.</p>
             <div class="shop-grid deco">
               {decoBuy.map((item) => {
                 const state = stateOf(item, ctx);

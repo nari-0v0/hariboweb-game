@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it, vi } from 'vitest';
 import app from '../src/index';
+import { signSession } from '../src/crypto';
 import { givePraise } from '../src/db';
 import { checkNote, cleanNote, hasBadWord, hidePraiseNote, markPraiseSeen, parseNoteVerdict, praiseBox } from '../src/praise-note';
 import { applySync, parseSync } from '../src/sync';
@@ -102,6 +103,15 @@ describe('칭찬함', () => {
     expect((await praiseBox(db, C)).items[0]).toMatchObject({ note: null, hidden: true });
   });
 
+  it('오래된 읽음 표시가 나중에 저장돼도 읽은 칭찬이 다시 새 칭찬이 되지 않아요', async () => {
+    const { db } = fakeD1();
+    const before = Date.now() - 1000;
+    await givePraise(db, A, C, '2026-11-12', '최고!');
+    await markPraiseSeen(db, C, Date.now() + 1000);
+    await markPraiseSeen(db, C, before);
+    expect((await praiseBox(db, C)).unread).toBe(0);
+  });
+
   it('떠난 멤버의 한마디는 지우고, 보낸 사람 기록(빙고 집계)은 남기고, 다시 들어와도 예전 칭찬은 안 보여요', async () => {
     const { sql, db } = fakeD1();
     await givePraise(db, A, C, '2026-11-10', '예전 칭찬');
@@ -151,8 +161,21 @@ describe('봇 칭찬 API', () => {
     expect(card.praise_box.unread).toBe(2);
     expect(card.praise_box.items.map((i) => i.note).sort()).toEqual([null, '오늘 캐리 고마워요']);
     expect(JSON.stringify(card.praise_box)).not.toContain(A);
-    // 패널에서 한 번 봤으니 다음에는 0개예요
+    // 패널은 일부만 보여 줘요. 웹에서 아직 읽지 않은 칭찬은 그대로예요.
     const again = (await (await call(env, `/api/bot/card/${C}`)).json()) as { praise_box: { unread: number } };
-    expect(again.praise_box.unread).toBe(0);
+    expect(again.praise_box.unread).toBe(2);
   });
+});
+
+it('다른 멤버의 도감에 있는 내 카드는 관계 상세를 보여 줘요', async () => {
+  const { db, sql } = fakeD1();
+  sql.prepare("UPDATE members SET gender_chosen_at = 'chosen' WHERE user_id = ?").run(A);
+  sql.prepare("INSERT INTO cards (owner_id, target_id, xp, first_met, updated_at) VALUES (?, ?, 10, ?, ?)").run(B, A, new Date(NOW).toISOString(), new Date(NOW).toISOString());
+  const session = await signSession('test', { uid: A, exp: Date.now() + 60_000 });
+  const env = { DB: db, SESSION_SECRET: 'test' } as Env;
+  const get = (path: string) => app.request(path, { headers: { Cookie: `hs=${session}` } }, env);
+  const response = await get(`/card/${A}?from=${B}`);
+  expect(response.status).toBe(200);
+  expect(await response.text()).toContain('처음 만난 날');
+  expect((await get(`/card/${A}`)).headers.get('location')).toBe('/me');
 });

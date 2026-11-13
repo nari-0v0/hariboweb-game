@@ -644,7 +644,7 @@ function Play(props: { run: EscRun; art: string; name: string }) {
   );
 }
 
-function Result(props: { run: EscRun }) {
+function Result(props: { run: EscRun; going: boolean }) {
   const { run } = props;
   const g = (run.row.grade as EscGrade | null) ?? escGrade(run.state);
   return (
@@ -669,7 +669,7 @@ function Result(props: { run: EscRun }) {
           : '이 사건은 전에 해결해서 이번에는 보상이 없어요. 더 좋은 등급에 도전해 보세요!'}
       </p>
       <a class="btn btn-primary" href="/cases/room">
-        다른 사건 고르기
+        {props.going ? '진행 중인 사건 이어 하기' : '다른 사건 고르기'}
       </a>
     </section>
   );
@@ -690,7 +690,7 @@ export function EscapePage(props: {
   return (
     <Layout title="하리보 사건파일" viewer={props.viewer} active="cases" scripts={run ? ['/escape.js?v=loupe-tap-1', '/escape-ui.js?v=5'] : undefined}>
       {props.url && <i hidden data-replace-url={props.url} />}
-      <Popup lines={NOTICES[props.notice ?? ''] ?? []} />
+      <Popup lines={props.notice && Object.hasOwn(NOTICES, props.notice) ? NOTICES[props.notice] ?? [] : []} />
       <div class="stack esc" data-fresh>
         <div class="jr-title">
           <h1>🔎 하리보 사건파일</h1>
@@ -706,7 +706,7 @@ export function EscapePage(props: {
             </div>
           </details>
         </div>
-        {run && !props.list ? <Play run={run} art={props.art} name={props.viewer.display_name} /> : result ? <Result run={result} /> : null}
+        {result ? <Result run={result} going={!!run} /> : run && !props.list ? <Play run={run} art={props.art} name={props.viewer.display_name} /> : null}
         {(!run || props.list) && (
           <section class="jr-game esc-game esc-shelf">
             <h2 class="jr-pick-title">어떤 사건 파일을 열까요?</h2>
@@ -742,7 +742,11 @@ export function EscapePage(props: {
                 return (
                   <form method="post" action="/api/escape/start" class={`esc-file${best ? ' done' : ''}`}>
                     <input type="hidden" name="case" value={c.id} />
-                    {run && <input type="hidden" name="switch" value="1" />}
+                    {run && <>
+                      <input type="hidden" name="switch" value="1" />
+                      <input type="hidden" name="run" value={run.row.id} />
+                      <input type="hidden" name="rev" value={run.row.rev} />
+                    </>}
                     <button type="submit" title={c.intro}>
                       <span class="esc-file-tab">{'★'.repeat(c.level ?? 1)}</span>
                       <span class="esc-case-emoji" aria-hidden="true">

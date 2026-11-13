@@ -25,13 +25,13 @@ function fakeD1() {
     batch: async (list: ReturnType<typeof stmt>[]) => {
       sql.exec('BEGIN');
       try {
-        for (const s of list) sql.prepare(s.query).run(...(s.args as never[]));
+        const result = list.map((s) => ({ results: sql.prepare(s.query).all(...(s.args as never[])) }));
         sql.exec('COMMIT');
+        return result;
       } catch (e) {
         sql.exec('ROLLBACK');
         throw e;
       }
-      return [];
     },
   };
   for (const id of ids) {
@@ -42,6 +42,23 @@ function fakeD1() {
 }
 
 describe('순위 메뉴', () => {
+  it('겜블장에서도 10위 밖의 내 순위를 공동 순위로 표시해요', async () => {
+    const { sql, db } = fakeD1();
+    const addMember = sql.prepare("INSERT INTO members (user_id, display_name, active, updated_at) VALUES (?, ?, 1, 'x')");
+    const addAccount = sql.prepare("INSERT INTO gamble_accounts (user_id, chips, best_win, all_in_wins) VALUES (?, ?, ?, ?)");
+    for (let i = 0; i < 12; i++) {
+      const id = `other-${i}`;
+      addMember.run(id, id);
+      addAccount.run(id, 200, 20, 2);
+    }
+    addAccount.run(A, 100, 10, 1);
+    addAccount.run(B, 100, 10, 1);
+    const { gamble } = await loadRankings(db, A, NOW);
+    expect(gamble.chips.top.map((row) => row.rank)).toEqual([1, 1, 1]);
+    expect(gamble.chips.me).toMatchObject({ rank: 13, value: 100 });
+    expect(gamble.best.me).toMatchObject({ rank: 13, value: 10 });
+    expect(gamble.allIn.me).toMatchObject({ rank: 13, value: 1 });
+  });
   it('3위까지, 같은 값은 같은 순위, 내 순위는 따로', () => {
     const rows = [
       { user_id: A, name: '가', value: 9 },
@@ -65,6 +82,7 @@ describe('순위 메뉴', () => {
     card.run(B, ids[4]!);
     sql.prepare('UPDATE members SET active = 0 WHERE user_id = ?').run(ids[4]!);
     sql.prepare("INSERT INTO escape_rewards (user_id, case_id, run_id, claimed_at) VALUES (?, ?, 'r', 'x')").run(C, 'c1');
+    sql.prepare("INSERT INTO journey_runs (id, user_id, state, started_at, updated_at, chapter) VALUES ('just-started', ?, '{}', 'x', 'x', 2)").run(A);
     const r = await loadRankings(db, B, NOW);
     expect(r.dogam.top.map((x) => [x.name, x.value])).toEqual([['m1', 3], ['m2', 1]]);
     expect(r.dogam.me).toMatchObject({ rank: 2, value: 1 });

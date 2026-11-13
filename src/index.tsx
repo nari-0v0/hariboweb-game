@@ -89,7 +89,6 @@ import { JourneyPage } from './views/journey';
 import { NO_COINS, activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from './journey-db';
 import { GEAR, PERKS, cleanKit, type GearId, type PerkId } from './journey';
 import { activeEscape, actEscapeRun, beginEscape, escapeOpen, escapeRecord, getEscape, quitEscape } from './escape-db';
-import { escCase } from './escape';
 
 export { PlazaRoom } from './plaza-room';
 
@@ -194,7 +193,8 @@ app.post('/api/bot/sync', async (c) => {
   const result = await applySync(c.env.DB, parsed.value, Date.now(), { scrimQuests: c.env.SCRIM_QUESTS === '1' });
   // 서버를 나간 멤버가 광장을 열어 두고 있었다면 끊어요. 먼저 하고, 같은 묶음을 다시 받아도(duplicate) 또 해요.
   if (result !== 'stale' && parsed.value.removed.length) await plazaStub(c).kick(parsed.value.removed);
-  if (result === 'applied') {
+  // 활동은 이미 반영됐어도 캐릭터나 첫 선물 저장에서 실패했을 수 있어요.
+  if (result !== 'stale') {
     const ids = parsed.value.members.map((m) => m.id);
     await assignCharacters(c.env.DB, ids);
     await giveStarterJelly(c.env.DB, ids);
@@ -351,6 +351,9 @@ app.get('/api/bot/card/:id', async (c) => {
   const id = c.req.param('id');
   const member = isDiscordId(id) ? await getMember(c.env.DB, id) : null;
   if (!member || !member.active) return c.json({ error: 'not_member' }, 404);
+  const now = Date.now();
+  // 주간 빙고 "패널에서 내 카드 열기" 칸(실패해도 카드는 보여 줘요). 줄 보상을 먼저 받아야 이번 카드에 젤리가 보여요.
+  await markFlag(c.env.DB, id, 'panel', now).catch((e) => console.error('빙고 표시 실패', e));
   const [profile, entries, best, praise, box] = await Promise.all([
     getProfile(c.env.DB, id),
     listDogam(c.env.DB, id),
@@ -358,13 +361,7 @@ app.get('/api/bot/card/:id', async (c) => {
     praiseToday(c.env.DB, id),
     praiseBox(c.env.DB, id, 5),
   ]);
-  // 패널 "내 카드"로 칭찬함을 봤어요(안 읽은 개수는 이번 응답에만 보여 줘요)
-  if (box.unread) await markPraiseSeen(c.env.DB, id, Date.now()).catch((e) => console.error('칭찬함 읽음 표시 실패', e));
-  // 주간 빙고 "패널에서 내 카드 열기" 칸(실패해도 카드는 보여 줘요)
-  // 새로 채웠으면 그 자리에서 줄 보상도 확인해요(이 칸이 마지막 칸일 수 있어요)
-  await markFlag(c.env.DB, id, 'panel', Date.now())
-    .then((fresh) => (fresh ? myBingo(c.env.DB, id, Date.now()) : null))
-    .catch((e) => console.error('빙고 표시 실패', e));
+  // 디스코드는 최근 칭찬 일부만 보여 줘요. 읽음 표시는 웹 칭찬함에서 해요.
   const p = progress(profile.solo_xp);
   const tier = tierFor(p.level);
   const base = baseUrl(c);
@@ -596,15 +593,15 @@ members.get('/me', async (c) => {
   // 주간 빙고 "웹 도감에서 내 카드 보기" 칸
   // 새로 채웠으면 그 자리에서 줄 보상도 확인해요(이 칸이 마지막 칸일 수 있어요)
   await markFlag(c.env.DB, viewer.user_id, 'web', Date.now())
-    .then((fresh) => (fresh ? myBingo(c.env.DB, viewer.user_id, Date.now()) : null))
     .catch((e) => console.error('빙고 표시 실패', e));
+  const seenThrough = Date.now();
   const [profile, entries, items, box] = await Promise.all([
     getProfile(c.env.DB, viewer.user_id),
     listDogam(c.env.DB, viewer.user_id),
     getOwnedItems(c.env.DB, viewer.user_id),
     praiseBox(c.env.DB, viewer.user_id),
   ]);
-  if (box.unread) await markPraiseSeen(c.env.DB, viewer.user_id, Date.now()).catch((e) => console.error('칭찬함 읽음 표시 실패', e));
+  if (box.unread) await markPraiseSeen(c.env.DB, viewer.user_id, seenThrough).catch((e) => console.error('칭찬함 읽음 표시 실패', e));
   const { owned, total } = completion(entries);
   return page(
     c,
@@ -840,7 +837,8 @@ members.get('/gamble', async (c) => {
     if (round) return c.redirect(gambleRoomUrl(round.game, round.token));
   }
   const now = new Date().toISOString();
-  await expireHand(db, user, now);
+  const expired = await expireHand(db, user, now);
+  if (expired) return c.redirect(gambleRoomUrl('cards', expired));
   const daily = await claimDaily(db, user, now);
   const [account, hand, ranks] = await Promise.all([
     gambleAccount(db, user), activeHand(db, user), gambleRanks(db, now),
@@ -859,7 +857,7 @@ members.get('/gamble/:game', async (c) => {
   const now = new Date().toISOString();
   const expired = await expireHand(db, user, now);
   const daily = await claimDaily(db, user, now);
-  const token = c.req.query('r') ?? (game === 'cards' ? expired : null);
+  const token = (game === 'cards' ? expired : null) ?? c.req.query('r');
   const [account, hand, round] = await Promise.all([
     gambleAccount(db, user), activeHand(db, user),
     uuid(token) ? gambleRound(db, user, token) : null,
@@ -906,7 +904,7 @@ members.post('/gamble/rescue', async (c) => {
   const user = c.get('viewer').user_id;
   const now = new Date().toISOString();
   const { day } = await c.req.parseBody();
-  if (day !== gambleDay(now)) return c.redirect('/gamble?n=no-rescue', 303);
+  if (day !== gambleDay(now)) return c.redirect('/gamble?n=rescue-day-changed', 303);
   await expireHand(c.env.DB, user, now);
   const rescued = await rescueChips(c.env.DB, user, now);
   return c.redirect(rescued ? '/gamble?n=rescue' : '/gamble?n=no-rescue', 303);
@@ -925,7 +923,7 @@ members.get('/expedition/go', async (c) => {
     dogamProgress(c.env.DB, viewer.user_id),
   ]);
   const rid = c.req.query('r') ?? '';
-  const done = !run && JR_ID.test(rid) ? await getJourney(c.env.DB, viewer.user_id, rid) : null;
+  const done = JR_ID.test(rid) ? await getJourney(c.env.DB, viewer.user_id, rid) : null;
   const art = characterUrl(profile.character_id, viewer.user_id, profile.deco_id);
   return page(c, <JourneyPage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} record={record} bank={bank} dogam={dogam} notice={c.req.query('n')} prep={c.req.query('prep')} />);
 });
@@ -962,12 +960,19 @@ members.post('/api/journey/act', async (c) => {
     return c.redirect('/expedition/go?n=error#now', 303);
   }
 });
+// 화면에 보이던 단계(없으면 확인하지 않아요: 배포 전에 열어 둔 화면)
+function seenLevel(v: unknown): number | undefined {
+  const n = Number(v);
+  return v !== undefined && v !== '' && Number.isSafeInteger(n) && n >= 0 ? n : undefined;
+}
 members.post('/api/journey/perk', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  const k = String((await c.req.parseBody()).k ?? '');
+  const body = await c.req.parseBody();
+  const k = String(body.k ?? '');
+  const seen = seenLevel(body.lv);
   if (!Object.hasOwn(PERKS, k)) return c.redirect('/expedition/go?n=bad#perks', 303);
   try {
-    const ok = await buyPerk(c.env.DB, c.get('viewer').user_id, k as PerkId);
+    const ok = await buyPerk(c.env.DB, c.get('viewer').user_id, k as PerkId, new Date(), seen);
     return c.redirect(`/expedition/go?prep=train&n=${ok ? 'perk' : 'noperk'}#perks`, 303);
   } catch (e) {
     console.error('원정 강화 실패', e);
@@ -976,10 +981,12 @@ members.post('/api/journey/perk', async (c) => {
 });
 members.post('/api/journey/gear', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  const k = String((await c.req.parseBody()).k ?? '');
+  const body = await c.req.parseBody();
+  const k = String(body.k ?? '');
+  const seen = seenLevel(body.lv);
   if (!Object.hasOwn(GEAR, k)) return c.redirect('/expedition/go?n=bad#perks', 303);
   try {
-    const ok = await upgradeGear(c.env.DB, c.get('viewer').user_id, k as GearId);
+    const ok = await upgradeGear(c.env.DB, c.get('viewer').user_id, k as GearId, new Date(), seen);
     return c.redirect(`/expedition/go?prep=gear&n=${ok ? 'gear' : 'nogear'}#perks`, 303);
   } catch (e) {
     console.error('원정 장비 강화 실패', e);
@@ -1001,7 +1008,7 @@ members.get('/cases/room', async (c) => {
   const [run, best, profile, dogam] = await Promise.all([activeEscape(c.env.DB, viewer.user_id), escapeRecord(c.env.DB, viewer.user_id), getProfile(c.env.DB, viewer.user_id), dogamProgress(c.env.DB, viewer.user_id)]);
   const art = characterUrl(profile.character_id, viewer.user_id, profile.deco_id);
   const rid = c.req.query('r') ?? '';
-  const done = !run && ESC_ID.test(rid) ? await getEscape(c.env.DB, viewer.user_id, rid) : null;
+  const done = ESC_ID.test(rid) ? await getEscape(c.env.DB, viewer.user_id, rid) : null;
   return page(c, <EscapePage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} best={best} dogam={dogam} notice={c.req.query('n')} list={c.req.query('list') === '1'} />);
 });
 members.post('/api/escape/start', async (c) => {
@@ -1013,12 +1020,13 @@ members.post('/api/escape/start', async (c) => {
     // 사건 목록에서 다른 사건을 고르면 하던 사건은 덮고 새로 열어요.
     // 도감 조건이 안 되는 사건이면 하던 사건을 덮지 않고 돌아가요.
     if (!(await escapeOpen(c.env.DB, user, want))) return c.redirect('/cases/room?list=1&n=locked', 303);
-    if (body.switch === '1' && escCase(want)) {
-      const going = await activeEscape(c.env.DB, user);
-      if (going && going.row.case_id !== want) await quitEscape(c.env.DB, user, going.row.id);
+    const replacing = body.switch === '1';
+    const oldId = String(body.run ?? ''), rev = Number(body.rev);
+    if (replacing && (!ESC_ID.test(oldId) || !Number.isSafeInteger(rev) || rev < 0)) {
+      return c.redirect('/cases/room?n=stale#now', 303);
     }
-    const id = await beginEscape(c.env.DB, user, want);
-    return c.redirect(id ? '/cases/room#now' : '/cases/room?n=bad', 303);
+    const id = await beginEscape(c.env.DB, user, want, new Date(), replacing ? { id: oldId, rev } : undefined);
+    return c.redirect(id ? '/cases/room#now' : replacing ? '/cases/room?n=stale#now' : '/cases/room?n=bad', 303);
   } catch (e) {
     console.error('사건 시작 실패', e);
     return c.redirect('/cases/room?n=error', 303);
@@ -1096,8 +1104,8 @@ members.get('/dogam/:userId', async (c) => {
 members.get('/card/:userId', async (c) => {
   const viewer = c.get('viewer');
   const targetId = c.req.param('userId');
-  if (targetId === viewer.user_id) return c.redirect('/me');
   const from = c.req.query('from');
+  if (targetId === viewer.user_id && (!from || from === viewer.user_id)) return c.redirect('/me');
   const owner = from && from !== viewer.user_id ? await getMember(c.env.DB, from) : viewer;
   const notFound = () =>
     page(c, <MessagePage viewer={viewer} title="카드가 없어요" message="아직 같이 놀지 않은 멤버예요." />, 404);

@@ -529,7 +529,7 @@ function ChapterPick(props: { unlocked: number; dogam: DogamProgress; farmed: Re
   );
 }
 
-function Result(props: { run: JourneyRun; art: string; name: string; unlocked: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number }) {
+function Result(props: { run: JourneyRun; art: string; name: string; unlocked: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number; going: boolean }) {
   const { run } = props;
   const s = run.state;
   return (
@@ -562,7 +562,9 @@ function Result(props: { run: JourneyRun; art: string; name: string; unlocked: n
           ? `보상: 내 카드 경험치 +${run.row.xp}${run.row.jelly ? `, 도감 젤리 +${run.row.jelly}` : ''}`
           : `오늘 보상은 이미 ${DAILY_REWARD_JOURNEYS}번 받았어요. 내일 다시 받을 수 있어요.`}
       </p>
-      <ChapterPick unlocked={props.unlocked} dogam={props.dogam} farmed={props.farmed} coins={props.coins} again />
+      {props.going
+        ? <a class="btn btn-primary" href="/expedition/go#now">진행 중인 원정 이어 하기</a>
+        : <ChapterPick unlocked={props.unlocked} dogam={props.dogam} farmed={props.farmed} coins={props.coins} again />}
     </section>
   );
 }
@@ -699,6 +701,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
           return (
             <form method="post" action="/api/journey/perk" class="jp-row-form">
               <input type="hidden" name="k" value={id} />
+              <input type="hidden" name="lv" value={lv} />
               <button type="submit" class="jp-row" disabled={full || bank.coins < cost}>
                 <span class="jp-row-icon" aria-hidden="true">
                   {info.icon}
@@ -742,6 +745,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
           return (
             <form method="post" action="/api/journey/gear" class="jp-gear-form">
               <input type="hidden" name="k" value={id} />
+              <input type="hidden" name="lv" value={lv} />
               <div class={`jp-item${full ? ' full' : ''}`}>
                 <div class="jp-item-pic">
                   <span aria-hidden="true">{info.icon}</span>
@@ -790,7 +794,7 @@ export function JourneyPage(props: {
   const home = chapterOf(record.unlocked);
   return (
     <Layout title="하리보 원정대" viewer={props.viewer} active="expedition">
-      <Popup lines={NOTICES[props.notice ?? ''] ?? []} />
+      <Popup lines={props.notice && Object.hasOwn(NOTICES, props.notice) ? NOTICES[props.notice] ?? [] : []} />
       <div class="stack jr" data-fresh>
         <div class="jr-title">
           <h1>🧭 하리보 원정대</h1>
@@ -812,7 +816,7 @@ export function JourneyPage(props: {
             </div>
           </details>
         </div>
-        {run ? <Play run={run} art={props.art} name={name} /> : result ? <Result run={result} art={props.art} name={name} unlocked={record.unlocked} dogam={props.dogam} farmed={record.farmed} coins={props.bank.coins} /> : null}
+        {result ? <Result run={result} art={props.art} name={name} unlocked={record.unlocked} dogam={props.dogam} farmed={record.farmed} coins={props.bank.coins} going={!!run} /> : run ? <Play run={run} art={props.art} name={name} /> : null}
         {!run && !result && (
           <section class="jr-game jr-lobby" id="now">
             <div class="jr-lobby-stage" style={`--jr-bg:url(/journey/bg/${zoneFor(1)}.webp)`}>
