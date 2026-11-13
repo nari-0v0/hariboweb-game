@@ -62,6 +62,17 @@ describe('겜블장 로비와 게임 방', () => {
     expect(response.status).toBe(302);
     expect(response.headers.get('location')).toBe(`/gamble/cards?r=${TOKEN}`);
   });
+
+  it('이전 결과 주소에서 만료된 카드 판을 정산하면 방금 정산한 판을 보여 줘요', async () => {
+    vi.mocked(expireHand).mockResolvedValueOnce(TOKEN);
+    await request('/gamble/cards?r=6f3fcd87-7b57-43cb-919f-3930c62179ae');
+    expect(gambleRound).toHaveBeenCalledWith(ENV.DB, USER, TOKEN);
+  });
+
+  it('전날 로비에서 다시 시작하면 날짜 변경 안내로 돌아가요', async () => {
+    const response = await request('/gamble/rescue', { day: '2000-01-01' });
+    expect(response.headers.get('location')).toBe('/gamble?n=rescue-day-changed');
+  });
   it('로비에는 세 게임 방과 칭호 링크가 있고 칩을 거는 폼은 없다', async () => {
     const response = await request('/gamble');
     expect(response.status).toBe(200);
