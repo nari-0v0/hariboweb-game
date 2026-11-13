@@ -79,7 +79,7 @@ export function ChoosePage(props: { viewer: Member; previews: Record<CharacterPo
 }
 
 // 상점 "성별 바꾸기" 확인 화면
-export function GenderChangePage(props: { viewer: Member; to: CharacterPool; character: string; jelly: number }) {
+export function GenderChangePage(props: { viewer: Member; to: CharacterPool; character: string; jelly: number; changed?: boolean }) {
   const { viewer, to } = props;
   return (
     <Layout title="성별 바꾸기" viewer={viewer} active="shop">
@@ -88,6 +88,11 @@ export function GenderChangePage(props: { viewer: Member; to: CharacterPool; cha
         <div class="choose-one">
           <Preview viewer={viewer} pool={to} character={props.character} />
         </div>
+        {props.changed && (
+          <p class="notice" role="status">
+            그 사이 미리보기 캐릭터가 바뀌었어요. 도감 젤리는 그대로예요. 새 캐릭터를 확인하고 다시 눌러 주세요.
+          </p>
+        )}
         <p class="notice">
           도감 젤리 {PRICES.gender}개가 빠져요(지금 {props.jelly}개). 위 캐릭터는 미리보기예요.
         </p>
@@ -97,6 +102,7 @@ export function GenderChangePage(props: { viewer: Member; to: CharacterPool; cha
           </a>
           <form method="post" action="/api/shop/gender">
             <input type="hidden" name="pool" value={to} />
+            <input type="hidden" name="character" value={props.character} />
             <button class="btn btn-primary" type="submit">
               🍬 {PRICES.gender} 바꾸기
             </button>

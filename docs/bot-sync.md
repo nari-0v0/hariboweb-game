@@ -191,7 +191,7 @@ Content-Type: application/json
 
 ## 같이 배정되지 않기
 
-멤버가 웹 `/bingo`에서 적은 요청을 봇이 비공개 채널에 올리고, 나리가 [승인]/[반려]를 눌러요. AI가 장난·내용 없음으로 거른 요청도 "AI 반려"로 표시해서 올라가고, 나리가 [승인]을 누르면 뒤집혀요. 승인된 짝은 다음 팀 짜기와 시즌 중간 합류에서 같은 팀에 넣지 않아요. 모두 `Authorization: Bearer <BOT_SYNC_SECRET>`.
+멤버가 웹 `/bingo`에서 적은 요청을 봇이 비공개 채널에 올리고, 나리가 [승인]/[반려]를 눌러요. AI가 장난·내용 없음으로 거른 요청도 "AI 반려"로 표시해서 올라가고, 나리가 [승인]을 누르면 뒤집혀요. 승인된 짝은 다음 팀 짜기와 시즌 중간 합류에서 같은 팀에 넣지 않아요. 단, 활동한 사람이 적어 팀이 하나뿐이면(나눌 팀이 없으면) 같은 팀이 될 수 있어요. 모두 `Authorization: Bearer <BOT_SYNC_SECRET>`.
 
 - `GET /api/bot/assign-blocks` → `{ "blocks": [{ "id": 1, "from": {"id","name"}, "to": {"id","name"}, "reason": "...", "ai_verdict": "ok|vague|reject|null", "ai_summary": "한 줄 요약|null", "status": "pending|ai_rejected", "created_at": "ISO" }] }`
   - 아직 채널에 안 올린 요청, 오래된 것부터 최대 10개. `status: "ai_rejected"`는 AI가 거른 요청이에요(나리가 승인하면 적용).

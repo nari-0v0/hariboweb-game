@@ -194,3 +194,17 @@ export async function awardGambleSeason(db: D1Database, seasonId: string, end: s
       .bind(titleItemId(GAMBLE_WINNER_ID), seasonId),
   ]);
 }
+
+// 끝난 지 2주 안 된 시즌 중 겜블 우승이 아직 안 적힌 시즌을 다시 정산해요.
+// (봇이 시즌 끝 전후로 30분 넘게 멈춰서 시즌 마무리 확인을 건너뛰어도 우승 칭호가 빠지지 않게)
+export async function awardEndedGambleSeasons(db: D1Database, nowMs: number) {
+  const t = new Date(nowMs).toISOString();
+  const { results } = await db
+    .prepare(
+      `SELECT id, ends_at FROM seasons s WHERE ends_at <= ?1 AND ends_at > ?2
+       AND NOT EXISTS (SELECT 1 FROM gamble_season_winners w WHERE w.season_id = s.id)`,
+    )
+    .bind(t, new Date(nowMs - 14 * 86_400_000).toISOString())
+    .all<{ id: string; ends_at: string }>();
+  for (const r of results) await awardGambleSeason(db, r.id, r.ends_at, t);
+}

@@ -4,7 +4,7 @@ import { Layout } from './layout';
 // 광장 화면의 뼈대. 지도와 캐릭터는 public/plaza.js가 실시간 연결로 그려요.
 export function PlazaPage(props: { viewer: Member; guildId: string }) {
   return (
-    <Layout title="광장" viewer={props.viewer} active="plaza" wide scripts={['/plaza.js']}>
+    <Layout title="광장" viewer={props.viewer} active="plaza" wide scripts={['/plaza.js?v=retry-1']}>
       <section class="plaza-head">
         <h1>광장</h1>
         <p class="muted">

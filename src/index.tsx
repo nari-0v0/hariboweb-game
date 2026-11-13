@@ -553,8 +553,8 @@ members.use('*', async (c, next) => {
   c.set('viewer', viewer);
   // 브라우저가 미리 받기만 하는 요청은 읽기만 하는 화면에만 답해요(열기만 해도 기록이 바뀌는 화면은 실제로 열 때만)
   if (isPrefetch(c) && !prefetchAllowed(c.req.path)) return c.body(null, 503);
-  // 방문 시각 기록은 응답을 기다리게 하지 않고 뒤에서 해요
-  const touch = touchVisit(c.env.DB, viewer, Date.now()).catch((e) => console.error('방문 기록 실패', e));
+  // 방문 시각 기록은 응답을 기다리게 하지 않고 뒤에서 해요. 브라우저 미리 받기는 실제 방문이 아니라서 안 적어요.
+  const touch = isPrefetch(c) ? Promise.resolve() : touchVisit(c.env.DB, viewer, Date.now()).catch((e) => console.error('방문 기록 실패', e));
   try {
     c.executionCtx.waitUntil(touch);
   } catch {
@@ -686,20 +686,22 @@ members.get('/shop/gender', async (c) => {
   const profile = await getProfile(c.env.DB, viewer.user_id);
   const to = poolOf(profile.character_id) === 'boy' ? 'girl' : 'boy';
   const plan = await planCharacterPool(c.env.DB, viewer.user_id, to);
-  return page(c, <GenderChangePage viewer={viewer} to={to} character={plan.character} jelly={profile.dogam_jelly} />);
+  return page(c, <GenderChangePage viewer={viewer} to={to} character={plan.character} jelly={profile.dogam_jelly} changed={c.req.query('n') === 'changed'} />);
 });
 
 members.post('/api/shop/gender', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  const pool = (await c.req.parseBody()).pool;
+  const body = await c.req.parseBody();
+  const pool = body.pool;
   if (!isCharacterPool(pool)) return c.redirect('/shop?n=error');
   let result: Awaited<ReturnType<typeof buyGenderChange>>;
   try {
-    result = await buyGenderChange(c.env.DB, c.get('viewer').user_id, pool, PRICES.gender);
+    result = await buyGenderChange(c.env.DB, c.get('viewer').user_id, pool, PRICES.gender, typeof body.character === 'string' ? body.character : undefined);
   } catch (e) {
     console.error('성별 바꾸기 실패', e);
     return c.redirect('/shop?n=error');
   }
+  if (result === 'changed') return c.redirect('/shop/gender?n=changed');
   return c.redirect(result === 'done' ? '/shop' : result === 'same' ? '/shop?n=gender_same' : '/shop?n=not_enough_jelly');
 });
 
@@ -980,8 +982,11 @@ members.post('/api/journey/perk', async (c) => {
   const seen = seenLevel(body.lv);
   if (!Object.hasOwn(PERKS, k)) return c.redirect('/expedition/go?n=bad#perks', 303);
   try {
-    const ok = await buyPerk(c.env.DB, c.get('viewer').user_id, k as PerkId, new Date(), seen);
-    return c.redirect(`/expedition/go?prep=train&n=${ok ? 'perk' : 'noperk'}#perks`, 303);
+    const user = c.get('viewer').user_id;
+    const ok = await buyPerk(c.env.DB, user, k as PerkId, new Date(), seen);
+    // 다른 화면에서 먼저 올려서 거절됐으면 "모자라요" 대신 그렇게 알려 줘요
+    const why = ok ? 'perk' : seen !== undefined && (await journeyBank(c.env.DB, user))[k as PerkId] !== seen ? 'stale' : 'noperk';
+    return c.redirect(`/expedition/go?prep=train&n=${why}#perks`, 303);
   } catch (e) {
     console.error('원정 강화 실패', e);
     return c.redirect('/expedition/go?n=error#perks', 303);
@@ -994,8 +999,10 @@ members.post('/api/journey/gear', async (c) => {
   const seen = seenLevel(body.lv);
   if (!Object.hasOwn(GEAR, k)) return c.redirect('/expedition/go?n=bad#perks', 303);
   try {
-    const ok = await upgradeGear(c.env.DB, c.get('viewer').user_id, k as GearId, new Date(), seen);
-    return c.redirect(`/expedition/go?prep=gear&n=${ok ? 'gear' : 'nogear'}#perks`, 303);
+    const user = c.get('viewer').user_id;
+    const ok = await upgradeGear(c.env.DB, user, k as GearId, new Date(), seen);
+    const why = ok ? 'gear' : seen !== undefined && (await journeyBank(c.env.DB, user))[k as GearId] !== seen ? 'stale' : 'nogear';
+    return c.redirect(`/expedition/go?prep=gear&n=${why}#perks`, 303);
   } catch (e) {
     console.error('원정 장비 강화 실패', e);
     return c.redirect('/expedition/go?n=error#perks', 303);
