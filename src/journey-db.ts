@@ -95,12 +95,14 @@ export async function beginJourney(db: D1Database, user: string, chapter = 1, no
   const id = crypto.randomUUID();
   const t = now.toISOString();
   const bank = await journeyBank(db, user);
+  const state = startJourney(id, bank, ch, bank);
+  state.farm = ch < record.unlocked; // 이미 깬 장(재료가 덜 나와요)
   await db
     .prepare(
       `INSERT OR IGNORE INTO journey_runs (id, user_id, state, started_at, updated_at, chapter)
        SELECT ?1, ?2, ?3, ?4, ?4, ?5 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)`,
     )
-    .bind(id, user, JSON.stringify(startJourney(id, bank, ch, bank)), t, ch)
+    .bind(id, user, JSON.stringify(state), t, ch)
     .run();
   return (await activeJourney(db, user))?.row.id ?? null;
 }

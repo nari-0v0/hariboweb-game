@@ -133,9 +133,11 @@ export function gearBonus(id: GearId, lv: number): number {
   return Math.round(GEAR[id].per * (L + (GEAR_GROW * L * (L - 1)) / 2));
 }
 export const gearText = (id: GearId, lv: number) => `${GEAR[id].stat} +${gearBonus(id, lv)}`;
-// 재료가 나올 확률: 보통 몬스터 3%, 이벤트 싸움 5%, 강한 적 15%, 대장은 꼭 1개(처음 깨면 끝날 때 2개 더)
+// 재료가 나올 확률: 보통 몬스터 3%, 이벤트 싸움 5%, 강한 적 15%, 대장은 꼭 1개(처음 깨면 끝날 때 2개 더). 깬 장을 다시 돌면 FARM_DROP만큼.
 export const DROP = { foe: 0.03, event: 0.05, elite: 0.15 };
 export const FIRST_CLEAR_BONUS = 2;
+// 이미 깬 장을 다시 돌면 재료는 하루 제한 없이 모이지만, 나올 확률은 이만큼으로 줄어요(대장 포함, 나리 2026-11-13).
+export const FARM_DROP = 0.4;
 // 열린 장이 늘수록 훈련 한도가 늘어요(열린 장 하나마다 처음 한도의 절반씩). 열린 장 = 앞 장을 깼고 도감 조건도 채운 장.
 export const perkMax = (id: PerkId, unlocked: number) => PERKS[id].max + Math.floor(PERKS[id].max * 0.3) * (Math.max(1, unlocked) - 1);
 
@@ -226,7 +228,7 @@ function battle(s: JourneyState, m: Monster, power: number, r: () => number, lin
   s.kills += 1;
   const coins = gainCoins(s, Math.round((4 + s.day) * power * cp));
   lines.push({ icon: m.emoji, text: `${m.name}${obj(m.name)} ${turns}턴 만에 물리쳤어요! 체력 ${s.hp - start >= 0 ? '+' : ''}${s.hp - start}, 젤코인 +${coins}`, tone: 'good' });
-  if (drop > 0 && rng(`${s.seed}:${s.day}:drop`)() < drop) {
+  if (drop > 0 && rng(`${s.seed}:${s.day}:drop`)() < drop * (s.farm ? FARM_DROP : 1)) {
     s.mats = (s.mats ?? 0) + 1;
     const mt = material(s.ch ?? 1);
     lines.push({ icon: mt.icon, text: `강화 재료 ${mt.name}${obj(mt.name)} 주웠어요!`, tone: 'good' });
