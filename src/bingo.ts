@@ -46,7 +46,14 @@ export function weekOfDay(day: string): Week {
 
 export function periodFor(ms: number, periods: Week[]): Week {
   const iso = new Date(ms).toISOString();
-  return periods.find((p) => p.start <= iso && iso < p.end) ?? weekOf(ms);
+  return periods.find((p) => p.start <= iso && iso < p.end) ?? fallbackWeek(ms);
+}
+
+// 주기를 모를 때 대신 쓰는 월요일 주. id 앞에 w를 붙여요: 나중에 같은 날 시작하는 진짜 기간(id = 그 날짜)이
+// 생겨도 임시 주에 채운 칸·기록을 물려받지 않게요.
+export function fallbackWeek(ms: number): Week {
+  const w = weekOf(ms);
+  return { ...w, id: `w${w.id}` };
 }
 
 // 지금과 가까운 주기들(최근 60일 안에 끝난 것부터)
@@ -436,8 +443,17 @@ export async function grantBingo(db: D1Database, week: Week, userIds: string[], 
 }
 
 // 이번 주 내 빙고(보는 김에 채운 줄 보상도 줘요)
+// 막 끝난 기간(끝나고 PRIOR_RECHECK_MS 안)의 줄 보상도 다시 확인해요. 동기화 뒤 보상 저장이 한 번 실패해도
+// 빙고를 열면 받게요(이미 받은 줄은 다시 주지 않아요).
+const PRIOR_RECHECK_MS = 7 * DAY_MS;
 export async function myBingo(db: D1Database, userId: string, nowMs: number): Promise<BingoView | null> {
-  return (await grantBingo(db, await currentPeriod(db, nowMs), [userId], nowMs)).get(userId) ?? null;
+  const periods = await loadPeriods(db, nowMs);
+  const now = periodFor(nowMs, periods);
+  const prior = periodFor(Date.parse(now.start) - 1, periods);
+  if (prior.id !== now.id && nowMs - Date.parse(prior.end) < PRIOR_RECHECK_MS) {
+    await grantBingo(db, prior, [userId], nowMs).catch((e) => console.error('지난 빙고 보상 확인 실패', e));
+  }
+  return (await grantBingo(db, now, [userId], nowMs)).get(userId) ?? null;
 }
 
 // 동기화 뒤: 이번 묶음에서 기록이 바뀐 사람들. 늦게 온 기록은 끝난 지 하루 안 된 기간까지만 확인해요.

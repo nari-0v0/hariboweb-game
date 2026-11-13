@@ -83,3 +83,15 @@ it('지난 시즌 날짜의 늦은 출석으로는 새 시즌 모둠에 들어�
   }, 'old-attendance'), at)).toBe('applied');
   expect(sql.prepare('SELECT 1 FROM season_members WHERE season_id = ? AND user_id = ?').get(SEASON.id, C)).toBeUndefined();
 });
+
+it('나가기 직전 통화 1분은 탈퇴와 같은 묶음에 와도 팀 통화에 들어가요', async () => {
+  const { db, sql } = fakeD1();
+  seedSeason(sql);
+  sql.prepare('INSERT INTO gq_pair (season_id, group_no, a, b, minutes) VALUES (?, 0, ?, ?, 29)').run(SEASON.id, A, B);
+  const at = Date.parse(START) + 600000;
+  expect(await applySync(db, syncPayload(at, {
+    season: { start: START, end: END }, removed: [B],
+    room_minutes: [{ at: new Date(at - 60000).toISOString(), room: ROOM, members: [A, B] }],
+  }, 'leaver'), at)).toBe('applied');
+  expect(sql.prepare('SELECT minutes FROM gq_pair').get()).toEqual({ minutes: 30 });
+});
