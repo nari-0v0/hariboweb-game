@@ -3,6 +3,7 @@ import type { Rankings } from '../rankings';
 import { JP_FULL, JP_LINE, JP_SERVER, JP_TEAM } from '../team';
 import { Layout } from './layout';
 import { PodiumBoard } from './podium';
+import { DAYS } from '../journey';
 
 const n = (v: number) => v.toLocaleString('ko-KR');
 
@@ -45,7 +46,10 @@ export function RankPage(props: { viewer: Member; ranks: Rankings; tab: RankTab 
             </p>
           </div>
         )}
-        {tab === 'journey' && <PodiumBoard title="가장 높이 올라간 레벨" icon="🏔️" podium={r.journey} show={(v) => `Lv.${n(v)}`} />}
+        {tab === 'journey' && (
+          <PodiumBoard title="가장 멀리 간 원정" icon="🏔️" podium={r.journey}
+            show={(v) => `${Math.ceil(v / DAYS)}장 · ${((v - 1) % DAYS) + 1}일째`} />
+        )}
         {tab === 'escape' && <PodiumBoard title="해결한 사건" icon="🕵️" podium={r.escape} show={(v) => `${n(v)}건`} />}
         {tab === 'gamble' && (
           <div class="rk-pair">

@@ -1,5 +1,5 @@
 import { characterUrl } from './character';
-import { gambleRanks } from './gamble-db';
+import { gambleMyRanks, gambleRanks } from './gamble-db';
 import { seasonAt } from './team';
 
 // 순위 메뉴(/rank): 도감·빙고(젤리피)·원정대·사건파일·겜블장. 지금 서버에 있는 멤버만, 3위까지 + 내 순위.
@@ -58,7 +58,7 @@ export async function loadRankings(db: D1Database, userId: string, nowMs: number
        WHERE ?1 IS NULL OR j.season_id = ?1 GROUP BY j.user_id ORDER BY value DESC, MAX(j.created_at) ASC, j.user_id`,
       seasonId,
     );
-  const [dogam, journey, escape, jpSeason, jpAll, gamble] = await Promise.all([
+  const [dogam, journey, escape, jpSeason, jpAll, gamble, gambleMine] = await Promise.all([
     rows(
       db,
       `SELECT c.owner_id AS user_id, ${WHO}, COUNT(*) AS value FROM cards c
@@ -71,7 +71,7 @@ export async function loadRankings(db: D1Database, userId: string, nowMs: number
       db,
       `SELECT j.user_id, ${WHO}, MAX((j.chapter - 1) * 20 + j.day) AS value FROM journey_runs j
        JOIN members m ON m.user_id = j.user_id AND m.active = 1 LEFT JOIN profiles p ON p.user_id = j.user_id
-       GROUP BY j.user_id ORDER BY value DESC, SUM(j.cleared) DESC, j.user_id`,
+       WHERE j.day > 0 GROUP BY j.user_id ORDER BY value DESC, SUM(j.cleared) DESC, j.user_id`,
     ),
     rows(
       db,
@@ -82,6 +82,7 @@ export async function loadRankings(db: D1Database, userId: string, nowMs: number
     season ? jellypi(season.id) : Promise.resolve([] as Raw[]),
     jellypi(null),
     gambleRanks(db, now),
+    gambleMyRanks(db, userId),
   ]);
   const [chips = [], best = [], allIn = [], top = []] = gamble;
   return {
@@ -90,6 +91,11 @@ export async function loadRankings(db: D1Database, userId: string, nowMs: number
     jellypiAll: toPodium(jpAll, userId),
     journey: toPodium(journey, userId),
     escape: toPodium(escape, userId),
-    gamble: { chips: plainPodium(chips), best: plainPodium(best), allIn: plainPodium(allIn), seasonTop: top[0] ?? null },
+    gamble: {
+      chips: { ...plainPodium(chips), me: gambleMine[0] ?? null },
+      best: { ...plainPodium(best), me: gambleMine[1] ?? null },
+      allIn: { ...plainPodium(allIn), me: gambleMine[2] ?? null },
+      seasonTop: top[0] ?? null,
+    },
   };
 }
