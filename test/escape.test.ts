@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ESCAPE_CASES, escCase, actEscape, canAnswer, escGrade, isLocked, startEscape, visible, type EscAction, type EscCase, type EscState } from '../src/escape';
+import { ESCAPE_CASES, escCase, actEscape, canAnswer, openScenes, escGrade, isLocked, startEscape, visible, type EscAction, type EscCase, type EscState } from '../src/escape';
 import { actEscapeRun, activeEscape, beginEscape, escapeRecord, getEscape, quitEscape } from '../src/escape-db';
 import { checkUi } from '../src/escape-ui';
 
@@ -231,6 +231,20 @@ describe('사건파일 방탈출 규칙', () => {
     expect(actEscape(c, s, { a: 'tap', o: 'nope' })).toBeNull();
     expect(actEscape(c, s, { a: 'code', o: 'fridge', v: 'abc' })).toBeNull();
     expect(actEscape(c, s, { a: 'answer', n: 2 })).toBeNull(); // 단서가 모이기 전에는 답할 수 없어요
+  });
+  it('열린 방 버튼: 연 문이 이어 주는 방만 바로 갈 수 있어요', () => {
+    let s = startEscape(c);
+    expect(openScenes(c, s)).toEqual(['pantry']);
+    expect(actEscape(c, s, { a: 'go', o: 'storage' })).toBeNull();
+    expect(actEscape(c, s, { a: 'go', o: 'pantry' })).toBeNull();
+    s = { ...s, opened: ['door1'], seen: ['door1'] };
+    expect(openScenes(c, s)).toEqual(['pantry', 'storage']);
+    s = actEscape(c, s, { a: 'go', o: 'storage' })!;
+    expect(s.scene).toBe('storage');
+    expect(s.fx).toBe('move');
+    s = actEscape(c, s, { a: 'go', o: 'pantry' })!;
+    expect(s.scene).toBe('pantry');
+    expect(actEscape(c, s, { a: 'go', o: 'nope' })).toBeNull();
   });
   it('잠긴 문은 열기 전엔 못 지나가요', () => {
     let s = startEscape(c);
