@@ -650,7 +650,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
       </div>
 
           <p class="hint jp-drop">
-            재료는 그 장의 몬스터에게서 가끔(강한 적은 더 자주) 나오고, 대장은 꼭 1개 줘요. 처음 대장을 깨면 2개 더 받아요. 이미 깬 장을 하루 4판 넘게 돌면 재료도 안 모여요.
+            재료는 그 장의 몬스터에게서 가끔(강한 적은 더 자주) 나오고, 대장은 꼭 1개 줘요. 처음 대장을 깨면 2개 더 받아요. 재료는 깬 장을 몇 판 돌아도 계속 모여요.
           </p>
         </div>
       )}

@@ -187,12 +187,12 @@ describe('원정대 저장과 보상', () => {
     bank = await journeyBank(db, 'me');
     expect(bank.armor).toBe(0);
   });
-  it('주운 재료는 끝날 때 그 장 칸에 모이고, 처음 대장을 깨면 2개 더 받아요', async () => {
+  it('주운 재료는 끝날 때 그 장 칸에 모이고(젤코인이 0%여도), 처음 대장을 깨면 2개 더 받아요', async () => {
     const { db } = database();
     for (let i = 0; i < 6; i++) {
       const r = await playToEnd(db);
       const expected = (r.state.mats ?? 0) + (r.state.cleared && !r.state.farm ? FIRST_CLEAR_BONUS : 0);
-      expect(r.state.matsBanked).toBe(r.state.bankPct ? expected : 0);
+      expect(r.state.matsBanked).toBe(expected);
     }
     const bank = await journeyBank(db, 'me');
     const runs = await db.prepare("SELECT state FROM journey_runs WHERE user_id = 'me' AND status = 'done'").all<{ state: string }>();

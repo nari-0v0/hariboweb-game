@@ -3,7 +3,7 @@
 // 레벨이 오르면 스킬 3개 중 하나를 고르고, 10일째 강한 적, 20일째 보스를 이기면 원정 성공이에요.
 // 모든 무작위는 판 씨앗(seed)과 날짜로 정해져서, 서버가 같은 입력에 늘 같은 결과를 내요.
 import { rng } from './rng';
-import { chapterOf, chapterPower, type Monster } from './journey-chapters';
+import { chapterAtk, chapterOf, chapterPower, type Monster } from './journey-chapters';
 
 export const DAYS = 20;
 export const ELITE_DAY = 10;
@@ -107,8 +107,8 @@ export type Gear = Record<GearId, number>;
 export const NO_GEAR: Gear = { weapon: 0, armor: 0, charm: 0 };
 export const GEAR: Record<GearId, { name: string; icon: string; stat: string; per: number }> = {
   weapon: { name: '무기', icon: '🗡️', stat: '공격력', per: 3 },
-  armor: { name: '갑옷', icon: '🛡️', stat: '방어력', per: 2 },
-  charm: { name: '장신구', icon: '💍', stat: '체력', per: 20 },
+  armor: { name: '갑옷', icon: '🛡️', stat: '방어력', per: 3 },
+  charm: { name: '장신구', icon: '💍', stat: '체력', per: 30 },
 };
 export const GEAR_IDS = Object.keys(GEAR) as GearId[];
 export const GEAR_MAX = 9;
@@ -133,8 +133,8 @@ export function gearBonus(id: GearId, lv: number): number {
   return Math.round(GEAR[id].per * (L + (GEAR_GROW * L * (L - 1)) / 2));
 }
 export const gearText = (id: GearId, lv: number) => `${GEAR[id].stat} +${gearBonus(id, lv)}`;
-// 재료가 나올 확률: 보통 몬스터 5%, 이벤트 싸움 10%, 강한 적 30%, 대장은 꼭 1개(처음 깨면 끝날 때 2개 더)
-export const DROP = { foe: 0.05, event: 0.1, elite: 0.3 };
+// 재료가 나올 확률: 보통 몬스터 3%, 이벤트 싸움 5%, 강한 적 15%, 대장은 꼭 1개(처음 깨면 끝날 때 2개 더)
+export const DROP = { foe: 0.03, event: 0.05, elite: 0.15 };
 export const FIRST_CLEAR_BONUS = 2;
 // 열린 장이 늘수록 훈련 한도가 늘어요(열린 장 하나마다 처음 한도의 절반씩). 열린 장 = 앞 장을 깼고 도감 조건도 채운 장.
 export const perkMax = (id: PerkId, unlocked: number) => PERKS[id].max + Math.floor(PERKS[id].max * 0.3) * (Math.max(1, unlocked) - 1);
@@ -184,7 +184,7 @@ function battle(s: JourneyState, m: Monster, power: number, r: () => number, lin
   const st = stat(s);
   const cp = chapterPower(s.ch);
   let mhp = Math.round((20 + s.day * 5) * power * cp);
-  const matk = Math.round((4 + s.day * 0.9) * (power > 1 ? 1 + (power - 1) * 0.3 : 1) * cp);
+  const matk = Math.round((4 + s.day * 0.9) * (power > 1 ? 1 + (power - 1) * 0.3 : 1) * chapterAtk(s.ch));
   const start = s.hp;
   let shields = sk(s, 'shield');
   let turns = 0;

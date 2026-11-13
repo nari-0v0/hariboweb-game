@@ -132,8 +132,8 @@ export async function actJourneyRun(db: D1Database, user: string, id: string, re
     s.farm = (s.ch ?? 1) <= (r?.top ?? 0);
     s.bankPct = s.farm ? bankRate(r?.farmed ?? 0) : 100;
     s.banked = Math.floor((s.coins * s.bankPct) / 100);
-    // 재료: 파밍이 0%가 되면 재료도 안 모여요. 처음 대장을 깨면 2개 더.
-    s.matsBanked = s.bankPct > 0 ? (s.mats ?? 0) + (s.cleared && !s.farm ? FIRST_CLEAR_BONUS : 0) : 0;
+    // 재료: 젤코인과 달리 깬 장을 몇 판 돌아도 그대로 모여요(다음 장을 기다리는 동안 장비를 채우게, 나리 2026-11-13). 처음 대장을 깨면 2개 더.
+    s.matsBanked = (s.mats ?? 0) + (s.cleared && !s.farm ? FIRST_CLEAR_BONUS : 0);
   }
   const t = now.toISOString();
   const token = crypto.randomUUID();
