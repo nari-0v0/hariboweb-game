@@ -2193,3 +2193,62 @@ main.wide { max-width: 1320px; }
 @media (min-width: 1000px) { .bgo-wrap + .bgo-block { max-width: 1140px; } }
 .bgo-wide h2 { margin: 0 0 6px; font-size: 1.05rem; }
 .jr-rate { margin: 8px 0 0; font-size: .78rem; color: #ffe08a; text-align: center; }
+
+/* 원정 준비소(훈련 + 장비 강화) */
+.jp { display: grid; gap: 10px; }
+.jp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.jp-head h2 { margin: 0; }
+.jp-coins { padding: 4px 12px; border: 3px solid var(--ink); background: #ffe58a; font-weight: 700; box-shadow: 0 3px 0 var(--ink); }
+.jp > .hint { margin: 0; }
+.jp-sub { margin: 6px 0 0; font-size: 1rem; }
+.jp-hero { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 12px; align-items: center; padding: 10px; border: 3px solid var(--ink); background: linear-gradient(#dff1ff, #f3faff); }
+.jp-hero-pic { display: grid; place-items: center; height: 104px; border: 3px solid var(--ink); background: #bfe3ff; box-shadow: inset 0 -12px 0 #9fd0f5; }
+.jp-hero-pic img { width: 88px; height: 88px; object-fit: contain; image-rendering: pixelated; }
+.jp-stats { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.jp-stats li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; grid-template-rows: auto auto; column-gap: 6px; align-items: center; padding: 4px 8px; border: 2px solid var(--ink); background: #fff; }
+.jp-stat-icon { grid-row: span 2; font-size: 1.2rem; text-align: center; }
+.jp-stat-name { font-weight: 700; font-size: .85rem; }
+.jp-stats strong { grid-row: span 2; font-size: 1.35rem; }
+.jp-stats small { font-size: .68rem; color: var(--ink-soft); }
+.jp-bag { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; }
+.jp-mat { display: flex; align-items: center; gap: 4px; padding: 4px 6px; border: 2px solid var(--ink); background: #fffbe8; font-size: .78rem; min-width: 0; }
+.jp-mat-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jp-mat.empty { background: #f4f4f4; color: var(--ink-soft); }
+.jp-mat.unknown { opacity: .55; }
+.jp-train { display: grid; gap: 8px; }
+.jp-row-form, .jp-gear-form { margin: 0; }
+.jp-row { width: 100%; display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border: 3px solid var(--ink); background: var(--paper); color: var(--ink); font: inherit; text-align: left; cursor: pointer; box-shadow: 0 4px 0 var(--ink); }
+.jp-row:hover:not(:disabled) { background: #fff6c9; }
+.jp-row:active:not(:disabled) { translate: 0 3px; box-shadow: 0 1px 0 var(--ink); }
+.jp-row:disabled { cursor: not-allowed; }
+.jp-row:disabled .jp-price:not(.done) { opacity: .5; }
+.jp-row-icon { display: grid; place-items: center; width: 48px; height: 48px; border: 3px solid var(--ink); background: #d9f0ff; font-size: 1.6rem; }
+.jp-row-main { display: grid; gap: 4px; min-width: 0; }
+.jp-row-top { display: flex; justify-content: space-between; gap: 6px; }
+.jp-lv { font-weight: 700; }
+.jp-lv small { color: var(--ink-soft); }
+.jp-bar { display: block; height: 12px; border: 2px solid var(--ink); background: repeating-linear-gradient(90deg, #eef4f8 0 10px, #e1eaf0 10px 12px); }
+.jp-bar i { display: block; height: 100%; background: repeating-linear-gradient(90deg, #6cc6ff 0 10px, #3fa6e8 10px 12px); }
+.jp-row-next { font-size: .74rem; color: var(--ink-soft); overflow-wrap: anywhere; }
+.jp-price { padding: 6px 10px; border: 3px solid var(--ink); background: #ffe58a; font-weight: 700; white-space: nowrap; }
+.jp-price.done { background: #c8f2d4; }
+.jp-gear { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.jp-item { height: 100%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border: 3px solid var(--ink); background: #fff; text-align: center; box-shadow: 0 4px 0 var(--ink); }
+.jp-item.full { background: #fff6c9; }
+.jp-item-pic { position: relative; display: grid; place-items: center; width: 64px; height: 64px; border: 3px solid var(--ink); background: radial-gradient(circle, #fff 0 40%, #ffe7f0 41% 100%); font-size: 2rem; }
+.jp-plus { position: absolute; right: -10px; bottom: -8px; padding: 0 5px; border: 2px solid var(--ink); background: #ff7aa8; color: #fff; font-size: .8rem; }
+.jp-item-now { font-weight: 700; font-size: .82rem; }
+.jp-item-next, .jp-item-need { font-size: .72rem; color: var(--ink-soft); overflow-wrap: anywhere; }
+.jp-item-need { color: #c0392b; }
+.jp-item-need.ok { color: #2c7a55; }
+.jp-up { margin-top: auto; width: 100%; }
+.jp-drop { font-size: .74rem; }
+@media (max-width: 560px) {
+  .jp-hero { grid-template-columns: 76px minmax(0, 1fr); padding: 8px; }
+  .jp-hero-pic { height: 76px; }
+  .jp-hero-pic img { width: 64px; height: 64px; }
+  .jp-gear { grid-template-columns: 1fr; }
+  .jp-item { display: grid; grid-template-columns: 64px minmax(0, 1fr); text-align: left; column-gap: 10px; align-items: center; }
+  .jp-item-pic { grid-row: span 5; }
+  .jp-up { grid-column: 1 / -1; }
+}

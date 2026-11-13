@@ -156,6 +156,6 @@ export const CHAPTERS: Chapter[] = [
 export const MAX_CHAPTER = CHAPTERS.length;
 export const chapterOf = (n: number | undefined): Chapter => CHAPTERS[Math.min(MAX_CHAPTER, Math.max(1, n ?? 1)) - 1]!;
 // 몬스터가 장마다 30%씩 세져요(체력·공격력). 동전도 그만큼 더 줘요.
-export const chapterPower = (n: number | undefined) => 1 + 0.3 * (Math.min(MAX_CHAPTER, Math.max(1, n ?? 1)) - 1);
+export const chapterPower = (n: number | undefined) => 1 + 0.45 * (Math.min(MAX_CHAPTER, Math.max(1, n ?? 1)) - 1);
 export const chapterLevels = (n: number) => `Lv.${(n - 1) * 20 + 1}~${n * 20}`;
 export const BOSS_KEYS = new Set(CHAPTERS.map((c) => c.boss.key));
