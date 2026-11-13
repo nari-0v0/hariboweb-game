@@ -86,8 +86,8 @@ import { activeHand, betChips, betTooSoon, claimDaily, expireHand, gambleAccount
 import { prefetchAllowed } from './prefetch';
 import { EscapePage } from './views/escape';
 import { JourneyPage } from './views/journey';
-import { activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from './journey-db';
-import { GEAR, PERKS, type GearId, type PerkId } from './journey';
+import { NO_COINS, activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from './journey-db';
+import { GEAR, PERKS, cleanKit, type GearId, type PerkId } from './journey';
 import { activeEscape, actEscapeRun, beginEscape, escapeOpen, escapeRecord, getEscape, quitEscape } from './escape-db';
 import { escCase } from './escape';
 
@@ -932,8 +932,10 @@ members.get('/expedition/go', async (c) => {
 members.post('/api/journey/start', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
   try {
-    const ch = Number((await c.req.parseBody()).ch ?? 1);
-    const id = await beginJourney(c.env.DB, c.get('viewer').user_id, Number.isSafeInteger(ch) && ch >= 1 ? ch : 1);
+    const body = await c.req.parseBody({ all: true });
+    const ch = Number(Array.isArray(body.ch) ? body.ch[0] : (body.ch ?? 1));
+    const id = await beginJourney(c.env.DB, c.get('viewer').user_id, Number.isSafeInteger(ch) && ch >= 1 ? ch : 1, new Date(), cleanKit(body.kit));
+    if (id === NO_COINS) return c.redirect('/expedition/go?n=kitcoins', 303);
     return c.redirect(id ? '/expedition/go#now' : '/expedition/go?n=bad', 303);
   } catch (e) {
     console.error('원정 시작 실패', e);

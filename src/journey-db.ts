@@ -1,7 +1,7 @@
 import { kstDay } from './db';
 import { MAX_CHAPTER } from './journey-chapters';
 import { dogamProgress, journeyOpenTo } from './unlock';
-import { DAILY_REWARD_JOURNEYS, FIRST_CLEAR_BONUS, GEAR_MAX, NO_GEAR, gearNeed, type Gear, type GearId, NO_PERKS, PERKS, perkMax, actJourney, bankRate, decodeJourney, journeyJelly, journeyXp, perkCost, startJourney, type JourneyAction, type JourneyState, type PerkId, type Perks } from './journey';
+import { DAILY_REWARD_JOURNEYS, FIRST_CLEAR_BONUS, GEAR_MAX, NO_GEAR, gearNeed, type Gear, type GearId, NO_PERKS, PERKS, perkMax, actJourney, bankRate, decodeJourney, journeyJelly, journeyXp, perkCost, startJourney, kitCost, type KitId, type JourneyAction, type JourneyState, type PerkId, type Perks } from './journey';
 
 export type JourneyRow = { id: string; user_id: string; state: string; rev: number; status: string; day: number; cleared: number; xp: number; jelly: number; reward_day: string | null };
 export type JourneyRun = { row: JourneyRow; state: JourneyState };
@@ -18,19 +18,27 @@ export async function getJourney(db: D1Database, user: string, id: string): Prom
   return decode(await db.prepare('SELECT * FROM journey_runs WHERE user_id = ? AND id = ?').bind(user, id).first<JourneyRow>());
 }
 
-export type JourneyRecord = { best: number; clears: number; rewardedToday: number; farmedToday: number; unlocked: number }; // unlocked = 대장을 깨서 열린 가장 높은 장
+export type JourneyRecord = { best: number; clears: number; rewardedToday: number; farmed: Record<number, number>; unlocked: number }; // farmed: 장마다 이미 깬 뒤 다시 돈 판 수(평생) // unlocked = 대장을 깨서 열린 가장 높은 장
 export async function journeyRecord(db: D1Database, user: string, day = kstDay()): Promise<JourneyRecord> {
   const r = await db
     .prepare(
       `SELECT COALESCE(MAX((chapter - 1) * 20 + day), 0) AS best, COALESCE(SUM(cleared), 0) AS clears,
          COALESCE(MAX(CASE WHEN cleared = 1 THEN chapter ELSE 0 END), 0) AS top,
-         COALESCE(SUM(CASE WHEN reward_day = ?2 AND xp > 0 THEN 1 ELSE 0 END), 0) AS today,
-         COALESCE(SUM(CASE WHEN reward_day = ?2 AND json_extract(state, '$.farm') = 1 THEN 1 ELSE 0 END), 0) AS played
+         COALESCE(SUM(CASE WHEN reward_day = ?2 AND xp > 0 THEN 1 ELSE 0 END), 0) AS today
        FROM journey_runs WHERE user_id = ?1 AND status = 'done'`,
     )
     .bind(user, day)
-    .first<{ best: number; clears: number; today: number; played: number; top: number }>();
-  return { best: r?.best ?? 0, clears: r?.clears ?? 0, rewardedToday: r?.today ?? 0, farmedToday: r?.played ?? 0, unlocked: Math.min(MAX_CHAPTER, (r?.top ?? 0) + 1) };
+    .first<{ best: number; clears: number; today: number; top: number }>();
+  return { best: r?.best ?? 0, clears: r?.clears ?? 0, rewardedToday: r?.today ?? 0, farmed: await farmedByChapter(db, user), unlocked: Math.min(MAX_CHAPTER, (r?.top ?? 0) + 1) };
+}
+
+// 장마다 이미 깬 뒤 다시 돈 판 수(날짜와 상관없이 전부)
+export async function farmedByChapter(db: D1Database, user: string): Promise<Record<number, number>> {
+  const rows = await db
+    .prepare("SELECT chapter, COUNT(*) AS n FROM journey_runs WHERE user_id = ?1 AND status = 'done' AND json_extract(state, '$.farm') = 1 GROUP BY chapter")
+    .bind(user)
+    .all<{ chapter: number; n: number }>();
+  return Object.fromEntries((rows.results ?? []).map((x) => [x.chapter, x.n]));
 }
 
 // 강화 주머니(모은 동전 + 훈련 단계 + 장비 단계 + 장마다 모은 재료)
@@ -85,26 +93,42 @@ export async function buyPerk(db: D1Database, user: string, id: PerkId, now = ne
 }
 
 // 새 원정. 하던 원정이 있으면 그걸 이어가요. 지금 있는 멤버만 떠날 수 있어요.
-export async function beginJourney(db: D1Database, user: string, chapter = 1, now = new Date()): Promise<string | null> {
+// 출발 준비물이 있으면 그 값을 강화 주머니에서 빼고 떠나요(젤코인이 모자라면 NO_COINS).
+export const NO_COINS = 'nocoins';
+export async function beginJourney(db: D1Database, user: string, chapter = 1, now = new Date(), kit: KitId[] = []): Promise<string | null> {
   const going = await activeJourney(db, user);
   if (going) return going.row.id;
   // 앞 장을 깼고(unlocked), 도감 조건도 채운 장까지만 떠날 수 있어요.
   const [record, dogam] = await Promise.all([journeyRecord(db, user), dogamProgress(db, user)]);
-  const ch = Math.min(chapter, record.unlocked, journeyOpenTo(dogam));
+  const level = Math.min(record.unlocked, journeyOpenTo(dogam));
+  const ch = Math.min(chapter, level);
   if (!Number.isSafeInteger(ch) || ch < 1) return null;
   const id = crypto.randomUUID();
   const t = now.toISOString();
   const bank = await journeyBank(db, user);
-  const state = startJourney(id, bank, ch, bank);
+  const cost = kitCost(kit, level);
+  if (cost > bank.coins) return NO_COINS;
+  const state = startJourney(id, bank, ch, bank, kit);
   state.farm = ch < record.unlocked; // 이미 깬 장(재료가 덜 나와요)
-  await db
-    .prepare(
-      `INSERT OR IGNORE INTO journey_runs (id, user_id, state, started_at, updated_at, chapter)
-       SELECT ?1, ?2, ?3, ?4, ?4, ?5 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)`,
-    )
-    .bind(id, user, JSON.stringify(state), t, ch)
-    .run();
-  return (await activeJourney(db, user))?.row.id ?? null;
+  const insert = (paid: string) =>
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO journey_runs (id, user_id, state, started_at, updated_at, chapter)
+         SELECT ?1, ?2, ?3, ?4, ?4, ?5 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)${paid}`,
+      )
+      .bind(id, user, JSON.stringify(state), t, ch);
+  if (cost > 0) {
+    // 젤코인이 넉넉할 때만 판을 만들고, 만들어진 판이 있을 때만 젤코인을 빼요(한 번에 처리).
+    await db.batch([
+      insert(` AND (SELECT coins FROM journey_bank WHERE user_id = ?2) >= ${cost}`),
+      db
+        .prepare(`UPDATE journey_bank SET coins = coins - ?2, updated_at = ?3 WHERE user_id = ?1 AND EXISTS (SELECT 1 FROM journey_runs WHERE id = ?4 AND user_id = ?1)`)
+        .bind(user, cost, t, id),
+    ]);
+  } else await insert('').run();
+  const now2 = await activeJourney(db, user);
+  if (!now2 && cost > 0) return NO_COINS;
+  return now2?.row.id ?? null;
 }
 
 export async function quitJourney(db: D1Database, user: string, id: string): Promise<boolean> {
@@ -123,14 +147,14 @@ export async function actJourneyRun(db: D1Database, user: string, id: string, re
   let top = 0;
   if (s.done) {
     // 아직 못 깬 장(도전 중)은 죽든 이기든 젤코인이 다 모여요.
-    // 이미 대장을 깬 장을 다시 도는 판(파밍)만 오늘(한국 날짜) 파밍한 판 수에 따라 줄어요.
+    // 이미 대장을 깬 장을 다시 도는 판(파밍)만 그 장을 다시 돈 판 수(날짜와 상관없이)에 따라 줄어요.
     const r = await db
       .prepare(
         `SELECT COALESCE(MAX(CASE WHEN cleared = 1 THEN chapter ELSE 0 END), 0) AS top,
-           COALESCE(SUM(CASE WHEN reward_day = ?2 AND json_extract(state, '$.farm') = 1 THEN 1 ELSE 0 END), 0) AS farmed
+           COALESCE(SUM(CASE WHEN chapter = ?2 AND json_extract(state, '$.farm') = 1 THEN 1 ELSE 0 END), 0) AS farmed
          FROM journey_runs WHERE user_id = ?1 AND status = 'done'`,
       )
-      .bind(user, kstDay(now))
+      .bind(user, s.ch ?? 1)
       .first<{ top: number; farmed: number }>();
     top = r?.top ?? 0;
     s.farm = (s.ch ?? 1) <= top;
@@ -150,7 +174,7 @@ export async function actJourneyRun(db: D1Database, user: string, id: string, re
            status = CASE WHEN ?6 THEN 'done' ELSE 'going' END, ended_at = CASE WHEN ?6 THEN ?5 ELSE NULL END,
            reward_day = CASE WHEN ?6 THEN ?7 ELSE NULL END,
            xp = CASE WHEN ?6 AND ${room} THEN ?8 ELSE 0 END,
-           jelly = CASE WHEN ?6 AND ${room} THEN ?9 ELSE 0 END
+           jelly = CASE WHEN ?6 THEN ?9 ELSE 0 END
          WHERE id = ?1 AND user_id = ?2 AND rev = ?12 AND status = 'going'
            AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)`,
       )
@@ -172,7 +196,7 @@ export async function actJourneyRun(db: D1Database, user: string, id: string, re
       db
         .prepare(
           `INSERT INTO profiles (user_id, solo_xp, dogam_jelly, updated_at)
-           SELECT user_id, xp, jelly, ?3 FROM journey_runs WHERE id = ?1 AND mutation = ?2 AND xp > 0
+           SELECT user_id, xp, jelly, ?3 FROM journey_runs WHERE id = ?1 AND mutation = ?2 AND (xp > 0 OR jelly > 0)
            ON CONFLICT (user_id) DO UPDATE SET solo_xp = COALESCE(profiles.solo_xp, 0) + excluded.solo_xp,
              dogam_jelly = COALESCE(profiles.dogam_jelly, 0) + excluded.dogam_jelly, updated_at = excluded.updated_at`,
         )

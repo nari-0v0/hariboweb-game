@@ -3,14 +3,15 @@
 // 레벨이 오르면 스킬 3개 중 하나를 고르고, 10일째 강한 적, 20일째 보스를 이기면 원정 성공이에요.
 // 모든 무작위는 판 씨앗(seed)과 날짜로 정해져서, 서버가 같은 입력에 늘 같은 결과를 내요.
 import { rng } from './rng';
-import { chapterAtk, chapterOf, chapterPower, type Monster } from './journey-chapters';
+import { MAX_CHAPTER, chapterAtk, chapterOf, chapterPower, type Monster } from './journey-chapters';
 
 export const DAYS = 20;
 export const ELITE_DAY = 10;
 export const DAILY_REWARD_JOURNEYS = 2; // 하루 첫 2판만 보상
 export const journeyXp = (day: number, cleared: boolean, ch = 1) => (cleared ? 12 + 3 * (ch - 1) : Math.min(10, 2 + Math.floor(day / 2)) + (ch - 1));
-// 도감 젤리는 내가 깬 가장 높은 장(또는 처음 깨는 장)의 대장을 이겼을 때만 줘요. 낮은 장을 쉽게 돌아 젤리를 모으지 못하게(나리 2026-11-13).
-export const journeyJelly = (cleared: boolean, ch = 1, top = 0) => (cleared && ch >= top ? 1 : 0);
+// 도감 젤리는 원정대를 끝까지(마지막 장 대장을 처음) 깼을 때 한 번만 10개 줘요. 그 전에는 주지 않아요(나리 2026-11-13).
+export const JOURNEY_FINISH_JELLY = 10;
+export const journeyJelly = (cleared: boolean, ch = 1, top = 0) => (cleared && ch >= MAX_CHAPTER && top < MAX_CHAPTER ? JOURNEY_FINISH_JELLY : 0);
 
 export type SkillId = 'power' | 'vital' | 'guard' | 'leech' | 'crit' | 'spark' | 'shield' | 'mend' | 'thorn' | 'lucky';
 export const SKILLS: Record<SkillId, { name: string; icon: string; text: (lv: number) => string; max: number }> = {
@@ -79,6 +80,9 @@ export type JourneyState = {
   done: boolean;
   cleared: boolean;
   fx?: BattleFx; // 마지막 행동에서 싸웠으면 그 싸움
+  kit?: KitId[]; // 출발 준비물(이번 판에만)
+  kitShield?: number; // 튼튼 방패로 절반만 맞을 남은 횟수
+  potion?: number; // 남은 회복 물약
 };
 // next = 하루, auto = 고를 일이 생길 때까지, idle = 자동 선택(고를 일이 있으면 알아서 고르고, 없으면 하루 나아가요)
 export type JourneyAction = { a: 'next' } | { a: 'auto' } | { a: 'idle' } | { a: 'pick'; n: number } | { a: 'buy'; n: number } | { a: 'leave' };
@@ -96,9 +100,10 @@ export const PERKS: Record<PerkId, { name: string; icon: string; per: number; ma
 };
 export const PERK_IDS = Object.keys(PERKS) as PerkId[];
 // 젤코인 파밍 막기(나리 2026-11-13): 아직 못 깬 장은 언제나 100%.
-// 이미 깬 장을 다시 돌면 하루에 파밍한 판 수로 줄어요: 첫 판 100%, 두 번째 50%, 세 번째 25%, 그 뒤 0%.
-export const BANK_RATES = [100, 50, 25, 0];
-export const bankRate = (farmedToday: number) => BANK_RATES[Math.min(Math.max(0, farmedToday), BANK_RATES.length - 1)]!;
+// 이미 깬 장을 다시 돌면 그 장을 다시 돈 횟수에 따라 100% → 75% → 50% → 25% → 10%. 날이 바뀌어도 다시 오르지 않아요.
+// 0%까지 내리면 장비 강화 젤코인이 모자라 막혀서, 맨 끝은 10%로 남겨요.
+export const BANK_RATES = [100, 75, 50, 25, 10];
+export const bankRate = (farmed: number) => BANK_RATES[Math.min(Math.max(0, farmed), BANK_RATES.length - 1)]!;
 export const perkCost = (lv: number) => 20 + lv * 15; // 지금 단계에서 다음 단계로 가는 값
 
 // 장비 강화(나리 2026-11-13): 훈련은 젤코인으로 조금씩, 장비는 장마다 나오는 재료로 한 단계씩 크게.
@@ -142,12 +147,31 @@ export const FARM_DROP = 0.4;
 // 열린 장이 늘수록 훈련 한도가 늘어요(열린 장 하나마다 처음 한도의 절반씩). 열린 장 = 앞 장을 깼고 도감 조건도 채운 장.
 export const perkMax = (id: PerkId, unlocked: number) => PERKS[id].max + Math.floor(PERKS[id].max * 0.3) * (Math.max(1, unlocked) - 1);
 
-export function startJourney(seed: string, perks: Perks = NO_PERKS, ch = 1, gear: Partial<Gear> = NO_GEAR): JourneyState {
+// 출발 준비물(나리 2026-11-13): 떠나기 전에 젤코인으로 사서 그 판에만 써요. 훈련·장비를 다 채운 뒤에도 젤코인을 쓸 곳.
+// 값은 지금 갈 수 있는 가장 높은 장만큼 비싸져요(몬스터가 주는 젤코인이 늘어나는 만큼).
+export type KitId = 'potion' | 'shield' | 'clover';
+export const KIT: Record<KitId, { name: string; icon: string; text: string; base: number }> = {
+  potion: { name: '회복 물약', icon: '🧪', text: '체력이 30% 아래로 떨어지면 한 번, 최대 체력의 40%를 채워요.', base: 60 },
+  shield: { name: '튼튼 방패', icon: '🛡️', text: '처음 맞는 공격 4번은 피해가 절반이에요.', base: 40 },
+  clover: { name: '행운 부적', icon: '🍀', text: '이번 판에 강화 재료가 1.5배 잘 나와요.', base: 50 },
+};
+export const KIT_IDS = Object.keys(KIT) as KitId[];
+export const KIT_SHIELD_HITS = 4;
+export const kitPrice = (id: KitId, level: number) => Math.round(KIT[id].base * chapterPower(level));
+export const kitCost = (kit: KitId[], level: number) => kit.reduce((n, id) => n + kitPrice(id, level), 0);
+export const cleanKit = (v: unknown): KitId[] => {
+  const list = Array.isArray(v) ? v : v === undefined || v === null ? [] : [v];
+  return KIT_IDS.filter((id) => list.includes(id));
+};
+
+export function startJourney(seed: string, perks: Perks = NO_PERKS, ch = 1, gear: Partial<Gear> = NO_GEAR, kit: KitId[] = []): JourneyState {
   const g = (id: GearId) => gearBonus(id, gear[id] ?? 0);
   const maxHp = 100 + PERKS.hp.per * perks.hp + g('charm');
+  const packed = kit.length ? [{ icon: '🎒', text: `준비물: ${kit.map((id) => `${KIT[id].icon} ${KIT[id].name}`).join(', ')}` }] : [];
   return {
+    ...(kit.length ? { kit, kitShield: kit.includes('shield') ? KIT_SHIELD_HITS : 0, potion: kit.includes('potion') ? 1 : 0 } : {}),
     v: 1, seed, ch, day: 0, hp: maxHp, maxHp, atk: 12 + PERKS.atk.per * perks.atk + g('weapon'), def: 2 + PERKS.def.per * perks.def + g('armor'), lv: 1, xp: 0, coins: 10, skills: {}, pending: null, queuedLevels: 0,
-    today: [{ icon: '🎒', text: `${ch}장 ${chapterOf(ch).name}! 가방을 메고 출발해요. "다음 날"을 눌러 나아가요.` }], journal: [], kills: 0, done: false, cleared: false,
+    today: [{ icon: '🎒', text: `${ch}장 ${chapterOf(ch).name}! 가방을 메고 출발해요. "다음 날"을 눌러 나아가요.` }, ...packed], journal: [], kills: 0, done: false, cleared: false,
   };
 }
 
@@ -215,8 +239,18 @@ function battle(s: JourneyState, m: Monster, power: number, r: () => number, lin
       hit = Math.ceil(hit / 2);
       shields--;
     }
+    if ((s.kitShield ?? 0) > 0) {
+      hit = Math.ceil(hit / 2);
+      s.kitShield = (s.kitShield ?? 0) - 1;
+    }
     s.hp -= hit;
     note([1, hit]);
+    if ((s.potion ?? 0) > 0 && s.hp > 0 && s.hp <= st.maxHp * 0.3) {
+      const heal = Math.min(st.maxHp - s.hp, Math.round(st.maxHp * 0.4));
+      s.hp += heal;
+      s.potion = 0;
+      lines.push({ icon: KIT.potion.icon, text: `위험할 때 회복 물약을 마셨어요! 체력 +${heal}`, tone: 'good' });
+    }
     if (sk(s, 'thorn')) mhp -= 3 * sk(s, 'thorn');
   }
   if (s.hp <= 0 || mhp > 0) {
@@ -229,7 +263,7 @@ function battle(s: JourneyState, m: Monster, power: number, r: () => number, lin
   s.kills += 1;
   const coins = gainCoins(s, Math.round((4 + s.day) * power * cp));
   lines.push({ icon: m.emoji, text: `${m.name}${obj(m.name)} ${turns}턴 만에 물리쳤어요! 체력 ${s.hp - start >= 0 ? '+' : ''}${s.hp - start}, 젤코인 +${coins}`, tone: 'good' });
-  if (drop > 0 && rng(`${s.seed}:${s.day}:drop`)() < drop * (s.farm ? FARM_DROP : 1)) {
+  if (drop > 0 && rng(`${s.seed}:${s.day}:drop`)() < drop * (s.farm ? FARM_DROP : 1) * (s.kit?.includes('clover') ? 1.5 : 1)) {
     s.mats = (s.mats ?? 0) + 1;
     const mt = material(s.ch ?? 1);
     lines.push({ icon: mt.icon, text: `강화 재료 ${mt.name}${obj(mt.name)} 주웠어요!`, tone: 'good' });

@@ -21,6 +21,9 @@ import {
   perkCost,
   perkMax,
   bankRate,
+  KIT,
+  KIT_IDS,
+  kitPrice,
   stat,
   xpNeed,
   type BattleFx,
@@ -47,6 +50,7 @@ const NOTICES: Record<string, PopupLine[]> = {
   noperk: [{ title: '알림', text: '젤코인이 모자라거나 이미 끝까지 올렸어요.' }],
   gear: [{ title: '장비 강화 성공!', text: '다음 원정부터 더 강해져요.' }],
   nogear: [{ title: '알림', text: '재료나 젤코인이 모자라요.' }],
+  kitcoins: [{ title: '알림', text: '젤코인이 모자라서 준비물을 살 수 없어요.' }],
   error: [
     { title: '오류', text: '오류가 발생하였습니다.', bad: true },
     { title: '오류', text: '방장에게 문의해주세요.', bad: true, contact: true },
@@ -460,7 +464,7 @@ function Play(props: { run: JourneyRun; art: string; name: string }) {
 
 // 장 고르기: 열린 장만 누를 수 있어요. 기본은 가장 높은 장.
 // 앞 장 대장을 이겨야 하고, 4장부터는 도감 카드도 모아야 열려요(src/unlock.ts).
-function ChapterPick(props: { unlocked: number; dogam: DogamProgress; today: number; again?: boolean }) {
+function ChapterPick(props: { unlocked: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number; again?: boolean }) {
   const pick = Math.min(props.unlocked, journeyOpenTo(props.dogam));
   return (
     <form method="post" action="/api/journey/start" class="jr-chapters">
@@ -479,6 +483,11 @@ function ChapterPick(props: { unlocked: number; dogam: DogamProgress; today: num
               <b>{c.n}장</b>
               <span class="jr-chapter-name">{open ? c.name : c.n <= props.unlocked ? '📖 도감이 필요해요' : '잠겨 있어요'}</span>
               <span class="hint">{chapterLevels(c.n)}</span>
+              {open && c.n < props.unlocked && (
+                <span class="jr-farm" title="이미 깬 장을 다시 돌 때 모이는 젤코인">
+                  🪙 {bankRate(props.farmed[c.n] ?? 0)}%
+                </span>
+              )}
               {need.cards > 0 && (
                 <span class={`jr-need${dogamOk ? ' ok' : ''}`} title={needText(need, props.dogam)}>
                   {dogamOk ? '📖 도감 ✓' : `📖 ${shortNeed(need)}`}
@@ -489,8 +498,30 @@ function ChapterPick(props: { unlocked: number; dogam: DogamProgress; today: num
         })}
       </div>
       <p class="jr-rate">
-        🪙 아직 못 깬 장은 젤코인이 다 모여요. 이미 깬 장을 다시 돌면 오늘 {props.today}판째라 다음 판은 <b>{bankRate(props.today)}%</b>만 모여요 (100% → 50% → 25% → 0%, 내일 다시 100%)
+        🪙 아직 못 깬 장은 젤코인이 다 모여요. 이미 깬 장을 다시 돌면 그 장을 돈 횟수만큼 줄어요: 100% → 75% → 50% → 25% → 10% (날이 바뀌어도 그대로예요).
       </p>
+      <fieldset class="jr-kit">
+        <legend>🎒 출발 준비물 · 이번 판에만 써요</legend>
+        <p class="hint">
+          고르면 떠날 때 젤코인을 내요. 값은 지금 갈 수 있는 가장 높은 장({pick}장) 기준이에요. 가진 젤코인 🪙 {props.coins}
+        </p>
+        <div class="jr-kit-list">
+          {KIT_IDS.map((id) => {
+            const price = kitPrice(id, pick);
+            return (
+              <label class={`jr-kit-item${price > props.coins ? ' poor' : ''}`}>
+                <input type="checkbox" name="kit" value={id} disabled={price > props.coins} />
+                <span class="jr-kit-icon" aria-hidden="true">
+                  {KIT[id].icon}
+                </span>
+                <b>{KIT[id].name}</b>
+                <span class="jr-kit-text">{KIT[id].text}</span>
+                <span class="jr-kit-price">🪙 {price}</span>
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
       <button class="btn btn-primary jr-depart" type="submit">
         🎒 {props.again ? '다시 떠나기' : '원정 떠나기'}
       </button>
@@ -498,7 +529,7 @@ function ChapterPick(props: { unlocked: number; dogam: DogamProgress; today: num
   );
 }
 
-function Result(props: { run: JourneyRun; art: string; name: string; unlocked: number; dogam: DogamProgress; today: number }) {
+function Result(props: { run: JourneyRun; art: string; name: string; unlocked: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number }) {
   const { run } = props;
   const s = run.state;
   return (
@@ -531,7 +562,7 @@ function Result(props: { run: JourneyRun; art: string; name: string; unlocked: n
           ? `보상: 내 카드 경험치 +${run.row.xp}${run.row.jelly ? `, 도감 젤리 +${run.row.jelly}` : ''}`
           : `오늘 보상은 이미 ${DAILY_REWARD_JOURNEYS}번 받았어요. 내일 다시 받을 수 있어요.`}
       </p>
-      <ChapterPick unlocked={props.unlocked} dogam={props.dogam} today={props.today} again />
+      <ChapterPick unlocked={props.unlocked} dogam={props.dogam} farmed={props.farmed} coins={props.coins} again />
     </section>
   );
 }
@@ -775,13 +806,13 @@ export function JourneyPage(props: {
               </p>
               <p>장이 올라갈수록 몬스터 레벨이 20씩 올라가요(1장 Lv.1~20, 2장 Lv.21~40…).</p>
               <p>
-                하루 첫 {DAILY_REWARD_JOURNEYS}판은 끝날 때 내 카드 경험치를 받고(멀리 갈수록, 높은 장일수록 많이), 내가 깬 가장 높은 장(또는 처음 깨는 장)의 대장을 이기면 도감 젤리 1개도 받아요. 남은
+                하루 첫 {DAILY_REWARD_JOURNEYS}판은 끝날 때 내 카드 경험치를 받고(멀리 갈수록, 높은 장일수록 많이), 원정대를 끝까지(9장 대장까지) 처음 깨면 도감 젤리 10개를 받아요. 남은
                 젤코인과 강화 재료는 원정 준비소에 모여요.
               </p>
             </div>
           </details>
         </div>
-        {run ? <Play run={run} art={props.art} name={name} /> : result ? <Result run={result} art={props.art} name={name} unlocked={record.unlocked} dogam={props.dogam} today={record.farmedToday} /> : null}
+        {run ? <Play run={run} art={props.art} name={name} /> : result ? <Result run={result} art={props.art} name={name} unlocked={record.unlocked} dogam={props.dogam} farmed={record.farmed} coins={props.bank.coins} /> : null}
         {!run && !result && (
           <section class="jr-game jr-lobby" id="now">
             <div class="jr-lobby-stage" style={`--jr-bg:url(/journey/bg/${zoneFor(1)}.webp)`}>
@@ -799,7 +830,7 @@ export function JourneyPage(props: {
               </div>
             </div>
             <h2 class="jr-pick-title">어느 장으로 떠날까요?</h2>
-            <ChapterPick unlocked={record.unlocked} dogam={props.dogam} today={record.farmedToday} />
+            <ChapterPick unlocked={record.unlocked} dogam={props.dogam} farmed={record.farmed} coins={props.bank.coins} />
           </section>
         )}
         <PerkPanel bank={props.bank} going={!!run} unlocked={Math.min(record.unlocked, journeyOpenTo(props.dogam))} art={props.art} name={name} tab={prepTab(props.prep)} />

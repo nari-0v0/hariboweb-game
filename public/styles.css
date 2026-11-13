@@ -2282,3 +2282,22 @@ main.wide { max-width: 1320px; }
   .jp-item-pic { grid-row: span 5; }
   .jp-up { grid-column: 1 / -1; }
 }
+
+/* 원정대 출발 준비물 */
+.jr-farm { font-size: .7rem; font-weight: 700; color: var(--ink-soft); }
+.jr-kit { display: grid; gap: 8px; margin: 0; padding: 10px; border: 3px solid var(--ink); background: #fbfdff; color: var(--ink); min-width: 0; }
+.jr-kit legend { padding: 2px 8px; border: 3px solid var(--ink); background: #ffe58a; color: var(--ink); font-weight: 700; }
+.jr-kit .hint { color: var(--ink-soft); }
+.jr-kit-item { color: var(--ink); }
+.jr-kit .hint { margin: 0; }
+.jr-kit-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.jr-kit-item { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "icon name price" "icon text text"; column-gap: 8px; row-gap: 2px; align-items: center; padding: 8px 10px; border: 3px solid var(--ink); background: var(--paper); cursor: pointer; box-shadow: 0 3px 0 var(--ink); }
+.jr-kit-item:has(input:checked) { background: #ffe58a; }
+.jr-kit-item.poor { opacity: .55; cursor: not-allowed; }
+.jr-kit-item input { position: absolute; opacity: 0; pointer-events: none; }
+.jr-kit-item:has(input:focus-visible) { outline: 3px solid #3a8dde; outline-offset: 2px; }
+.jr-kit-icon { grid-area: icon; font-size: 1.6rem; }
+.jr-kit-item b { grid-area: name; }
+.jr-kit-price { grid-area: price; font-weight: 700; white-space: nowrap; }
+.jr-kit-text { grid-area: text; font-size: .74rem; color: var(--ink-soft); word-break: keep-all; overflow-wrap: anywhere; }
+@media (max-width: 760px) { .jr-kit-list { grid-template-columns: 1fr; } }
