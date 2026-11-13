@@ -552,6 +552,15 @@ export const PREP_TABS: { id: PrepTab; icon: string; name: string }[] = [
 ];
 export const prepTab = (v: string | undefined): PrepTab | null => (PREP_TABS.some((t) => t.id === v) ? (v as PrepTab) : null);
 
+const PaneTitle = (props: { id: PrepTab }) => {
+  const t = PREP_TABS.find((x) => x.id === props.id)!;
+  return (
+    <h3 class="jp-pane-title">
+      <span aria-hidden="true">{t.icon}</span> {t.name}
+    </h3>
+  );
+};
+
 function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number; art: string; name: string; tab: PrepTab | null }) {
   const { bank } = props;
   const later = props.going ? '지금 원정이 끝난 뒤 ' : '';
@@ -620,6 +629,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
       )}
       {props.tab === 'bag' && (
         <div class="jp-pane">
+          <PaneTitle id="bag" />
           <p class="hint">장마다 나오는 강화 재료예요. 장비를 올릴 때 써요.</p>
       <div class="jp-bag">
         {MATERIALS.map((m, i) => {
@@ -642,6 +652,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
       )}
       {props.tab === 'train' && (
         <div class="jp-pane">
+          <PaneTitle id="train" />
           <p class="hint">젤코인으로 시작 능력치를 올려요. 열린 장이 늘수록 한도가 커져요.</p>
       <div class="jp-train">
         {PERK_IDS.map((id) => {
@@ -681,6 +692,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
       )}
       {props.tab === 'gear' && (
         <div class="jp-pane">
+          <PaneTitle id="gear" />
           <p class="hint">+N으로 올리려면 N장 재료와 젤코인이 들어요. 장을 깰수록 차례로 강해져요.</p>
       <div class="jp-gear">
         {GEAR_IDS.map((id) => {

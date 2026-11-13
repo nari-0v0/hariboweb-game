@@ -51,6 +51,7 @@ describe('원정 준비소 탭', () => {
     expect(bag).toContain('href="?#perks"');
     const gear = await render('gear');
     expect(gear).toContain('/api/journey/gear');
+    expect(gear).toMatch(/jp-pane-title[^<]*<span[^>]*>⚒️<\/span> 장비 강화/);
     expect(gear).not.toContain('jp-bag');
     const train = await render('train');
     expect(train).toContain('/api/journey/perk');
