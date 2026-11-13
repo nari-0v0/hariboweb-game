@@ -36,7 +36,7 @@ const CARD_RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q',
 // 나리가 그린 게임별 배경: 게임 방은 정사각형(room), 로비의 게임 고르기 칸은 가로로 긴 그림(lobby).
 // 게임 방에서 제일 크게 보이는 그림(먼저 받기 시작해요).
 const MAIN_ART: Record<Game, string> = { slot: 'slotFrame', roulette: 'wheel', cards: 'cardBack', coinflip: 'coinHeads' };
-const gameBackground = (game: Game, kind: 'room' | 'lobby') => `/gamble/bg/${game}-${kind}.webp?v=2`;
+const gameBackground = (game: Game, kind: 'room' | 'lobby') => `/gamble/bg/${game}-${kind}.webp?v=${game === 'coinflip' ? 3 : 2}`;
 
 function ArtLayer({ name }: { name: string }) {
   const image = GAMBLE_ART[name]?.image;
