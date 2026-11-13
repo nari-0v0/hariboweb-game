@@ -8,8 +8,8 @@ export function PlazaPage(props: { viewer: Member; guildId: string }) {
       <section class="plaza-head">
         <h1>광장</h1>
         <p class="muted">
-          같이 돌아다녀요. 통화방 구역에 들어가서 멈추면 디스코드 통화방도 그 방으로 옮겨 드려요. 통화방 채팅은 말풍선으로
-          떠요.
+          같이 돌아다녀요. 디스코드 통화 중일 때 통화방 구역에 들어가서 멈추면 디스코드 통화방도 그 방으로 옮겨 드려요. 통화방
+          채팅은 말풍선으로 떠요.
         </p>
         <p class="muted">
           움직이기: 가고 싶은 곳을 클릭(휴대폰은 터치)하거나, 키보드 방향키·WASD로 걸어요. 아래 통화방 목록을 누르면 그 방으로 걸어가요.
@@ -25,7 +25,6 @@ export function PlazaPage(props: { viewer: Member; guildId: string }) {
         통화방 <span class="plaza-list-tip">목록을 누르면 그 방으로 들어가요</span>
       </h2>
       <div class="plaza-rooms" id="plaza-rooms"></div>
-      <p class="hint plaza-help">컴퓨터: 방향키나 WASD, 또는 가고 싶은 곳 클릭 · 휴대폰: 가고 싶은 곳을 톡 · 통화방 목록을 눌러도 그 방으로 걸어가요</p>
       <div class="plaza-toast" id="plaza-toast" role="alert" hidden>
         <span id="plaza-toast-text"></span>
         <a class="btn btn-small btn-discord" id="plaza-toast-link" href="#" hidden>
