@@ -551,7 +551,6 @@ main.wide { max-width: 1320px; }
   content: ''; position: absolute; left: 50%; bottom: -9px; width: 8px; height: 6px; translate: -50% 0;
   background: var(--ink); clip-path: polygon(0 0, 100% 0, 50% 100%);
 }
-.plaza-help { margin: 8px 2px 0; }
 .plaza-toast {
   position: fixed; left: 50%; bottom: 20px; translate: -50% 0; z-index: 50; width: min(92vw, 460px);
   display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; text-align: center;
