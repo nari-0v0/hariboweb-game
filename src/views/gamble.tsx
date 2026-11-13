@@ -9,7 +9,7 @@ import { PodiumBoard } from './podium';
 const GAMES: Record<Game, string> = { slot: '슬롯', roulette: '배수 룰렛', cards: '카드 21(블랙잭)', coinflip: '동전 던지기' };
 const DESCRIPTIONS: Record<Game, string> = {
   slot: '릴 세 개에서 같은 그림을 맞춰요.',
-  coinflip: '곰과 발바닥 중 나올 면을 맞혀요.',
+  coinflip: '곰과 발바닥 중 나올 면을 맞혀요. 확률 50%, 맞히면 2.05배.',
   roulette: '바늘이 멈춘 칸의 배수를 받아요.',
   cards: '21을 넘기지 않고 딜러보다 가까우면 이겨요.',
 };
@@ -242,7 +242,7 @@ function GameRules({ game }: { game: Game }) {
         </>
       )}
       {game === 'roulette' && <p>1배는 본전이고, 0.5배·1.5배는 받을 젤칩을 내림해요. 나올 확률: {ROULETTE.map(({ payout, count }) => `${payout}배 ${count}%`).join(' · ')}</p>}
-      {game === 'coinflip' && <p>곰과 발바닥이 나올 확률은 반반이에요. 맞히면 {COIN_PAYOUT}배(받을 젤칩은 내림), 틀리면 건 젤칩을 잃어요.</p>}
+      {game === 'coinflip' && <p>곰과 발바닥이 나올 확률은 50%씩이에요. 맞히면 {COIN_PAYOUT}배, 틀리면 건 젤칩을 잃어요.</p>}
       {game === 'cards' && <p>딜러는 17점부터 멈춰요. 승리 2배 · 첫 두 장으로 21을 만들어 이기면 3배 · 비기면 1배</p>}
     </details>
   );
