@@ -86,7 +86,7 @@ import { activeHand, betChips, betTooSoon, claimDaily, expireHand, gambleAccount
 import { prefetchAllowed } from './prefetch';
 import { EscapePage } from './views/escape';
 import { JourneyPage } from './views/journey';
-import { NO_COINS, activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from './journey-db';
+import { NO_COINS, STALE_PICK, activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from './journey-db';
 import { GEAR, PERKS, cleanKit, type GearId, type PerkId } from './journey';
 import { activeEscape, actEscapeRun, beginEscape, escapeOpen, escapeRecord, getEscape, quitEscape } from './escape-db';
 
@@ -931,8 +931,10 @@ members.post('/api/journey/start', async (c) => {
   try {
     const body = await c.req.parseBody({ all: true });
     const ch = Number(Array.isArray(body.ch) ? body.ch[0] : (body.ch ?? 1));
-    const id = await beginJourney(c.env.DB, c.get('viewer').user_id, Number.isSafeInteger(ch) && ch >= 1 ? ch : 1, new Date(), cleanKit(body.kit));
+    const shown = Number(Array.isArray(body.kl) ? body.kl[0] : body.kl);
+    const id = await beginJourney(c.env.DB, c.get('viewer').user_id, Number.isSafeInteger(ch) && ch >= 1 ? ch : 1, new Date(), cleanKit(body.kit), Number.isSafeInteger(shown) ? shown : undefined);
     if (id === NO_COINS) return c.redirect('/expedition/go?n=kitcoins', 303);
+    if (id === STALE_PICK) return c.redirect('/expedition/go?n=stalepick', 303);
     return c.redirect(id ? '/expedition/go#now' : '/expedition/go?n=bad', 303);
   } catch (e) {
     console.error('원정 시작 실패', e);
@@ -994,9 +996,10 @@ members.post('/api/journey/gear', async (c) => {
 });
 members.post('/api/journey/quit', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  const id = String((await c.req.parseBody()).run ?? '');
-  const ok = JR_ID.test(id) && (await quitJourney(c.env.DB, c.get('viewer').user_id, id));
-  return c.redirect(ok ? '/expedition/go?n=quit' : '/expedition/go', 303);
+  const body = await c.req.parseBody();
+  const id = String(body.run ?? ''), rev = Number(body.rev);
+  const ok = JR_ID.test(id) && (await quitJourney(c.env.DB, c.get('viewer').user_id, id, Number.isSafeInteger(rev) ? rev : undefined));
+  return c.redirect(ok ? '/expedition/go?n=quit' : '/expedition/go?n=stale', 303);
 });
 
 // 하리보 사건파일 (방탈출판): 물건을 눌러 찾고 퍼즐을 풀어요.
@@ -1074,9 +1077,10 @@ members.post('/api/escape/act', async (c) => {
 });
 members.post('/api/escape/quit', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  const id = String((await c.req.parseBody()).run ?? '');
-  const ok = ESC_ID.test(id) && (await quitEscape(c.env.DB, c.get('viewer').user_id, id));
-  return c.redirect(ok ? '/cases/room?n=quit' : '/cases/room', 303);
+  const body = await c.req.parseBody();
+  const id = String(body.run ?? ''), rev = Number(body.rev);
+  const ok = ESC_ID.test(id) && (await quitEscape(c.env.DB, c.get('viewer').user_id, id, Number.isSafeInteger(rev) ? rev : undefined));
+  return c.redirect(ok ? '/cases/room?n=quit' : '/cases/room?n=stale', 303);
 });
 
 // 예전 사건파일·원정대 주소는 지금 게임으로 보내요(옛 게임과 보상은 없앴어요).
@@ -1140,7 +1144,8 @@ members.get('/bingo', (c) => bingoPage(c));
 // 순위 메뉴: 도감·빙고(젤리피)·원정대·사건파일·겜블장 1~3위와 내 순위
 members.get('/rank', async (c) => {
   const viewer = c.get('viewer');
-  return page(c, <RankPage viewer={viewer} ranks={await loadRankings(c.env.DB, viewer.user_id, Date.now())} tab={rankTab(c.req.query('g'))} />);
+  const tab = rankTab(c.req.query('g'));
+  return page(c, <RankPage viewer={viewer} ranks={await loadRankings(c.env.DB, viewer.user_id, Date.now(), tab)} tab={tab} />);
 });
 
 // 같이 배정되지 않기 신청. 다시 물어야 하면 적은 내용을 그대로 두고 화면을 다시 보여 줘요.

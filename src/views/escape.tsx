@@ -567,6 +567,7 @@ function Play(props: { run: EscRun; art: string; name: string }) {
           <span class="hint">물건을 눌러 살펴보세요. 방 곳곳을 누르면 숨은 힌트 동전이 있어요.</span>
           <form method="post" action="/api/escape/quit">
             <input type="hidden" name="run" value={run.row.id} />
+            <input type="hidden" name="rev" value={String(run.row.rev)} />
             <button class="btn btn-small btn-ghost" type="submit">
               사건 덮기
             </button>

@@ -159,6 +159,7 @@ describe('줄 보상', () => {
     const p = fallbackWeek(NOW);
     sql.prepare("INSERT OR IGNORE INTO seasons (id, starts_at, ends_at, created_at) VALUES ('s1', ?, ?, 'x')").run(p.start, p.end);
     sql.prepare("INSERT INTO season_members (season_id, user_id, group_no, start_member, joined_at) VALUES ('s1', ?, 0, 1, 'x')").run(id);
+    sql.prepare("INSERT OR IGNORE INTO server_quest (season_id, newbies, target, created_at) VALUES ('s1', 0, 1, 'x')").run();
     sql.prepare("INSERT INTO team_pairs (season_id, group_no, a, b) VALUES ('s1', 0, ?, ?)").run(id, others[0]);
     sql.prepare("INSERT INTO gq_pair (season_id, group_no, a, b, minutes) VALUES ('s1', 0, ?, ?, 30)").run(id, others[0]);
   }

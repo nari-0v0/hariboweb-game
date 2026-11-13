@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { DAYS, journeyJelly, KIT_SHIELD_HITS, kitCost, actJourney, autoChoice, decodeJourney, journeyXp, perkMax, gearBonus, FIRST_CLEAR_BONUS, startJourney, stat, type JourneyState } from '../src/journey';
-import { NO_COINS, actJourneyRun, activeJourney, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from '../src/journey-db';
+import { NO_COINS, STALE_PICK, actJourneyRun, activeJourney, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from '../src/journey-db';
 
 function database() {
   const sql = new DatabaseSync(':memory:');
@@ -341,7 +341,10 @@ describe('원정대 장(챕터)', () => {
   });
   it('열린 장까지만 떠날 수 있고, 장을 깨면 다음 장이 열려요', async () => {
     const { db, sql } = database();
-    const id = (await beginJourney(db, 'me', 5))!;
+    // 잠긴 장을 고르면 다른 장으로 몰래 바꾸지 않고 새 화면을 보여 줘요.
+    expect(await beginJourney(db, 'me', 5)).toBe(STALE_PICK);
+    expect(await journeyBank(db, 'me')).toMatchObject({ coins: 0 });
+    const id = (await beginJourney(db, 'me', 1))!;
     expect((await getJourney(db, 'me', id))!.state.ch).toBe(1);
     expect((await journeyRecord(db, 'me')).unlocked).toBe(1);
     sql.prepare("UPDATE journey_runs SET status = 'done', cleared = 1 WHERE id = ?").run(id);

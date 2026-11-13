@@ -203,7 +203,7 @@ export type TeamState = TeamProgress & { no: number; members: { id: string; name
 
 // 시즌의 모든 팀 상태(팀이 10개 안팎이라 한 번에 읽어요)
 export async function loadTeams(db: D1Database, seasonId: string): Promise<Map<number, TeamState>> {
-  const [members, pairs, mins] = await Promise.all([
+  const [members, pairs, mins, ready] = await Promise.all([
     db
       .prepare(
         `SELECT s.user_id, s.group_no, s.left_at, m.display_name FROM season_members s
@@ -220,6 +220,8 @@ export async function loadTeams(db: D1Database, seasonId: string): Promise<Map<n
       )
       .bind(seasonId)
       .all<{ a: string; b: string; minutes: number }>(),
+    // 짝과 서버 퀘스트는 한 번에 저장돼요. 아직 없으면 짝을 정하기 전이라 "짝 없음(보너스)"으로 보면 안 돼요.
+    db.prepare('SELECT 1 AS ok FROM server_quest WHERE season_id = ?').bind(seasonId).first<{ ok: number }>(),
   ]);
   const minutes = new Map(mins.results.map((r) => [pairKey(r.a, r.b), r.minutes]));
   const left = new Set(members.results.filter((m) => m.left_at).map((m) => m.user_id));
@@ -231,11 +233,13 @@ export async function loadTeams(db: D1Database, seasonId: string): Promise<Map<n
       members: members.results
         .filter((m) => m.group_no === no)
         .map((m) => ({ id: m.user_id, name: m.display_name ?? '알 수 없음', left: !!m.left_at })),
-      ...teamProgress(
-        pairs.results.filter((p) => p.group_no === no),
-        minutes,
-        left,
-      ),
+      ...(ready
+        ? teamProgress(
+            pairs.results.filter((p) => p.group_no === no),
+            minutes,
+            left,
+          )
+        : { bonus: false, candidates: [], achievers: [], target: 0, complete: false }),
     });
   }
   return out;
@@ -405,19 +409,17 @@ export type BingoExtras = {
   season: Season | null;
   team: TeamState | null; // 내 팀(이번 시즌에 팀이 없으면 null)
   server: ServerQuest | null;
-  ranks: { season: JellypiRanking; all: JellypiRanking };
 };
 
 export async function bingoExtras(db: D1Database, userId: string, periodStart: string): Promise<BingoExtras> {
   const season = await seasonAt(db, periodStart);
-  const [teams, server, rankSeason, rankAll] = await Promise.all([
+  // 젤리피 순위는 순위 화면(rankings.ts)에서 따로 읽어요. 빙고·팀 패널은 쓰지 않아서 여기서는 안 읽어요.
+  const [teams, server] = await Promise.all([
     season ? loadTeams(db, season.id) : Promise.resolve(new Map<number, TeamState>()),
     season ? loadServerQuest(db, season.id) : Promise.resolve(null),
-    season ? jellypiRanking(db, season.id, userId) : Promise.resolve({ top: [], me: null }),
-    jellypiRanking(db, null, userId),
   ]);
   const team = [...teams.values()].find((x) => x.members.some((m) => m.id === userId && !m.left)) ?? null;
-  return { season, team, server, ranks: { season: rankSeason, all: rankAll } };
+  return { season, team, server };
 }
 
 // ── 디스코드 고정 패널: 팀 순위 ──
@@ -428,6 +430,7 @@ export type TeamRank = { no: number; rank: number; done: number; total: number; 
 export function rankTeams(teams: Iterable<TeamState>): TeamRank[] {
   const rows = [...teams].map((t) => ({
     no: t.no,
+    reached: t.achievers.length, // 정렬용(목표를 넘겨 달성한 사람도 세요). 보여 줄 done은 목표까지만.
     done: Math.min(t.achievers.length, t.target),
     total: t.target,
     size: t.members.filter((m) => !m.left).length,
@@ -435,6 +438,6 @@ export function rankTeams(teams: Iterable<TeamState>): TeamRank[] {
     bonus: t.bonus,
   }));
   const ratio = (r: (typeof rows)[number]) => (r.total ? r.done / r.total : 0);
-  rows.sort((x, y) => Number(x.bonus) - Number(y.bonus) || Number(y.complete) - Number(x.complete) || ratio(y) - ratio(x) || y.done - x.done || x.no - y.no);
-  return rows.map((r, i) => ({ ...r, rank: i + 1 }));
+  rows.sort((x, y) => Number(x.bonus) - Number(y.bonus) || Number(y.complete) - Number(x.complete) || ratio(y) - ratio(x) || y.reached - x.reached || x.no - y.no);
+  return rows.map(({ reached: _, ...r }, i) => ({ ...r, rank: i + 1 }));
 }

@@ -158,7 +158,7 @@ export async function gambleRanks(db: D1Database, now: string) {
       FROM gamble_rounds r JOIN members m ON m.user_id = r.user_id AND m.active = 1
       LEFT JOIN profiles p ON p.user_id = r.user_id
       JOIN seasons s ON s.id = (SELECT id FROM seasons WHERE starts_at <= ? AND ends_at > ? ORDER BY id DESC LIMIT 1)
-      WHERE r.settled_at >= s.starts_at AND r.settled_at < s.ends_at AND r.multiplier > 1
+      WHERE r.settled_at >= s.starts_at AND r.settled_at < s.ends_at AND CAST(r.bet * r.multiplier AS INTEGER) > r.bet
       GROUP BY r.user_id ORDER BY value DESC, r.user_id LIMIT 1`).bind(now, now),
   ]);
   // 디스코드는 방장 닉네임을 못 바꾸니, 고른 칭호는 닉네임 대신 여기서 「칭호」로 붙여 보여 줘요.
@@ -178,7 +178,7 @@ export async function awardGambleSeason(db: D1Database, seasonId: string, end: s
       SELECT s.id, r.user_id, SUM(CAST(r.bet * r.multiplier AS INTEGER) - r.bet) AS won, ?
       FROM seasons s JOIN gamble_rounds r ON r.settled_at >= s.starts_at AND r.settled_at < s.ends_at
       JOIN members m ON m.user_id = r.user_id AND m.active = 1
-      WHERE s.id = ? AND r.multiplier > 1
+      WHERE s.id = ? AND CAST(r.bet * r.multiplier AS INTEGER) > r.bet
       GROUP BY r.user_id ORDER BY won DESC, r.user_id LIMIT 1`).bind(now, seasonId),
     db.prepare(`INSERT OR IGNORE INTO owned_items (user_id, item_id, acquired_at)
       SELECT user_id, ?, awarded_at FROM gamble_season_winners WHERE season_id = ? AND changes() = 1`)

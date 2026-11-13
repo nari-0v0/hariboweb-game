@@ -70,9 +70,13 @@ export async function beginEscape(
   return (await activeEscape(db, user))?.row.id ?? null;
 }
 
-export async function quitEscape(db: D1Database, user: string, id: string): Promise<boolean> {
+// rev를 주면 화면에 보이던 판 순번과 같을 때만 그만둬요(다른 탭에서 진행한 판을 옛 버튼으로 잃지 않게).
+export async function quitEscape(db: D1Database, user: string, id: string, rev?: number): Promise<boolean> {
   const t = new Date().toISOString();
-  const r = await db.prepare("UPDATE escape_runs SET status = 'quit', updated_at = ?3, ended_at = ?3 WHERE id = ?1 AND user_id = ?2 AND status = 'going'").bind(id, user, t).run();
+  const r = await db
+    .prepare("UPDATE escape_runs SET status = 'quit', updated_at = ?3, ended_at = ?3 WHERE id = ?1 AND user_id = ?2 AND status = 'going' AND (?4 IS NULL OR rev = ?4)")
+    .bind(id, user, t, rev ?? null)
+    .run();
   return (r.meta.changes ?? 0) > 0;
 }
 

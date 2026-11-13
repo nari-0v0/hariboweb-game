@@ -133,7 +133,8 @@ export function parseSync(raw: unknown): Result {
     const x = raw.season;
     if (!isObj(x) || !isTime(x.start) || !isTime(x.end)) return { ok: false, error: 'season이 잘못됐어요' };
     const span = Date.parse(x.end) - Date.parse(x.start);
-    if (span <= 0 || span > 31 * DAY_MS) return { ok: false, error: 'season 기간이 잘못됐어요' };
+    // 봇은 생존 주기를 1~90일까지 허용해요. 그보다 조금 넉넉히 받아야 묶음 전체가 거절되지 않아요.
+    if (span <= 0 || span > 92 * DAY_MS) return { ok: false, error: 'season 기간이 잘못됐어요' };
     season = seasonFrom(x.start, x.end);
   }
 

@@ -119,8 +119,11 @@ addEventListener('pageshow', (e) => {
 // 원정대 자동 선택(방치): 켜 두면 잠깐마다 "알아서 하기"를 보내고 화면 속 원정 부분만 바꿔 끼워요.
 (() => {
   const KEY = 'jr-auto';
-  const get = () => { try { return localStorage.getItem(KEY) === '1'; } catch { return false; } };
-  const set = (on) => { try { on ? localStorage.setItem(KEY, '1') : localStorage.removeItem(KEY); } catch {} };
+  // 저장 공간을 못 쓰는 브라우저에서도 이 탭에서는 켠 상태가 유지되게 메모리에도 들고 있어요.
+  let mem = false;
+  try { mem = localStorage.getItem(KEY) === '1'; } catch {}
+  const get = () => mem;
+  const set = (on) => { mem = !!on; try { on ? localStorage.setItem(KEY, '1') : localStorage.removeItem(KEY); } catch {} };
   let timer = 0;
   let busy = false;
   const sync = () => {
@@ -143,7 +146,12 @@ addEventListener('pageshow', (e) => {
     try {
       const res = await fetch(form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin' });
       const url = new URL(res.url);
-      if (!res.ok || url.searchParams.has('n') && url.searchParams.get('n') !== 'stale') throw new Error('stop');
+      if (!res.ok || url.searchParams.has('n') && url.searchParams.get('n') !== 'stale') {
+        // 멈춘 이유(오류 안내 등)를 볼 수 있게 그 화면으로 가요.
+        set(false);
+        location.href = res.url;
+        return;
+      }
       const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
       const next = doc.getElementById('journey');
       const cur = document.getElementById('journey');
@@ -153,6 +161,10 @@ addEventListener('pageshow', (e) => {
       }
       const open = cur.querySelector('details')?.open;
       cur.replaceWith(next);
+      // 그만두기 버튼은 바꿔 끼우는 부분 밖에 있어서 판 순번만 새 값으로 맞춰요.
+      const rev = doc.querySelector('.jr-quit input[name="rev"]');
+      const mine = document.querySelector('.jr-quit input[name="rev"]');
+      if (rev && mine) mine.value = rev.value;
       if (open) next.querySelector('details')?.setAttribute('open', '');
     } catch {
       set(false);
