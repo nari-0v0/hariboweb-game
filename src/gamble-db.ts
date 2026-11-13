@@ -134,6 +134,20 @@ export function publicHand(round: Round) {
 type RankRow = { user_id: string; name: string; value: number; title_id: string | null; character_id: string | null; deco_id: string | null };
 const RANK_FIELDS = ['chips', 'best_win', 'all_in_wins'] as const;
 
+export async function gambleMyRanks(db: D1Database, user: string) {
+  const result = await db.batch(RANK_FIELDS.map((field) => db.prepare(
+    `SELECT m.display_name AS name, a.${field} AS value, p.character_id, p.deco_id,
+       1 + (SELECT COUNT(*) FROM gamble_accounts other JOIN members active ON active.user_id = other.user_id AND active.active = 1
+            WHERE other.${field} > a.${field}) AS rank
+     FROM gamble_accounts a JOIN members m ON m.user_id = a.user_id AND m.active = 1
+     LEFT JOIN profiles p ON p.user_id = a.user_id
+     WHERE a.user_id = ? AND a.${field} > 0`).bind(user)));
+  return result.map(({ results }) => {
+    const row = results[0] as (RankRow & { rank: number }) | undefined;
+    return row ? { rank: row.rank, name: stripTitle(row.name), value: row.value, char: characterUrl(row.character_id, user, row.deco_id) } : null;
+  });
+}
+
 export async function gambleRanks(db: D1Database, now: string) {
   const ranks = await db.batch([
     ...RANK_FIELDS.map((field) => db.prepare(`SELECT a.user_id, m.display_name AS name, a.${field} AS value, p.title_id, p.character_id, p.deco_id
