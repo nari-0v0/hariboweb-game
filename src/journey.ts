@@ -9,7 +9,8 @@ export const DAYS = 20;
 export const ELITE_DAY = 10;
 export const DAILY_REWARD_JOURNEYS = 2; // 하루 첫 2판만 보상
 export const journeyXp = (day: number, cleared: boolean, ch = 1) => (cleared ? 12 + 3 * (ch - 1) : Math.min(10, 2 + Math.floor(day / 2)) + (ch - 1));
-export const journeyJelly = (cleared: boolean) => (cleared ? 1 : 0);
+// 도감 젤리는 내가 깬 가장 높은 장(또는 처음 깨는 장)의 대장을 이겼을 때만 줘요. 낮은 장을 쉽게 돌아 젤리를 모으지 못하게(나리 2026-11-13).
+export const journeyJelly = (cleared: boolean, ch = 1, top = 0) => (cleared && ch >= top ? 1 : 0);
 
 export type SkillId = 'power' | 'vital' | 'guard' | 'leech' | 'crit' | 'spark' | 'shield' | 'mend' | 'thorn' | 'lucky';
 export const SKILLS: Record<SkillId, { name: string; icon: string; text: (lv: number) => string; max: number }> = {
@@ -125,7 +126,7 @@ export const MATERIALS = [
   { icon: '🔥', name: '화산석' },
 ];
 export const material = (ch: number) => MATERIALS[Math.min(MATERIALS.length, Math.max(1, ch)) - 1]!;
-export const gearNeed = (next: number) => ({ ch: next, mats: 2 + Math.floor((next - 1) / 3), coins: 20 * next }); // +next로 가는 값
+export const gearNeed = (next: number) => ({ ch: next, mats: 2 + Math.floor((next - 1) / 3), coins: Math.round(30 * next * (1 + 0.45 * (next - 1))) }); // +next로 가는 값. 젤코인은 뒤 장일수록 몬스터가 주는 만큼 비싸져요(+1 30 … +9 약 1240).
 // 뒤 장 재료로 올린 단계일수록 더 많이 올라요(장마다 몬스터가 세지는 만큼).
 export const GEAR_GROW = 0.18;
 export function gearBonus(id: GearId, lv: number): number {

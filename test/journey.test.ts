@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DAYS, actJourney, autoChoice, decodeJourney, journeyXp, perkMax, gearBonus, FIRST_CLEAR_BONUS, startJourney, stat, type JourneyState } from '../src/journey';
+import { DAYS, journeyJelly, actJourney, autoChoice, decodeJourney, journeyXp, perkMax, gearBonus, FIRST_CLEAR_BONUS, startJourney, stat, type JourneyState } from '../src/journey';
 import { actJourneyRun, activeJourney, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from '../src/journey-db';
 
 function database() {
@@ -176,9 +176,9 @@ describe('원정대 저장과 보상', () => {
   it('장비는 그 단계 장의 재료와 젤코인으로 올리고, 다음 원정부터 세져요', async () => {
     const { db, sql } = database();
     sql.prepare(`INSERT INTO journey_bank (user_id, coins, mats, updated_at) VALUES ('me', 100, '{"1":3}', 'x')`).run();
-    expect(await upgradeGear(db, 'me', 'weapon')).toBe(true); // +1: 1장 재료 2개, 젤코인 20
+    expect(await upgradeGear(db, 'me', 'weapon')).toBe(true); // +1: 1장 재료 2개, 젤코인 30
     let bank = await journeyBank(db, 'me');
-    expect([bank.weapon, bank.coins, bank.mats[1]]).toEqual([1, 80, 1]);
+    expect([bank.weapon, bank.coins, bank.mats[1]]).toEqual([1, 70, 1]);
     expect(await upgradeGear(db, 'me', 'armor')).toBe(false); // 1장 재료 1개뿐
     expect(await upgradeGear(db, 'me', 'weapon')).toBe(false); // +2는 2장 재료
     const id = (await beginJourney(db, 'me'))!;
@@ -382,5 +382,15 @@ describe('깬 장 다시 돌기 재료', () => {
     expect(fresh).toBeGreaterThan(200); // 대장은 꼭 1개
     expect(farm).toBeGreaterThan(0);
     expect(farm).toBeLessThan(fresh * 0.55);
+  });
+});
+
+describe('원정대 도감 젤리', () => {
+  it('내가 깬 가장 높은 장이나 처음 깨는 장의 대장만 젤리를 줘요', () => {
+    expect(journeyJelly(true, 1, 0)).toBe(1); // 처음 깸
+    expect(journeyJelly(true, 3, 3)).toBe(1); // 가장 높은 장 다시
+    expect(journeyJelly(true, 4, 3)).toBe(1); // 새 장
+    expect(journeyJelly(true, 1, 3)).toBe(0); // 낮은 장 돌기
+    expect(journeyJelly(false, 3, 3)).toBe(0);
   });
 });

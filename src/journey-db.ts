@@ -120,6 +120,7 @@ export async function actJourneyRun(db: D1Database, user: string, id: string, re
   if (!run || run.row.status !== 'going' || run.row.rev !== rev) return 'stale';
   const s = actJourney(run.state, act);
   if (!s) return 'bad';
+  let top = 0;
   if (s.done) {
     // 아직 못 깬 장(도전 중)은 죽든 이기든 젤코인이 다 모여요.
     // 이미 대장을 깬 장을 다시 도는 판(파밍)만 오늘(한국 날짜) 파밍한 판 수에 따라 줄어요.
@@ -131,7 +132,8 @@ export async function actJourneyRun(db: D1Database, user: string, id: string, re
       )
       .bind(user, kstDay(now))
       .first<{ top: number; farmed: number }>();
-    s.farm = (s.ch ?? 1) <= (r?.top ?? 0);
+    top = r?.top ?? 0;
+    s.farm = (s.ch ?? 1) <= top;
     s.bankPct = s.farm ? bankRate(r?.farmed ?? 0) : 100;
     s.banked = Math.floor((s.coins * s.bankPct) / 100);
     // 재료: 젤코인과 달리 깬 장을 몇 판 돌아도 그대로 모여요(다음 장을 기다리는 동안 장비를 채우게, 나리 2026-11-13). 처음 대장을 깨면 2개 더.
@@ -152,7 +154,7 @@ export async function actJourneyRun(db: D1Database, user: string, id: string, re
          WHERE id = ?1 AND user_id = ?2 AND rev = ?12 AND status = 'going'
            AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)`,
       )
-      .bind(id, user, token, JSON.stringify(s), t, s.done ? 1 : 0, day, journeyXp(s.day, s.cleared, s.ch ?? 1), journeyJelly(s.cleared), s.day, s.cleared ? 1 : 0, rev),
+      .bind(id, user, token, JSON.stringify(s), t, s.done ? 1 : 0, day, journeyXp(s.day, s.cleared, s.ch ?? 1), journeyJelly(s.cleared, s.ch ?? 1, top), s.day, s.cleared ? 1 : 0, rev),
   ];
   if (s.done) {
     // 남은 동전(같은 장을 또 하면 줄어든 만큼)은 보상 횟수와 상관없이 강화 주머니로 (이번 저장이 성공했을 때만)
