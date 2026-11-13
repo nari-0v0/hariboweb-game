@@ -40,10 +40,10 @@ CREATE TRIGGER gamble_credit AFTER UPDATE OF multiplier ON gamble_rounds
 WHEN OLD.multiplier IS NULL AND NEW.multiplier IS NOT NULL
 BEGIN
   UPDATE gamble_accounts SET
-    chips = chips + CAST(NEW.bet * NEW.multiplier AS INTEGER),
-    won = won + MAX(0, CAST(NEW.bet * NEW.multiplier AS INTEGER) - NEW.bet),
-    best_win = MAX(best_win, CAST(NEW.bet * NEW.multiplier AS INTEGER) - NEW.bet),
-    all_in_wins = all_in_wins + (NEW.all_in = 1 AND CAST(NEW.bet * NEW.multiplier AS INTEGER) > NEW.bet),
+    chips = chips + (NEW.bet * CAST(ROUND(NEW.multiplier * 100) AS INTEGER) / 100),
+    won = won + MAX(0, (NEW.bet * CAST(ROUND(NEW.multiplier * 100) AS INTEGER) / 100) - NEW.bet),
+    best_win = MAX(best_win, (NEW.bet * CAST(ROUND(NEW.multiplier * 100) AS INTEGER) / 100) - NEW.bet),
+    all_in_wins = all_in_wins + (NEW.all_in = 1 AND (NEW.bet * CAST(ROUND(NEW.multiplier * 100) AS INTEGER) / 100) > NEW.bet),
     plays = plays + 1,
     jackpots = jackpots + NEW.jackpot,
     naturals = naturals + NEW.natural

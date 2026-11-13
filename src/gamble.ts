@@ -14,7 +14,8 @@ export const ROULETTE = [
 ] as const;
 export const WHEEL = ROULETTE.flatMap(({ payout, count }) => Array<number>(count).fill(payout));
 // 건 칩 × 배수를 내림한 만큼 돌려받아요(0.5배·1.5배 때문에).
-export const payback = (bet: number, multiplier: number) => Math.floor(bet * multiplier);
+// 2.05 같은 배수는 부동소수점 오차가 나서(100×2.05=204.999…) 백분율 정수로 계산해요. DB 트리거·순위 계산과 같은 방식이에요.
+export const payback = (bet: number, multiplier: number) => Math.floor(bet * Math.round(multiplier * 100) / 100);
 
 // 동전 던지기(나리 2026-11-13): 곰(앞)·발바닥(뒤) 중 하나를 골라 맞히면 2.05배(받을 칩은 내림). 평균 1.025배.
 export const COIN_SIDES = ['heads', 'tails'] as const;
