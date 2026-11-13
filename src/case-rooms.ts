@@ -298,7 +298,15 @@ function room(key: RoomKey, rows: Row[]): Room {
     const face = FACES[`${key}/${id}`];
     return { id, label, at, x, y, w, h, ...(tag.length ? { tag } : {}), ...(tool.length ? { tool: [...tool] } : {}), ...(r ? { rid: RIDDLES[r] } : {}), ...(face ? { face } : {}) };
   });
-  return { key, spots, people: placePeople(spots) };
+  // 사람 자리 계산은 무거워서(방 56개를 한꺼번에 하면 워커 시작이 Cloudflare 한도를 넘어요) 처음 쓸 때 한 번만 해요.
+  let people: [number, number][] | undefined;
+  return {
+    key,
+    spots,
+    get people() {
+      return (people ??= placePeople(spots));
+    },
+  };
 }
 
 // 사람(대화 상대)이 설 자리: 방 그림 속 눌리는 곳을 덜 가리는 바닥 자리를 골라요.
