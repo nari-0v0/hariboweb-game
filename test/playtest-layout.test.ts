@@ -13,7 +13,7 @@ describe('플레이테스트에서 재현된 화면 회귀', () => {
     const def = escCase('trophy-talk')!;
     const state = startEscape(def);
     const run: EscRun = { def, state, row: { id: 'test', user_id: viewer.user_id, case_id: def.id, state: JSON.stringify(state), rev: 0, status: 'going', grade: null, xp: 0, jelly: 0 } };
-    const html = String(await EscapePage({ viewer, art: '/char/deco/explorer.png', run, result: null, best: new Map() }).toString());
+    const html = String(await EscapePage({ viewer, art: '/char/deco/explorer.png', run, result: null, best: new Map(), dogam: { cards: 0, levels: [] } }).toString());
     const idle = [...html.matchAll(/<button[^>]*class="esc-hot idle"[^>]*>/g)].map(m => m[0]);
     const room = ROOMS[def.scenes[0]!.bg!];
     const placed = def.objects.filter(o => o.scene === state.scene && o.at);
@@ -33,7 +33,7 @@ describe('플레이테스트에서 재현된 화면 회귀', () => {
     const momo = def.objects.find((o) => o.face && o.lock && o.scene === def.scenes[0]!.id)!;
     const state = { ...startEscape(def), opened: [momo.id], seen: [momo.id] };
     const run: EscRun = { def, state, row: { id: 'test', user_id: viewer.user_id, case_id: def.id, state: JSON.stringify(state), rev: 0, status: 'going', grade: null, xp: 0, jelly: 0 } };
-    const html = String(await EscapePage({ viewer, art: '/char/deco/explorer.png', run, result: null, best: new Map() }).toString());
+    const html = String(await EscapePage({ viewer, art: '/char/deco/explorer.png', run, result: null, best: new Map(), dogam: { cards: 0, levels: [] } }).toString());
     expect(html.indexOf(`aria-label="${momo.name}"`)).toBeGreaterThan(html.indexOf('class="esc-actors"'));
     expect(html.indexOf('class="esc-actors"')).toBeGreaterThan(0);
   });
@@ -59,7 +59,7 @@ describe('플레이테스트에서 재현된 화면 회귀', () => {
     const def = escCase('c29')!;
     const state = startEscape(def);
     const run: EscRun = { def, state, row: { id: 'test', user_id: viewer.user_id, case_id: def.id, state: JSON.stringify(state), rev: 0, status: 'going', grade: null, xp: 0, jelly: 0 } };
-    const html = String(await EscapePage({ viewer, art: '/char/deco/explorer.png', run, result: null, best: new Map() }).toString());
+    const html = String(await EscapePage({ viewer, art: '/char/deco/explorer.png', run, result: null, best: new Map(), dogam: { cards: 0, levels: [] } }).toString());
     const booth = html.indexOf('aria-label="매표 창구"');
     const bell = html.indexOf('aria-label="탁상 종"');
     expect(booth).toBeGreaterThan(0);

@@ -54,9 +54,11 @@ export function RankPage(props: { viewer: Member; ranks: Rankings; tab: RankTab 
                 <span aria-hidden="true">👑</span> 이번 시즌 누적 딴 젤칩 1등 <b>{r.gamble.seasonTop.name}</b> · {n(r.gamble.seasonTop.value)}개
               </p>
             )}
-            <PodiumBoard title="가진 젤칩" icon="🪙" podium={r.gamble.chips} show={(v) => `${n(v)}개`} />
-            <PodiumBoard title="한 번에 딴 최고 젤칩" icon="💥" podium={r.gamble.best} show={(v) => `${n(v)}개`} />
-            <PodiumBoard title="올인 승리" icon="🔥" podium={r.gamble.allIn} show={(v) => `${n(v)}회`} />
+            <div class="rk-trio">
+              <PodiumBoard title="가진 젤칩" icon="🪙" podium={r.gamble.chips} show={(v) => `${n(v)}개`} />
+              <PodiumBoard title="한 번에 딴 최고 젤칩" icon="💥" podium={r.gamble.best} show={(v) => `${n(v)}개`} />
+              <PodiumBoard title="올인 승리" icon="🔥" podium={r.gamble.allIn} show={(v) => `${n(v)}회`} />
+            </div>
           </div>
         )}
       </div>

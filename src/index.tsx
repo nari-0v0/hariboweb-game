@@ -61,6 +61,7 @@ import { currentPeriod, grantBingo, markFlag, myBingo, todayPartners, LINE_JELLY
 import { BingoPage } from './views/bingo';
 import { KIDNAP_MIN, SERVER_JELLY, TEAM_GOAL_MIN, TEAM_JELLY, TEAM_PRIOR_MAX, bingoExtras, loadServerQuest, loadTeams, myTeamState, rankTeams, seasonAt } from './team';
 import { loadRankings } from './rankings';
+import { dogamProgress } from './unlock';
 import { RankPage, rankTab } from './views/rank';
 import { BLOCK_MAX_PENDING, BLOCK_MORE, blockCandidates, cancelBlock, decideBlock, listUnpostedBlocks, markBlockPosted, myBlocks, requestBlock } from './assign-block';
 import { checkNote, cleanNote, hidePraiseNote, markPraiseSeen, praiseBox, praiseDayLabel, PRAISE_NOTE_MAX } from './praise-note';
@@ -87,7 +88,7 @@ import { EscapePage } from './views/escape';
 import { JourneyPage } from './views/journey';
 import { activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney } from './journey-db';
 import { PERKS, type PerkId } from './journey';
-import { activeEscape, actEscapeRun, beginEscape, escapeRecord, getEscape, quitEscape } from './escape-db';
+import { activeEscape, actEscapeRun, beginEscape, escapeOpen, escapeRecord, getEscape, quitEscape } from './escape-db';
 import { escCase } from './escape';
 
 export { PlazaRoom } from './plaza-room';
@@ -916,16 +917,17 @@ const JR_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 members.get('/expedition/go', async (c) => {
   const viewer = c.get('viewer');
   c.header('Cache-Control', 'no-store');
-  const [run, record, profile, bank] = await Promise.all([
+  const [run, record, profile, bank, dogam] = await Promise.all([
     activeJourney(c.env.DB, viewer.user_id),
     journeyRecord(c.env.DB, viewer.user_id),
     getProfile(c.env.DB, viewer.user_id),
     journeyBank(c.env.DB, viewer.user_id),
+    dogamProgress(c.env.DB, viewer.user_id),
   ]);
   const rid = c.req.query('r') ?? '';
   const done = !run && JR_ID.test(rid) ? await getJourney(c.env.DB, viewer.user_id, rid) : null;
   const art = characterUrl(profile.character_id, viewer.user_id, profile.deco_id);
-  return page(c, <JourneyPage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} record={record} bank={bank} notice={c.req.query('n')} />);
+  return page(c, <JourneyPage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} record={record} bank={bank} dogam={dogam} notice={c.req.query('n')} />);
 });
 members.post('/api/journey/start', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
@@ -982,11 +984,11 @@ const ESC_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 members.get('/cases/room', async (c) => {
   const viewer = c.get('viewer');
   c.header('Cache-Control', 'no-store');
-  const [run, best, profile] = await Promise.all([activeEscape(c.env.DB, viewer.user_id), escapeRecord(c.env.DB, viewer.user_id), getProfile(c.env.DB, viewer.user_id)]);
+  const [run, best, profile, dogam] = await Promise.all([activeEscape(c.env.DB, viewer.user_id), escapeRecord(c.env.DB, viewer.user_id), getProfile(c.env.DB, viewer.user_id), dogamProgress(c.env.DB, viewer.user_id)]);
   const art = characterUrl(profile.character_id, viewer.user_id, profile.deco_id);
   const rid = c.req.query('r') ?? '';
   const done = !run && ESC_ID.test(rid) ? await getEscape(c.env.DB, viewer.user_id, rid) : null;
-  return page(c, <EscapePage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} best={best} notice={c.req.query('n')} list={c.req.query('list') === '1'} />);
+  return page(c, <EscapePage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} best={best} dogam={dogam} notice={c.req.query('n')} list={c.req.query('list') === '1'} />);
 });
 members.post('/api/escape/start', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
@@ -995,6 +997,8 @@ members.post('/api/escape/start', async (c) => {
     const user = c.get('viewer').user_id;
     const want = String(body.case ?? '');
     // 사건 목록에서 다른 사건을 고르면 하던 사건은 덮고 새로 열어요.
+    // 도감 조건이 안 되는 사건이면 하던 사건을 덮지 않고 돌아가요.
+    if (!(await escapeOpen(c.env.DB, user, want))) return c.redirect('/cases/room?list=1&n=locked', 303);
     if (body.switch === '1' && escCase(want)) {
       const going = await activeEscape(c.env.DB, user);
       if (going && going.row.case_id !== want) await quitEscape(c.env.DB, user, going.row.id);
@@ -1036,12 +1040,12 @@ members.post('/api/escape/act', async (c) => {
     const r = await actEscapeRun(c.env.DB, user, id, rev, act);
     if (r !== 'ok') return c.redirect(`/cases/room?n=${r}#now`, 303);
     // 다시 불러오기(리다이렉트) 없이 바로 화면을 그려 보내요. 한 번 왕복이 줄어서 빨라요.
-    const [after, best, profile] = await Promise.all([getEscape(c.env.DB, user, id), escapeRecord(c.env.DB, user), getProfile(c.env.DB, user)]);
+    const [after, best, profile, dogam] = await Promise.all([getEscape(c.env.DB, user, id), escapeRecord(c.env.DB, user), getProfile(c.env.DB, user), dogamProgress(c.env.DB, user)]);
     const done = after?.row.status === 'done';
     c.header('Cache-Control', 'no-store');
     const viewer = c.get('viewer');
     const art = characterUrl(profile.character_id, user, profile.deco_id);
-    return page(c, <EscapePage viewer={viewer} art={art} run={done ? null : after} result={done ? after : null} best={best} url={done ? `/cases/room?r=${id}#now` : '/cases/room#now'} />);
+    return page(c, <EscapePage viewer={viewer} art={art} run={done ? null : after} result={done ? after : null} best={best} dogam={dogam} url={done ? `/cases/room?r=${id}#now` : '/cases/room#now'} />);
   } catch (e) {
     console.error('사건 진행 실패', e);
     return c.redirect('/cases/room?n=error#now', 303);

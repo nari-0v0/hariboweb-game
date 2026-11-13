@@ -21,6 +21,7 @@ import {
 import { FOES, PROPS, ZONE_NAMES, spriteSvg, zoneFor, type Zone } from '../journey-art';
 import { SPRITES } from '../sprites.gen';
 import { FictionNote } from './fiction';
+import { journeyNeed, journeyOpenTo, meets, needText, shortNeed, type DogamProgress } from '../unlock';
 import { Layout } from './layout';
 import { Popup, type PopupLine } from './shop';
 
@@ -447,22 +448,31 @@ function Play(props: { run: JourneyRun; art: string; name: string }) {
 }
 
 // 장 고르기: 열린 장만 누를 수 있어요. 기본은 가장 높은 장.
-function ChapterPick(props: { unlocked: number; again?: boolean }) {
+// 앞 장 대장을 이겨야 하고, 4장부터는 도감 카드도 모아야 열려요(src/unlock.ts).
+function ChapterPick(props: { unlocked: number; dogam: DogamProgress; again?: boolean }) {
+  const pick = Math.min(props.unlocked, journeyOpenTo(props.dogam));
   return (
     <form method="post" action="/api/journey/start" class="jr-chapters">
       <div class="jr-chapter-list">
         {CHAPTERS.map((c) => {
-          const open = c.n <= props.unlocked;
+          const need = journeyNeed(c.n);
+          const dogamOk = meets(need, props.dogam);
+          const open = c.n <= props.unlocked && dogamOk;
           const boss = picOf('foe', c.boss.key);
           return (
             <label class={`jr-chapter${open ? '' : ' locked'}`}>
-              <input type="radio" name="ch" value={c.n} checked={c.n === props.unlocked} disabled={!open} />
+              <input type="radio" name="ch" value={c.n} checked={c.n === pick} disabled={!open} />
               <span class="jr-chapter-pic" aria-hidden="true">
                 {boss ? <img src={boss.src} alt="" loading="lazy" /> : <span>{c.boss.emoji}</span>}
               </span>
               <b>{c.n}장</b>
-              <span class="jr-chapter-name">{open ? c.name : '잠겨 있어요'}</span>
+              <span class="jr-chapter-name">{open ? c.name : c.n <= props.unlocked ? '📖 도감이 필요해요' : '잠겨 있어요'}</span>
               <span class="hint">{chapterLevels(c.n)}</span>
+              {need.cards > 0 && (
+                <span class={`jr-need${dogamOk ? ' ok' : ''}`} title={needText(need, props.dogam)}>
+                  {dogamOk ? '📖 도감 ✓' : `📖 ${shortNeed(need)}`}
+                </span>
+              )}
             </label>
           );
         })}
@@ -474,7 +484,7 @@ function ChapterPick(props: { unlocked: number; again?: boolean }) {
   );
 }
 
-function Result(props: { run: JourneyRun; art: string; name: string; unlocked: number }) {
+function Result(props: { run: JourneyRun; art: string; name: string; unlocked: number; dogam: DogamProgress }) {
   const { run } = props;
   const s = run.state;
   return (
@@ -502,7 +512,7 @@ function Result(props: { run: JourneyRun; art: string; name: string; unlocked: n
           ? `보상: 내 카드 경험치 +${run.row.xp}${run.row.jelly ? `, 도감 젤리 +${run.row.jelly}` : ''}`
           : `오늘 보상은 이미 ${DAILY_REWARD_JOURNEYS}번 받았어요. 내일 다시 받을 수 있어요.`}
       </p>
-      <ChapterPick unlocked={props.unlocked} again />
+      <ChapterPick unlocked={props.unlocked} dogam={props.dogam} again />
     </section>
   );
 }
@@ -555,6 +565,7 @@ export function JourneyPage(props: {
   result: JourneyRun | null;
   record: JourneyRecord;
   bank: JourneyBank;
+  dogam: DogamProgress;
   notice?: string;
 }) {
   const { run, result, record } = props;
@@ -584,7 +595,7 @@ export function JourneyPage(props: {
             </div>
           </details>
         </div>
-        {run ? <Play run={run} art={props.art} name={name} /> : result ? <Result run={result} art={props.art} name={name} unlocked={record.unlocked} /> : null}
+        {run ? <Play run={run} art={props.art} name={name} /> : result ? <Result run={result} art={props.art} name={name} unlocked={record.unlocked} dogam={props.dogam} /> : null}
         {!run && !result && (
           <section class="jr-game jr-lobby" id="now">
             <div class="jr-lobby-stage" style={`--jr-bg:url(/journey/bg/${zoneFor(1)}.webp)`}>
@@ -602,7 +613,7 @@ export function JourneyPage(props: {
               </div>
             </div>
             <h2 class="jr-pick-title">어느 장으로 떠날까요?</h2>
-            <ChapterPick unlocked={record.unlocked} />
+            <ChapterPick unlocked={record.unlocked} dogam={props.dogam} />
           </section>
         )}
         <PerkPanel bank={props.bank} going={!!run} unlocked={record.unlocked} />

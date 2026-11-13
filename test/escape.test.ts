@@ -302,6 +302,12 @@ describe('사건파일 방탈출 저장과 보상', () => {
     expect(await beginEscape(db, 'gone', c.id)).toBeNull();
     expect(await beginEscape(db, 'me', 'nope')).toBeNull();
   });
+  it('도감 카드가 모자라면 잠긴 사건은 시작할 수 없어요', async () => {
+    const { db } = database();
+    const last = ESCAPE_CASES[ESCAPE_CASES.length - 4]!; // ★★★ 목록 맨 끝
+    expect(last.level).not.toBe(1);
+    expect(await beginEscape(db, 'me', last.id)).toBeNull();
+  });
 });
 
 describe('사건파일 퍼즐 게임 방식', () => {

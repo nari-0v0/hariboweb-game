@@ -249,7 +249,7 @@ export function GambleLobby(props: {
               <span aria-hidden="true">👑</span> 이번 시즌 누적 딴 젤칩 1등 <b>{seasonRank[0].name}</b> · {chips(seasonRank[0].value)}개
             </p>
           )}
-          <div class="rk-cols">
+          <div class="rk-trio">
             <PodiumBoard title="가진 젤칩" icon="🪙" podium={plainPodium(balanceRank)} show={(v) => `${chips(v)}개`} />
             <PodiumBoard title="한 번에 딴 최고 젤칩" icon="💥" podium={plainPodium(bestRank)} show={(v) => `${chips(v)}개`} />
             <PodiumBoard title="올인 승리" icon="🔥" podium={plainPodium(allInRank)} show={(v) => `${chips(v)}회`} />

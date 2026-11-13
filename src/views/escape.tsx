@@ -1,10 +1,11 @@
 import type { Member } from '../env';
 import type { EscRun } from '../escape-db';
-import { ESCAPE_CASES, ESC_XP, bigHint, canAnswer, coinSpots, coinsLeft, escGrade, isLocked, puzzleNo, visible, type EscGrade, type EscObject } from '../escape';
+import { ESCAPE_CASES, ESC_XP, escapeUnlockIndex, bigHint, canAnswer, coinSpots, coinsLeft, escGrade, isLocked, puzzleNo, visible, type EscGrade, type EscObject } from '../escape';
 import { casePics, itemPic } from '../case-art';
 import { ROOMS, roomSrc, roomSrcSet, type Hotspot, type RoomKey } from '../case-rooms';
 import { ROOM_BLUR } from '../room-blur.gen';
 import { FictionNote } from './fiction';
+import { escapeNeed, meets, needText, shortNeed, type DogamProgress } from '../unlock';
 import { Layout } from './layout';
 import { Popup, type PopupLine } from './shop';
 import { uiForClient } from '../escape-ui';
@@ -17,6 +18,7 @@ const NOTICES: Record<string, PopupLine[]> = {
     },
   ],
   bad: [{ title: '알림', text: '그렇게는 할 수 없어요.' }],
+  locked: [{ title: '알림', text: '아직 잠긴 사건이에요. 도감 카드를 더 모으면 열려요.' }],
   quit: [{ title: '알림', text: '사건을 덮고 돌아왔어요.' }],
   error: [
     { title: '오류', text: '오류가 발생하였습니다.', bad: true },
@@ -680,6 +682,7 @@ export function EscapePage(props: {
   list?: boolean; // 하던 사건이 있어도 사건 목록 보기
   result: EscRun | null;
   best: Map<string, EscGrade>;
+  dogam: DogamProgress;
   notice?: string;
   url?: string;
 }) {
@@ -719,8 +722,23 @@ export function EscapePage(props: {
             )}
             <p class="hint">★ 입문 사건은 짧고 쉬워요. ★★★ 사건은 방 3개, 퍼즐 4~5개, 물건 합치기, 범인·방법·동기까지 맞혀야 해요.</p>
             <div class="esc-cases">
-              {ESCAPE_CASES.map((c) => {
+              {ESCAPE_CASES.map((c, i) => {
                 const best = props.best.get(c.id);
+                const need = escapeNeed(escapeUnlockIndex(c.id));
+                if (need.cards > 0 && !meets(need, props.dogam)) {
+                  return (
+                    <div class="esc-file locked" title={needText(need, props.dogam)}>
+                      <span class="esc-file-btn">
+                        <span class="esc-file-tab">{'★'.repeat(c.level ?? 1)}</span>
+                        <span class="esc-case-emoji" aria-hidden="true">
+                          🔒
+                        </span>
+                        <b>잠긴 사건</b>
+                        <span class="esc-file-need">📖 {shortNeed(need)}</span>
+                      </span>
+                    </div>
+                  );
+                }
                 return (
                   <form method="post" action="/api/escape/start" class={`esc-file${best ? ' done' : ''}`}>
                     <input type="hidden" name="case" value={c.id} />
