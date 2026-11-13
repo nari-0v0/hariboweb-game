@@ -108,7 +108,7 @@ export function TitlesPage(props: {
   const popup: PopupLine[] = [];
   if (props.fresh.length)
     popup.push({ title: '새 칭호', text: `새 칭호를 얻었어요: ${props.fresh.map((id) => `「${titleName(id)}」`).join(' ')}` });
-  const notice = props.notice ? NOTICES[props.notice] : undefined;
+  const notice = props.notice && Object.hasOwn(NOTICES, props.notice) ? NOTICES[props.notice] : undefined;
   if (notice) popup.push(...notice);
   const apply = applyText(state);
   const count = TITLES.filter((t) => owned.has(t.id)).length;

@@ -17,6 +17,7 @@ const NOTICES: Record<string, string> = {
   active: '진행 중인 카드 21을 먼저 끝내 주세요.',
   fast: '너무 빨라요. 잠깐 뒤에 다시 걸어 주세요.',
   rescue: '다시 시작할 젤칩 1000개를 받았어요.',
+  'rescue-day-changed': '날짜가 바뀌었어요. 지금 잔액을 확인한 뒤 다시 시도해 주세요.',
   'no-rescue': '오늘 이미 다시 시작했거나, 아직 젤칩이나 진행 중인 카드 21이 있어요.',
 };
 const chips = (n: number) => n.toLocaleString('ko-KR');

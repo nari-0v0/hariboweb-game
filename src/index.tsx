@@ -358,8 +358,7 @@ app.get('/api/bot/card/:id', async (c) => {
     praiseToday(c.env.DB, id),
     praiseBox(c.env.DB, id, 5),
   ]);
-  // 패널 "내 카드"로 칭찬함을 봤어요(안 읽은 개수는 이번 응답에만 보여 줘요)
-  if (box.unread) await markPraiseSeen(c.env.DB, id, Date.now()).catch((e) => console.error('칭찬함 읽음 표시 실패', e));
+  // 디스코드는 최근 칭찬 일부만 보여 줘요. 읽음 표시는 웹 칭찬함에서 해요.
   // 주간 빙고 "패널에서 내 카드 열기" 칸(실패해도 카드는 보여 줘요)
   // 새로 채웠으면 그 자리에서 줄 보상도 확인해요(이 칸이 마지막 칸일 수 있어요)
   await markFlag(c.env.DB, id, 'panel', Date.now())
@@ -859,7 +858,7 @@ members.get('/gamble/:game', async (c) => {
   const now = new Date().toISOString();
   const expired = await expireHand(db, user, now);
   const daily = await claimDaily(db, user, now);
-  const token = c.req.query('r') ?? (game === 'cards' ? expired : null);
+  const token = (game === 'cards' ? expired : null) ?? c.req.query('r');
   const [account, hand, round] = await Promise.all([
     gambleAccount(db, user), activeHand(db, user),
     uuid(token) ? gambleRound(db, user, token) : null,
@@ -906,7 +905,7 @@ members.post('/gamble/rescue', async (c) => {
   const user = c.get('viewer').user_id;
   const now = new Date().toISOString();
   const { day } = await c.req.parseBody();
-  if (day !== gambleDay(now)) return c.redirect('/gamble?n=no-rescue', 303);
+  if (day !== gambleDay(now)) return c.redirect('/gamble?n=rescue-day-changed', 303);
   await expireHand(c.env.DB, user, now);
   const rescued = await rescueChips(c.env.DB, user, now);
   return c.redirect(rescued ? '/gamble?n=rescue' : '/gamble?n=no-rescue', 303);
@@ -925,7 +924,7 @@ members.get('/expedition/go', async (c) => {
     dogamProgress(c.env.DB, viewer.user_id),
   ]);
   const rid = c.req.query('r') ?? '';
-  const done = !run && JR_ID.test(rid) ? await getJourney(c.env.DB, viewer.user_id, rid) : null;
+  const done = JR_ID.test(rid) ? await getJourney(c.env.DB, viewer.user_id, rid) : null;
   const art = characterUrl(profile.character_id, viewer.user_id, profile.deco_id);
   return page(c, <JourneyPage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} record={record} bank={bank} dogam={dogam} notice={c.req.query('n')} prep={c.req.query('prep')} />);
 });
@@ -999,7 +998,7 @@ members.get('/cases/room', async (c) => {
   const [run, best, profile, dogam] = await Promise.all([activeEscape(c.env.DB, viewer.user_id), escapeRecord(c.env.DB, viewer.user_id), getProfile(c.env.DB, viewer.user_id), dogamProgress(c.env.DB, viewer.user_id)]);
   const art = characterUrl(profile.character_id, viewer.user_id, profile.deco_id);
   const rid = c.req.query('r') ?? '';
-  const done = !run && ESC_ID.test(rid) ? await getEscape(c.env.DB, viewer.user_id, rid) : null;
+  const done = ESC_ID.test(rid) ? await getEscape(c.env.DB, viewer.user_id, rid) : null;
   return page(c, <EscapePage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} best={best} dogam={dogam} notice={c.req.query('n')} list={c.req.query('list') === '1'} />);
 });
 members.post('/api/escape/start', async (c) => {
@@ -1094,8 +1093,8 @@ members.get('/dogam/:userId', async (c) => {
 members.get('/card/:userId', async (c) => {
   const viewer = c.get('viewer');
   const targetId = c.req.param('userId');
-  if (targetId === viewer.user_id) return c.redirect('/me');
   const from = c.req.query('from');
+  if (targetId === viewer.user_id && (!from || from === viewer.user_id)) return c.redirect('/me');
   const owner = from && from !== viewer.user_id ? await getMember(c.env.DB, from) : viewer;
   const notFound = () =>
     page(c, <MessagePage viewer={viewer} title="카드가 없어요" message="아직 같이 놀지 않은 멤버예요." />, 404);

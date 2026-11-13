@@ -85,7 +85,7 @@ Content-Type: application/json
 
 도감 젤리로 사면 웹이 젤리를 먼저 빼고, 봇이 디스코드(겜블 계정의 벌점·경고·가방)에 적용해요. 겜블 젤리는 쓰지 않아요.
 
-- `GET /api/bot/services` → `{"services":[{"id":"<결제번호>","user":"<디스코드 ID>","kind":"penalty"|"warning"|"nickname"}]}` (한 번에 20개까지)
+- `GET /api/bot/services` → `{"services":[{"id":"<결제번호>","user":"<디스코드 ID>","kind":"penalty"|"warning"}]}` (한 번에 20개까지)
   - `penalty`: 벌점 1점 빼기, `warning`: 경고 1점 빼기 (봇의 벌점·경고 저장소에서 빼요. 겜블 계정과 상관없어요)
   - `nickname`은 이제 오지 않아요. 도감 닉네임 변경권은 웹에 남고, 쓸 때 아래 `/api/bot/nicks`로 와요(겜블 변경권과 따로)
 - 봇이 적용한 뒤 `POST /api/bot/services/<결제번호>` `{"ok":true}` → 끝남. 지울 게 없으면 `{"ok":false,"reason":"no_penalty"|"no_warning"}` → 웹이 도감 젤리를 돌려줘요.
@@ -139,7 +139,7 @@ Content-Type: application/json
     "character_url": "https://.../char/girl-01-0.png", "page_url": "https://.../me" }
   ```
   `palette`는 웹 카드와 같은 색이에요(`src/palette.ts`). 봇은 이 색으로 디스코드용 카드 그림을 그려요.
-  `praise_box`는 칭찬함이에요. 최근 5개, 보낸 사람은 없어요(DB에만 있어요). `note`가 `null`이면 한마디 없는 칭찬이거나 받은 사람이 숨긴 한마디예요. 이 요청으로 칭찬함을 본 것으로 쳐서, 다음 요청부터 `unread`가 0이 돼요. 화면 안내는 "받는 사람에게는 보낸 사람이 보이지 않아요."만 써요.
+  `praise_box`는 칭찬함이에요. 최근 5개, 보낸 사람은 없어요(DB에만 있어요). `note`가 `null`이면 한마디 없는 칭찬이거나 받은 사람이 숨긴 한마디예요. 디스코드 패널은 일부만 보여 주므로 읽음 표시는 웹 칭찬함에서만 해요. 화면 안내는 "받는 사람에게는 보낸 사람이 보이지 않아요."만 써요.
 - `GET /api/bot/praise/<디스코드ID>` → `{"given":["오늘 이미 칭찬한 ID"],"left":2,"partners":[{"id":"ID","minutes":42}]}`
   - `partners`: 웹에 쌓인 `room_minutes`로 본 오늘(한국 날짜) 같이 통화한 사람. 봇은 오늘 기록을 메모리에만 들고 있어서 재시작하면 비니까, 봇 기록과 이 목록을 합쳐서 칭찬할 사람을 보여 줘요. 웹은 하루치 짝만 3일 동안 남겨요.
 - `POST /api/bot/praise` `{"from":"ID","to":"ID","note":"한마디(선택, 100자)"}` → `{"result":"done","jelly":true,"left":2,"note":"sent"}`
