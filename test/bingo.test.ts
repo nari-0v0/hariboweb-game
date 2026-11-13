@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
-import { periodFor, splitCycle, todayPartners, boardFor, bingoView, emptyStats, FULL_JELLY, grantBingo, LINE_JELLY, LINE_XP, LINES, loadStats, markFlag, weekOf, weekOfDay, type BingoStats } from '../src/bingo';
+import { fallbackWeek, periodFor, splitCycle, todayPartners, boardFor, bingoView, emptyStats, FULL_JELLY, grantBingo, LINE_JELLY, LINE_XP, LINES, loadStats, markFlag, myBingo, weekOf, weekOfDay, type BingoStats } from '../src/bingo';
 import { applySync, parseSync } from '../src/sync';
 
 const A = '111111111111111111';
@@ -81,7 +81,7 @@ describe('빙고판', () => {
   });
 
   it('줄과 보상을 세요', () => {
-    const week = weekOf(NOW);
+    const week = fallbackWeek(NOW);
     expect(bingoView(week, A, emptyStats())).toMatchObject({ lines: [], filled: 0, full: false, jelly: 0 });
     const v = bingoView(week, A, full(), 'done');
     expect(v.cells).toHaveLength(9);
@@ -92,7 +92,7 @@ describe('빙고판', () => {
   });
 
   it('가운데 칸(팀 퀘스트): 아직이면 가운데를 지나는 줄은 안 되고, 팀 완료·보너스 칸이면 채워져요', () => {
-    const week = weekOf(NOW);
+    const week = fallbackWeek(NOW);
     const todo = bingoView(week, A, full(), 'todo');
     expect(todo.cells[4]!.done).toBe(false);
     expect(todo.lines).toEqual([0, 2, 3, 5]);
@@ -120,13 +120,13 @@ describe('기록 모으기', () => {
     // 같은 묶음을 다시 보내도 두 번 세지 않아요
     await applySync(db, r.value, Date.parse('2026-11-02T14:07:00Z'));
     expect((sql.prepare('SELECT minutes FROM bingo_day WHERE user_id = ?').get(A) as { minutes: number }).minutes).toBe(3);
-    const stats = (await loadStats(db, weekOf(NOW), [A])).get(A)!;
+    const stats = (await loadStats(db, fallbackWeek(NOW), [A])).get(A)!;
     expect(stats).toMatchObject({ voice: 3, crowd: 3, night: 3, attendDays: 1, partners: 0, bestPair: 3 });
   });
 
   it('칭찬, 패널 열기, 처음 만난 사람을 읽어요', async () => {
     const { sql, db } = fakeD1();
-    const week = weekOf(NOW);
+    const week = fallbackWeek(NOW);
     sql.exec(`INSERT INTO praises (day, from_id, to_id, jelly, created_at) VALUES ('2026-11-02', '${A}', '${B}', 1, '2026-11-02T01:00:00.000Z#a'), ('2026-11-03', '${A}', '${C}', 1, '2026-11-03T01:00:00.000Z#b'), ('2026-11-01', '${A}', '${D}', 1, '2026-11-01T01:00:00.000Z#c')`);
     sql.exec(`INSERT INTO bingo_pair (week, a, b, minutes) VALUES ('${week.id}', '${A}', '${B}', 40), ('${week.id}', '${A}', '${C}', 5)`);
     sql.exec(`INSERT INTO cards (owner_id, target_id, xp, voice_seconds, scrims, first_met, updated_at) VALUES ('${A}', '${B}', 1, 0, 0, '2026-11-02T00:00:00.000Z', 'x'), ('${A}', '${C}', 1, 0, 0, '2026-10-01T00:00:00.000Z', 'x')`);
@@ -140,7 +140,7 @@ describe('기록 모으기', () => {
 
 describe('줄 보상', () => {
   function fill(sql: DatabaseSync, id: string) {
-    const week = weekOf(NOW).id;
+    const week = fallbackWeek(NOW).id;
     for (let i = 0; i < 7; i++) {
       const day = `2026-11-0${2 + i}`;
       sql.prepare('INSERT INTO bingo_day (week, user_id, day, minutes, crowd, night, attended) VALUES (?, ?, ?, 600, 600, 600, 1)').run(week, id, day);
@@ -156,7 +156,7 @@ describe('줄 보상', () => {
     }
     sql.prepare("INSERT INTO bingo_flag (week, user_id, flag) VALUES (?, ?, 'panel'), (?, ?, 'web')").run(week, id, week, id);
     // 가운데 칸: 이 시즌 팀 퀘스트 짝과 30분
-    const p = weekOf(NOW);
+    const p = fallbackWeek(NOW);
     sql.prepare("INSERT OR IGNORE INTO seasons (id, starts_at, ends_at, created_at) VALUES ('s1', ?, ?, 'x')").run(p.start, p.end);
     sql.prepare("INSERT INTO season_members (season_id, user_id, group_no, start_member, joined_at) VALUES ('s1', ?, 0, 1, 'x')").run(id);
     sql.prepare("INSERT INTO team_pairs (season_id, group_no, a, b) VALUES ('s1', 0, ?, ?)").run(id, others[0]);
@@ -166,11 +166,11 @@ describe('줄 보상', () => {
   it('줄마다 한 번만, 9칸을 다 채우면 더 줘요', async () => {
     const { sql, db } = fakeD1();
     fill(sql, A);
-    const views = await grantBingo(db, weekOf(NOW), [A], NOW);
+    const views = await grantBingo(db, fallbackWeek(NOW), [A], NOW);
     expect(views.get(A)!.full).toBe(true);
     const want = { dogam_jelly: LINES.length * LINE_JELLY + FULL_JELLY, solo_xp: LINES.length * LINE_XP };
     expect(profileOf(sql, A)).toEqual(want);
-    await grantBingo(db, weekOf(NOW), [A], NOW + 1000);
+    await grantBingo(db, fallbackWeek(NOW), [A], NOW + 1000);
     expect(profileOf(sql, A)).toEqual(want);
     expect((sql.prepare('SELECT COUNT(*) AS n FROM bingo_lines').get() as { n: number }).n).toBe(LINES.length + 1);
     // 젤리피: 한 줄 1, 9칸 3 (두 번 확인해도 한 번만)
@@ -179,7 +179,7 @@ describe('줄 보상', () => {
 
   it('기간 마지막 순간에 내 카드를 열어도 그 판에 보상을 줘요', async () => {
     const { sql, db } = fakeD1();
-    const week = weekOf(NOW);
+    const week = fallbackWeek(NOW);
     const user = Array.from({ length: 100 }, (_, i) => `7${String(i).padStart(17, '0')}`)
       .find((id) => boardFor(week.id, id).some((cell) => cell.def.id === 'web'))!;
     sql.prepare("INSERT INTO members (user_id, display_name, active, updated_at) VALUES (?, 'test', 1, 'x')").run(user);
@@ -194,11 +194,22 @@ describe('줄 보상', () => {
     expect(profileOf(sql, user)).toEqual(want);
   });
 
+  it('끝난 기간의 줄 보상을 못 받았으면 빙고를 열 때 다시 받아요(한 번만)', async () => {
+    const { sql, db } = fakeD1();
+    fill(sql, B);
+    const after = Date.parse(fallbackWeek(NOW).end) + 3_600_000; // 다음 주로 넘어간 뒤
+    await myBingo(db, B, after);
+    const got = profileOf(sql, B);
+    expect(got.dogam_jelly).toBeGreaterThan(0);
+    await myBingo(db, B, after);
+    expect(profileOf(sql, B)).toEqual(got);
+  });
+
   it('서버를 떠난 사람은 받지 않아요', async () => {
     const { sql, db } = fakeD1();
     fill(sql, B);
     sql.prepare('UPDATE members SET active = 0 WHERE user_id = ?').run(B);
-    await grantBingo(db, weekOf(NOW), [B], NOW);
+    await grantBingo(db, fallbackWeek(NOW), [B], NOW);
     expect(profileOf(sql, B)).toEqual({ dogam_jelly: 0, solo_xp: 0 });
   });
 });
@@ -229,7 +240,7 @@ describe('빙고 기간 = 생명력 주기의 절반', () => {
     ]);
     expect(periodFor(Date.parse('2026-11-10T00:00:00Z'), halves).id).toBe('2026-11-10');
     // 주기를 모르면 월요일 기준 주
-    expect(periodFor(NOW, []).id).toBe('2026-11-02');
+    expect(periodFor(NOW, []).id).toBe('w2026-11-02');
 
     const { sql, db } = fakeD1();
     const r = parseSync({
@@ -256,5 +267,16 @@ describe('빙고 기간 = 생명력 주기의 절반', () => {
       ('2026-11-10', '${A}', '${C}', 1, '2026-11-10T00:00:00.000Z#b')`);
     expect((await loadStats(db, first!, [A])).get(A)!.praiseGiven).toBe(1);
     expect((await loadStats(db, second!, [A])).get(A)!.praiseGiven).toBe(1);
+  });
+});
+
+describe('임시 주와 진짜 빙고 기간', () => {
+  it('주기를 모를 때 채운 칸은 같은 날 시작하는 진짜 기간으로 넘어가지 않아요', async () => {
+    const { sql, db } = fakeD1();
+    const [half] = splitCycle('2026-11-09T09:00:00.000Z', '2026-11-23T09:00:00.000Z');
+    const before = Date.parse(half!.start) - 3_600_000;
+    expect(await markFlag(db, A, 'panel', before)).toBe(true);
+    sql.prepare('INSERT INTO bingo_periods (id, starts_at, ends_at) VALUES (?, ?, ?)').run(half!.id, half!.start, half!.end);
+    expect(await markFlag(db, A, 'panel', Date.parse(half!.start) + 60_000)).toBe(true);
   });
 });

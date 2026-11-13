@@ -388,6 +388,8 @@ async function groupStatements(
     if (!r.left_at) group.set(r.user_id, r.group_no);
     else departed.set(r.user_id, r.group_no);
   }
+  // 이번 묶음에서 나간 사람의 원래 모둠. 나가기 전의 통화는 같은 묶음에 같이 와도 세요(따로 왔을 때와 같게).
+  const leftNow = new Map([...group].filter(([id]) => removed.has(id)));
   for (const id of removed) group.delete(id);
 
   // 기록에 나오는 사람의 신입 여부·게임 역할(이번 묶음 정보가 먼저)
@@ -462,7 +464,7 @@ async function groupStatements(
     const inRoom = [...new Set(r.members)];
     const byGroup = new Map<number, string[]>();
     for (const u of inRoom) {
-      const g = group.get(u);
+      const g = group.get(u) ?? leftNow.get(u);
       if (g !== undefined) (byGroup.get(g) ?? byGroup.set(g, []).get(g)!).push(u);
     }
     const newbies = inRoom.filter((u) => newbie.has(u));
