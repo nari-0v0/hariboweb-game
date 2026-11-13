@@ -2201,7 +2201,7 @@ main.wide { max-width: 1320px; }
 .jp-coins { padding: 4px 12px; border: 3px solid var(--ink); background: #ffe58a; font-weight: 700; box-shadow: 0 3px 0 var(--ink); }
 .jp > .hint { margin: 0; }
 .jp-sub { margin: 6px 0 0; font-size: 1rem; }
-.jp-hero { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: center; padding: 12px; border: 3px solid var(--ink); background: linear-gradient(#dff1ff, #f3faff); }
+.jp-hero { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(150px, 210px); gap: 14px; align-items: center; padding: 12px; border: 3px solid var(--ink); background: linear-gradient(#dff1ff, #f3faff); }
 .jp-doll { display: grid; grid-template-columns: 52px 112px 52px; grid-template-areas: "weapon pic armor" "charm pic ."; gap: 6px; align-items: center; }
 .jp-hero-pic { grid-area: pic; display: grid; place-items: center; height: 124px; border: 3px solid var(--ink); background: #bfe3ff; box-shadow: inset 0 -14px 0 #9fd0f5; }
 .jp-hero-pic img { width: 104px; height: 104px; object-fit: contain; image-rendering: pixelated; }
@@ -2212,6 +2212,12 @@ main.wide { max-width: 1320px; }
 .jp-slot-armor { grid-area: armor; }
 .jp-slot-charm { grid-area: charm; }
 .jp-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.jp-tabs-m { display: none; }
+.jp-hero .jp-stats, .jp-hero .jp-tabs { align-self: stretch; grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.jp-hero .jp-tabs { grid-template-columns: 1fr; }
+.jp-hero .jp-tab { flex-direction: row; justify-content: flex-start; gap: 8px; padding: 4px 10px; border-width: 2px; box-shadow: inset 0 -4px 0 var(--ink); }
+.jp-hero .jp-tab:active, .jp-hero .jp-tab.on { translate: none; box-shadow: inset 0 -1px 0 var(--ink); }
+.jp-hero .jp-tab-icon { font-size: 1.35rem; }
 .jp-tab { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px; border: 3px solid var(--ink); background: var(--paper); color: var(--ink); text-decoration: none; box-shadow: 0 4px 0 var(--ink); }
 .jp-tab:hover { background: #fff6c9; }
 .jp-tab:active { translate: 0 3px; box-shadow: 0 1px 0 var(--ink); }
@@ -2220,6 +2226,7 @@ main.wide { max-width: 1320px; }
 .jp-badge { position: absolute; top: -10px; right: -8px; min-width: 22px; padding: 1px 5px; border: 2px solid var(--ink); background: #ff7aa8; color: #fff; font-size: .72rem; font-weight: 700; text-align: center; }
 .jp-pane { display: grid; gap: 8px; padding: 10px; border: 3px dashed var(--ink); background: #fbfdff; }
 .jp-pane > .hint, .jp-tip { margin: 0; }
+.jp-pane-title { margin: -10px -10px 0; padding: 6px 12px; border-bottom: 3px dashed var(--ink); background: #ffe58a; font-size: 1.05rem; }
 .jp-stats { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .jp-stats li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; grid-template-rows: auto auto; column-gap: 6px; align-items: center; padding: 4px 8px; border: 2px solid var(--ink); background: #fff; }
 .jp-stat-icon { grid-row: span 2; font-size: 1.2rem; text-align: center; }
@@ -2240,12 +2247,13 @@ main.wide { max-width: 1320px; }
 .jp-row:disabled .jp-price:not(.done) { opacity: .5; }
 .jp-row-icon { display: grid; place-items: center; width: 48px; height: 48px; border: 3px solid var(--ink); background: #d9f0ff; font-size: 1.6rem; }
 .jp-row-main { display: grid; gap: 4px; min-width: 0; }
-.jp-row-top { display: flex; justify-content: space-between; gap: 6px; }
+.jp-row-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 6px; }
+.jp-row-top > * { white-space: nowrap; }
 .jp-lv { font-weight: 700; }
 .jp-lv small { color: var(--ink-soft); }
 .jp-bar { display: block; height: 12px; border: 2px solid var(--ink); background: repeating-linear-gradient(90deg, #eef4f8 0 10px, #e1eaf0 10px 12px); }
 .jp-bar i { display: block; height: 100%; background: repeating-linear-gradient(90deg, #6cc6ff 0 10px, #3fa6e8 10px 12px); }
-.jp-row-next { font-size: .74rem; color: var(--ink-soft); overflow-wrap: anywhere; }
+.jp-row-next { font-size: .74rem; color: var(--ink-soft); word-break: keep-all; overflow-wrap: anywhere; }
 .jp-price { padding: 6px 10px; border: 3px solid var(--ink); background: #ffe58a; font-weight: 700; white-space: nowrap; }
 .jp-price.done { background: #c8f2d4; }
 .jp-gear { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
@@ -2262,6 +2270,13 @@ main.wide { max-width: 1320px; }
 @media (max-width: 560px) {
   .jp-hero { grid-template-columns: 1fr; justify-items: center; padding: 10px; }
   .jp-stats { width: 100%; }
+  .jp-hero .jp-stats { grid-template-rows: none; }
+  .jp-tabs-pc { display: none; }
+  .jp-tabs-m { display: grid; gap: 6px; align-items: end; }
+  .jp-tabs-m.open { position: relative; z-index: 1; margin-bottom: -13px; }
+  .jp-tabs-m.open .jp-tab { box-shadow: none; translate: none; }
+  .jp-tabs-m.open .jp-tab.on { background: #ffe58a; border-bottom-color: #ffe58a; padding-bottom: 14px; }
+  .jp-tabs-m.open + .jp-pane { border-style: solid; }
   .jp-gear { grid-template-columns: 1fr; }
   .jp-item { display: grid; grid-template-columns: 64px minmax(0, 1fr); text-align: left; column-gap: 10px; align-items: center; }
   .jp-item-pic { grid-row: span 5; }
