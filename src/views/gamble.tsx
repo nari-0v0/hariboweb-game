@@ -242,13 +242,7 @@ function GameRules({ game }: { game: Game }) {
         </>
       )}
       {game === 'roulette' && <p>1배는 본전이고, 0.5배·1.5배는 받을 젤칩을 내림해요. 나올 확률: {ROULETTE.map(({ payout, count }) => `${payout}배 ${count}%`).join(' · ')}</p>}
-      {game === 'coinflip' && (
-        <>
-          <p>1. 곰(앞면)과 발바닥(뒷면) 중 하나를 고르고 젤칩을 걸어요.</p>
-          <p>2. 동전이 빙글빙글 돌다가 한 면으로 떨어져요. 곰과 발바닥이 나올 확률은 똑같이 50%예요.</p>
-          <p>3. 고른 면이 나오면 건 젤칩의 {COIN_PAYOUT}배를 받아요(예: 100개 걸면 {payback(100, COIN_PAYOUT)}개, 소수점은 버려요). 틀리면 건 젤칩을 잃어요.</p>
-        </>
-      )}
+      {game === 'coinflip' && <p>곰과 발바닥이 나올 확률은 50%씩이에요. 맞히면 {COIN_PAYOUT}배, 틀리면 건 젤칩을 잃어요.</p>}
       {game === 'cards' && <p>딜러는 17점부터 멈춰요. 승리 2배 · 첫 두 장으로 21을 만들어 이기면 3배 · 비기면 1배</p>}
     </details>
   );
