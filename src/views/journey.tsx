@@ -544,9 +544,25 @@ const STAT_ROWS = [
   { icon: '🛡️', name: '방어력', base: BASE.def, perk: 'def', gear: 'armor' },
 ] as const;
 
-function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number; art: string; name: string }) {
+export type PrepTab = 'bag' | 'train' | 'gear';
+export const PREP_TABS: { id: PrepTab; icon: string; name: string }[] = [
+  { id: 'bag', icon: '🎒', name: '가방' },
+  { id: 'train', icon: '🏋️', name: '훈련' },
+  { id: 'gear', icon: '⚒️', name: '장비 강화' },
+];
+export const prepTab = (v: string | undefined): PrepTab | null => (PREP_TABS.some((t) => t.id === v) ? (v as PrepTab) : null);
+
+function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number; art: string; name: string; tab: PrepTab | null }) {
   const { bank } = props;
   const later = props.going ? '지금 원정이 끝난 뒤 ' : '';
+  const matTotal = Object.values(bank.mats).reduce((a, b) => a + b, 0);
+  const canTrain = PERK_IDS.some((id) => bank[id] < perkMax(id, props.unlocked) && bank.coins >= perkCost(bank[id]));
+  const canGear = GEAR_IDS.some((id) => {
+    if (bank[id] >= GEAR_MAX) return false;
+    const n = gearNeed(bank[id] + 1);
+    return (bank.mats[n.ch] ?? 0) >= n.mats && bank.coins >= n.coins;
+  });
+  const badge: Record<PrepTab, string | null> = { bag: matTotal ? String(matTotal) : null, train: canTrain ? '!' : null, gear: canGear ? '!' : null };
   return (
     <section class="panel jp" id="perks">
       <div class="jp-head">
@@ -555,34 +571,56 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
           🪙 {bank.coins}
         </span>
       </div>
-      <p class="hint">
-        훈련은 젤코인으로 조금씩, 장비는 장마다 나오는 재료로 한 단계씩 크게 강해져요. +N 장비에는 N장 재료가 필요해요. 모두 {later}다음 원정부터 적용돼요.
-      </p>
       <div class="jp-hero">
-        <div class="jp-hero-pic">
-          <img src={props.art} alt={props.name} width={96} height={96} loading="lazy" />
+        <div class="jp-doll">
+          {GEAR_IDS.map((id) => (
+            <a class={`jp-slot jp-slot-${id}`} href="?prep=gear#perks" title={`${GEAR[id].name} +${bank[id]} · ${gearText(id, bank[id])}`}>
+              <span aria-hidden="true">{GEAR[id].icon}</span>
+              <b>+{bank[id]}</b>
+            </a>
+          ))}
+          <div class="jp-hero-pic">
+            <img src={props.art} alt={props.name} width={112} height={112} loading="lazy" />
+          </div>
         </div>
         <ul class="jp-stats">
           {STAT_ROWS.map((r) => {
             const perk = PERKS[r.perk].per * bank[r.perk];
-            const gear = gearBonus(r.gear, bank[r.gear]);
+            const g = gearBonus(r.gear, bank[r.gear]);
             return (
               <li>
                 <span class="jp-stat-icon" aria-hidden="true">
                   {r.icon}
                 </span>
                 <span class="jp-stat-name">{r.name}</span>
-                <strong>{r.base + perk + gear}</strong>
+                <strong>{r.base + perk + g}</strong>
                 <small>
-                  기본 {r.base} · 훈련 +{perk} · 장비 +{gear}
+                  기본 {r.base} · 훈련 +{perk} · 장비 +{g}
                 </small>
               </li>
             );
           })}
         </ul>
       </div>
-
-      <h3 class="jp-sub">🎒 재료 가방</h3>
+      <nav class="jp-tabs" aria-label="원정 준비소">
+        {PREP_TABS.map((t) => (
+          <a class={`jp-tab${props.tab === t.id ? ' on' : ''}`} href={props.tab === t.id ? '?#perks' : `?prep=${t.id}#perks`} aria-current={props.tab === t.id ? 'page' : undefined}>
+            <span class="jp-tab-icon" aria-hidden="true">
+              {t.icon}
+            </span>
+            <b>{t.name}</b>
+            {badge[t.id] && <span class="jp-badge">{badge[t.id]}</span>}
+          </a>
+        ))}
+      </nav>
+      {!props.tab && (
+        <p class="hint jp-tip">
+          훈련은 젤코인으로 조금씩, 장비는 장마다 나오는 재료로 한 단계씩 크게 강해져요. 버튼을 눌러 들어가 보세요. 모두 {later}다음 원정부터 적용돼요.
+        </p>
+      )}
+      {props.tab === 'bag' && (
+        <div class="jp-pane">
+          <p class="hint">장마다 나오는 강화 재료예요. 장비를 올릴 때 써요.</p>
       <div class="jp-bag">
         {MATERIALS.map((m, i) => {
           const n = bank.mats[i + 1] ?? 0;
@@ -597,7 +635,14 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
         })}
       </div>
 
-      <h3 class="jp-sub">🏋️ 훈련</h3>
+          <p class="hint jp-drop">
+            재료는 그 장의 몬스터에게서 가끔(강한 적은 더 자주) 나오고, 대장은 꼭 1개 줘요. 처음 대장을 깨면 2개 더 받아요. 이미 깬 장을 하루 4판 넘게 돌면 재료도 안 모여요.
+          </p>
+        </div>
+      )}
+      {props.tab === 'train' && (
+        <div class="jp-pane">
+          <p class="hint">젤코인으로 시작 능력치를 올려요. 열린 장이 늘수록 한도가 커져요.</p>
       <div class="jp-train">
         {PERK_IDS.map((id) => {
           const info = PERKS[id];
@@ -632,7 +677,11 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
         })}
       </div>
 
-      <h3 class="jp-sub">⚒️ 장비 강화</h3>
+        </div>
+      )}
+      {props.tab === 'gear' && (
+        <div class="jp-pane">
+          <p class="hint">+N으로 올리려면 N장 재료와 젤코인이 들어요. 장을 깰수록 차례로 강해져요.</p>
       <div class="jp-gear">
         {GEAR_IDS.map((id) => {
           const info = GEAR[id];
@@ -672,9 +721,8 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
           );
         })}
       </div>
-      <p class="hint jp-drop">
-        재료는 그 장의 몬스터에게서 가끔(강한 적은 더 자주) 나오고, 대장은 꼭 1개 줘요. 처음 대장을 깨면 2개 더 받아요. 이미 깬 장을 하루 4판 넘게 돌면 재료도 안 모여요.
-      </p>
+        </div>
+      )}
     </section>
   );
 }
@@ -688,6 +736,7 @@ export function JourneyPage(props: {
   bank: JourneyBank;
   dogam: DogamProgress;
   notice?: string;
+  prep?: string;
 }) {
   const { run, result, record } = props;
   const name = props.viewer.display_name;
@@ -737,7 +786,7 @@ export function JourneyPage(props: {
             <ChapterPick unlocked={record.unlocked} dogam={props.dogam} today={record.farmedToday} />
           </section>
         )}
-        <PerkPanel bank={props.bank} going={!!run} unlocked={Math.min(record.unlocked, journeyOpenTo(props.dogam))} art={props.art} name={name} />
+        <PerkPanel bank={props.bank} going={!!run} unlocked={Math.min(record.unlocked, journeyOpenTo(props.dogam))} art={props.art} name={name} tab={prepTab(props.prep)} />
         <FictionNote />
       </div>
     </Layout>

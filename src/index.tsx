@@ -927,7 +927,7 @@ members.get('/expedition/go', async (c) => {
   const rid = c.req.query('r') ?? '';
   const done = !run && JR_ID.test(rid) ? await getJourney(c.env.DB, viewer.user_id, rid) : null;
   const art = characterUrl(profile.character_id, viewer.user_id, profile.deco_id);
-  return page(c, <JourneyPage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} record={record} bank={bank} dogam={dogam} notice={c.req.query('n')} />);
+  return page(c, <JourneyPage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} record={record} bank={bank} dogam={dogam} notice={c.req.query('n')} prep={c.req.query('prep')} />);
 });
 members.post('/api/journey/start', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
@@ -966,7 +966,7 @@ members.post('/api/journey/perk', async (c) => {
   if (!Object.hasOwn(PERKS, k)) return c.redirect('/expedition/go?n=bad#perks', 303);
   try {
     const ok = await buyPerk(c.env.DB, c.get('viewer').user_id, k as PerkId);
-    return c.redirect(`/expedition/go?n=${ok ? 'perk' : 'noperk'}#perks`, 303);
+    return c.redirect(`/expedition/go?prep=train&n=${ok ? 'perk' : 'noperk'}#perks`, 303);
   } catch (e) {
     console.error('원정 강화 실패', e);
     return c.redirect('/expedition/go?n=error#perks', 303);
@@ -978,7 +978,7 @@ members.post('/api/journey/gear', async (c) => {
   if (!Object.hasOwn(GEAR, k)) return c.redirect('/expedition/go?n=bad#perks', 303);
   try {
     const ok = await upgradeGear(c.env.DB, c.get('viewer').user_id, k as GearId);
-    return c.redirect(`/expedition/go?n=${ok ? 'gear' : 'nogear'}#perks`, 303);
+    return c.redirect(`/expedition/go?prep=gear&n=${ok ? 'gear' : 'nogear'}#perks`, 303);
   } catch (e) {
     console.error('원정 장비 강화 실패', e);
     return c.redirect('/expedition/go?n=error#perks', 303);
