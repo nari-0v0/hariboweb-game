@@ -2212,8 +2212,10 @@ main.wide { max-width: 1320px; }
 .jp-slot-armor { grid-area: armor; }
 .jp-slot-charm { grid-area: charm; }
 .jp-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.jp-hero .jp-tabs { grid-template-columns: 1fr; align-self: stretch; align-content: center; }
-.jp-hero .jp-tab { flex-direction: row; justify-content: flex-start; gap: 8px; padding: 6px 10px; }
+.jp-hero .jp-stats, .jp-hero .jp-tabs { align-self: stretch; grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.jp-hero .jp-tabs { grid-template-columns: 1fr; }
+.jp-hero .jp-tab { flex-direction: row; justify-content: flex-start; gap: 8px; padding: 4px 10px; border-width: 2px; box-shadow: inset 0 -4px 0 var(--ink); }
+.jp-hero .jp-tab:active, .jp-hero .jp-tab.on { translate: none; box-shadow: inset 0 -1px 0 var(--ink); }
 .jp-hero .jp-tab-icon { font-size: 1.35rem; }
 .jp-tab { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px; border: 3px solid var(--ink); background: var(--paper); color: var(--ink); text-decoration: none; box-shadow: 0 4px 0 var(--ink); }
 .jp-tab:hover { background: #fff6c9; }
@@ -2265,8 +2267,10 @@ main.wide { max-width: 1320px; }
 @media (max-width: 560px) {
   .jp-hero { grid-template-columns: 1fr; justify-items: center; padding: 10px; }
   .jp-stats { width: 100%; }
-  .jp-hero .jp-tabs { width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .jp-hero .jp-tab { flex-direction: column; justify-content: center; gap: 2px; padding: 10px 4px; }
+  .jp-hero .jp-stats, .jp-hero .jp-tabs { grid-template-rows: none; }
+  .jp-hero .jp-tabs { width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .jp-hero .jp-tab { flex-direction: column; justify-content: center; gap: 2px; padding: 10px 4px; border-width: 3px; box-shadow: 0 4px 0 var(--ink); }
+  .jp-hero .jp-tab:active, .jp-hero .jp-tab.on { translate: 0 3px; box-shadow: 0 1px 0 var(--ink); }
   .jp-hero .jp-tab-icon { font-size: 1.7rem; }
   .jp-gear { grid-template-columns: 1fr; }
   .jp-item { display: grid; grid-template-columns: 64px minmax(0, 1fr); text-align: left; column-gap: 10px; align-items: center; }
