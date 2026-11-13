@@ -278,9 +278,9 @@ input:not([type=radio]):not([type=checkbox]):focus { background: #fff6fa; border
 .filter input:checked + span { background: var(--ink); color: #fff; }
 .filter input:checked + span em { color: #fff; opacity: .7; }
 .filter input:focus-visible + span { outline: 3px solid var(--pink); outline-offset: 2px; }
-.dogam:has(#f-owned:checked) .grid-item:not(.is-owned),
-.dogam:has(#f-unknown:checked) .grid-item:not(.is-unknown),
-.dogam:has(#f-left:checked) .grid-item:not(.is-left) { display: none; }
+.dogam:has(#f-owned:checked) .grid-item:not(.is-owned):not(.is-self),
+.dogam:has(#f-unknown:checked) .grid-item:not(.is-unknown):not(.is-self),
+.dogam:has(#f-left:checked) .grid-item:not(.is-left):not(.is-self) { display: none; }
 @media (max-width: 560px) {
   .dogam-head { flex-direction: column; text-align: center; gap: 14px; }
   .filters { justify-content: center; }

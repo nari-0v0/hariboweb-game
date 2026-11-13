@@ -1096,8 +1096,8 @@ members.get('/dogam/:userId', async (c) => {
   if (!owner || !owner.active)
     return page(c, <MessagePage viewer={viewer} title="도감이 없어요" message="지금 서버에 있는 멤버의 도감만 볼 수 있어요." />, 404);
   if (owner.user_id === viewer.user_id) return c.redirect('/dogam');
-  const entries = await listDogam(c.env.DB, owner.user_id);
-  return page(c, <DogamPage viewer={viewer} owner={owner} entries={entries} {...completion(entries)} />);
+  const [entries, ownerProfile] = await Promise.all([listDogam(c.env.DB, owner.user_id), getProfile(c.env.DB, owner.user_id)]);
+  return page(c, <DogamPage viewer={viewer} owner={owner} entries={entries} ownerProfile={ownerProfile} {...completion(entries)} />);
 });
 
 members.get('/card/:userId', async (c) => {
