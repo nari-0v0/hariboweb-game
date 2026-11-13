@@ -113,7 +113,7 @@ describe('원정대 저장과 보상', () => {
     }
     return (await getJourney(db, user, id))!;
   }
-  it('하루 첫 2판만 경험치·젤리를 받아요', async () => {
+  it('하루 첫 2판만 경험치를 받고, 끝까지 깨기 전엔 젤리가 없어요', async () => {
     const { db, sql } = database();
     let xp = 0;
     let jelly = 0;
@@ -122,7 +122,7 @@ describe('원정대 저장과 보상', () => {
       expect(r.row.status).toBe('done');
       if (i < 2) {
         expect(r.row.xp).toBe(journeyXp(r.state.day, r.state.cleared));
-        expect(r.row.jelly).toBe(r.state.cleared ? 1 : 0);
+        expect(r.row.jelly).toBe(0);
         xp += r.row.xp;
         jelly += r.row.jelly;
       } else expect([r.row.xp, r.row.jelly]).toEqual([0, 0]);
@@ -386,6 +386,26 @@ describe('깬 장 다시 돌기 재료', () => {
 });
 
 describe('원정대 도감 젤리', () => {
+  it('9장 대장을 처음 이기면 하루 보상 판수와 상관없이 젤리 10개가 들어와요', async () => {
+    const { db, sql } = database();
+    const ins = sql.prepare("INSERT INTO journey_runs (id, user_id, state, started_at, updated_at, chapter, status, cleared, reward_day, xp) VALUES (?, 'me', '{}', 'x', 'x', ?, 'done', 1, ?, ?)");
+    for (let ch = 1; ch <= 8; ch++) ins.run(`c${ch}`, ch, '2000-01-01', 0);
+    // 오늘 보상 2판은 이미 받았어요
+    const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+    ins.run('t1', 1, today, 5);
+    ins.run('t2', 1, today, 5);
+    const s = startJourney('final', { atk: 200, hp: 200, def: 100 }, 9, {});
+    s.day = DAYS - 1;
+    sql.prepare("INSERT INTO journey_runs (id, user_id, state, started_at, updated_at, chapter) VALUES ('fin', 'me', ?, 'x', 'x', 9)").run(JSON.stringify(s));
+    for (let k = 0; k < 20; k++) {
+      const run = (await getJourney(db, 'me', 'fin'))!;
+      if (run.row.status === 'done') break;
+      await actJourneyRun(db, 'me', 'fin', run.row.rev, { a: 'idle' });
+    }
+    const done = (await getJourney(db, 'me', 'fin'))!;
+    expect([done.state.cleared, done.row.xp, done.row.jelly]).toEqual([true, 0, 10]);
+    expect((sql.prepare("SELECT dogam_jelly FROM profiles WHERE user_id = 'me'").get() as { dogam_jelly: number }).dogam_jelly).toBe(10);
+  });
   it('원정대를 끝까지(9장 대장을 처음) 깼을 때만 10개, 그 전엔 없어요', () => {
     expect(journeyJelly(true, 1, 0)).toBe(0);
     expect(journeyJelly(true, 8, 7)).toBe(0);
