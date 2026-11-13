@@ -2,8 +2,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DAYS, journeyJelly, actJourney, autoChoice, decodeJourney, journeyXp, perkMax, gearBonus, FIRST_CLEAR_BONUS, startJourney, stat, type JourneyState } from '../src/journey';
-import { actJourneyRun, activeJourney, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from '../src/journey-db';
+import { DAYS, journeyJelly, KIT_SHIELD_HITS, kitCost, actJourney, autoChoice, decodeJourney, journeyXp, perkMax, gearBonus, FIRST_CLEAR_BONUS, startJourney, stat, type JourneyState } from '../src/journey';
+import { NO_COINS, actJourneyRun, activeJourney, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from '../src/journey-db';
 
 function database() {
   const sql = new DatabaseSync(':memory:');
@@ -151,7 +151,7 @@ describe('원정대 저장과 보상', () => {
     const { db } = database();
     expect(await beginJourney(db, 'gone')).toBeNull();
   });
-  it('아직 못 깬 장은 죽어도 젤코인이 다 모이고, 이미 깬 장을 다시 돌면 하루에 100% → 50% → 25% → 0%', async () => {
+  it('아직 못 깬 장은 죽어도 젤코인이 다 모이고, 이미 깬 장을 다시 돌면 그 장을 돈 횟수만큼 100% → 50% → 25% → 10% (날이 바뀌어도 그대로)', async () => {
     const { db, sql } = database();
     // 대장을 깬 적 없는 1장: 몇 판을 돌아도 100%
     for (let i = 0; i < 3; i++) {
@@ -163,15 +163,15 @@ describe('원정대 저장과 보상', () => {
     sql.prepare("INSERT INTO journey_runs (id, user_id, state, started_at, updated_at, chapter, status, cleared) VALUES ('c1', 'me', '{}', 'x', 'x', 1, 'done', 1)").run();
     const before = (await journeyBank(db, 'me')).coins;
     let total = 0;
-    for (const pct of [100, 50, 25, 0, 0]) {
+    for (const pct of [100, 50, 25, 10, 10]) {
       const r = await playToEnd(db);
       expect([r.state.farm, r.state.bankPct]).toEqual([true, pct]);
       expect(r.state.banked).toBe(Math.floor((r.state.coins * pct) / 100));
       total += r.state.banked!;
     }
     expect((await journeyBank(db, 'me')).coins).toBe(before + total);
-    expect((await journeyRecord(db, 'me')).farmedToday).toBe(5);
-    expect((await journeyRecord(db, 'me', '2099-01-01')).farmedToday).toBe(0);
+    expect((await journeyRecord(db, 'me')).farmed[1]).toBe(5);
+    expect((await journeyRecord(db, 'me', '2099-01-01')).farmed[1]).toBe(5); // 다른 날에도 그대로
   });
   it('장비는 그 단계 장의 재료와 젤코인으로 올리고, 다음 원정부터 세져요', async () => {
     const { db, sql } = database();
@@ -386,11 +386,57 @@ describe('깬 장 다시 돌기 재료', () => {
 });
 
 describe('원정대 도감 젤리', () => {
-  it('내가 깬 가장 높은 장이나 처음 깨는 장의 대장만 젤리를 줘요', () => {
-    expect(journeyJelly(true, 1, 0)).toBe(1); // 처음 깸
-    expect(journeyJelly(true, 3, 3)).toBe(1); // 가장 높은 장 다시
-    expect(journeyJelly(true, 4, 3)).toBe(1); // 새 장
-    expect(journeyJelly(true, 1, 3)).toBe(0); // 낮은 장 돌기
-    expect(journeyJelly(false, 3, 3)).toBe(0);
+  it('원정대를 끝까지(9장 대장을 처음) 깼을 때만 10개, 그 전엔 없어요', () => {
+    expect(journeyJelly(true, 1, 0)).toBe(0);
+    expect(journeyJelly(true, 8, 7)).toBe(0);
+    expect(journeyJelly(true, 9, 8)).toBe(10); // 처음 끝까지
+    expect(journeyJelly(true, 9, 9)).toBe(0); // 다시 깨면 없음
+    expect(journeyJelly(false, 9, 8)).toBe(0);
+  });
+});
+
+describe('출발 준비물', () => {
+  it('고른 준비물 값을 내고 떠나고, 모자라면 떠나지 않아요', async () => {
+    const { db, sql } = database();
+    const cost = kitCost(['potion', 'shield'], 1);
+    sql.prepare(`INSERT INTO journey_bank (user_id, coins, mats, updated_at) VALUES ('me', ?, '{}', 'x')`).run(cost + 5);
+    const id = await beginJourney(db, 'me', 1, new Date(), ['potion', 'shield']);
+    expect(id).not.toBe(NO_COINS);
+    const run = (await getJourney(db, 'me', id!))!;
+    expect([run.state.kit, run.state.kitShield, run.state.potion]).toEqual([['potion', 'shield'], KIT_SHIELD_HITS, 1]);
+    expect((await journeyBank(db, 'me')).coins).toBe(5);
+    expect(await quitJourney(db, 'me', id!)).toBe(true);
+    expect(await beginJourney(db, 'me', 1, new Date(), ['clover'])).toBe(NO_COINS);
+    expect(await activeJourney(db, 'me')).toBeNull();
+    expect((await journeyBank(db, 'me')).coins).toBe(5);
+  });
+  it('방패는 처음 4번 절반만 맞고, 물약은 위험할 때 한 번 마셔요', () => {
+    let usedPotion = 0;
+    let shieldLeft = 0;
+    for (let i = 0; i < 40; i++) {
+      let s = startJourney(`kit-${i}`, { atk: 0, hp: 0, def: 0 }, 3, {}, ['potion', 'shield']);
+      for (let k = 0; k < 500 && !s.done; k++) {
+        s = actJourney(s, { a: 'idle' })!;
+        if (s.today.some((l) => l.text.includes('회복 물약을 마셨어요'))) usedPotion++;
+      }
+      shieldLeft += s.kitShield ?? 0;
+      expect(s.potion ?? 0).toBeLessThanOrEqual(1);
+    }
+    expect(usedPotion).toBeGreaterThan(0);
+    expect(usedPotion).toBeLessThanOrEqual(40);
+    expect(shieldLeft).toBeLessThan(40 * KIT_SHIELD_HITS);
+  });
+  it('행운 부적이 있으면 재료가 더 잘 나와요', () => {
+    const play = (kit: ('clover')[]) => {
+      let mats = 0;
+      for (let i = 0; i < 300; i++) {
+        let s = startJourney(`clover-${i}`, { atk: 20, hp: 20, def: 10 }, 1, { weapon: 3, armor: 3, charm: 3 }, kit);
+        s.farm = true;
+        for (let k = 0; k < 500 && !s.done; k++) s = actJourney(s, { a: 'idle' })!;
+        mats += s.mats ?? 0;
+      }
+      return mats;
+    };
+    expect(play(['clover'])).toBeGreaterThan(play([]) * 1.2);
   });
 });
