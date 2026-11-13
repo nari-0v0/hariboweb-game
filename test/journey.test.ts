@@ -294,6 +294,20 @@ describe('journey pictures', () => {
 });
 
 describe('원정대 장(챕터)', () => {
+  it('마지막 장도 대장을 깨고 다시 떠나면 재도전으로 시작해요', async () => {
+    const { db, sql } = database();
+    const { MAX_CHAPTER } = await import('../src/journey-chapters');
+    const previous = (await beginJourney(db, 'me'))!;
+    sql.prepare("UPDATE journey_runs SET status = 'done', cleared = 1, chapter = ? WHERE id = ?").run(MAX_CHAPTER, previous);
+    const card = sql.prepare("INSERT INTO members (user_id, display_name, active, updated_at) VALUES (?, '친구', 1, 'x')");
+    const pair = sql.prepare("INSERT INTO cards (owner_id, target_id, xp, first_met, updated_at) VALUES ('me', ?, 2000, 'x', 'x')");
+    for (let i = 0; i < 55; i++) {
+      card.run(`friend-${i}`);
+      pair.run(`friend-${i}`);
+    }
+    const id = (await beginJourney(db, 'me', MAX_CHAPTER))!;
+    expect((await getJourney(db, 'me', id))?.state).toMatchObject({ ch: MAX_CHAPTER, farm: true });
+  });
   it('장마다 몬스터 10마리 그림이 있고 이름이 겹치지 않아요', async () => {
     const { CHAPTERS } = await import('../src/journey-chapters');
     const { SPRITES } = await import('../src/sprites.gen');
