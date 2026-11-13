@@ -118,6 +118,30 @@ function dealCards(stage) {
   return animations;
 }
 
+function tossCoin(stage) {
+  // 위로 던졌다가 떨어지면서 여러 바퀴 뒤집혀 결과 면으로 멈춰요.
+  const coin = stage.querySelector('.gb-coin');
+  const toss = stage.querySelector('.gb-coin-toss');
+  const end = Number.parseFloat(coin.style.getPropertyValue('--gb-coin-end')) || 0;
+  const duration = 1800;
+  return [
+    coin.animate(
+      [{ transform: 'rotateX(0deg)' }, { transform: `rotateX(${8 * 360 + end}deg)` }],
+      { duration, easing: 'cubic-bezier(.25,.6,.4,1)', fill: 'both' },
+    ),
+    toss.animate(
+      [
+        { transform: 'translateY(0) scale(1)' },
+        { transform: 'translateY(-45%) scale(1.15)', offset: .45 },
+        { transform: 'translateY(0) scale(1)', offset: .85 },
+        { transform: 'translateY(-4%) scale(1)', offset: .92 },
+        { transform: 'translateY(0) scale(1)' },
+      ],
+      { duration, easing: 'ease-in-out', fill: 'both' },
+    ),
+  ];
+}
+
 function firstView(key) {
   try {
     const storageKey = `gamble-motion:${key}`;
@@ -129,7 +153,7 @@ function firstView(key) {
   return true;
 }
 
-const playMotion = { slot: spinReels, roulette: spinWheel, cards: dealCards };
+const playMotion = { slot: spinReels, roulette: spinWheel, cards: dealCards, coinflip: tossCoin };
 
 async function showResult(stage) {
   if (!canAnimate() || !firstView(stage.dataset.gbKey)) return;

@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buyWithJelly } from '../src/db';
 import { activeHand, awardGambleSeason, betChips, betTooSoon, claimDaily, expireHand, gambleAccount, gambleRanks, moveHand, publicHand, rescueChips } from '../src/gamble-db';
-import { cardScore, openingPayout, playHand, SLOTS, slotPayout, WHEEL } from '../src/gamble';
+import { cardScore, COIN_PAYOUT, payback, openingPayout, playHand, SLOTS, slotPayout, WHEEL } from '../src/gamble';
 import { SHOP_ITEMS } from '../src/shop';
 
 const TODAY = '2026-11-10T14:59:00.000Z';
@@ -78,6 +78,27 @@ describe('겜블장 배당', () => {
     expect(mean).toBeCloseTo(1.04);
     expect(mean).toBeGreaterThanOrEqual(1.02);
     expect(mean).toBeLessThanOrEqual(1.05);
+  });
+
+  it('동전 던지기는 맞히면 2.05배(내림), 틀리면 0배이고 평균 1.025배', async () => {
+    expect(COIN_PAYOUT / 2).toBeCloseTo(1.025);
+    const { db } = fixture();
+    await claimDaily(db, USER, TODAY);
+    roll(0); // 0 → 곰(heads)
+    const win = await betChips(db, USER, 'coinflip', 10, 'c1', TODAY, 'heads');
+    expect(win).toMatchObject({ multiplier: 2.05 });
+    expect(JSON.parse(win!.state)).toEqual({ pick: 'heads', side: 'heads' });
+    expect(await gambleAccount(db, USER)).toMatchObject({ chips: 1010, won: 10 });
+    roll(1); // 1 → 발바닥(tails)
+    const lose = await betChips(db, USER, 'coinflip', 10, 'c2', LATER(2), 'heads');
+    expect(lose).toMatchObject({ multiplier: 0 });
+    expect((await gambleAccount(db, USER))?.chips).toBe(1000);
+    expect(await betChips(db, USER, 'coinflip', 10, 'c3', LATER(4))).toBeNull();
+    // 100 × 2.05는 부동소수점으로 204.999…라 그냥 내림하면 204가 돼요. 정확히 205를 줘야 해요.
+    roll(0);
+    await betChips(db, USER, 'coinflip', 100, 'c4', LATER(6), 'heads');
+    expect(await gambleAccount(db, USER)).toMatchObject({ chips: 1105, won: 115, best_win: 105 });
+    expect(payback(100, 2.05)).toBe(205);
   });
 
   it('0.5배·1.5배는 돌려받을 칩을 내림해서 정수로 준다', async () => {
