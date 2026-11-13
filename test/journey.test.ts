@@ -151,18 +151,27 @@ describe('원정대 저장과 보상', () => {
     const { db } = database();
     expect(await beginJourney(db, 'gone')).toBeNull();
   });
-  it('오늘 끝낸 판이 많을수록 훈련소에 모이는 젤코인이 100% → 50% → 25% → 0%로 줄어요', async () => {
-    const { db } = database();
+  it('아직 못 깬 장은 죽어도 젤코인이 다 모이고, 이미 깬 장을 다시 돌면 하루에 100% → 50% → 25% → 0%', async () => {
+    const { db, sql } = database();
+    // 대장을 깬 적 없는 1장: 몇 판을 돌아도 100%
+    for (let i = 0; i < 3; i++) {
+      const r = await playToEnd(db);
+      if (r.state.cleared) break;
+      expect([r.state.farm, r.state.bankPct]).toEqual([false, 100]);
+    }
+    // 1장 대장을 깼다고 치면, 그 뒤 1장은 파밍
+    sql.prepare("INSERT INTO journey_runs (id, user_id, state, started_at, updated_at, chapter, status, cleared) VALUES ('c1', 'me', '{}', 'x', 'x', 1, 'done', 1)").run();
+    const before = (await journeyBank(db, 'me')).coins;
     let total = 0;
     for (const pct of [100, 50, 25, 0, 0]) {
       const r = await playToEnd(db);
-      expect(r.state.bankPct).toBe(pct);
+      expect([r.state.farm, r.state.bankPct]).toEqual([true, pct]);
       expect(r.state.banked).toBe(Math.floor((r.state.coins * pct) / 100));
       total += r.state.banked!;
     }
-    expect((await journeyBank(db, 'me')).coins).toBe(total);
-    expect((await journeyRecord(db, 'me')).finishedToday).toBe(5);
-    expect((await journeyRecord(db, 'me', '2099-01-01')).finishedToday).toBe(0);
+    expect((await journeyBank(db, 'me')).coins).toBe(before + total);
+    expect((await journeyRecord(db, 'me')).farmedToday).toBe(5);
+    expect((await journeyRecord(db, 'me', '2099-01-01')).farmedToday).toBe(0);
   });
   it('훈련 한도는 도감으로 열린 장까지만 늘어요', async () => {
     const { db, sql } = database();

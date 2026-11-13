@@ -18,19 +18,19 @@ export async function getJourney(db: D1Database, user: string, id: string): Prom
   return decode(await db.prepare('SELECT * FROM journey_runs WHERE user_id = ? AND id = ?').bind(user, id).first<JourneyRow>());
 }
 
-export type JourneyRecord = { best: number; clears: number; rewardedToday: number; finishedToday: number; unlocked: number }; // unlocked = 대장을 깨서 열린 가장 높은 장
+export type JourneyRecord = { best: number; clears: number; rewardedToday: number; farmedToday: number; unlocked: number }; // unlocked = 대장을 깨서 열린 가장 높은 장
 export async function journeyRecord(db: D1Database, user: string, day = kstDay()): Promise<JourneyRecord> {
   const r = await db
     .prepare(
       `SELECT COALESCE(MAX((chapter - 1) * 20 + day), 0) AS best, COALESCE(SUM(cleared), 0) AS clears,
          COALESCE(MAX(CASE WHEN cleared = 1 THEN chapter ELSE 0 END), 0) AS top,
          COALESCE(SUM(CASE WHEN reward_day = ?2 AND xp > 0 THEN 1 ELSE 0 END), 0) AS today,
-         COALESCE(SUM(CASE WHEN reward_day = ?2 THEN 1 ELSE 0 END), 0) AS played
+         COALESCE(SUM(CASE WHEN reward_day = ?2 AND json_extract(state, '$.farm') = 1 THEN 1 ELSE 0 END), 0) AS played
        FROM journey_runs WHERE user_id = ?1 AND status = 'done'`,
     )
     .bind(user, day)
     .first<{ best: number; clears: number; today: number; played: number; top: number }>();
-  return { best: r?.best ?? 0, clears: r?.clears ?? 0, rewardedToday: r?.today ?? 0, finishedToday: r?.played ?? 0, unlocked: Math.min(MAX_CHAPTER, (r?.top ?? 0) + 1) };
+  return { best: r?.best ?? 0, clears: r?.clears ?? 0, rewardedToday: r?.today ?? 0, farmedToday: r?.played ?? 0, unlocked: Math.min(MAX_CHAPTER, (r?.top ?? 0) + 1) };
 }
 
 // 강화 주머니(모은 동전 + 강화 단계)
@@ -89,12 +89,18 @@ export async function actJourneyRun(db: D1Database, user: string, id: string, re
   const s = actJourney(run.state, act);
   if (!s) return 'bad';
   if (s.done) {
-    // 오늘(한국 날짜) 이미 끝낸 판 수에 따라 훈련소에 모이는 젤코인이 줄어요.
-    const before = await db
-      .prepare("SELECT COUNT(*) AS n FROM journey_runs WHERE user_id = ? AND reward_day = ? AND status = 'done'")
+    // 아직 못 깬 장(도전 중)은 죽든 이기든 젤코인이 다 모여요.
+    // 이미 대장을 깬 장을 다시 도는 판(파밍)만 오늘(한국 날짜) 파밍한 판 수에 따라 줄어요.
+    const r = await db
+      .prepare(
+        `SELECT COALESCE(MAX(CASE WHEN cleared = 1 THEN chapter ELSE 0 END), 0) AS top,
+           COALESCE(SUM(CASE WHEN reward_day = ?2 AND json_extract(state, '$.farm') = 1 THEN 1 ELSE 0 END), 0) AS farmed
+         FROM journey_runs WHERE user_id = ?1 AND status = 'done'`,
+      )
       .bind(user, kstDay(now))
-      .first<{ n: number }>();
-    s.bankPct = bankRate(before?.n ?? 0);
+      .first<{ top: number; farmed: number }>();
+    s.farm = (s.ch ?? 1) <= (r?.top ?? 0);
+    s.bankPct = s.farm ? bankRate(r?.farmed ?? 0) : 100;
     s.banked = Math.floor((s.coins * s.bankPct) / 100);
   }
   const t = now.toISOString();

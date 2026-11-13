@@ -479,7 +479,7 @@ function ChapterPick(props: { unlocked: number; dogam: DogamProgress; today: num
         })}
       </div>
       <p class="jr-rate">
-        🪙 이번 판 젤코인은 훈련소에 <b>{bankRate(props.today)}%</b> 모여요 (하루 첫 판 100% → 50% → 25% → 그 뒤 0%, 내일 다시 100%)
+        🪙 아직 못 깬 장은 젤코인이 다 모여요. 이미 깬 장을 다시 돌면 오늘 {props.today}판째라 다음 판은 <b>{bankRate(props.today)}%</b>만 모여요 (100% → 50% → 25% → 0%, 내일 다시 100%)
       </p>
       <button class="btn btn-primary jr-depart" type="submit">
         🎒 {props.again ? '다시 떠나기' : '원정 떠나기'}
@@ -513,7 +513,7 @@ function Result(props: { run: JourneyRun; art: string; name: string; unlocked: n
           ? `남은 젤코인 🪙 ${s.coins}개 중 ${s.bankPct}%인 🪙 ${s.banked}개를 `
           : `남은 젤코인 🪙 ${s.banked ?? s.coins}개를 `}
         <a href="#perks">원정 훈련소</a>에 모았어요.
-        {s.bankPct !== undefined && s.bankPct < 100 && <span class="hint"> 오늘 많이 할수록 훈련소에 모이는 젤코인이 줄어요. 내일 다시 100%예요.</span>}
+        {s.bankPct !== undefined && s.bankPct < 100 && <span class="hint"> 이미 깬 장을 다시 돌면 하루에 모이는 젤코인이 줄어요. 아직 못 깬 장은 언제나 100%예요.</span>}
       </p>
       <p>
         {run.row.xp > 0
@@ -532,7 +532,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number 
     <section class="panel jr-perks" id="perks">
       <h2>🏋️ 원정 훈련소</h2>
       <p class="hint">
-        원정이 끝나면 남은 젤코인이 여기 모여요(그만두기는 빼고). 하루 첫 판은 100%, 그다음 50%, 25%, 그 뒤로는 안 모여요. 훈련 한도는 열린 장이 늘수록 커져요. 훈련은 영원히 남고, {props.going ? '지금 원정이 끝난 뒤 ' : ''}다음 원정부터 적용돼요.
+        원정이 끝나면 남은 젤코인이 여기 모여요(그만두기는 빼고). 아직 못 깬 장은 언제나 다 모이고, 이미 깬 장을 다시 돌면 하루에 100% → 50% → 25% → 0%로 줄어요. 훈련 한도는 열린 장이 늘수록 커져요. 훈련은 영원히 남고, {props.going ? '지금 원정이 끝난 뒤 ' : ''}다음 원정부터 적용돼요.
       </p>
       <p class="jr-bank">
         모은 젤코인 <b>🪙 {bank.coins}</b>
@@ -603,7 +603,7 @@ export function JourneyPage(props: {
             </div>
           </details>
         </div>
-        {run ? <Play run={run} art={props.art} name={name} /> : result ? <Result run={result} art={props.art} name={name} unlocked={record.unlocked} dogam={props.dogam} today={record.finishedToday} /> : null}
+        {run ? <Play run={run} art={props.art} name={name} /> : result ? <Result run={result} art={props.art} name={name} unlocked={record.unlocked} dogam={props.dogam} today={record.farmedToday} /> : null}
         {!run && !result && (
           <section class="jr-game jr-lobby" id="now">
             <div class="jr-lobby-stage" style={`--jr-bg:url(/journey/bg/${zoneFor(1)}.webp)`}>
@@ -621,7 +621,7 @@ export function JourneyPage(props: {
               </div>
             </div>
             <h2 class="jr-pick-title">어느 장으로 떠날까요?</h2>
-            <ChapterPick unlocked={record.unlocked} dogam={props.dogam} today={record.finishedToday} />
+            <ChapterPick unlocked={record.unlocked} dogam={props.dogam} today={record.farmedToday} />
           </section>
         )}
         <PerkPanel bank={props.bank} going={!!run} unlocked={Math.min(record.unlocked, journeyOpenTo(props.dogam))} />
