@@ -1,7 +1,7 @@
 import type { Profile } from '../db';
 import type { Member } from '../env';
 import type { TitleState } from '../title-db';
-import { TITLES, TITLE_GROUPS, titleName, titleProgress, type Title, type TitleStats } from '../titles';
+import { TITLES, TITLE_GROUPS, visibleTitles, titleName, titleProgress, type Title, type TitleStats } from '../titles';
 import { Card } from './card';
 import { Layout } from './layout';
 import { Popup, ShopHead, type PopupLine } from './shop';
@@ -111,7 +111,8 @@ export function TitlesPage(props: {
   const notice = props.notice && Object.hasOwn(NOTICES, props.notice) ? NOTICES[props.notice] : undefined;
   if (notice) popup.push(...notice);
   const apply = applyText(state);
-  const count = TITLES.filter((t) => owned.has(t.id)).length;
+  const shown = visibleTitles(owned);
+  const count = shown.filter((t) => owned.has(t.id)).length;
 
   return (
     <Layout title="칭호" viewer={viewer} active="shop">
@@ -174,7 +175,7 @@ export function TitlesPage(props: {
             </div>
             <details class="owned-titles">
               <summary>
-                보유 칭호 {count}/{TITLES.length}개
+                보유 칭호 {count}/{shown.length}개
               </summary>
               {count ? (
                 <div class="title-grid">
@@ -190,7 +191,8 @@ export function TitlesPage(props: {
 
           <p class="hint center">묶음을 누르면 펼쳐져요.</p>
           {TITLE_GROUPS.map((g) => {
-            const list = TITLES.filter((t) => t.group === g);
+            const list = shown.filter((t) => t.group === g);
+            if (!list.length) return null;
             const shop = list[0]?.rule.kind === 'shop' ? list[0].rule.price : null;
             const have = list.filter((t) => owned.has(t.id)).length;
             const open = list.some((t) => t.id === state.title_id || t.id === props.focus || props.fresh.includes(t.id));

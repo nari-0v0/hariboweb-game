@@ -498,6 +498,8 @@ export async function settleNickJob(db: D1Database, id: string, ok: boolean, rea
 // 두 사람 카드는 양쪽에 하나씩 있어서, 작은 ID 쪽 카드 한 장만 봐요. 둘 다 지금 멤버일 때만.
 export type Cheer = { a: string; b: string; level: number };
 export async function listCheers(db: D1Database, limit = 10): Promise<Cheer[]> {
+  // 봇이 1분마다 불러요. 카드 표 전체를 읽으면 무료 D1 하루 읽기 한도(500만 줄)를 넘을 수 있어서
+  // 부분 색인 cards_cheer_due(migrations/0034)를 써요. 아래 WHERE를 바꾸면 그 색인도 같이 바꿔야 해요.
   const next = '((cheer_level / 10) * 10 + 9)'; // 다음 축하 레벨 - 1
   const { results } = await db
     .prepare(

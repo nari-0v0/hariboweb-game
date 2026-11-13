@@ -11,10 +11,11 @@ export async function loadTitleStats(db: D1Database, userId: string, nowIso: str
     // 끝난 시즌마다 내가 끝까지 있던 모둠의 퀘스트 수와 깬 수
     db
       .prepare(
-        `SELECT sm.season_id, SUM(q.done_at IS NOT NULL) AS done, COUNT(*) AS total
+        // 모둠 퀘스트가 없는 시즌(하리보 빙고 이후)도 "끝까지 함께한 시즌"으로 세요
+        `SELECT sm.season_id, COALESCE(SUM(q.done_at IS NOT NULL), 0) AS done, COUNT(q.quest_id) AS total
          FROM season_members sm
          JOIN seasons s ON s.id = sm.season_id AND s.ends_at <= ?2
-         JOIN season_quests q ON q.season_id = sm.season_id AND q.group_no = sm.group_no
+         LEFT JOIN season_quests q ON q.season_id = sm.season_id AND q.group_no = sm.group_no
          WHERE sm.user_id = ?1 AND sm.left_at IS NULL
          GROUP BY sm.season_id`,
       )

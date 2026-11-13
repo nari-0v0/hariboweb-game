@@ -99,6 +99,7 @@ export async function buyPerk(db: D1Database, user: string, id: PerkId, now = ne
 export const NO_COINS = 'nocoins';
 // 화면을 연 뒤 고른 장이 잠겼거나 준비물 값이 바뀌었으면(STALE) 떠나지 않고 새 화면을 보여 줘요.
 export const STALE_PICK = 'stalepick';
+const SLIM_AFTER_MS = 3 * 86_400_000;
 export async function beginJourney(db: D1Database, user: string, chapter = 1, now = new Date(), kit: KitId[] = [], shownLevel?: number): Promise<string | null> {
   const going = await activeJourney(db, user);
   if (going) return going.row.id;
@@ -135,6 +136,16 @@ export async function beginJourney(db: D1Database, user: string, chapter = 1, no
         .bind(user, cost, t, id),
     ]);
   } else await insert('').run();
+  // 끝난 지 3일 넘은 판은 진행 내용을 비워요(한 판 2~3KB라 쌓이면 무료 DB 500MB 한도에 닿아요).
+  // 순위·재료 집계는 칸(day, cleared, chapter …)과 farm만 써요. 실패해도 새 판은 그대로예요.
+  await db
+    .prepare(
+      `UPDATE journey_runs SET state = json_object('farm', json_extract(state, '$.farm'))
+       WHERE user_id = ?1 AND status != 'going' AND length(state) > 200 AND updated_at < ?2`,
+    )
+    .bind(user, new Date(now.getTime() - SLIM_AFTER_MS).toISOString())
+    .run()
+    .catch((e) => console.error('지난 원정 기록 줄이기 실패', e));
   const now2 = await activeJourney(db, user);
   if (!now2 && cost > 0) return NO_COINS;
   return now2?.row.id ?? null;

@@ -101,6 +101,10 @@ const plazaStub = (c: Context<AppEnv>) => c.env.PLAZA.get(c.env.PLAZA.idFromName
 
 const app = new Hono<AppEnv>();
 
+// 요청 크기 한도(가져다 놓기만 하고 안 쓰고 있었어요). 봇 동기화 묶음은 크게, 멤버 화면의 폼은 작게.
+const tooLarge = (c: Context<AppEnv>) => c.text('요청이 너무 커요', 413);
+app.use('/api/bot/*', bodyLimit({ maxSize: 16 * 1024 * 1024, onError: tooLarge }));
+
 async function page(c: Context<AppEnv>, node: unknown, status: 200 | 403 | 404 = 200) {
   return c.html('<!doctype html>' + String(await node), status);
 }
@@ -171,6 +175,8 @@ app.get('/auth/dev', async (c) => {
 });
 
 app.post('/auth/logout', (c) => {
+  // 다른 사이트가 몰래 로그아웃시키지 못하게 다른 기능처럼 출처를 확인해요
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
   deleteCookie(c, SESSION_COOKIE, { path: '/' });
   return c.redirect('/');
 });
@@ -544,6 +550,8 @@ app.get('/api/bot/plaza', async (c) => {
 const isPrefetch = (c: Context<AppEnv>) => /prefetch|prerender/i.test(c.req.header('Sec-Purpose') ?? c.req.header('Purpose') ?? '');
 
 const members = new Hono<AppEnv>();
+
+members.use('*', bodyLimit({ maxSize: 64 * 1024, onError: tooLarge }));
 
 members.use('*', async (c, next) => {
   const viewer = await currentViewer(c);
