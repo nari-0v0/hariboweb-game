@@ -498,7 +498,7 @@ function ChapterPick(props: { unlocked: number; dogam: DogamProgress; farmed: Re
         })}
       </div>
       <p class="jr-rate">
-        🪙 아직 못 깬 장은 젤코인이 다 모여요. 이미 깬 장을 다시 돌면 그 장을 돈 횟수만큼 줄어요: 100% → 50% → 25% → 10% (날이 바뀌어도 그대로예요).
+        🪙 아직 못 깬 장은 젤코인이 다 모여요. 이미 깬 장을 다시 돌면 그 장을 돈 횟수만큼 줄어요: 100% → 75% → 50% → 25% → 10% (날이 바뀌어도 그대로예요).
       </p>
       <fieldset class="jr-kit">
         <legend>🎒 출발 준비물 · 이번 판에만 써요</legend>

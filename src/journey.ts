@@ -100,9 +100,9 @@ export const PERKS: Record<PerkId, { name: string; icon: string; per: number; ma
 };
 export const PERK_IDS = Object.keys(PERKS) as PerkId[];
 // 젤코인 파밍 막기(나리 2026-11-13): 아직 못 깬 장은 언제나 100%.
-// 이미 깬 장을 다시 돌면 그 장을 다시 돈 횟수에 따라 100% → 50% → 25% → 10%. 날이 바뀌어도 다시 오르지 않아요.
+// 이미 깬 장을 다시 돌면 그 장을 다시 돈 횟수에 따라 100% → 75% → 50% → 25% → 10%. 날이 바뀌어도 다시 오르지 않아요.
 // 0%까지 내리면 장비 강화 젤코인이 모자라 막혀서, 맨 끝은 10%로 남겨요.
-export const BANK_RATES = [100, 50, 25, 10];
+export const BANK_RATES = [100, 75, 50, 25, 10];
 export const bankRate = (farmed: number) => BANK_RATES[Math.min(Math.max(0, farmed), BANK_RATES.length - 1)]!;
 export const perkCost = (lv: number) => 20 + lv * 15; // 지금 단계에서 다음 단계로 가는 값
 
