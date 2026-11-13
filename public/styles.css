@@ -1774,6 +1774,8 @@ main.wide { max-width: 1320px; }
 .gb-page h1, .gb-page h2, .gb-page h3 { margin: 0; }
 .gb-page p { margin: .65rem 0; }
 .gb-games { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 1rem; }
+/* 게임이 4개라 넓은 화면에서는 2×2로 놓아요(한 줄에 3개면 하나만 남고, 가로 그림도 덜 잘려요). */
+@media (min-width: 40rem) { .gb-games { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .gb-panel {
   min-width: 0;
   padding: 1rem;
@@ -2300,3 +2302,19 @@ main.wide { max-width: 1320px; }
 .jr-kit-price { grid-area: price; font-weight: 700; white-space: nowrap; }
 .jr-kit-text { grid-area: text; font-size: .74rem; color: var(--ink-soft); word-break: keep-all; overflow-wrap: anywhere; }
 @media (max-width: 760px) { .jr-kit-list { grid-template-columns: 1fr; } }
+
+/* 동전 던지기: 나리가 그린 동전 앞(곰)·뒤(발바닥)를 겹쳐 두고 통째로 뒤집어요(gamble.js가 돌려요). */
+.gb-coin-stage { display: grid; justify-items: center; gap: .75rem; perspective: 900px; }
+.gb-coin-toss { width: min(55%, 13rem); }
+.gb-coin { position: relative; width: 100%; aspect-ratio: 1; transform-style: preserve-3d; transform: rotateX(var(--gb-coin-end, 0deg)); }
+.gb-coin-face { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; backface-visibility: hidden; -webkit-backface-visibility: hidden; filter: drop-shadow(0 6px 4px #0008); }
+.gb-coin-tails { transform: rotateX(180deg); }
+.gb-coin-call { margin: 0; padding: .3rem .7rem; background: #0b2416d9; border: 2px solid #c9a227; color: #f6e7b0; }
+.gb-coin-call b { color: #ffd75e; }
+.gb-coin-pick { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin: 0; padding: 0; border: 0; min-width: 0; }
+.gb-coin-pick legend { padding: 0; margin-bottom: .35rem; font-weight: 700; }
+.gb-coin-option { display: flex; align-items: center; justify-content: center; gap: .5rem; padding: .45rem; background: #123d26; border: 3px solid #4a5a3a; color: #f6e7b0; cursor: pointer; }
+.gb-coin-option img { width: 2.6rem; height: 2.6rem; image-rendering: pixelated; }
+.gb-coin-option input { position: absolute; opacity: 0; pointer-events: none; }
+.gb-coin-option:has(input:checked) { border-color: #ffd75e; background: #1d5a37; box-shadow: 0 0 0 2px #0b2416, 0 0 .6rem #ffd75e88; }
+.gb-coin-option:has(input:focus-visible) { outline: 3px solid #ffd75e; outline-offset: 2px; }

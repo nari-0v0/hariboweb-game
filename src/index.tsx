@@ -82,6 +82,7 @@ import {
 } from './title-db';
 
 import { GambleLobby, GambleRoom } from './views/gamble';
+import { isCoinSide } from './gamble';
 import { activeHand, betChips, betTooSoon, claimDaily, expireAllHands, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, moveHand, rescueChips, type Game } from './gamble-db';
 import { prefetchAllowed } from './prefetch';
 import { EscapePage } from './views/escape';
@@ -826,7 +827,7 @@ members.post('/api/titles/buy', async (c) => {
 });
 
 const uuid = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
-const isGambleGame = (value: unknown): value is Game => value === 'slot' || value === 'roulette' || value === 'cards';
+const isGambleGame = (value: unknown): value is Game => value === 'slot' || value === 'roulette' || value === 'cards' || value === 'coinflip';
 const gambleRoomUrl = (game: Game, token?: string) => `/gamble/${game}${token ? `?r=${token}` : ''}`;
 
 members.get('/gamble', async (c) => {
@@ -880,13 +881,16 @@ async function playGamble(c: Context<AppEnv>, room?: string) {
   const form = await c.req.parseBody();
   const game = room ?? form.game;
   if (!isGambleGame(game)) return c.redirect('/gamble', 303);
-  const { bet, token } = form;
+  const { bet, token, pick } = form;
   const url = gambleRoomUrl(game);
   if (typeof bet !== 'string' || !/^[1-9][0-9]*$/.test(bet) || !uuid(token)) {
     return c.redirect(`${url}?n=bet`, 303);
   }
+  if (game === 'coinflip' && !isCoinSide(pick)) return c.redirect(`${url}?n=pick`, 303);
   await expireHand(db, user, now);
-  const round = await betChips(db, user, game, Number(bet), token, now);
+  const round = game === 'coinflip' && isCoinSide(pick)
+    ? await betChips(db, user, game, Number(bet), token, now, pick)
+    : await betChips(db, user, game, Number(bet), token, now);
   if (round?.game === game) return c.redirect(gambleRoomUrl(game, round.token), 303);
   const notice = game === 'cards' && await activeHand(db, user) ? 'active' : await betTooSoon(db, user, now) ? 'fast' : 'bet';
   return c.redirect(`${url}?n=${notice}`, 303);

@@ -4,6 +4,7 @@ export const GAMBLE_ART: Record<string, GambleArt> = {
   slot: { text: '🎰' },
   roulette: { text: '🎡' },
   cards: { text: '🃏' },
+  coinflip: { text: '🪙', image: '/gamble/coin-heads.webp?v=1' },
   cherry: { text: '🍒', image: '/gamble/cherry.webp?v=2' },
   lemon: { text: '🍋', image: '/gamble/lemon.webp?v=2' },
   star: { text: '⭐', image: '/gamble/star.webp?v=2' },
@@ -19,6 +20,8 @@ export const GAMBLE_ART: Record<string, GambleArt> = {
   pointer: { text: '▼', image: '/gamble/pointer.webp?v=2' },
   cardBack: { text: '🂠', image: '/gamble/card-back.webp?v=2' },
   cardFront: { text: '' },
+  coinHeads: { text: '곰', image: '/gamble/coin-heads.webp?v=1' },
+  coinTails: { text: '발바닥', image: '/gamble/coin-tails.webp?v=1' },
 };
 export const SLOT_ART = ['cherry', 'lemon', 'star', 'seven'] as const;
 export const SUIT_ART = ['spade', 'heart', 'diamond', 'club'] as const;

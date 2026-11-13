@@ -1,14 +1,15 @@
 import type { Member } from '../env';
 import { GAMBLE_ART, SLOT_ART } from '../gamble-art';
-import { CHERRY_PAIR, ROULETTE, SLOTS, payback, rankOf } from '../gamble';
+import { CHERRY_PAIR, COIN_PAYOUT, ROULETTE, SLOTS, payback, rankOf, type CoinFlip, type CoinSide } from '../gamble';
 import { gambleDay, publicHand, type GambleAccount, type Game, type Round } from '../gamble-db';
 import { plainPodium } from '../rankings';
 import { Layout } from './layout';
 import { PodiumBoard } from './podium';
 
-const GAMES = { slot: '슬롯', roulette: '배수 룰렛', cards: '카드 21(블랙잭)' };
-const DESCRIPTIONS = {
+const GAMES: Record<Game, string> = { slot: '슬롯', roulette: '배수 룰렛', cards: '카드 21(블랙잭)', coinflip: '동전 던지기' };
+const DESCRIPTIONS: Record<Game, string> = {
   slot: '릴 세 개에서 같은 그림을 맞춰요.',
+  coinflip: '곰과 발바닥 중 나올 면을 맞혀요.',
   roulette: '바늘이 멈춘 칸의 배수를 받아요.',
   cards: '21을 넘기지 않고 딜러보다 가까우면 이겨요.',
 };
@@ -17,6 +18,7 @@ const NOTICES: Record<string, string> = {
   active: '진행 중인 카드 21을 먼저 끝내 주세요.',
   fast: '너무 빨라요. 잠깐 뒤에 다시 걸어 주세요.',
   stale: '다른 화면에서 이미 진행했어요. 지금 판을 보여 드려요.',
+  pick: '곰이나 발바닥 중 하나를 골라 주세요.',
   rescue: '다시 시작할 젤칩 1000개를 받았어요.',
   'rescue-day-changed': '날짜가 바뀌었어요. 지금 잔액을 확인한 뒤 다시 시도해 주세요.',
   'no-rescue': '오늘 이미 다시 시작했거나, 아직 젤칩이나 진행 중인 카드 21이 있어요.',
@@ -33,7 +35,7 @@ const CARD_RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q',
 
 // 나리가 그린 게임별 배경: 게임 방은 정사각형(room), 로비의 게임 고르기 칸은 가로로 긴 그림(lobby).
 // 게임 방에서 제일 크게 보이는 그림(먼저 받기 시작해요).
-const MAIN_ART: Record<Game, string> = { slot: 'slotFrame', roulette: 'wheel', cards: 'cardBack' };
+const MAIN_ART: Record<Game, string> = { slot: 'slotFrame', roulette: 'wheel', cards: 'cardBack', coinflip: 'coinHeads' };
 const gameBackground = (game: Game, kind: 'room' | 'lobby') => `/gamble/bg/${game}-${kind}.webp?v=2`;
 
 function ArtLayer({ name }: { name: string }) {
@@ -41,13 +43,32 @@ function ArtLayer({ name }: { name: string }) {
   return image ? <img class="gb-art-layer" src={image} alt="" /> : null;
 }
 
-function BetForm({ game, balance, previousBet }: { game: Game; balance: number; previousBet?: number }) {
+const COIN_NAMES: Record<CoinSide, string> = { heads: '곰', tails: '발바닥' };
+
+// 동전 던지기: 나올 면 고르기(그림 동전 두 개 중 하나)
+function CoinPick({ pick }: { pick: CoinSide }) {
+  return (
+    <fieldset class="gb-coin-pick">
+      <legend>나올 면 고르기</legend>
+      {(['heads', 'tails'] as const).map((side) => (
+        <label class="gb-coin-option">
+          <input type="radio" name="pick" value={side} checked={side === pick} />
+          <img src={GAMBLE_ART[side === 'heads' ? 'coinHeads' : 'coinTails']!.image} alt="" />
+          <span>{COIN_NAMES[side]}</span>
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+
+function BetForm({ game, balance, previousBet, pick }: { game: Game; balance: number; previousBet?: number; pick?: CoinSide }) {
   const bet = Math.min(balance, previousBet ?? 0);
   return (
     <form class="gb-form gb-bet-form" action={`/gamble/${game}/play`} method="post" data-gb-balance={balance}>
       <input type="hidden" name="game" value={game} />
       <input type="hidden" name="token" value={crypto.randomUUID()} />
       <input type="hidden" name="bet" value={bet} />
+      {game === 'coinflip' && <CoinPick pick={pick ?? 'heads'} />}
       <div class="gb-bet-display">
         <span>걸 젤칩</span><output class="gb-bet-amount" aria-label="걸 젤칩">{chips(bet)}개</output>
       </div>
@@ -155,6 +176,28 @@ function Cards({ round }: { round: Round }) {
   );
 }
 
+// 나리가 그린 동전 앞(곰)·뒤(발바닥). 두 면을 겹쳐 두고 통째로 뒤집어요. 멈출 면은 서버가 정한 결과예요.
+function CoinStage({ round }: { round: Round | null }) {
+  const flip = round ? (JSON.parse(round.state) as CoinFlip) : null;
+  const side = flip?.side ?? 'heads';
+  return (
+    <div class="gb-coin-stage">
+      <div class="gb-coin-toss">
+        <div class="gb-coin" data-gb-side={side} style={`--gb-coin-end:${side === 'heads' ? 0 : 180}deg`} role="img"
+          aria-label={flip ? `나온 면: ${COIN_NAMES[side]}` : '동전'}>
+          <img class="gb-coin-face gb-coin-heads" src={GAMBLE_ART.coinHeads!.image} alt="" />
+          <img class="gb-coin-face gb-coin-tails" src={GAMBLE_ART.coinTails!.image} alt="" />
+        </div>
+      </div>
+      {flip && (
+        <p class="gb-coin-call" data-gb-reveal>
+          고른 면 <b>{COIN_NAMES[flip.pick]}</b> · 나온 면 <b>{COIN_NAMES[flip.side]}</b>
+        </p>
+      )}
+    </div>
+  );
+}
+
 function CardDeck() {
   return <div class="gb-card-deck" aria-hidden="true"><Art name="cardBack" /></div>;
 }
@@ -165,6 +208,7 @@ function GameSurface({ game, round, canBet }: { game: Game; round: Round | null;
       {game === 'slot' && <SlotReels reels={round ? JSON.parse(round.state) as number[] : undefined} />}
       {game === 'roulette' && <RouletteWheel landed={round ? Number(round.state) : undefined} multiplier={round?.multiplier} />}
       {game === 'cards' && (round ? <Cards round={round} /> : <CardDeck />)}
+      {game === 'coinflip' && <CoinStage round={round} />}
       {canBet && (
         <div class="gb-coin-drop" aria-hidden="true">
           <span class="gb-dropping-coin" hidden><Art name="coin" /></span>
@@ -198,6 +242,7 @@ function GameRules({ game }: { game: Game }) {
         </>
       )}
       {game === 'roulette' && <p>1배는 본전이고, 0.5배·1.5배는 받을 젤칩을 내림해요. 나올 확률: {ROULETTE.map(({ payout, count }) => `${payout}배 ${count}%`).join(' · ')}</p>}
+      {game === 'coinflip' && <p>곰과 발바닥이 나올 확률은 반반이에요. 맞히면 {COIN_PAYOUT}배(받을 젤칩은 내림), 틀리면 건 젤칩을 잃어요.</p>}
       {game === 'cards' && <p>딜러는 17점부터 멈춰요. 승리 2배 · 첫 두 장으로 21을 만들어 이기면 3배 · 비기면 1배</p>}
     </details>
   );
@@ -273,7 +318,7 @@ export function GambleRoom(props: {
   const motion = result ?? (hand && hand.token === props.result?.token ? hand : null);
   const notice = noticeText(props.notice);
   return (
-    <Layout title={GAMES[game]} viewer={props.viewer} active="gamble" scripts={[{ src: '/gamble.js?v=3', type: 'module' }]}
+    <Layout title={GAMES[game]} viewer={props.viewer} active="gamble" scripts={[{ src: '/gamble.js?v=4', type: 'module' }]}
       preloadImages={[gameBackground(game, 'room'), ...[MAIN_ART[game]].flatMap((name) => GAMBLE_ART[name]?.image ?? [])]}>
       <div class="gb-page gb-room-page">
         <div class="gb-room-bar">
@@ -300,7 +345,8 @@ export function GambleRoom(props: {
             </>
           ) : (
             <div data-gb-reveal>
-              <BetForm game={game} balance={balance} previousBet={result?.bet} />
+              <BetForm game={game} balance={balance} previousBet={result?.bet}
+                pick={game === 'coinflip' && result ? (JSON.parse(result.state) as CoinFlip).pick : undefined} />
               {balance === 0 && <p><a href="/gamble">겜블장에서 젤칩 받기</a></p>}
               <noscript>걸 젤칩을 바꾸려면 자바스크립트를 켜 주세요.</noscript>
             </div>

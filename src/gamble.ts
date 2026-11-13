@@ -16,6 +16,15 @@ export const WHEEL = ROULETTE.flatMap(({ payout, count }) => Array<number>(count
 // 건 칩 × 배수를 내림한 만큼 돌려받아요(0.5배·1.5배 때문에).
 export const payback = (bet: number, multiplier: number) => Math.floor(bet * multiplier);
 
+// 동전 던지기(나리 2026-11-13): 곰(앞)·발바닥(뒤) 중 하나를 골라 맞히면 2.05배(받을 칩은 내림). 평균 1.025배.
+export const COIN_SIDES = ['heads', 'tails'] as const;
+export type CoinSide = (typeof COIN_SIDES)[number];
+export const COIN_PAYOUT = 2.05;
+export const isCoinSide = (v: unknown): v is CoinSide => v === 'heads' || v === 'tails';
+export type CoinFlip = { pick: CoinSide; side: CoinSide };
+export const flipCoin = (pick: CoinSide): CoinFlip => ({ pick, side: COIN_SIDES[randomBelow(2)]! });
+export const coinPayout = (flip: CoinFlip) => (flip.pick === flip.side ? COIN_PAYOUT : 0);
+
 export function randomBelow(n: number): number {
   const limit = 2 ** 32 - (2 ** 32 % n);
   const sample = new Uint32Array(1);
