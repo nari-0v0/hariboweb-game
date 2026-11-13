@@ -1,6 +1,7 @@
 // 하리보 빙고의 팀 퀘스트(빙고 가운데 칸), 서버 퀘스트(초록하리보 납치 대소동!), 젤리피 기록.
 // 신청·인증·관리자 확인은 없어요. 봇이 보내는 통화방 1분 기록으로 저절로 세요.
 import { kstParts, type Season } from './season';
+import { fallbackWeek } from './bingo';
 
 const DAY_MS = 86_400_000;
 
@@ -52,6 +53,12 @@ export async function loadPrior(db: D1Database, season: Season): Promise<Prior> 
   const cutoffIso = new Date(Date.parse(season.start) - TEAM_PRIOR_DAYS * DAY_MS).toISOString();
   const fromDay = kstParts(cutoffIso).day;
   const toDay = kstParts(season.start).day;
+  // 봇이 주기를 못 보낸 동안 쓴 임시 주(id가 w로 시작, bingo_periods에 없어요)도 같이 봐요.
+  const tempWeeks: string[] = [];
+  for (let ms = Date.parse(cutoffIso); ms < Date.parse(season.start) + 7 * DAY_MS; ms += 7 * DAY_MS) {
+    const w = fallbackWeek(ms);
+    if (w.start < season.start && w.end > cutoffIso && !tempWeeks.includes(w.id)) tempWeeks.push(w.id);
+  }
   const [voice, pairs, slots] = await Promise.all([
     db
       .prepare('SELECT DISTINCT user_id FROM member_voice_day WHERE day >= ?1 AND day < ?2 AND minutes > 0')
@@ -61,9 +68,10 @@ export async function loadPrior(db: D1Database, season: Season): Promise<Prior> 
     db
       .prepare(
         `SELECT a, b, SUM(minutes) AS minutes FROM bingo_pair
-         WHERE week IN (SELECT id FROM bingo_periods WHERE starts_at < ?1 AND ends_at > ?2) GROUP BY a, b`,
+         WHERE week IN (SELECT id FROM bingo_periods WHERE starts_at < ?1 AND ends_at > ?2)
+            OR week IN (SELECT value FROM json_each(?3)) GROUP BY a, b`,
       )
-      .bind(season.start, cutoffIso)
+      .bind(season.start, cutoffIso, JSON.stringify(tempWeeks))
       .all<{ a: string; b: string; minutes: number }>(),
     db
       .prepare('SELECT user_id, day, slot, minutes FROM member_voice_slot WHERE day >= ?1 AND day < ?2')

@@ -205,6 +205,18 @@ describe('줄 보상', () => {
     expect(profileOf(sql, B)).toEqual(got);
   });
 
+  it('지난 진짜 기간과 지금 사이에 임시 주가 끼어 있어도 지난 보상을 다시 확인해요', async () => {
+    const { sql, db } = fakeD1();
+    // 진짜 기간 A(일요일 저녁에 끝남) → 월요일 낮은 임시 주 → 진짜 기간 B(월요일 저녁 시작)
+    const a = { id: 'pa', start: '2026-11-01T09:00:00.000Z', end: '2026-11-08T09:00:00.000Z' };
+    const b = { id: 'pb', start: '2026-11-09T09:00:00.000Z', end: '2026-11-16T09:00:00.000Z' };
+    for (const p of [a, b]) sql.prepare('INSERT INTO bingo_periods (id, starts_at, ends_at) VALUES (?, ?, ?)').run(p.id, p.start, p.end);
+    fill(sql, B);
+    sql.exec(`UPDATE bingo_day SET week = 'pa'; UPDATE bingo_pair SET week = 'pa'; UPDATE bingo_flag SET week = 'pa';`);
+    await myBingo(db, B, Date.parse(b.start) + 3_600_000);
+    expect(profileOf(sql, B).dogam_jelly).toBeGreaterThan(0);
+  });
+
   it('서버를 떠난 사람은 받지 않아요', async () => {
     const { sql, db } = fakeD1();
     fill(sql, B);
