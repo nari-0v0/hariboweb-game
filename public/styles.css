@@ -2201,9 +2201,25 @@ main.wide { max-width: 1320px; }
 .jp-coins { padding: 4px 12px; border: 3px solid var(--ink); background: #ffe58a; font-weight: 700; box-shadow: 0 3px 0 var(--ink); }
 .jp > .hint { margin: 0; }
 .jp-sub { margin: 6px 0 0; font-size: 1rem; }
-.jp-hero { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 12px; align-items: center; padding: 10px; border: 3px solid var(--ink); background: linear-gradient(#dff1ff, #f3faff); }
-.jp-hero-pic { display: grid; place-items: center; height: 104px; border: 3px solid var(--ink); background: #bfe3ff; box-shadow: inset 0 -12px 0 #9fd0f5; }
-.jp-hero-pic img { width: 88px; height: 88px; object-fit: contain; image-rendering: pixelated; }
+.jp-hero { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: center; padding: 12px; border: 3px solid var(--ink); background: linear-gradient(#dff1ff, #f3faff); }
+.jp-doll { display: grid; grid-template-columns: 52px 112px 52px; grid-template-areas: "weapon pic armor" "charm pic ."; gap: 6px; align-items: center; }
+.jp-hero-pic { grid-area: pic; display: grid; place-items: center; height: 124px; border: 3px solid var(--ink); background: #bfe3ff; box-shadow: inset 0 -14px 0 #9fd0f5; }
+.jp-hero-pic img { width: 104px; height: 104px; object-fit: contain; image-rendering: pixelated; }
+.jp-slot { position: relative; display: grid; place-items: center; width: 52px; height: 52px; border: 3px solid var(--ink); background: #fff; font-size: 1.5rem; text-decoration: none; color: var(--ink); box-shadow: 0 3px 0 var(--ink); }
+.jp-slot:hover { background: #fff6c9; }
+.jp-slot b { position: absolute; right: -8px; bottom: -8px; padding: 0 4px; border: 2px solid var(--ink); background: #ff7aa8; color: #fff; font-size: .7rem; line-height: 1.3; }
+.jp-slot-weapon { grid-area: weapon; }
+.jp-slot-armor { grid-area: armor; }
+.jp-slot-charm { grid-area: charm; }
+.jp-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.jp-tab { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px; border: 3px solid var(--ink); background: var(--paper); color: var(--ink); text-decoration: none; box-shadow: 0 4px 0 var(--ink); }
+.jp-tab:hover { background: #fff6c9; }
+.jp-tab:active { translate: 0 3px; box-shadow: 0 1px 0 var(--ink); }
+.jp-tab.on { background: #ffe58a; translate: 0 3px; box-shadow: 0 1px 0 var(--ink); }
+.jp-tab-icon { font-size: 1.7rem; line-height: 1.2; }
+.jp-badge { position: absolute; top: -10px; right: -8px; min-width: 22px; padding: 1px 5px; border: 2px solid var(--ink); background: #ff7aa8; color: #fff; font-size: .72rem; font-weight: 700; text-align: center; }
+.jp-pane { display: grid; gap: 8px; padding: 10px; border: 3px dashed var(--ink); background: #fbfdff; }
+.jp-pane > .hint, .jp-tip { margin: 0; }
 .jp-stats { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .jp-stats li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; grid-template-rows: auto auto; column-gap: 6px; align-items: center; padding: 4px 8px; border: 2px solid var(--ink); background: #fff; }
 .jp-stat-icon { grid-row: span 2; font-size: 1.2rem; text-align: center; }
@@ -2244,9 +2260,8 @@ main.wide { max-width: 1320px; }
 .jp-up { margin-top: auto; width: 100%; }
 .jp-drop { font-size: .74rem; }
 @media (max-width: 560px) {
-  .jp-hero { grid-template-columns: 76px minmax(0, 1fr); padding: 8px; }
-  .jp-hero-pic { height: 76px; }
-  .jp-hero-pic img { width: 64px; height: 64px; }
+  .jp-hero { grid-template-columns: 1fr; justify-items: center; padding: 10px; }
+  .jp-stats { width: 100%; }
   .jp-gear { grid-template-columns: 1fr; }
   .jp-item { display: grid; grid-template-columns: 64px minmax(0, 1fr); text-align: left; column-gap: 10px; align-items: center; }
   .jp-item-pic { grid-row: span 5; }
