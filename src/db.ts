@@ -1,4 +1,4 @@
-import { levelFromXp } from './levels';
+import { XP_SCALE, levelFromXp } from './levels';
 import type { Member } from './env';
 import { stripTitle } from './titles';
 import type { LoginProfile } from './discord';
@@ -499,7 +499,7 @@ export async function listCheers(db: D1Database, limit = 10): Promise<Cheer[]> {
       `SELECT c.owner_id AS a, c.target_id AS b, c.xp, c.cheer_level FROM cards c
        JOIN members ma ON ma.user_id = c.owner_id AND ma.active = 1
        JOIN members mb ON mb.user_id = c.target_id AND mb.active = 1
-       WHERE c.owner_id < c.target_id AND c.cheer_level < 100 AND c.xp >= 2.25 * ${next} * ${next}
+       WHERE c.owner_id < c.target_id AND c.cheer_level < 100 AND c.xp >= ${XP_SCALE} * ${next} * ${next}
        ORDER BY c.updated_at LIMIT ?`,
     )
     .bind(limit)
