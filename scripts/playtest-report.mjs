@@ -104,7 +104,7 @@ ${report.issues.length ? report.issues.map((i) => `- ${i.where}: ${i.kind} ${JSO
 1280×900 및 390×844의 Chromium으로 검사했습니다. 대비는 단색 배경의 계산된 전경·배경색과 WCAG AA 기준(보통 4.5:1, 큰 글자 3:1)을 비교합니다. 이미지·그라데이션 속 글자 및 투명도·애니메이션을 포함한 픽셀 합성 대비, 실제 휴대폰 터치, 스크린리더, 다른 브라우저, 원정의 모든 장·무작위 분기는 검증하지 않았습니다. 확대 보기는 정상 닫기 UI로 닫고, 클릭은 버튼의 실제 노출 지점을 사용하며 force 클릭이나 합성 이벤트로 우회하지 않았습니다.
 `;
   await mkdir("output", { recursive: true });
-  await writeFile("playtest-report.md", text);
+  await writeFile("docs/playtest-report.md", text);
   await writeFile("output/playtest-report.md", text);
   const escape = (s) =>
     s
