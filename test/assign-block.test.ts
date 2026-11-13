@@ -81,6 +81,13 @@ describe('사유 검사', () => {
 });
 
 describe('신청', () => {
+  it('동시에 신청해도 같은 상대는 한 번만, 전체 세 명까지만 저장해요', async () => {
+    const { db } = fakeD1();
+    const send = (to: string) => requestBlock(db, undefined, A, to, REASON, false, NOW);
+    expect((await Promise.all([send(B), send(B)])).sort()).toEqual(['done', 'dup']);
+    expect((await Promise.all([send(C), send(D), send(ids[4]!)])).sort()).toEqual(['done', 'done', 'limit']);
+    expect(await myBlocks(db, A)).toHaveLength(3);
+  });
   it('AI가 괜찮다고 하면 대기, 장난이면 반려(AI), 모호하면 한 번 더 물어요', async () => {
     const { sql, db } = fakeD1();
     expect(await requestBlock(db, fakeAi('{"verdict":"ok","summary":"게임 중 욕설"}'), A, B, REASON, false, NOW)).toBe('done');

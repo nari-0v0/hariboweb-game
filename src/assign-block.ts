@@ -94,11 +94,21 @@ export async function requestBlock(
   const verdict = await reviewReason(ai, reason);
   if (verdict?.verdict === 'vague' && !asked) return 'more';
   const status = verdict?.verdict === 'reject' ? 'ai_rejected' : 'pending';
-  await db
-    .prepare('INSERT INTO assign_blocks (from_id, to_id, reason, ai_verdict, ai_summary, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .bind(fromId, toId, reason, verdict?.verdict ?? null, verdict?.summary || null, status, new Date(nowMs).toISOString())
+  const result = await db
+    .prepare(`INSERT INTO assign_blocks (from_id, to_id, reason, ai_verdict, ai_summary, status, created_at)
+      SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7
+      WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
+        AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)
+        AND NOT EXISTS (SELECT 1 FROM assign_blocks WHERE from_id = ?1 AND to_id = ?2 AND status IN ('pending', 'ai_rejected', 'approved'))
+        AND (SELECT COUNT(*) FROM assign_blocks WHERE from_id = ?1 AND status IN ('pending', 'ai_rejected', 'approved')) < ?8`)
+    .bind(fromId, toId, reason, verdict?.verdict ?? null, verdict?.summary || null, status, new Date(nowMs).toISOString(), BLOCK_MAX_PENDING)
     .run();
-  return 'done';
+  if (result.meta.changes) return 'done';
+  const active = await db.prepare('SELECT COUNT(*) AS n FROM members WHERE user_id IN (?, ?) AND active = 1').bind(fromId, toId).first<{ n: number }>();
+  if (active?.n !== 2) return 'unknown';
+  const duplicate = await db.prepare("SELECT 1 FROM assign_blocks WHERE from_id = ? AND to_id = ? AND status IN ('pending', 'ai_rejected', 'approved')")
+    .bind(fromId, toId).first();
+  return duplicate ? 'dup' : 'limit';
 }
 
 // 내가 제외한 사람(검토 중 + 승인). 나리가 반려한 요청은 빼요.
