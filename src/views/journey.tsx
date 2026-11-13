@@ -601,18 +601,18 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
             );
           })}
         </ul>
+        <nav class="jp-tabs" aria-label="원정 준비소">
+          {PREP_TABS.map((t) => (
+            <a class={`jp-tab${props.tab === t.id ? ' on' : ''}`} href={props.tab === t.id ? '?#perks' : `?prep=${t.id}#perks`} aria-current={props.tab === t.id ? 'page' : undefined}>
+              <span class="jp-tab-icon" aria-hidden="true">
+                {t.icon}
+              </span>
+              <b>{t.name}</b>
+              {badge[t.id] && <span class="jp-badge">{badge[t.id]}</span>}
+            </a>
+          ))}
+        </nav>
       </div>
-      <nav class="jp-tabs" aria-label="원정 준비소">
-        {PREP_TABS.map((t) => (
-          <a class={`jp-tab${props.tab === t.id ? ' on' : ''}`} href={props.tab === t.id ? '?#perks' : `?prep=${t.id}#perks`} aria-current={props.tab === t.id ? 'page' : undefined}>
-            <span class="jp-tab-icon" aria-hidden="true">
-              {t.icon}
-            </span>
-            <b>{t.name}</b>
-            {badge[t.id] && <span class="jp-badge">{badge[t.id]}</span>}
-          </a>
-        ))}
-      </nav>
       {!props.tab && (
         <p class="hint jp-tip">
           훈련은 젤코인으로 조금씩, 장비는 장마다 나오는 재료로 한 단계씩 크게 강해져요. 버튼을 눌러 들어가 보세요. 모두 {later}다음 원정부터 적용돼요.
