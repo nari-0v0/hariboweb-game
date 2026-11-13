@@ -173,13 +173,17 @@ export type TeamProgress = {
 // 시즌 중에 후보가 나가서 목표가 남은 후보보다 크면 남은 후보 수로 낮춰요.
 export function teamProgress(pairs: { a: string; b: string }[], minutes: Map<string, number>, left: Set<string>): TeamProgress {
   const all = new Set(pairs.flatMap((p) => [p.a, p.b]));
-  const candidates = [...all].filter((u) => !left.has(u)).sort();
   const reached = new Set<string>();
+  const available = new Set<string>();
   for (const p of pairs)
     if ((minutes.get(pairKey(p.a, p.b)) ?? 0) >= TEAM_GOAL_MIN) {
       reached.add(p.a);
       reached.add(p.b);
+    } else if (!left.has(p.a) && !left.has(p.b)) {
+      available.add(p.a);
+      available.add(p.b);
     }
+  const candidates = [...all].filter((u) => !left.has(u) && (reached.has(u) || available.has(u))).sort();
   const achievers = candidates.filter((u) => reached.has(u));
   const bonus = all.size < 2 || candidates.length === 0;
   const base = Math.min(Math.max(2, Math.round(all.size / 2)), all.size);

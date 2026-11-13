@@ -742,7 +742,11 @@ export function EscapePage(props: {
                 return (
                   <form method="post" action="/api/escape/start" class={`esc-file${best ? ' done' : ''}`}>
                     <input type="hidden" name="case" value={c.id} />
-                    {run && <input type="hidden" name="switch" value="1" />}
+                    {run && <>
+                      <input type="hidden" name="switch" value="1" />
+                      <input type="hidden" name="run" value={run.row.id} />
+                      <input type="hidden" name="rev" value={run.row.rev} />
+                    </>}
                     <button type="submit" title={c.intro}>
                       <span class="esc-file-tab">{'★'.repeat(c.level ?? 1)}</span>
                       <span class="esc-case-emoji" aria-hidden="true">

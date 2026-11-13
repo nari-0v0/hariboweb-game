@@ -102,6 +102,15 @@ describe('칭찬함', () => {
     expect((await praiseBox(db, C)).items[0]).toMatchObject({ note: null, hidden: true });
   });
 
+  it('오래된 읽음 표시가 나중에 저장돼도 읽은 칭찬이 다시 새 칭찬이 되지 않아요', async () => {
+    const { db } = fakeD1();
+    const before = Date.now() - 1000;
+    await givePraise(db, A, C, '2026-11-12', '최고!');
+    await markPraiseSeen(db, C, Date.now() + 1000);
+    await markPraiseSeen(db, C, before);
+    expect((await praiseBox(db, C)).unread).toBe(0);
+  });
+
   it('떠난 멤버의 한마디는 지우고, 보낸 사람 기록(빙고 집계)은 남기고, 다시 들어와도 예전 칭찬은 안 보여요', async () => {
     const { sql, db } = fakeD1();
     await givePraise(db, A, C, '2026-11-10', '예전 칭찬');

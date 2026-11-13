@@ -103,6 +103,13 @@ describe('팀 퀘스트 계산', () => {
     expect(teamProgress([], new Map(), new Set())).toMatchObject({ bonus: true, complete: false, target: 0 });
   });
 
+  it('떠난 팀원과만 짝이었던 미달성자는 목표 인원에서 빼요', () => {
+    const p = teamProgress(pairs([[A, B], [C, D]]), new Map(), new Set([B]));
+    expect(p).toMatchObject({ candidates: [C, D], target: 2, bonus: false });
+    const noPartner = teamProgress(pairs([[A, B]]), new Map(), new Set([B]));
+    expect(noPartner).toMatchObject({ candidates: [], target: 0, bonus: true, complete: false });
+  });
+
   it('짝: 둘 다 지난 2주 통화, 게임 역할 겹침(없으면 누구나), 지난 2주 10분 미만', () => {
     const prior: Prior = { voiced: new Set([A, B, C]), minutes: new Map([[`${A}|${C}`, 10]]), slot: new Map() };
     expect(canPair({ id: A, games: ['롤'] }, { id: B, games: ['롤', '배그'] }, prior)).toBe(true);

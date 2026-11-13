@@ -35,20 +35,37 @@ export async function escapeOpen(db: D1Database, user: string, caseId: string): 
   return need.cards === 0 || meets(need, await dogamProgress(db, user));
 }
 
-export async function beginEscape(db: D1Database, user: string, caseId: string, now = new Date()): Promise<string | null> {
+export async function beginEscape(
+  db: D1Database, user: string, caseId: string, now = new Date(), replace?: { id: string; rev: number },
+): Promise<string | null> {
   const def = escCase(caseId);
   if (!def) return null;
   if (!(await escapeOpen(db, user, caseId))) return null;
   const going = await activeEscape(db, user);
-  if (going) return going.row.id;
+  if (going && !replace) return going.row.id;
+  if (replace && (!going || going.row.id !== replace.id || going.row.rev !== replace.rev)) return null;
+  if (going?.row.case_id === caseId) return going.row.id;
   const id = crypto.randomUUID();
   const t = now.toISOString();
+  const state = JSON.stringify(startEscape(def));
+  if (replace) {
+    const [quit] = await db.batch([
+      db.prepare(`UPDATE escape_runs SET status = 'quit', updated_at = ?3, ended_at = ?3, mutation = ?5
+        WHERE user_id = ?1 AND id = ?2 AND rev = ?4 AND status = 'going'
+          AND EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)`)
+        .bind(user, replace.id, t, replace.rev, id),
+      db.prepare(`INSERT INTO escape_runs (id, user_id, case_id, state, started_at, updated_at)
+        SELECT ?1, ?2, ?3, ?4, ?5, ?5 FROM escape_runs WHERE id = ?6 AND mutation = ?1 AND status = 'quit'`)
+        .bind(id, user, caseId, state, t, replace.id),
+    ]);
+    return quit?.meta.changes === 1 ? id : null;
+  }
   await db
     .prepare(
       `INSERT OR IGNORE INTO escape_runs (id, user_id, case_id, state, started_at, updated_at)
        SELECT ?1, ?2, ?3, ?4, ?5, ?5 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)`,
     )
-    .bind(id, user, caseId, JSON.stringify(startEscape(def)), t)
+    .bind(id, user, caseId, state, t)
     .run();
   return (await activeEscape(db, user))?.row.id ?? null;
 }

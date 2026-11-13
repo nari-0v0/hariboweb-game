@@ -302,6 +302,18 @@ describe('사건파일 방탈출 저장과 보상', () => {
     expect(await beginEscape(db, 'gone', c.id)).toBeNull();
     expect(await beginEscape(db, 'me', 'nope')).toBeNull();
   });
+  it('옛 목록에서 사건을 바꿔도 새로 시작하거나 진행한 사건을 덮지 않아요', async () => {
+    const { db } = database();
+    const first = (await beginEscape(db, 'me', c.id))!;
+    const other = ESCAPE_CASES.find((def) => def.level === 1 && def.id !== c.id)!;
+    await actEscapeRun(db, 'me', first, 0, { a: 'tap', o: 'plant' });
+    expect(await beginEscape(db, 'me', other.id, new Date(), { id: first, rev: 0 })).toBeNull();
+    const next = await beginEscape(db, 'me', other.id, new Date(), { id: first, rev: 1 });
+    expect(next).not.toBeNull();
+    expect((await getEscape(db, 'me', first))?.row.status).toBe('quit');
+    expect(await beginEscape(db, 'me', c.id, new Date(), { id: first, rev: 1 })).toBeNull();
+    expect((await activeEscape(db, 'me'))?.row.id).toBe(next);
+  });
   it('도감 카드가 모자라면 잠긴 사건은 시작할 수 없어요', async () => {
     const { db } = database();
     const last = ESCAPE_CASES[ESCAPE_CASES.length - 4]!; // ★★★ 목록 맨 끝

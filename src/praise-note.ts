@@ -87,7 +87,8 @@ export async function markPraiseSeen(db: D1Database, userId: string, nowMs: numb
   await db
     .prepare(
       `INSERT INTO profiles (user_id, praise_seen_at, updated_at) VALUES (?1, ?2, ?2)
-       ON CONFLICT (user_id) DO UPDATE SET praise_seen_at = excluded.praise_seen_at`,
+       ON CONFLICT (user_id) DO UPDATE SET praise_seen_at = excluded.praise_seen_at
+       WHERE profiles.praise_seen_at IS NULL OR profiles.praise_seen_at < excluded.praise_seen_at`,
     )
     .bind(userId, t)
     .run();

@@ -96,7 +96,11 @@ export async function beginJourney(db: D1Database, user: string, chapter = 1, no
   const t = now.toISOString();
   const bank = await journeyBank(db, user);
   const state = startJourney(id, bank, ch, bank);
-  state.farm = ch < record.unlocked; // 이미 깬 장(재료가 덜 나와요)
+  // 마지막 장을 깨도 unlocked는 더 올라가지 않아요.
+  state.farm = ch < record.unlocked || (ch === MAX_CHAPTER && !!await db
+    .prepare("SELECT 1 FROM journey_runs WHERE user_id = ? AND chapter = ? AND status = 'done' AND cleared = 1 LIMIT 1")
+    .bind(user, ch)
+    .first());
   await db
     .prepare(
       `INSERT OR IGNORE INTO journey_runs (id, user_id, state, started_at, updated_at, chapter)
