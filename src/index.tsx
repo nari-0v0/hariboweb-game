@@ -352,6 +352,8 @@ app.get('/api/bot/card/:id', async (c) => {
   const member = isDiscordId(id) ? await getMember(c.env.DB, id) : null;
   if (!member || !member.active) return c.json({ error: 'not_member' }, 404);
   const seenThrough = Date.now();
+  // 주간 빙고 "패널에서 내 카드 열기" 칸(실패해도 카드는 보여 줘요). 줄 보상을 먼저 받아야 이번 카드에 젤리가 보여요.
+  await markFlag(c.env.DB, id, 'panel', seenThrough).catch((e) => console.error('빙고 표시 실패', e));
   const [profile, entries, best, praise, box] = await Promise.all([
     getProfile(c.env.DB, id),
     listDogam(c.env.DB, id),
@@ -361,10 +363,6 @@ app.get('/api/bot/card/:id', async (c) => {
   ]);
   // 패널 "내 카드"로 칭찬함을 봤어요(안 읽은 개수는 이번 응답에만 보여 줘요)
   if (box.unread) await markPraiseSeen(c.env.DB, id, seenThrough).catch((e) => console.error('칭찬함 읽음 표시 실패', e));
-  // 주간 빙고 "패널에서 내 카드 열기" 칸(실패해도 카드는 보여 줘요)
-  // 새로 채웠으면 그 자리에서 줄 보상도 확인해요(이 칸이 마지막 칸일 수 있어요)
-  await markFlag(c.env.DB, id, 'panel', Date.now())
-    .catch((e) => console.error('빙고 표시 실패', e));
   const p = progress(profile.solo_xp);
   const tier = tierFor(p.level);
   const base = baseUrl(c);
