@@ -1,7 +1,7 @@
 import { levelFromXp } from './levels';
 
 // 도감으로 게임 열기(나리 2026-11-13): 원정대 1~3장, 사건파일 처음 5개는 그냥 할 수 있어요.
-// 오래 할 게임이라 조건을 높게 잡았어요(나리 2026-11-13). 그 뒤로는 도감 카드를 일정 장 수 이상 모아야 하고, 더 깊이 가면 모은 카드 중 일정 레벨 이상인 카드도 필요해요.
+// 계단식(나리 2026-11-13): 활동 많은 사람은 1~2주마다 새 장이 열리게, 한 단계에서 한 달 넘게 멈추지 않게 실제 기록으로 맞췄어요. 그 뒤로는 도감 카드를 일정 장 수 이상 모아야 하고, 더 깊이 가면 모은 카드 중 일정 레벨 이상인 카드도 필요해요.
 // 카드는 지금 서버에 있는 멤버 카드만 세요(떠난 멤버 카드는 빼요).
 
 export type Need = { cards: number; lv?: number; lvCards?: number };
@@ -14,26 +14,26 @@ export const JOURNEY_NEEDS: Need[] = [
   FREE,
   FREE,
   FREE,
-  { cards: 15 },
-  { cards: 25 },
-  { cards: 35 },
-  { cards: 40, lv: 20, lvCards: 5 },
-  { cards: 50, lv: 30, lvCards: 5 },
-  { cards: 60, lv: 40, lvCards: 5 },
+  { cards: 10 },
+  { cards: 20 },
+  { cards: 30 },
+  { cards: 35, lv: 10, lvCards: 5 },
+  { cards: 45, lv: 15, lvCards: 5 },
+  { cards: 55, lv: 20, lvCards: 5 },
 ];
 
 // 사건파일: 목록 순서대로 5개씩 묶어요.
 export const ESCAPE_STEPS: Need[] = [
   FREE,
+  { cards: 5 },
   { cards: 10 },
   { cards: 15 },
   { cards: 20 },
-  { cards: 30 },
-  { cards: 35, lv: 10, lvCards: 3 },
-  { cards: 40, lv: 10, lvCards: 6 },
-  { cards: 50, lv: 20, lvCards: 3 },
-  { cards: 60, lv: 30, lvCards: 5 },
-  { cards: 70, lv: 40, lvCards: 5 },
+  { cards: 25 },
+  { cards: 30, lv: 10, lvCards: 3 },
+  { cards: 35, lv: 10, lvCards: 5 },
+  { cards: 45, lv: 15, lvCards: 5 },
+  { cards: 55, lv: 20, lvCards: 5 },
 ];
 export const ESCAPE_STEP_SIZE = 5;
 
