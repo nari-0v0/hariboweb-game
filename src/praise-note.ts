@@ -15,11 +15,16 @@ export function cleanNote(raw: unknown): string {
 const BAD_WORDS = [
   '씨발', '시발', '씨바', '시바', 'ㅅㅂ', 'ㅆㅂ', '병신', '븅신', 'ㅂㅅ', '개새', '개색', '새끼', 'ㅅㄲ', '좆', 'ㅈ같', '존나', 'ㅈㄴ',
   '지랄', 'ㅈㄹ', '꺼져', '닥쳐', '미친놈', '미친년', '또라이', '등신', '찐따', '느금', '니애미', '느그애미', '애미', '애비', '엠창',
-  '죽어', '뒤져', '뒤지', '한남', '한녀', '틀딱', '급식충', '병맛', 'fuck', 'shit', 'bitch',
+  '죽어', '뒤져', '뒤지', '뒤질', '한남', '한녀', '틀딱', '급식충', '병맛', 'fuck', 'shit', 'bitch',
 ];
 
+// 욕이 아닌데 욕 글자가 들어 있는 흔한 칭찬 말. 이걸 먼저 지우고 봐요(그 뒤 AI 검사는 그대로).
+// 예: "누구에게도 뒤지지 않는 실력", "웃겨 죽어", "시바견 닮았어"
+const SAFE_PHRASES = ['시바견', '시바이누', '뒤지지않', '웃겨죽어', '웃다죽어', '귀여워죽어', '좋아죽어', '한남동', '애비뉴'];
+
 export function hasBadWord(note: string): boolean {
-  const core = note.toLowerCase().replace(/[\s0-9.,!?~…·\-_'"^*()[\]{}<>/\\|@#$%&+=:;]/g, '');
+  let core = note.toLowerCase().replace(/[\s0-9.,!?~…·\-_'"^*()[\]{}<>/\\|@#$%&+=:;]/g, '');
+  for (const safe of SAFE_PHRASES) core = core.split(safe).join('');
   return BAD_WORDS.some((w) => core.includes(w));
 }
 
