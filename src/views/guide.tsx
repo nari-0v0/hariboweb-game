@@ -6,7 +6,7 @@ import { PRAISE_PER_DAY, PRAISE_JELLY_PER_DAY } from '../db';
 import { JELLY_PER_CARD_STEP, LEVEL_STEP } from '../sync';
 import { DAILY_REWARD_JOURNEYS, JOURNEY_FINISH_JELLY } from '../journey';
 import { ESC_XP } from '../escape';
-import { DAILY_CHIPS } from '../gamble';
+import { DAILY_CHIPS, GAMBLE_LOCKED } from '../gamble';
 import { Layout } from './layout';
 
 // 사용설명서: 도감에서 할 수 있는 것과 젤리 모으는 법. 숫자는 코드 값을 그대로 보여 줘요.
@@ -91,6 +91,7 @@ export function GuidePage(props: { viewer: Member | null }) {
         </ul>
         <h2>🎰 겜블장</h2>
         <ul>
+          {GAMBLE_LOCKED && <li><b>🔒 지금은 잠겨 있어서 들어갈 수 없어요.</b></li>}
           <li>슬롯, 룰렛, 카드 21, 동전 던지기를 젤칩으로 해요. 젤칩은 겜블장에서만 쓰는 칩이라 도감 젤리나 상점과는 상관없어요.</li>
           <li>매일 젤칩 {DAILY_CHIPS}개를 받고, 다 잃으면 하루 한 번 다시 {DAILY_CHIPS}개를 받아요.</li>
           <li>젤칩 순위(3위까지)와 겜블장 칭호가 있어요. 서버를 나가면 젤칩도 사라져요.</li>

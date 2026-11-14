@@ -81,8 +81,8 @@ import {
   titleState,
 } from './title-db';
 
-import { GambleLobby, GambleRoom } from './views/gamble';
-import { isCoinSide } from './gamble';
+import { GambleLobby, GambleLocked, GambleRoom } from './views/gamble';
+import { GAMBLE_LOCKED, isCoinSide } from './gamble';
 import { activeHand, betChips, betTooSoon, claimDaily, expireAllHands, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, moveHand, rescueChips, type Game } from './gamble-db';
 import { prefetchAllowed } from './prefetch';
 import { EscapePage } from './views/escape';
@@ -837,6 +837,16 @@ members.post('/api/titles/buy', async (c) => {
 const uuid = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 const isGambleGame = (value: unknown): value is Game => value === 'slot' || value === 'roulette' || value === 'cards' || value === 'coinflip';
 const gambleRoomUrl = (game: Game, token?: string) => `/gamble/${game}${token ? `?r=${token}` : ''}`;
+
+// 겜블장 잠금: 화면은 잠금 안내만, 젤칩 걸기·받기 같은 요청은 막아요.
+const gambleLock = async (c: Context<AppEnv>, next: () => Promise<void>) => {
+  if (!GAMBLE_LOCKED) return next();
+  c.header('Cache-Control', 'no-store');
+  if (c.req.method !== 'GET') return c.redirect('/gamble', 303);
+  return page(c, <GambleLocked viewer={c.get('viewer')} />, 403);
+};
+members.use('/gamble', gambleLock);
+members.use('/gamble/*', gambleLock);
 
 members.get('/gamble', async (c) => {
   c.header('Cache-Control', 'no-store');
