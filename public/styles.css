@@ -34,6 +34,8 @@ main { position: relative; max-width: 1120px; margin: 0 auto; padding: 8px 16px 
 .hint { color: var(--ink-soft); font-size: .8rem; }
 .icon { width: 1.2em; height: 1.2em; flex: none; }
 img, svg { image-rendering: pixelated; }
+/* 그림을 끌어다 저장하지 못하게 해요 */
+img { -webkit-user-drag: none; user-select: none; -webkit-touch-callout: none; }
 
 /* 픽셀 구름 */
 .sky { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }

@@ -224,6 +224,10 @@ addEventListener('pageshow', (e) => {
     e.preventDefault();
     e.stopImmediatePropagation();
   }, true);
+  // 그림을 끌어서 바탕화면 등에 저장하지 못하게 해요
+  document.addEventListener('dragstart', (e) => {
+    if (e.target instanceof HTMLImageElement) e.preventDefault();
+  });
   // 글 입력칸에서는 붙여넣기 메뉴가 필요해서 우클릭을 그대로 둬요
   document.addEventListener('contextmenu', (e) => {
     if (e.target instanceof Element && e.target.closest('input, textarea, [contenteditable]')) return;
