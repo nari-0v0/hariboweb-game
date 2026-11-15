@@ -6,6 +6,7 @@ export type Env = {
   DISCORD_CLIENT_SECRET: string;
   GUILD_ID: string;
   PUBLIC_URL: string;
+  GAMBLE_TESTERS?: string;
   SESSION_SECRET: string;
   BOT_SYNC_SECRET: string;
   PLAZA: DurableObjectNamespace<PlazaRoom>;

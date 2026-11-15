@@ -29,7 +29,9 @@
     // 하리보 서버 ID
     "GUILD_ID": "1261363193519935550",
     // 배포된 주소 (예: https://hariboweb-game.<계정>.workers.dev)
-    "PUBLIC_URL": "https://hariboweb-game.haribobot.workers.dev"
+    "PUBLIC_URL": "https://hariboweb-game.haribobot.workers.dev",
+    // 겜블장이 잠겨 있어도 들어가서 시험해 볼 수 있는 사람(디스코드 ID, 쉼표로 구분). 지금은 서버 주인(나리)만.
+    "GAMBLE_TESTERS": "323412514224209921"
   }
   // 비밀 값은 `npx wrangler secret put 이름`으로 넣어요:
   //   DISCORD_CLIENT_SECRET, SESSION_SECRET, BOT_SYNC_SECRET

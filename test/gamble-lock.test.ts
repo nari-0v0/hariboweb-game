@@ -54,6 +54,13 @@ describe('겜블장 잠금', () => {
     expect(rescueChips).not.toHaveBeenCalled();
   });
 
+  it('시험하는 사람(GAMBLE_TESTERS)은 잠겨 있어도 들어가요', async () => {
+    const cookie = await signSession(ENV.SESSION_SECRET, { uid: USER, exp: Date.now() + 60_000 });
+    const res = await app.request('/gamble/slot', { headers: { Cookie: `hs=${cookie}` } }, { ...ENV, GAMBLE_TESTERS: ` 1, ${USER} ` } as Env);
+    expect(res.status).not.toBe(403);
+    expect(await res.text()).not.toContain('겜블장은 지금 잠겨 있어요');
+  });
+
   it('메뉴에는 링크 대신 잠금 표시가 나와요', async () => {
     const html = await (await request('/gamble')).text();
     expect(html).toContain('menu-locked');

@@ -82,7 +82,7 @@ import {
 } from './title-db';
 
 import { GambleLobby, GambleLocked, GambleRoom } from './views/gamble';
-import { GAMBLE_LOCKED, isCoinSide } from './gamble';
+import { GAMBLE_LOCKED, gambleTester, isCoinSide } from './gamble';
 import { activeHand, betChips, betTooSoon, claimDaily, expireAllHands, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, moveHand, rescueChips, type Game } from './gamble-db';
 import { prefetchAllowed } from './prefetch';
 import { EscapePage } from './views/escape';
@@ -840,7 +840,7 @@ const gambleRoomUrl = (game: Game, token?: string) => `/gamble/${game}${token ? 
 
 // 겜블장 잠금: 화면은 잠금 안내만, 젤칩 걸기·받기 같은 요청은 막아요.
 const gambleLock = async (c: Context<AppEnv>, next: () => Promise<void>) => {
-  if (!GAMBLE_LOCKED) return next();
+  if (!GAMBLE_LOCKED || gambleTester(c.env.GAMBLE_TESTERS, c.get('viewer').user_id)) return next();
   c.header('Cache-Control', 'no-store');
   if (c.req.method !== 'GET') return c.redirect('/gamble', 303);
   return page(c, <GambleLocked viewer={c.get('viewer')} />, 403);
