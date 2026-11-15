@@ -237,13 +237,16 @@ addEventListener('pageshow', (e) => {
     el.textContent = '개발자 도구를 닫아 주세요. 닫으면 다시 이용할 수 있어요.';
     return el;
   };
+  // 멈추는 줄은 따로 만든 아주 작은 조각에 넣어요. 개발자 도구가 멈출 때 이 조각만 열려서,
+  // app.js의 다른 코드 대신 "닫아 주세요" 한 줄만 보여요.
+  const pause = new Function('debugger; // 개발자 도구를 닫아 주세요. 닫으면 다시 이용할 수 있어요.\n//# sourceURL=close-devtools');
   const check = () => {
     // 멈추기 바로 전에 가림막을 먼저 덮어요. 개발자 도구가 열려 있으면 멈춘 동안 화면이 가려져 있어요.
     // 닫혀 있으면 같은 순간(화면을 다시 그리기 전)에 바로 걷어서 깜빡이지 않아요.
     const shade = cover ? null : document.body.appendChild(makeCover());
     const start = performance.now();
     // 개발자 도구가 닫혀 있으면 아무 일도 안 하고, 열려 있으면 여기서 멈춰요
-    debugger; // eslint-disable-line no-debugger
+    pause();
     const open = performance.now() - start > 100;
     if (open && !cover) {
       cover = shade || makeCover();
