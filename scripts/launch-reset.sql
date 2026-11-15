@@ -6,10 +6,11 @@
 --   산 물건·칭호, 칭찬, 빙고, 시즌 칭호, 납치 대소동 진행, 젤리피, 원정대·사건파일 진행, 같이 배정되지 않기.
 -- 남기는 것: 멤버 목록, 성별·캐릭터, 자기소개, 이번 시즌(안 끝난 시즌) 팀과 팀 퀘스트 짝, 서버 퀘스트 목표(18명),
 --   지난 시즌 정산 표시(season_settle: 지우면 지난 시즌 보상을 또 줘요), 봇 동기화 기록,
---   겜블장 전체(젤칩, 판 기록, 겜블 시즌 우승자: 나리 2026-11-15 결정으로 초기화하지 않아요).
+--   겜블장 전체(젤칩, 판 기록, 겜블 시즌 우승자, 겜블장 칭호와 달고 있던 겜블장 칭호: 나리 2026-11-15 결정으로 초기화하지 않아요).
 
 DELETE FROM cards;
-DELETE FROM owned_items;
+-- 겜블장 칭호(title:gamble-…, 도박신 포함)는 겜블장 기록이라 남겨요.
+DELETE FROM owned_items WHERE item_id NOT LIKE 'title:gamble-%';
 DELETE FROM purchases;
 DELETE FROM nick_jobs;
 DELETE FROM praises;
@@ -57,7 +58,7 @@ UPDATE profiles SET
   dogam_jelly = CASE WHEN EXISTS (SELECT 1 FROM members m WHERE m.user_id = profiles.user_id AND m.starter_jelly_at IS NOT NULL) THEN 5 ELSE 0 END,
   theme_id = 'basic',
   deco_id = NULL,
-  title_id = NULL,
+  title_id = CASE WHEN title_id LIKE 'gamble-%' THEN title_id ELSE NULL END,
   praise_seen_at = NULL,
   updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now');
 
