@@ -156,7 +156,11 @@ function firstView(key) {
 const playMotion = { slot: spinReels, roulette: spinWheel, cards: dealCards, coinflip: tossCoin };
 
 async function showResult(stage) {
-  if (!canAnimate() || !firstView(stage.dataset.gbKey)) return;
+  // 움직임이 끝나거나 건너뛸 때 gb-motion-done을 붙여요. 그 전에는 CSS가 결과를 가려 둬요.
+  if (!canAnimate() || !firstView(stage.dataset.gbKey)) {
+    stage.classList.add('gb-motion-done');
+    return;
+  }
 
   const actions = stage.querySelector('[data-gb-card-actions]');
   stage.classList.add('gb-motion-running');
@@ -165,9 +169,11 @@ async function showResult(stage) {
   let animations = [];
   try {
     animations = playMotion[stage.dataset.gbMotion](stage);
+    stage.classList.add('gb-motion-started');
     await Promise.allSettled(animations.map((animation) => animation.finished));
   } finally {
     for (const animation of animations) animation.cancel();
+    stage.classList.add('gb-motion-done');
     stage.classList.remove('gb-motion-running');
     stage.removeAttribute('aria-busy');
     if (actions) actions.inert = false;

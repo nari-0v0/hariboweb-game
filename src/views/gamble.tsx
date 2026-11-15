@@ -65,7 +65,7 @@ function BetForm({ game, balance, previousBet, pick }: { game: Game; balance: nu
   // 판이 끝나 결과가 나온 뒤에도 걸 젤칩은 0개에서 다시 골라요(나리 2026-11-14). 앞 판 금액을 그대로 두지 않아요.
   const bet = 0;
   return (
-    <form class="gb-form gb-bet-form" action={`/gamble/${game}/play`} method="post" data-gb-balance={balance}>
+    <form class="gb-form gb-bet-form" action={`/gamble/${game}/play`} method="post" data-gb-balance={balance} data-no-loader="">
       <input type="hidden" name="game" value={game} />
       <input type="hidden" name="token" value={crypto.randomUUID()} />
       <input type="hidden" name="bet" value={bet} />
@@ -334,7 +334,7 @@ export function GambleRoom(props: {
   const motion = result ?? (hand && hand.token === props.result?.token ? hand : null);
   const notice = noticeText(props.notice);
   return (
-    <Layout title={GAMES[game]} viewer={props.viewer} active="gamble" scripts={[{ src: '/gamble.js?v=4', type: 'module' }]}
+    <Layout title={GAMES[game]} viewer={props.viewer} active="gamble" scripts={[{ src: '/gamble.js?v=5', type: 'module' }]}
       preloadImages={[gameBackground(game, 'room'), ...[MAIN_ART[game]].flatMap((name) => GAMBLE_ART[name]?.image ?? [])]}>
       <div class="gb-page gb-room-page">
         <div class="gb-room-bar">
@@ -352,7 +352,7 @@ export function GambleRoom(props: {
           {hand ? (
             <>
               <p>건 젤칩 {chips(hand.bet)}개 · 한국 시간 자정이 되면 자동으로 멈춰요.</p>
-              <form class="gb-form" method="post" action="/gamble/cards" data-gb-card-actions="">
+              <form class="gb-form" method="post" action="/gamble/cards" data-gb-card-actions="" data-no-loader="">
                 <input type="hidden" name="token" value={hand.token} />
                 <input type="hidden" name="revision" value={hand.revision} />
                 <button class="gb-button gb-move-button gb-move-hit" name="move" value="hit" type="submit">한 장 더</button>
