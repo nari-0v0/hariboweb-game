@@ -22,14 +22,15 @@ export const ROULETTE = [
   { payout: 3, count: 8 }, { payout: 5, count: 3 }, { payout: 10, count: 1 },
 ] as const;
 export const WHEEL = ROULETTE.flatMap(({ payout, count }) => Array<number>(count).fill(payout));
-// 건 칩 × 배수를 내림한 만큼 돌려받아요(동전 2.05배, 예전 룰렛 0.5배·1.5배 기록).
+// 건 칩 × 배수를 내림한 만큼 돌려받아요(예전 동전 2.05배·룰렛 0.5배·1.5배 기록).
 // 2.05 같은 배수는 부동소수점 오차가 나서(100×2.05=204.999…) 백분율 정수로 계산해요. DB 트리거·순위 계산과 같은 방식이에요.
 export const payback = (bet: number, multiplier: number) => Math.floor(bet * Math.round(multiplier * 100) / 100);
 
-// 동전 던지기(나리 2026-11-13): 곰(앞)·발바닥(뒤) 중 하나를 골라 맞히면 2.05배(받을 칩은 내림). 평균 1.025배.
+// 동전 던지기(나리 2026-11-13): 곰(앞)·발바닥(뒤) 중 하나를 골라 맞히면 2배. 평균 1배.
+// 2026-11-15 나리: 배수는 2.05배처럼 소수 말고 정수로 딱 떨어지게(예전 2.05배 기록은 그대로 남고 계산도 그대로 맞아요).
 export const COIN_SIDES = ['heads', 'tails'] as const;
 export type CoinSide = (typeof COIN_SIDES)[number];
-export const COIN_PAYOUT = 2.05;
+export const COIN_PAYOUT = 2;
 export const isCoinSide = (v: unknown): v is CoinSide => v === 'heads' || v === 'tails';
 export type CoinFlip = { pick: CoinSide; side: CoinSide };
 export const flipCoin = (pick: CoinSide): CoinFlip => ({ pick, side: COIN_SIDES[randomBelow(2)]! });

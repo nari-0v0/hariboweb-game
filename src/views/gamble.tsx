@@ -9,7 +9,7 @@ import { PodiumBoard } from './podium';
 const GAMES: Record<Game, string> = { slot: '슬롯', roulette: '배수 룰렛', cards: '카드 21(블랙잭)', coinflip: '동전 던지기' };
 const DESCRIPTIONS: Record<Game, string> = {
   slot: '릴 세 개에서 같은 그림을 맞춰요.',
-  coinflip: '곰과 발바닥 중 나올 면을 맞혀요. 확률 50%, 맞히면 2.05배.',
+  coinflip: '곰과 발바닥 중 나올 면을 맞혀요. 확률 50%, 맞히면 2배.',
   roulette: '바늘이 멈춘 칸의 배수를 받아요.',
   cards: '21을 넘기지 않고 딜러보다 가까우면 이겨요.',
 };
