@@ -735,7 +735,7 @@ export function EscapePage(props: {
                 <span class="hint">다른 사건을 열면 하던 사건은 덮여요(다음에 열면 처음부터 해요).</span>
               </p>
             )}
-            <p class="hint">★ 입문 사건은 짧고 쉬워요. ★★★ 사건은 방 3개, 퍼즐 4~5개, 물건 합치기, 범인·방법·동기까지 맞혀야 해요.</p>
+            <p class="hint">별이 많을수록 수수께끼가 어려워요(★ → ★★ → ★★★). 맨 앞 입문 사건 3개는 짧고, 나머지는 방 3개, 수수께끼 5개, 물건 합치기, 범인·방법·동기까지 맞혀야 해요.</p>
             <div class="esc-cases">
               {ESCAPE_CASES.map((c, i) => {
                 const best = props.best.get(c.id);

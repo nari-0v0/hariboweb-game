@@ -18,7 +18,8 @@ describe('도감으로 원정대·사건파일 열기', () => {
   it('사건파일은 입문 사건 포함 처음 5개가 무료, 뒤로 갈수록 조건이 올라가요', () => {
     const free = ESCAPE_CASES.filter((c) => escapeNeed(escapeUnlockIndex(c.id)).cards === 0);
     expect(free).toHaveLength(5);
-    expect(ESCAPE_CASES.filter((c) => c.level === 1).every((c) => free.includes(c))).toBe(true);
+    expect(free.map((c) => c.id)).toEqual(ESCAPE_CASES.slice(0, 5).map((c) => c.id)); // 목록 맨 앞(입문 3개 + 가장 쉬운 2개)
+    expect(ESCAPE_CASES.filter((c) => !c.formats && !c.id.endsWith('-talk')).every((c) => free.includes(c))).toBe(true);
     const needs = ESCAPE_CASES.map((c) => escapeNeed(escapeUnlockIndex(c.id)).cards);
     expect(Math.max(...needs)).toBe(55);
     for (const c of ESCAPE_CASES) expect(escapeUnlockIndex(c.id)).toBeGreaterThanOrEqual(0);
