@@ -881,15 +881,25 @@ members.get('/gamble/:game', async (c) => {
   const expired = await expireHand(db, user, now);
   // 다른 방에 먼저 들어와도 자정에 멈춘 카드 21 결과를 보여 줘요.
   if (expired && game !== 'cards') return c.redirect(gambleRoomUrl('cards', expired));
-  const daily = await claimDaily(db, user, now);
   const token = (game === 'cards' ? expired : null) ?? c.req.query('r');
+  return gambleRoomPage(c, game, token, c.req.query('n'));
+});
+
+// 방 화면 그리기. 걸기·카드 버튼 뒤에는 다른 주소로 다시 보내지 않고 바로 그려요(왕복 한 번 줄이기, 나리 2026-11-15).
+// 그때는 gamble.js가 주소창을 결과 주소(?r=)로 바꿔서 새로고침해도 다시 걸지 않아요.
+async function gambleRoomPage(c: Context<AppEnv>, game: Game, token: string | undefined, notice?: string, url?: string) {
+  c.header('Cache-Control', 'no-store');
+  const viewer = c.get('viewer');
+  const user = viewer.user_id;
+  const db = c.env.DB;
+  const daily = await claimDaily(db, user, new Date().toISOString());
   const [account, hand, round] = await Promise.all([
     gambleAccount(db, user), activeHand(db, user),
     uuid(token) ? gambleRound(db, user, token) : null,
   ]);
   return page(c, <GambleRoom viewer={viewer} game={game} balance={account?.chips ?? 0}
-    hand={hand} result={round?.game === game ? round : null} daily={daily} notice={c.req.query('n')} />);
-});
+    hand={hand} result={round?.game === game ? round : null} daily={daily} notice={notice} url={url} />);
+}
 
 async function playGamble(c: Context<AppEnv>, room?: string) {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
@@ -909,7 +919,7 @@ async function playGamble(c: Context<AppEnv>, room?: string) {
   const round = game === 'coinflip' && isCoinSide(pick)
     ? await betChips(db, user, game, Number(bet), token, now, pick)
     : await betChips(db, user, game, Number(bet), token, now);
-  if (round?.game === game) return c.redirect(gambleRoomUrl(game, round.token), 303);
+  if (round?.game === game) return gambleRoomPage(c, game, round.token, undefined, gambleRoomUrl(game, round.token));
   const notice = game === 'cards' && await activeHand(db, user) ? 'active' : await betTooSoon(db, user, now) ? 'fast' : 'bet';
   return c.redirect(`${url}?n=${notice}`, 303);
 }
@@ -926,7 +936,7 @@ members.post('/gamble/cards', async (c) => {
   const moved = await moveHand(c.env.DB, user, token, Number(revision), move, new Date().toISOString());
   // 다른 탭에서 이미 진행해 이 버튼이 옛것이면 알려 줘요.
   if (!moved && (await activeHand(c.env.DB, user))?.token === token) return c.redirect(`${gambleRoomUrl('cards')}?n=stale`, 303);
-  return c.redirect(gambleRoomUrl('cards', token), 303);
+  return gambleRoomPage(c, 'cards', token, undefined, gambleRoomUrl('cards', token));
 });
 
 members.post('/gamble/rescue', async (c) => {

@@ -222,10 +222,16 @@ function GameSurface({ game, round, canBet }: { game: Game; round: Round | null;
 
 function Result({ round, balance }: { round: Round; balance: number }) {
   const multiplier = round.multiplier!;
-  const net = payback(round.bet, multiplier) - round.bet;
+  const back = payback(round.bet, multiplier);
+  const net = back - round.bet;
+  // 받은 젤칩(건 것 포함)을 먼저 보여 주고, 이득·손해는 괄호로 붙여요(나리 2026-11-15: "3배인데 왜 2개?")
+  const title = back === 0 ? `젤칩 ${chips(round.bet)}개 잃었어요`
+    : net > 0 ? `젤칩 ${chips(back)}개 받았어요! (${chips(net)}개 이득)`
+    : net < 0 ? `젤칩 ${chips(back)}개 받았어요 (${chips(-net)}개 손해)`
+    : `젤칩 ${chips(back)}개 돌려받았어요 (본전)`;
   return (
     <div class="gb-round-result" aria-live="polite" data-gb-reveal>
-      <h2>{net > 0 ? `젤칩 ${chips(net)}개 이겼어요!` : net < 0 ? `젤칩 ${chips(-net)}개 잃었어요` : '본전이에요'}</h2>
+      <h2>{title}</h2>
       <p>{multiplier}배 · 지금 가진 젤칩 <strong>{chips(balance)}개</strong></p>
     </div>
   );
@@ -326,7 +332,7 @@ export function GambleLobby(props: {
 
 export function GambleRoom(props: {
   viewer: Member; game: Game; balance: number; hand: Round | null; result: Round | null;
-  daily: boolean; notice?: string;
+  daily: boolean; notice?: string; url?: string;
 }) {
   const { game, balance } = props;
   const hand = game === 'cards' ? props.hand : null;
@@ -334,7 +340,7 @@ export function GambleRoom(props: {
   const motion = result ?? (hand && hand.token === props.result?.token ? hand : null);
   const notice = noticeText(props.notice);
   return (
-    <Layout title={GAMES[game]} viewer={props.viewer} active="gamble" scripts={[{ src: '/gamble.js?v=6', type: 'module' }]}
+    <Layout title={GAMES[game]} viewer={props.viewer} active="gamble" scripts={[{ src: '/gamble.js?v=7', type: 'module' }]}
       preloadImages={[gameBackground(game, 'room'), ...[MAIN_ART[game]].flatMap((name) => GAMBLE_ART[name]?.image ?? [])]}>
       <div class="gb-page gb-room-page">
         <div class="gb-room-bar">
@@ -343,7 +349,7 @@ export function GambleRoom(props: {
           {game !== 'cards' && props.hand && <a class="gb-resume" href="/gamble/cards">진행 중인 카드 21로 가기</a>}
           {props.daily && <p role="status">오늘 젤칩 1000개 받았어요.</p>}
         </div>
-        <section class="gb-panel gb-room" aria-label={GAMES[game]} data-gb-settled={result ? 'yes' : undefined}
+        <section class="gb-panel gb-room" aria-label={GAMES[game]} data-gb-settled={result ? 'yes' : undefined} data-gb-url={props.url}
           data-gb-motion={motion?.game} data-gb-key={motion ? `${motion.token}:${motion.revision}:${result ? 'done' : 'active'}` : undefined}>
           <h1><Art name={game} /> {GAMES[game]}</h1>
           {notice && <p role="status">{notice}</p>}

@@ -64,7 +64,10 @@ describe('동전 던지기', () => {
     vi.mocked(betChips).mockResolvedValue(r);
     vi.mocked(gambleRound).mockResolvedValue(r);
     const post = await request('/gamble/coinflip/play', { token: TOKEN, bet: '20', pick: 'tails' });
-    expect(post.headers.get('location')).toBe(`/gamble/coinflip?r=${TOKEN}`);
+    // 다시 보내지 않고 바로 결과 방을 그리고, 주소는 gamble.js가 결과 주소로 바꿔요
+    expect(post.status).toBe(200);
+    expect(post.headers.get('cache-control')).toBe('no-store');
+    expect(await post.text()).toContain(`data-gb-url="/gamble/coinflip?r=${TOKEN}"`);
     expect(betChips).toHaveBeenCalledWith(ENV.DB, USER, 'coinflip', 20, TOKEN, expect.any(String), 'tails');
     const html = await (await request(`/gamble/coinflip?r=${TOKEN}`)).text();
     expect(html).toContain('gb-coin-result is-win');
@@ -116,14 +119,15 @@ describe('겜블장 로비와 게임 방', () => {
     const form = { token: TOKEN, bet: '20' };
     const post = await request(`/gamble/${game}/play`, form);
     const resultPath = `/gamble/${game}?r=${TOKEN}`;
-    expect(post.status).toBe(303);
-    expect(post.headers.get('location')).toBe(resultPath);
+    expect(post.status).toBe(200);
+    expect(await post.text()).toContain(`data-gb-url="${resultPath}"`);
     expect(betChips).toHaveBeenCalledWith(ENV.DB, USER, game, 20, TOKEN, expect.any(String));
     const old = await request(`/gamble?r=${TOKEN}`);
     expect(old.status).toBe(302);
     expect(old.headers.get('location')).toBe(resultPath);
     expect(gambleRound).toHaveBeenCalledWith(ENV.DB, USER, TOKEN);
     const html = await (await request(resultPath)).text();
+    expect(html).not.toContain('data-gb-url');
     expect(html).toContain(`action="/gamble/${game}/play"`);
     // 결과가 나온 뒤 걸 젤칩은 0개로 돌아가요
     expect(html).toContain('name="bet" value="0"');
@@ -145,8 +149,8 @@ describe('겜블장 로비와 게임 방', () => {
     expect(cards).not.toContain('action="/gamble/cards/play"');
     vi.mocked(moveHand).mockResolvedValueOnce(true);
     const post = await request('/gamble/cards', { token: TOKEN, revision: '0', move: 'stand' });
-    expect(post.status).toBe(303);
-    expect(post.headers.get('location')).toBe(`/gamble/cards?r=${TOKEN}`);
+    expect(post.status).toBe(200);
+    expect(await post.text()).toContain(`data-gb-url="/gamble/cards?r=${TOKEN}"`);
     expect(moveHand).toHaveBeenCalledWith(ENV.DB, USER, TOKEN, 0, 'stand', expect.any(String));
     // 다른 탭에서 이미 진행해서 옛 버튼이 거절되면 알려 줘요
     vi.mocked(moveHand).mockResolvedValueOnce(false);
