@@ -191,6 +191,9 @@ async function showResult(stage) {
 }
 
 if (typeof document !== 'undefined') {
+  // 걸기 뒤 바로 그려진 화면이면 주소를 결과 주소로 바꿔요. 새로고침해도 다시 보내지 않고 결과만 보여요.
+  const room = document.querySelector('[data-gb-url]');
+  if (room) history.replaceState(null, '', room.dataset.gbUrl);
   for (const form of document.querySelectorAll('[data-gb-balance]')) initBet(form);
   const stage = document.querySelector('[data-gb-motion]');
   if (stage) void showResult(stage);

@@ -332,7 +332,7 @@ export function GambleLobby(props: {
 
 export function GambleRoom(props: {
   viewer: Member; game: Game; balance: number; hand: Round | null; result: Round | null;
-  daily: boolean; notice?: string;
+  daily: boolean; notice?: string; url?: string;
 }) {
   const { game, balance } = props;
   const hand = game === 'cards' ? props.hand : null;
@@ -340,7 +340,7 @@ export function GambleRoom(props: {
   const motion = result ?? (hand && hand.token === props.result?.token ? hand : null);
   const notice = noticeText(props.notice);
   return (
-    <Layout title={GAMES[game]} viewer={props.viewer} active="gamble" scripts={[{ src: '/gamble.js?v=6', type: 'module' }]}
+    <Layout title={GAMES[game]} viewer={props.viewer} active="gamble" scripts={[{ src: '/gamble.js?v=7', type: 'module' }]}
       preloadImages={[gameBackground(game, 'room'), ...[MAIN_ART[game]].flatMap((name) => GAMBLE_ART[name]?.image ?? [])]}>
       <div class="gb-page gb-room-page">
         <div class="gb-room-bar">
@@ -349,7 +349,7 @@ export function GambleRoom(props: {
           {game !== 'cards' && props.hand && <a class="gb-resume" href="/gamble/cards">진행 중인 카드 21로 가기</a>}
           {props.daily && <p role="status">오늘 젤칩 1000개 받았어요.</p>}
         </div>
-        <section class="gb-panel gb-room" aria-label={GAMES[game]} data-gb-settled={result ? 'yes' : undefined}
+        <section class="gb-panel gb-room" aria-label={GAMES[game]} data-gb-settled={result ? 'yes' : undefined} data-gb-url={props.url}
           data-gb-motion={motion?.game} data-gb-key={motion ? `${motion.token}:${motion.revision}:${result ? 'done' : 'active'}` : undefined}>
           <h1><Art name={game} /> {GAMES[game]}</h1>
           {notice && <p role="status">{notice}</p>}
