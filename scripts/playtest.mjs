@@ -446,13 +446,23 @@ try {
     );
   }
   try {
+    const userId = String(900000000000000000n + BigInt(Date.now()));
+    if (ownedServer) {
+      // Robot-only unlock: give the test account 60 high-level dogam cards on its own local D1,
+      // so every case and expedition chapter opens. External runs keep real locks.
+      const now = new Date().toISOString();
+      const fakes = Array.from({ length: 60 }, (_, i) => `pt-${userId}-${i}`);
+      await ownedServer.sql(
+        "INSERT OR IGNORE INTO members (user_id, display_name, active, updated_at) VALUES " +
+          fakes.map((id, i) => `('${id}', '로봇친구${i}', 1, '${now}')`).join(",") +
+          "; INSERT OR REPLACE INTO cards (owner_id, target_id, xp, first_met, updated_at) VALUES " +
+          fakes.map((id) => `('${userId}', '${id}', 100000, '${now}', '${now}')`).join(",") +
+          ";",
+      );
+      console.log("Seeded 60 Lv-high cards for robot unlock");
+    }
     await page.goto(
-      new URL(
-        "/auth/dev?id=" +
-          String(900000000000000000n + BigInt(Date.now())) +
-          "&name=Playtest",
-        base,
-      ).href,
+      new URL("/auth/dev?id=" + userId + "&name=Playtest", base).href,
     );
     assert(!page.url().includes("/auth/dev"), "DEV_LOGIN login failed");
     if (page.url().includes("/choose")) {
@@ -470,9 +480,16 @@ try {
       where = c.id;
       try {
         await page.goto(new URL("/cases/room?list=1", base).href);
-        await page
-          .locator(`form:has(input[name=case][value="${c.id}"]) button`)
-          .click();
+        const start = page.locator(
+          `form:has(input[name=case][value="${c.id}"]) button`,
+        );
+        // A fresh test account only sees the first cases; locked ones show their unlock rule, not a start form.
+        if (!(await start.count())) {
+          result.locked = true;
+          console.log(`LOCKED ${c.id}`);
+          continue;
+        }
+        await start.click();
         await page.locator(".esc-room").waitFor();
         let s = startEscape(c),
           lastScene = null,
@@ -499,8 +516,13 @@ try {
             await page.setViewportSize({ width: 390, height: 844 });
             await inspect(`${c.id}-${s.scene}-puzzle-${index}-390`, true);
           }
-          if (a.a === "tap")
-            await click(form("tap", a.o).locator("button"), true);
+          if (a.a === "tap") {
+            const goto = c.objects.find((o) => o.id === a.o)?.goto;
+            // Way-back doors to an already-open room are replaced by the open-room buttons (a=go).
+            const f =
+              goto && !(await form("tap", a.o).count()) ? form("go", goto) : form("tap", a.o);
+            await click(f.locator("button"), true);
+          }
           else if (a.a === "use")
             await click(
               form("use", a.o)
@@ -654,12 +676,12 @@ try {
     ];
     await writeFile(
       `${dir}/playtest-report.md`,
-      `# UI 플레이테스트 (${label})\n\n- 로그인: /auth/dev, 실제 브라우저 세션\n- 사건: ${report.cases.filter((c) => c.completed).length}/${ESCAPE_CASES.length} 완료 (요청 50개, 현재 저장소 ${ESCAPE_CASES.length}개 모두 대상)\n- 원정 자동 종료: ${report.expedition?.completed ?? false}\n- 단계 검사: ${report.checks}\n- 시각: ${report.started} ~ ${report.finished}\n- 화면: 1280×900, 장면별 390×844\n- 캡처: ${dir}\n\n## 사건별 결과\n\n${report.cases.map((c) => `- ${c.id}: ${c.completed ? "완료" : "실패"} (${c.steps} steps) ${c.error || ""}`).join("\n")}\n\n## 재현 위치 및 문제\n\n${unique.map((i) => `- ${i.where}: **${i.kind}** ${typeof i.detail === "string" ? i.detail : JSON.stringify(i.detail)}`).join("\n") || "없음"}\n\n## 검사 한계\n\n대비 검사는 계산된 단색 배경과 텍스트의 WCAG AA 비율입니다. 이미지 배경·그림 안 글자, 스크린리더와 실제 터치 기기는 검증하지 않습니다. 의도된 돋보기는 닫기 UI로 닫고 가림을 검사합니다. 가림은 버튼 여러 지점의 elementFromPoint와 실제 풀이 클릭으로 검사하며 force를 사용하지 않습니다.\n`,
+      `# UI 플레이테스트 (${label})\n\n- 로그인: /auth/dev, 실제 브라우저 세션\n- 사건: ${report.cases.filter((c) => c.completed).length}/${ESCAPE_CASES.length} 완료, 잠김 ${report.cases.filter((c) => c.locked).length}개 (현재 저장소 ${ESCAPE_CASES.length}개 모두 대상)\n- 원정 자동 종료: ${report.expedition?.completed ?? false}\n- 단계 검사: ${report.checks}\n- 시각: ${report.started} ~ ${report.finished}\n- 화면: 1280×900, 장면별 390×844\n- 캡처: ${dir}\n\n## 사건별 결과\n\n${report.cases.map((c) => `- ${c.id}: ${c.completed ? "완료" : c.locked ? "잠김(새 계정)" : "실패"} (${c.steps} steps) ${c.error || ""}`).join("\n")}\n\n## 재현 위치 및 문제\n\n${unique.map((i) => `- ${i.where}: **${i.kind}** ${typeof i.detail === "string" ? i.detail : JSON.stringify(i.detail)}`).join("\n") || "없음"}\n\n## 검사 한계\n\n대비 검사는 계산된 단색 배경과 텍스트의 WCAG AA 비율입니다. 이미지 배경·그림 안 글자, 스크린리더와 실제 터치 기기는 검증하지 않습니다. 의도된 돋보기는 닫기 UI로 닫고 가림을 검사합니다. 가림은 버튼 여러 지점의 elementFromPoint와 실제 풀이 클릭으로 검사하며 force를 사용하지 않습니다.\n`,
     );
     await writeSummary(report);
     console.log("Report", dir);
     if (
-      report.cases.filter((c) => c.completed).length !== ESCAPE_CASES.length ||
+      report.cases.some((c) => !c.completed && !c.locked) ||
       !report.expedition?.completed ||
       report.issues.length
     )

@@ -120,6 +120,11 @@ export async function startLocalServer() {
           return {
             url,
             pid: active.child.pid,
+            // Write to the robot's own local D1 (never the real site).
+            sql: async (command) => {
+              const r = await run(["d1", "execute", "haribo-dogam", "--local", "--command", command]).exited;
+              if (r.code !== 0) throw Error(`Local SQL failed; see ${root}/server.log`);
+            },
             stop: async () => {
               if (stopped) return;
               await stop();
