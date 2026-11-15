@@ -60,7 +60,7 @@ function slide(u: Extract<Ui, { t: 'slide' }>, v: string): boolean {
   };
   const moves = toks(v);
   if (u.max && moves.length > u.max) return false;
-  for (const m of moves) {
+  for (const [i, m] of moves.entries()) {
     const p = ps.find((q) => q.id === m[0]);
     const d = D[m[1] ?? ''];
     if (!p || !d || m.length !== 2 || p.fixed) return false;
@@ -72,7 +72,7 @@ function slide(u: Extract<Ui, { t: 'slide' }>, v: string): boolean {
       let x = p.x, y = p.y;
       while (fits(p, x + d[0], y + d[1])) (x += d[0]), (y += d[1]);
       const out = u.exit.side === 'R' ? x + p.w === u.w : u.exit.side === 'L' ? x === 0 : u.exit.side === 'D' ? y + p.h === u.h : y === 0;
-      if (out && m === moves.at(-1)) return true;
+      if (out) return i === moves.length - 1;
     }
     let steps = 0;
     do {
