@@ -54,16 +54,14 @@ function initBet(form) {
     }
 
     event.preventDefault();
-    state = 'dropping';
     form.inert = true;
-    try {
-      await dropCoin(coin);
-    } catch {
+    // 젤칩이 떨어지는 동안 바로 보내요. 다 떨어질 때까지 기다렸다 보내면 그만큼 늦어져요(나리 2026-11-15).
+    dropCoin(coin).catch(() => {
       // A canceled animation should not block a valid bet.
-    }
-    if (state !== 'dropping') return;
+    });
     state = 'ready';
-    form.requestSubmit();
+    // submit 이벤트 안에서는 다시 보낼 수 없어서 한 박자 뒤에 보내요.
+    setTimeout(() => form.requestSubmit(), 0);
   });
 
   addEventListener('pagehide', () => { state = 'idle'; });
