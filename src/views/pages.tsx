@@ -122,6 +122,25 @@ function TierRoad(props: { level: number }) {
 }
 
 // 칭찬함: 누가 보냈는지는 보여 주지 않아요
+export const PRAISE_PREVIEW = 3;
+
+function PraiseList(props: { items: PraiseBox['items'] }) {
+  return (
+    <ul class="pr-list">
+      {props.items.map((i) => (
+        <li class={i.unread ? 'pr-item new' : 'pr-item'}>
+          <div class="pr-top">
+            <b>누군가 나를 칭찬했어요</b>
+            <time datetime={i.day}>{praiseDayLabel(i.day)}</time>
+          </div>
+          {i.note && <p class="pr-note">“{i.note}”</p>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// 내 카드: 최근 3개만 미리 보여 주고, 전체는 칭찬함 페이지에서 봐요(여기서는 읽음 처리를 하지 않아요)
 function PraiseBoxSection(props: { box: PraiseBox }) {
   const { box } = props;
   return (
@@ -130,30 +149,44 @@ function PraiseBoxSection(props: { box: PraiseBox }) {
         <h2>💛 칭찬함</h2>
         {box.unread > 0 && <span class="chip pr-new">새 칭찬 {box.unread}개</span>}
       </div>
-      <p class="hint">{PRAISE_BOX_NOTICE}</p>
       {box.items.length === 0 ? (
         <p class="muted">아직 받은 칭찬이 없어요. 디스코드 도감 패널의 "칭찬하기"로 같이 논 사람을 칭찬할 수 있어요.</p>
       ) : (
-        <ul class="pr-list">
-          {box.items.map((i) => (
-            <li class={i.unread ? 'pr-item new' : 'pr-item'}>
-              <div class="pr-top">
-                <b>누군가 나를 칭찬했어요</b>
-                <time datetime={i.day}>{praiseDayLabel(i.day)}</time>
-              </div>
-              {i.note && <p class="pr-note">“{i.note}”</p>}
-              {i.hidden && <p class="pr-hidden muted">숨긴 한마디예요</p>}
-              {i.note && (
-                <form method="post" action={`/api/me/praise/${i.id}/hide`} class="pr-hide">
-                  <button class="btn btn-small" type="submit">숨기기</button>
-                </form>
-              )}
-            </li>
-          ))}
-        </ul>
+        <>
+          <PraiseList items={box.items.slice(0, PRAISE_PREVIEW)} />
+          <p class="pr-more">
+            <a class="btn btn-small" href="/me/praise">
+              더 보러가기{box.total > 0 ? ` (${box.total}개)` : ''} →
+            </a>
+          </p>
+        </>
       )}
-      {box.total > box.items.length && <p class="hint">최근 {box.items.length}개만 보여요.</p>}
     </section>
+  );
+}
+
+// 칭찬함 전체 페이지: 열면 새 칭찬이 모두 읽음이 돼요
+export function PraisePage(props: { viewer: Member; box: PraiseBox }) {
+  const { box } = props;
+  return (
+    <Layout title="칭찬함" viewer={props.viewer} active="me">
+      <section class="panel pr-box">
+        <div class="panel-head">
+          <h1>💛 칭찬함</h1>
+          {box.unread > 0 && <span class="chip pr-new">새 칭찬 {box.unread}개</span>}
+        </div>
+        <p class="hint">{PRAISE_BOX_NOTICE}</p>
+        {box.items.length === 0 ? (
+          <p class="muted">아직 받은 칭찬이 없어요. 디스코드 도감 패널의 "칭찬하기"로 같이 논 사람을 칭찬할 수 있어요.</p>
+        ) : (
+          <PraiseList items={box.items} />
+        )}
+        {box.total > box.items.length && <p class="hint">최근 {box.items.length}개만 보여요.</p>}
+        <p class="pr-more">
+          <a class="btn btn-small" href="/me">← 내 카드로</a>
+        </p>
+      </section>
+    </Layout>
   );
 }
 

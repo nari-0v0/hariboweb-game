@@ -190,3 +190,28 @@ it('다른 멤버의 도감에 있는 내 카드는 관계 상세를 보여 줘�
   expect(await response.text()).toContain('처음 만난 날');
   expect((await get(`/card/${A}`)).headers.get('location')).toBe('/me');
 });
+
+it('내 카드는 칭찬 3개만 미리 보여 주고 읽음 처리는 칭찬함 페이지에서 해요', async () => {
+  const { db, sql } = fakeD1();
+  sql.prepare("UPDATE members SET gender_chosen_at = 'chosen' WHERE user_id = ?").run(A);
+  const senders = ['444444444444444441', '444444444444444442', '444444444444444443', '444444444444444444', '444444444444444445'];
+  senders.forEach((from, i) =>
+    sql
+      .prepare('INSERT INTO praises (day, from_id, to_id, jelly, created_at, note) VALUES (?, ?, ?, 1, ?, ?)')
+      .run('2026-11-12', from, A, `2026-11-12T0${i}:00:00.000Z#x`, `한마디${i}`),
+  );
+  const session = await signSession('test', { uid: A, exp: Date.now() + 60_000 });
+  const env = { DB: db, SESSION_SECRET: 'test' } as Env;
+  const get = (path: string) => app.request(path, { headers: { Cookie: `hs=${session}` } }, env);
+
+  const me = await (await get('/me')).text();
+  expect(me.match(/class="pr-item/g)?.length).toBe(3);
+  expect(me).toContain('href="/me/praise"');
+  expect(me).not.toContain('숨기기');
+  expect((await praiseBox(db, A)).unread).toBe(5);
+
+  const full = await (await get('/me/praise')).text();
+  expect(full.match(/class="pr-item/g)?.length).toBe(5);
+  expect(full).not.toContain(senders[0]);
+  expect((await praiseBox(db, A)).unread).toBe(0);
+});

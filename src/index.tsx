@@ -51,7 +51,7 @@ import { characterUrl, isCharacterPool, poolOf } from './character';
 import { applySync, parseSync } from './sync';
 import { levelName, progress, tierFor, tierLabel } from './levels';
 import { cardPalette } from './palette';
-import { CardPage, DogamPage, LandingPage, MePage, MessagePage } from './views/pages';
+import { CardPage, DogamPage, LandingPage, MePage, MessagePage, PRAISE_PREVIEW, PraisePage } from './views/pages';
 import { ErrorPage, NotFoundPage } from './views/errors';
 import { ShopPage } from './views/shop';
 import { PlazaPage } from './views/plaza';
@@ -64,7 +64,7 @@ import { loadRankings } from './rankings';
 import { dogamProgress } from './unlock';
 import { RankPage, rankTab } from './views/rank';
 import { BLOCK_MAX_PENDING, BLOCK_MORE, blockCandidates, cancelBlock, decideBlock, listUnpostedBlocks, markBlockPosted, myBlocks, requestBlock } from './assign-block';
-import { checkNote, cleanNote, hidePraiseNote, markPraiseSeen, praiseBox, praiseDayLabel, PRAISE_NOTE_MAX } from './praise-note';
+import { checkNote, cleanNote, markPraiseSeen, praiseBox, praiseDayLabel, PRAISE_NOTE_MAX } from './praise-note';
 import type { BlockForm } from './views/bingo';
 import { GuidePage } from './views/guide';
 import { TitlesPage } from './views/titles';
@@ -605,14 +605,13 @@ members.get('/me', async (c) => {
   // 새로 채웠으면 그 자리에서 줄 보상도 확인해요(이 칸이 마지막 칸일 수 있어요)
   await markFlag(c.env.DB, viewer.user_id, 'web', Date.now())
     .catch((e) => console.error('빙고 표시 실패', e));
-  const seenThrough = Date.now();
+  // 칭찬함은 미리보기만 보여 주니 읽음 처리는 /me/praise에서 해요
   const [profile, entries, items, box] = await Promise.all([
     getProfile(c.env.DB, viewer.user_id),
     listDogam(c.env.DB, viewer.user_id),
     getOwnedItems(c.env.DB, viewer.user_id),
-    praiseBox(c.env.DB, viewer.user_id, 20, true),
+    praiseBox(c.env.DB, viewer.user_id, PRAISE_PREVIEW),
   ]);
-  if (box.unread) await markPraiseSeen(c.env.DB, viewer.user_id, seenThrough).catch((e) => console.error('칭찬함 읽음 표시 실패', e));
   const { owned, total } = completion(entries);
   return page(
     c,
@@ -620,12 +619,13 @@ members.get('/me', async (c) => {
   );
 });
 
-// 칭찬함: 받은 한마디 숨기기
-members.post('/api/me/praise/:id/hide', async (c) => {
-  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  const id = Number(c.req.param('id'));
-  if (Number.isSafeInteger(id) && id > 0) await hidePraiseNote(c.env.DB, c.get('viewer').user_id, id);
-  return c.redirect('/me#praise');
+// 칭찬함 전체 보기. 열면 새 칭찬이 모두 읽음이 돼요(안 읽은 건 20개가 넘어도 다 보여 줘요).
+members.get('/me/praise', async (c) => {
+  const viewer = c.get('viewer');
+  const seenThrough = Date.now();
+  const box = await praiseBox(c.env.DB, viewer.user_id, 20, true);
+  if (box.unread) await markPraiseSeen(c.env.DB, viewer.user_id, seenThrough).catch((e) => console.error('칭찬함 읽음 표시 실패', e));
+  return page(c, <PraisePage viewer={viewer} box={box} />);
 });
 
 members.post('/api/me/profile', async (c) => {
