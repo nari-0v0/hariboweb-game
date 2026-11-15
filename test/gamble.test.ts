@@ -72,7 +72,9 @@ describe('겜블장 배당', () => {
 
   it('룰렛 배수별 확률(100번 중)과 기대값', () => {
     expect(WHEEL).toHaveLength(100);
-    expect([0, 0.5, 1, 1.5, 2, 3, 5, 10].map((n) => WHEEL.filter((v) => v === n).length)).toEqual([32, 20, 18, 12, 9, 5, 3, 1]);
+    expect([0, 1, 2, 3, 5, 10].map((n) => WHEEL.filter((v) => v === n).length)).toEqual([48, 25, 15, 8, 3, 1]);
+    expect(WHEEL).toHaveLength(100);
+    expect(WHEEL.reduce((a, b) => a + b, 0) / 100).toBeCloseTo(1.04);
     expect(WHEEL[WHEEL.length - 1]).toBe(10);
     const mean = WHEEL.reduce((sum, n) => sum + n, 0) / WHEEL.length;
     expect(mean).toBeCloseTo(1.04);
@@ -101,17 +103,17 @@ describe('겜블장 배당', () => {
     expect(payback(100, 2.05)).toBe(205);
   });
 
-  it('0.5배·1.5배는 돌려받을 칩을 내림해서 정수로 준다', async () => {
+  it('룰렛 1배는 본전, 2배는 건 만큼 더 받아요', async () => {
     const { db } = fixture();
     await claimDaily(db, USER, TODAY);
-    roll(32);
-    const half = await betChips(db, USER, 'roulette', 3, 'half', TODAY);
-    expect(half?.multiplier).toBe(0.5);
-    expect((await gambleAccount(db, USER))?.chips).toBe(998);
-    roll(70);
+    roll(48);
+    const even = await betChips(db, USER, 'roulette', 3, 'even', TODAY);
+    expect(even?.multiplier).toBe(1);
+    expect((await gambleAccount(db, USER))?.chips).toBe(1000);
+    roll(73);
     const more = await betChips(db, USER, 'roulette', 3, 'more', LATER(2));
-    expect(more?.multiplier).toBe(1.5);
-    expect(await gambleAccount(db, USER)).toMatchObject({ chips: 999, won: 1, best_win: 1 });
+    expect(more?.multiplier).toBe(2);
+    expect(await gambleAccount(db, USER)).toMatchObject({ chips: 1003, won: 3, best_win: 3 });
   });
 
   it('A를 1이나 11로 계산하고 딜러는 소프트 17에서도 멈춘다', () => {
@@ -220,14 +222,14 @@ describe('칩과 판 기록', () => {
     expect((await gambleAccount(db, USER))?.chips).toBe(1000);
   });
 
-  it('1젤칩 올인이 1.5배(내림하면 본전)면 올인 승리도 시즌 우승 후보도 아니다', async () => {
+  it('1젤칩 올인이 1배(본전)면 올인 승리도 시즌 우승 후보도 아니다', async () => {
     const { db, sql } = fixture();
     sql.prepare("INSERT INTO seasons (id, starts_at, ends_at, created_at) VALUES ('season', ?, ?, ?)").run('2026-11-01T00:00:00.000Z', TOMORROW, TODAY);
     await claimDaily(db, USER, TODAY);
     sql.prepare('UPDATE gamble_accounts SET chips = 1 WHERE user_id = ?').run(USER);
-    roll(70);
+    roll(48);
     const r = await betChips(db, USER, 'roulette', 1, 'even', TODAY);
-    expect(r?.multiplier).toBe(1.5);
+    expect(r?.multiplier).toBe(1);
     expect(await gambleAccount(db, USER)).toMatchObject({ chips: 1, won: 0, all_in_wins: 0 });
     expect((await gambleRanks(db, TODAY))[3]).toEqual([]);
     await awardGambleSeason(db, 'season', TOMORROW, TOMORROW);

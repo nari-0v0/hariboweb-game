@@ -10,14 +10,15 @@ export const SLOTS = [
   { weight: 3, payout: 10 },
 ] as const;
 export const CHERRY_PAIR = 2;
-// 2026-11-12 나리: 판 그림은 같은 크기 8칸(×0 ×0.5 ×1 ×1.5 ×2 ×3 ×5 ×10)이고, 나올 확률만 따로 정해요.
-// count = 100번 중 몇 번(=%)이에요. 평균 1.04배(조금 따는 쪽). 소수 배수는 받을 칩을 내림해요.
+// 2026-11-15 나리: 판 그림은 같은 크기 6칸(×0 ×1 ×2 ×3 ×5 ×10)이고, 나올 확률만 따로 정해요.
+// (예전 ×0.5·×1.5는 1젤칩이면 내림해서 어차피 0·1배라 뺐어요.) 예전 0.5·1.5 확률은 0·1배에 합치고,
+// 평균은 예전처럼 1.04배(조금 따는 쪽)가 되게 맞췄어요. count = 100번 중 몇 번(=%)이에요.
 export const ROULETTE = [
-  { payout: 0, count: 32 }, { payout: 0.5, count: 20 }, { payout: 1, count: 18 }, { payout: 1.5, count: 12 },
-  { payout: 2, count: 9 }, { payout: 3, count: 5 }, { payout: 5, count: 3 }, { payout: 10, count: 1 },
+  { payout: 0, count: 48 }, { payout: 1, count: 25 }, { payout: 2, count: 15 },
+  { payout: 3, count: 8 }, { payout: 5, count: 3 }, { payout: 10, count: 1 },
 ] as const;
 export const WHEEL = ROULETTE.flatMap(({ payout, count }) => Array<number>(count).fill(payout));
-// 건 칩 × 배수를 내림한 만큼 돌려받아요(0.5배·1.5배 때문에).
+// 건 칩 × 배수를 내림한 만큼 돌려받아요(동전 2.05배, 예전 룰렛 0.5배·1.5배 기록).
 // 2.05 같은 배수는 부동소수점 오차가 나서(100×2.05=204.999…) 백분율 정수로 계산해요. DB 트리거·순위 계산과 같은 방식이에요.
 export const payback = (bet: number, multiplier: number) => Math.floor(bet * Math.round(multiplier * 100) / 100);
 
