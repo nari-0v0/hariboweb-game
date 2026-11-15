@@ -275,3 +275,42 @@ addEventListener('pageshow', (e) => {
     });
   });
 })();
+
+// 칭호: 이름으로 찾기. 맞는 칭호만 남기고 그 묶음을 펼쳐요. 지우면 처음 모양으로 돌아가요.
+(() => {
+  const input = document.querySelector('input[data-title-search]');
+  if (!input) return;
+  const groups = [...document.querySelectorAll('.title-group')];
+  const none = document.querySelector('.title-search-none');
+  const norm = (v) => v.replace(/[「」\s]/g, '').toLowerCase();
+  groups.forEach((g) => (g.dataset.wasOpen = g.open ? '1' : ''));
+  input.addEventListener('input', () => {
+    const q = norm(input.value);
+    let any = false;
+    for (const g of groups) {
+      let hit = 0;
+      g.querySelectorAll('.title-cell, .title-item').forEach((cell) => {
+        const name = cell.querySelector('.title-chip')?.textContent || '';
+        const show = !q || norm(name).includes(q);
+        cell.hidden = !show;
+        if (show) hit++;
+      });
+      g.hidden = !!q && !hit;
+      g.open = q ? hit > 0 : g.dataset.wasOpen === '1';
+      if (hit) any = true;
+    }
+    if (none) none.hidden = !q || any;
+  });
+  // 사용자가 직접 펼치거나 접은 모양은 검색을 지울 때 그대로 돌아오게 기억해요
+  groups.forEach((g) => g.addEventListener('toggle', () => !norm(input.value) && (g.dataset.wasOpen = g.open ? '1' : '')));
+})();
+
+// "사용하기"처럼 아래 입력칸으로 보내는 링크: 그 칸으로 내려가서 바로 글을 쓸 수 있게 해요
+document.addEventListener('click', (e) => {
+  const link = e.target instanceof Element && e.target.closest('a[data-focus]');
+  const field = link && document.getElementById(link.dataset.focus);
+  if (!field) return;
+  e.preventDefault();
+  field.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  field.focus({ preventScroll: true });
+});
