@@ -3,9 +3,10 @@
 -- 되돌리기: 실행 전에 찍어 둔 D1 Time Travel 북마크로 복구해요(30일 안).
 --
 -- 지우는 것: 카드·도감(경험치, 레벨, 통화 시간), 혼자 경험치, 도감 젤리(처음 선물 5개만 남김),
---   산 물건·칭호, 칭찬, 빙고, 시즌 칭호, 납치 대소동 진행, 젤리피, 원정대·사건파일 진행, 겜블장 젤칩, 같이 배정되지 않기.
+--   산 물건·칭호, 칭찬, 빙고, 시즌 칭호, 납치 대소동 진행, 젤리피, 원정대·사건파일 진행, 같이 배정되지 않기.
 -- 남기는 것: 멤버 목록, 성별·캐릭터, 자기소개, 이번 시즌(안 끝난 시즌) 팀과 팀 퀘스트 짝, 서버 퀘스트 목표(18명),
---   지난 시즌 정산 표시(season_settle: 지우면 지난 시즌 보상을 또 줘요), 봇 동기화 기록.
+--   지난 시즌 정산 표시(season_settle: 지우면 지난 시즌 보상을 또 줘요), 봇 동기화 기록,
+--   겜블장 전체(젤칩, 판 기록, 겜블 시즌 우승자: 나리 2026-11-15 결정으로 초기화하지 않아요).
 
 DELETE FROM cards;
 DELETE FROM owned_items;
@@ -47,9 +48,6 @@ DELETE FROM journey_bank;
 DELETE FROM journey_runs;
 DELETE FROM room_likes;
 DELETE FROM rooms;
-DELETE FROM gamble_rounds;
-DELETE FROM gamble_accounts;
-DELETE FROM gamble_season_winners;
 DELETE FROM assign_blocks;
 
 -- 내 카드: 경험치 0, 산 꾸미기는 기본으로, 칭호는 떼요(title_applied는 그대로 둬서 봇이 닉네임 앞 칭호를 떼게 해요).
