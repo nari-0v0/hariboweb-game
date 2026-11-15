@@ -17,6 +17,8 @@ export async function loadTitleStats(db: D1Database, userId: string, nowIso: str
          JOIN seasons s ON s.id = sm.season_id AND s.ends_at <= ?2
          LEFT JOIN season_quests q ON q.season_id = sm.season_id AND q.group_no = sm.group_no
          WHERE sm.user_id = ?1 AND sm.left_at IS NULL
+           -- 다시 들어온 멤버는 나가기 전에 끝난 시즌을 세지 않아요(다른 기록처럼 나간 뒤 것만)
+           AND s.ends_at > COALESCE((SELECT reset_at FROM members WHERE user_id = ?1), '')
          GROUP BY sm.season_id`,
       )
       .bind(userId, nowIso),

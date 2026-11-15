@@ -178,10 +178,14 @@ describe('rejoined member titles', () => {
     sql.prepare("INSERT INTO praises (day, from_id, to_id, created_at) VALUES ('2026-10-01', 'z', ?1, '2026-10-01T00:00:00.000Z'), ('2026-10-02', ?1, 'z', '2026-10-02T00:00:00.000Z'), ('2026-10-20', 'z', ?1, '2026-10-20T00:00:00.000Z')").run(A);
     sql.prepare("INSERT INTO bingo_lines (week, user_id, line, mark, created_at) VALUES ('w1', ?, 0, 'x', '2026-10-01T00:00:00.000Z')").run(A);
     sql.prepare("INSERT INTO season_titles (season_id, user_id, title, created_at) VALUES ('s1', ?, 't', '2026-10-01T00:00:00.000Z')").run(A);
+    // 나가기 전에 끝난 시즌(s0)은 빼고, 다시 들어온 뒤 끝난 시즌(s2)만 세요
+    sql.prepare("INSERT INTO seasons (id, starts_at, ends_at, created_at) VALUES ('s0', '2026-09-01T00:00:00.000Z', '2026-09-15T00:00:00.000Z', 'x'), ('s2', '2026-10-15T00:00:00.000Z', '2026-10-29T00:00:00.000Z', 'x')").run();
+    sql.prepare("INSERT INTO season_members (season_id, user_id, group_no, start_member, joined_at) VALUES ('s0', ?1, 0, 1, 'x'), ('s2', ?1, 0, 1, 'x')").run(A);
     (db as unknown as { batch: unknown }).batch = async (list: { query: string; args: never[] }[]) =>
       list.map((x) => ({ results: /^\s*SELECT/i.test(x.query) ? sql.prepare(x.query).all(...x.args) : [], meta: {} }));
     const { loadTitleStats } = await import('../src/title-db');
     const st = await loadTitleStats(db, A, '2026-11-01T00:00:00.000Z');
     expect([st.praiseGot, st.praiseGave, st.bingoLines, st.fullClears]).toEqual([1, 0, 0, 0]);
+    expect(st.seasons).toHaveLength(1);
   });
 });
