@@ -536,8 +536,10 @@ function ChapterPick(props: { unlocked: number; top: number; dogam: DogamProgres
 function Result(props: { run: JourneyRun; art: string; name: string; unlocked: number; top: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number; going: boolean }) {
   const { run } = props;
   const s = run.state;
+  // 마지막 날 싸움이 있으면, 싸움 모션이 끝난 뒤(--reveal)에 "멈췄어요"·보상 같은 결과가 나와요(나리 2026-11-15).
+  const reveal = s.fx ? fightPlan(s.fx).reveal : 0;
   return (
-    <section class="jr-game jr-result" id="now">
+    <section class={`jr-game jr-result${reveal ? ' jr-fighting' : ''}`} id="now" style={reveal ? `--reveal:${reveal}ms` : undefined}>
       <span class="eyebrow">{s.cleared ? '원정 성공' : '원정 끝'}</span>
       <Stage s={s} art={props.art} name={props.name} lost={!s.cleared} />
       <div class="jr-result-head">

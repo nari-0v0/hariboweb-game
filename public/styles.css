@@ -1269,6 +1269,7 @@ main.wide { max-width: 1320px; }
   .jr-fighting .jr-bar.later > span { animation: jr-bar .4s var(--reveal, 0s) both; }
   .jr-fighting .jr-bar .jr-before { display: block; animation: jr-hide 0s var(--reveal, 0s) both; }
   .jr-fighting .jr-bar .jr-after { animation: jr-reveal 0s var(--reveal, 0s) both; }
+  .jr-result.jr-fighting > :not(.jr-stage) { animation: jr-reveal .3s var(--reveal, 0s) both; }
 }
 @keyframes jr-reveal { from { opacity: 0; visibility: hidden; } to { opacity: 1; visibility: visible; } }
 @keyframes jr-hide { to { visibility: hidden; } }
