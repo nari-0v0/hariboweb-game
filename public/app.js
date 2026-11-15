@@ -231,20 +231,28 @@ addEventListener('pageshow', (e) => {
   });
 
   let cover = null;
+  const makeCover = () => {
+    const el = document.createElement('div');
+    el.className = 'devtools-cover';
+    el.textContent = '개발자 도구를 닫아 주세요. 닫으면 다시 이용할 수 있어요.';
+    return el;
+  };
   const check = () => {
+    // 멈추기 바로 전에 가림막을 먼저 덮어요. 개발자 도구가 열려 있으면 멈춘 동안 화면이 가려져 있어요.
+    // 닫혀 있으면 같은 순간(화면을 다시 그리기 전)에 바로 걷어서 깜빡이지 않아요.
+    const shade = cover ? null : document.body.appendChild(makeCover());
     const start = performance.now();
     // 개발자 도구가 닫혀 있으면 아무 일도 안 하고, 열려 있으면 여기서 멈춰요
     debugger; // eslint-disable-line no-debugger
     const open = performance.now() - start > 100;
     if (open && !cover) {
-      cover = document.createElement('div');
-      cover.className = 'devtools-cover';
+      cover = shade || makeCover();
       cover.setAttribute('role', 'alert');
-      cover.textContent = '개발자 도구를 닫아 주세요. 닫으면 다시 이용할 수 있어요.';
       // 화면 내용을 통째로 지워서, 개발자 도구의 Elements 칸에도 가림막만 보이게 해요(닫으면 새로고침으로 되살려요)
       document.body.replaceChildren(cover);
-    } else if (!open && cover) {
-      location.reload();
+    } else {
+      shade?.remove();
+      if (!open && cover) location.reload();
     }
   };
   setInterval(check, 1000);
