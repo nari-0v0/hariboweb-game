@@ -13,7 +13,7 @@ const MAX_JELLY_EARNED = 100; // 한 묶음에서 한 사람이 받는 도감 �
 
 export type SyncPayload = {
   batch_id: string;
-  members: { id: string; name: string; avatar_url: string | null; joined_at: string | null; is_newbie: boolean; games?: string[] }[];
+  members: { id: string; name: string; avatar_url: string | null; joined_at: string | null; is_newbie: boolean; green?: boolean; games?: string[] }[];
   removed: string[];
   pair_xp: { a: string; b: string; xp: number; voice_seconds: number; scrims: number; at: string }[];
   solo_xp: { id: string; xp: number }[];
@@ -74,7 +74,10 @@ export function parseSync(raw: unknown): Result {
         return { ok: false, error: `members.games가 잘못됐어요 (${m.id})` };
       games = [...new Set(m.games as string[])];
     }
-    members.push({ id: m.id, name: stripTitle(m.name) || m.name, avatar_url: avatar, joined_at: joined, is_newbie: m.is_newbie === true, ...(games ? { games } : {}) });
+    // green: 초록하리보 역할이 있는지. 빼면(예전 봇) 웹에 있던 값을 그대로 둬요.
+    if (m.green !== undefined && typeof m.green !== 'boolean') return { ok: false, error: `members.green이 잘못됐어요 (${m.id})` };
+    const green = typeof m.green === 'boolean' ? { green: m.green } : {};
+    members.push({ id: m.id, name: stripTitle(m.name) || m.name, avatar_url: avatar, joined_at: joined, is_newbie: m.is_newbie === true, ...green, ...(games ? { games } : {}) });
   }
 
   const removed: string[] = [];
@@ -198,13 +201,13 @@ export async function applySync(
   if (seen) return 'duplicate';
 
   const upsertMember = db.prepare(
-    `INSERT INTO members (user_id, display_name, avatar_url, joined_at, is_newbie, active, updated_at, games)
-     VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, COALESCE(?7, '[]'))
+    `INSERT INTO members (user_id, display_name, avatar_url, joined_at, is_newbie, active, updated_at, games, green)
+     VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, COALESCE(?7, '[]'), ?8)
      ON CONFLICT (user_id) DO UPDATE SET display_name = ?2, avatar_url = ?3,
-       joined_at = COALESCE(?4, joined_at), is_newbie = ?5, active = 1, updated_at = ?6, games = COALESCE(?7, games)`,
+       joined_at = COALESCE(?4, joined_at), is_newbie = ?5, active = 1, updated_at = ?6, games = COALESCE(?7, games), green = COALESCE(?8, green)`,
   );
   const memberStmts = p.members.map((m) =>
-    upsertMember.bind(m.id, m.name, m.avatar_url, m.joined_at, m.is_newbie ? 1 : 0, t, m.games ? JSON.stringify(m.games) : null),
+    upsertMember.bind(m.id, m.name, m.avatar_url, m.joined_at, m.is_newbie ? 1 : 0, t, m.games ? JSON.stringify(m.games) : null, m.green === undefined ? null : m.green ? 1 : 0),
   );
 
   // 시즌 모둠: 서버 멤버 전부가 담긴 묶음이면 멤버(게임 역할)를 먼저 적고, 처음 보는 시즌이면 모둠을 만들어요.
