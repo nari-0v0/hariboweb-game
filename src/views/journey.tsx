@@ -386,7 +386,7 @@ function Play(props: { run: JourneyRun; art: string; name: string; preview?: boo
   const reveal = s.fx ? fightPlan(s.fx).reveal : 0;
   return (
     <section class={`jr-game${preview ? ' jr-final-fight' : ''}`} id="now" inert={preview} aria-hidden={preview ? 'true' : undefined}>
-      <div id={preview ? undefined : 'journey'} data-journey-play={preview ? undefined : ''} class={reveal ? 'jr-fighting' : undefined} style={reveal ? `--reveal:${reveal}ms` : undefined}>
+      <div id="journey" data-journey-play={preview ? undefined : ''} class={reveal ? 'jr-fighting' : undefined} style={reveal ? `--reveal:${reveal}ms` : undefined}>
         <div class="jr-view">
           <header class="jr-hud">
             <span class="jr-hud-ch">
