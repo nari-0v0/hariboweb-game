@@ -1,4 +1,5 @@
 import { characterUrl } from '../character';
+import { CHAR_OFFSETS } from '../char-offsets';
 import { levelName, progress, tierEffects, tierFor } from '../levels';
 import { themeOrBasic } from '../themes';
 
@@ -34,6 +35,9 @@ export function Card(p: CardProps) {
   const theme = unknown ? 'basic' : themeOrBasic(p.theme);
   const classes = ['card', `theme-${theme}`, `tier-${tier}`, ...(unknown ? [] : tierEffects(level)), `size-${p.size ?? 'small'}`];
   if (p.faded) classes.push('faded');
+  const art = characterUrl(p.character, p.id, unknown ? null : p.deco);
+  // 발이 그림자 위 가운데에 오게 옮겨요(포니테일·소품이 한쪽으로 긴 그림)
+  const feet = CHAR_OFFSETS[art.replace(/^\/char\//, '')] ?? 0;
   if (unknown) classes.push('unknown');
 
   const body = (
@@ -50,7 +54,7 @@ export function Card(p: CardProps) {
           <div class="c-art">
             <span class="c-label">{label}</span>
             <div class="c-ground" />
-            <img class="c-avatar" src={characterUrl(p.character, p.id, unknown ? null : p.deco)} alt="" loading="lazy" />
+            <img class="c-avatar" src={art} style={feet ? `--ax:${feet}%` : undefined} alt="" loading="lazy" />
           </div>
           <div class="c-name">
             {p.title && !unknown && <span class="c-title">{p.title}</span>}

@@ -4,7 +4,7 @@ import { PREFETCH_RULES } from '../prefetch';
 import type { Child } from 'hono/jsx';
 import type { Member } from '../env';
 
-type NavKey = 'me' | 'dogam' | 'shop' | 'plaza' | 'group' | 'bingo' | 'titles' | 'expedition' | 'gamble' | 'cases' | 'rank' | 'guide';
+type NavKey = 'me' | 'dogam' | 'shop' | 'group' | 'bingo' | 'titles' | 'expedition' | 'gamble' | 'cases' | 'rank' | 'guide';
 
 export function Layout(props: {
   title: string;
@@ -32,8 +32,8 @@ export function Layout(props: {
         <link rel="preload" href="/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin="" />
         {props.preloadImages?.map((href) => <link rel="preload" href={href} as="image" fetchpriority="high" />)}
         <link rel="icon" type="image/png" href="/char/deco/explorer.png" />
-        <link rel="stylesheet" href="/styles.css?v=jr-result-2" />
-        <script src="/app.js?v=jr-auto-fast-1" defer></script>
+        <link rel="stylesheet" href="/styles.css?v=title-find-3" />
+        <script src="/app.js?v=title-find-2" defer></script>
         {props.scripts?.map((script) => typeof script === 'string'
           ? <script src={script} defer></script>
           : <script src={script.src} type={script.type}></script>)}
@@ -65,7 +65,6 @@ export function Layout(props: {
               {nav('me', '/me', '내 카드', '🃏')}
               {nav('dogam', '/dogam', '도감', '📖')}
               {nav('bingo', '/bingo', '하리보 빙고', '🎯')}
-              {nav('plaza', '/plaza', '광장', '🏞️')}
               {nav('expedition', '/expedition/go', '원정대', '🧭')}
               {GAMBLE_LOCKED ? (
                 <span class="menu-locked" aria-disabled="true" title="지금은 잠겨 있어요">

@@ -206,6 +206,11 @@ export function ShopPage(props: {
                     </div>
                     {pending ? (
                       <span class="tag">적용 중</span>
+                    ) : item.key === 'nickname' && props.nick.left > 0 ? (
+                      // 변경권이 남아 있으면 사지 말고 바로 쓰러 가요(아래 "내 닉네임 변경권")
+                      <a class="btn btn-small" href="#nick" data-focus="nick-front">
+                        사용하기
+                      </a>
                     ) : (
                       <form method="post" action="/api/shop/service">
                         <input type="hidden" name="item" value={item.id} />
@@ -233,7 +238,7 @@ export function ShopPage(props: {
                     <span class="tag">적용 중</span>
                   ) : props.nick.left > 0 ? (
                     <form method="post" action="/api/shop/nick" class="nick-form">
-                      <input name="front" maxlength={16} required placeholder="새 닉네임" aria-label="새 닉네임" />
+                      <input id="nick-front" name="front" maxlength={16} required placeholder="새 닉네임" aria-label="새 닉네임" />
                       <button class="btn btn-small btn-buy" type="submit">
                         바꾸기
                       </button>

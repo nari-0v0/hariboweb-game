@@ -54,7 +54,6 @@ import { cardPalette } from './palette';
 import { CardPage, DogamPage, LandingPage, MePage, MessagePage, PRAISE_PREVIEW, PraisePage } from './views/pages';
 import { ErrorPage, NotFoundPage } from './views/errors';
 import { ShopPage } from './views/shop';
-import { PlazaPage } from './views/plaza';
 import { GroupPage } from './views/group';
 import { groupViewFor, seasonRanking } from './season';
 import { currentPeriod, grantBingo, markFlag, myBingo, todayPartners, LINE_JELLY, LINE_XP, FULL_JELLY } from './bingo';
@@ -91,13 +90,12 @@ import { NO_COINS, STALE_PICK, activeJourney, actJourneyRun, beginJourney, buyPe
 import { GEAR, PERKS, cleanKit, type GearId, type PerkId } from './journey';
 import { activeEscape, actEscapeRun, beginEscape, escapeOpen, escapeRecord, getEscape, quitEscape } from './escape-db';
 
+// 광장은 없앴지만 Cloudflare에 만든 Durable Object 칸(PLAZA)은 지우려면 따로 정리 단계가 필요해서 이름만 남겨 둬요.
 export { PlazaRoom } from './plaza-room';
 
 const SESSION_COOKIE = 'hs';
 const STATE_COOKIE = 'hs_state';
 const SESSION_DAYS = 30;
-
-const plazaStub = (c: Context<AppEnv>) => c.env.PLAZA.get(c.env.PLAZA.idFromName('main'));
 
 const app = new Hono<AppEnv>();
 
@@ -198,8 +196,6 @@ app.post('/api/bot/sync', async (c) => {
   const parsed = parseSync(raw);
   if (!parsed.ok) return c.json({ error: parsed.error }, 400);
   const result = await applySync(c.env.DB, parsed.value, Date.now(), { scrimQuests: c.env.SCRIM_QUESTS === '1' });
-  // 서버를 나간 멤버가 광장을 열어 두고 있었다면 끊어요. 먼저 하고, 같은 묶음을 다시 받아도(duplicate) 또 해요.
-  if (result !== 'stale' && parsed.value.removed.length) await plazaStub(c).kick(parsed.value.removed);
   // 활동은 이미 반영됐어도 캐릭터나 첫 선물 저장에서 실패했을 수 있어요.
   if (result !== 'stale') {
     const ids = parsed.value.members.map((m) => m.id);
@@ -536,15 +532,6 @@ app.get('/api/bot/teams', async (c) => {
   });
 });
 
-// 광장 실시간 연결(봇). 통화방 모습과 통화방 채팅을 보내고, 방 옮기기 요청을 받아요.
-app.get('/api/bot/plaza', async (c) => {
-  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
-  if (c.req.header('Upgrade') !== 'websocket') return c.text('websocket only', 426);
-  const req = new Request(c.req.raw);
-  req.headers.delete('X-Plaza-User');
-  req.headers.set('X-Plaza-Role', 'bot');
-  return plazaStub(c).fetch(req);
-});
 
 // 여기부터는 로그인한 하리보 멤버만
 const isPrefetch = (c: Context<AppEnv>) => /prefetch|prerender/i.test(c.req.header('Sec-Purpose') ?? c.req.header('Purpose') ?? '');
@@ -1224,24 +1211,8 @@ members.post('/bingo/block/cancel', async (c) => {
   return c.redirect('/bingo?unblocked=1#block');
 });
 
-members.get('/plaza', (c) => page(c, <PlazaPage viewer={c.get('viewer')} guildId={c.env.GUILD_ID} />));
-
-// 광장 실시간 연결(브라우저). 다른 사이트에서 몰래 연결하지 못하게 주소를 확인해요.
-members.get('/plaza/ws', async (c) => {
-  if (c.req.header('Upgrade') !== 'websocket') return c.text('websocket only', 426);
-  if (c.req.header('Origin') !== new URL(c.req.url).origin) return c.text('잘못된 요청이에요', 403);
-  const viewer = c.get('viewer');
-  const profile = await getProfile(c.env.DB, viewer.user_id);
-  const who = {
-    id: viewer.user_id,
-    name: viewer.display_name,
-    char: characterUrl(profile.character_id, viewer.user_id, profile.deco_id),
-  };
-  const req = new Request(c.req.raw);
-  req.headers.set('X-Plaza-Role', 'user');
-  req.headers.set('X-Plaza-User', encodeURIComponent(JSON.stringify(who)));
-  return plazaStub(c).fetch(req);
-});
+// 광장은 없앴어요(나리 2026-11-15). 예전 주소는 내 카드로 보내요.
+members.get('/plaza', (c) => c.redirect('/me'));
 
 app.route('/', members);
 

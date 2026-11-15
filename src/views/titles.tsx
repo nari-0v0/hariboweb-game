@@ -189,6 +189,15 @@ export function TitlesPage(props: {
             </details>
           </section>
 
+          <section class="panel title-search">
+            <label class="title-search-label" for="title-find">
+              🔍 칭호 찾기
+            </label>
+            <input id="title-find" type="search" placeholder="예: MOON, 젤리" autocomplete="off" maxlength={20} data-title-search />
+            <p class="hint title-search-none" hidden>
+              맞는 칭호가 없어요.
+            </p>
+          </section>
           <p class="hint center">묶음을 누르면 펼쳐져요.</p>
           {TITLE_GROUPS.map((g) => {
             const list = shown.filter((t) => t.group === g);
