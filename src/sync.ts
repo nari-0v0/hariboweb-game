@@ -33,7 +33,9 @@ type Result = { ok: true; value: SyncPayload } | { ok: false; error: string };
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isCount = (v: unknown, max = MAX_XP): v is number => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= max;
 const isTime = (v: unknown): v is string => typeof v === 'string' && !Number.isNaN(Date.parse(v));
-const isDay = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
+// 2026-02-31처럼 없는 날짜는 Date가 3월로 넘겨 버려서, 다시 날짜로 바꿨을 때 그대로인지 봐요
+const isDay = (v: unknown): v is string =>
+  typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)) && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v;
 // 길이는 글자(코드 포인트) 수로 세요. 봇(파이썬)이 자르는 방식과 같아야 이모지가 든 이름에 묶음 전체가 거절되지 않아요.
 const isText = (v: unknown, max: number): v is string => typeof v === 'string' && v.length >= 1 && [...v].length <= max;
 const isIds = (v: unknown, min: number, max: number): v is string[] =>

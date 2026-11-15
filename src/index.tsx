@@ -728,7 +728,7 @@ members.post('/api/shop/service', async (c) => {
 members.post('/api/shop/nick', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
   const front = String((await c.req.parseBody()).front ?? '').trim();
-  if (!front || front.length > 16 || /\s/.test(front) || /[「」]/.test(front)) return c.redirect('/shop?n=nick_bad#nick');
+  if (!front || [...front].length > 16 || /\s/.test(front) || /[「」]/.test(front)) return c.redirect('/shop?n=nick_bad#nick');
   const ok = await useNickTicket(c.env.DB, c.get('viewer').user_id, front);
   return c.redirect(`/shop?n=${ok ? 'nick_pending' : 'nick_none'}#nick`);
 });
@@ -1221,7 +1221,8 @@ app.notFound((c) => page(c, <NotFoundPage viewer={c.get('viewer') ?? null} />, 4
 // 처리하지 못한 오류: 하얀 화면 대신 다시 시도·방장 문의 화면을 보여 줘요
 app.onError((err, c) => {
   console.error('화면 오류', c.req.method, c.req.path, err);
-  const retry = c.req.method === 'GET' && /^\/(?![\/\\])/.test(c.req.path) ? c.req.path : '/me';
+  // 다시 시도하면 같은 화면(주소 뒤 ?… 조건까지)으로 가요
+  const retry = c.req.method === 'GET' && /^\/(?![\/\\])/.test(c.req.path) ? c.req.path + new URL(c.req.url).search : '/me';
   return c.html('<!doctype html>' + String(<ErrorPage retry={retry} />), 500);
 });
 

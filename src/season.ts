@@ -701,7 +701,7 @@ export async function loadGroups(
       pairs: inGroup(pairs.results),
       rooms: inGroup(rooms.results)[0]?.n ?? 0,
       bestRun: inGroup(runs.results)[0]?.best ?? 0,
-      scrims: inGroup(scrims.results).map((r) => ({ game: r.game, day: r.day, members: JSON.parse(r.members) as string[], newbies: r.newbies })),
+      scrims: inGroup(scrims.results).map((r) => ({ game: r.game, day: r.day, members: parseGames(r.members), newbies: r.newbies })),
       newbie: inGroup(newbie.results).map((r) => ({ newbie: r.newbie_id, user: r.user_id, minutes: r.minutes })),
       praises: praises.results
         .filter((r) => groupOf.get(r.from_id) === no)
