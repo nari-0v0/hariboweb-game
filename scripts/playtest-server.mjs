@@ -7,6 +7,8 @@ import { randomBytes } from "node:crypto";
 import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
+const WRANGLER_BIN = resolve("node_modules/wrangler/bin/wrangler.js");
+
 export async function startLocalServer() {
   const root = resolve("work/playtest-server");
   await mkdir(root, { recursive: true });
@@ -17,7 +19,9 @@ export async function startLocalServer() {
   };
   const run = (args) => {
     const log = createWriteStream(resolve(root, "server.log"), { flags: "a" });
-    const child = spawn("npx", ["--no-install", "wrangler", ...args], {
+    // Run wrangler's own JS entry with this Node. `npx` is `npx.cmd` on Windows and
+    // spawn("npx") fails there with ENOENT, so skip it on every platform.
+    const child = spawn(process.execPath, [WRANGLER_BIN, ...args], {
       env,
       detached: process.platform !== "win32",
       stdio: ["ignore", "pipe", "pipe"],
