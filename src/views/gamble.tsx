@@ -222,10 +222,16 @@ function GameSurface({ game, round, canBet }: { game: Game; round: Round | null;
 
 function Result({ round, balance }: { round: Round; balance: number }) {
   const multiplier = round.multiplier!;
-  const net = payback(round.bet, multiplier) - round.bet;
+  const back = payback(round.bet, multiplier);
+  const net = back - round.bet;
+  // 받은 젤칩(건 것 포함)을 먼저 보여 주고, 이득·손해는 괄호로 붙여요(나리 2026-11-15: "3배인데 왜 2개?")
+  const title = back === 0 ? `젤칩 ${chips(round.bet)}개 잃었어요`
+    : net > 0 ? `젤칩 ${chips(back)}개 받았어요! (${chips(net)}개 이득)`
+    : net < 0 ? `젤칩 ${chips(back)}개 받았어요 (${chips(-net)}개 손해)`
+    : `젤칩 ${chips(back)}개 돌려받았어요 (본전)`;
   return (
     <div class="gb-round-result" aria-live="polite" data-gb-reveal>
-      <h2>{net > 0 ? `젤칩 ${chips(net)}개 이겼어요!` : net < 0 ? `젤칩 ${chips(-net)}개 잃었어요` : '본전이에요'}</h2>
+      <h2>{title}</h2>
       <p>{multiplier}배 · 지금 가진 젤칩 <strong>{chips(balance)}개</strong></p>
     </div>
   );
