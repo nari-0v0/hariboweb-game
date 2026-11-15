@@ -2,6 +2,7 @@
 // 비밀번호를 풀어 단서를 모은 뒤 범인을 맞혀요. 사건 내용은 이 파일에 고정돼 있고, 진행 상태만 DB에 저장해요.
 // 등장인물은 모두 가상 인물이에요(실제 멤버와 관계없어요).
 
+import { handHardness, LEVEL_SPLIT } from './escape-level';
 import { buildCase } from './escape-gen';
 import { ROOMS, ROOM_KEYS, roomByName, type RoomKey } from './case-rooms';
 import { STORY_SEEDS } from './escape-stories';
@@ -276,8 +277,8 @@ const HANDMADE: EscCase[] = [
   },
 ];
 
-// 손으로 만든 입문 사건 3개(★) + 이야기 씨앗으로 만든 사건 47개(★★★)
-// 어려운 사건(★★★)이 먼저, 손으로 만든 입문 사건(★)은 맨 뒤에 둬요.
+// 손으로 만든 입문 사건 3개 + 이야기 씨앗으로 만든 사건 47개 + 대화 사건 1개.
+// 난이도(★ 1~3)는 escape-level.ts에서 수수께끼 어려움으로 나누고, 목록은 별이 낮은 것부터 보여요.
 // 손으로 만든 사건도 방마다 그림을 정하고, 물건 위치를 그림 속 자리 가운데로 맞춰요.
 function placeRooms(c: EscCase): EscCase {
   const used: RoomKey[] = [];
@@ -296,12 +297,22 @@ function placeRooms(c: EscCase): EscCase {
   return { ...c, scenes, objects };
 }
 
-export const ESCAPE_CASES: EscCase[] = [...TALK_CASES, ...STORY_SEEDS.map((x, i) => buildCase(x, 3, i)), ...HANDMADE.map((c) => ({ ...c, level: 1 }))].map(placeRooms);
+const MADE = STORY_SEEDS.map((x, i) => buildCase(x, 3, i));
+// 만든 사건은 수수께끼 점수 합이 낮은 것부터 ★, ★★, ★★★ (같으면 원래 순서)
+const RANKED = MADE.map((c, i) => ({ c, i, h: handHardness(c.objects.flatMap((o) => o.ref ?? [])) })).sort((a, b) => a.h - b.h || a.i - b.i);
+const leveled = RANKED.map(({ c }, k) => ({ ...c, level: k < LEVEL_SPLIT.one ? 1 : k < LEVEL_SPLIT.one + LEVEL_SPLIT.two ? 2 : 3 }));
+export const ESCAPE_CASES: EscCase[] = [
+  ...HANDMADE.map((c) => ({ ...c, level: 1 })),
+  ...leveled.filter((c) => c.level === 1),
+  ...leveled.filter((c) => c.level === 2),
+  ...leveled.filter((c) => c.level === 3),
+  ...TALK_CASES.map((c) => ({ ...c, level: 3 })),
+].map(placeRooms);
 
 export const escCase = (id: string) => ESCAPE_CASES.find((c) => c.id === id);
 
-// 도감으로 여는 순서: 입문 사건(★)이 먼저, 그다음 목록 순서. 처음 5개(입문 3개 + 맨 위 2개)는 그냥 할 수 있어요.
-const UNLOCK_ORDER = [...ESCAPE_CASES.filter((c) => c.level === 1), ...ESCAPE_CASES.filter((c) => c.level !== 1)].map((c) => c.id);
+// 도감으로 여는 순서 = 목록 순서(쉬운 것부터). 처음 5개(입문 3개 + 가장 쉬운 사건 2개)는 그냥 할 수 있어요.
+const UNLOCK_ORDER = ESCAPE_CASES.map((c) => c.id);
 export const escapeUnlockIndex = (id: string) => UNLOCK_ORDER.indexOf(id);
 
 export type EscState = {

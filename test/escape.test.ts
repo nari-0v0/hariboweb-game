@@ -135,7 +135,7 @@ describe('사건파일 방탈출 내용', () => {
   });
   it('만든 사건: 은행 235문제를 한 번씩만 쓰고, 한 사건 안에서는 조작·내는 방식이 겹치지 않아요', async () => {
     const { BANK } = await import('../src/escape-bank');
-    const made = ESCAPE_CASES.filter((c) => (c.level ?? 1) > 1 && !c.id.includes('-talk'));
+    const made = ESCAPE_CASES.filter((c) => c.formats);
     expect(made.length).toBe(47);
     expect(BANK.length).toBe(235);
     expect(new Set(BANK.map((b) => b.idea)).size).toBe(BANK.length);
@@ -330,8 +330,8 @@ describe('사건파일 방탈출 저장과 보상', () => {
   });
   it('도감 카드가 모자라면 잠긴 사건은 시작할 수 없어요', async () => {
     const { db } = database();
-    const last = ESCAPE_CASES[ESCAPE_CASES.length - 4]!; // ★★★ 목록 맨 끝
-    expect(last.level).not.toBe(1);
+    const last = ESCAPE_CASES[ESCAPE_CASES.length - 2]!; // ★★★ 목록 맨 끝 쪽
+    expect(last.level).toBe(3);
     expect(await beginEscape(db, 'me', last.id)).toBeNull();
   });
 });
@@ -532,5 +532,26 @@ describe('더 쉬운 힌트', () => {
         if (l.order && t) expect(t).toContain(l.order[Number(l.code[0]) - 1]!);
         if (!l.choices && !l.order && t && l.code.length > 1) expect(t).toContain(`「${[...l.code].slice(0, Math.floor([...l.code].length / 2)).join('')}」`);
       }
+  });
+});
+
+describe('사건파일 난이도', () => {
+  it('★부터 ★★★까지 별이 낮은 사건이 먼저 나오고, 세 단계가 모두 있어요', async () => {
+    const { BANK } = await import('../src/escape-bank');
+    const { riddleHardness } = await import('../src/escape-level');
+    const lv = ESCAPE_CASES.map((c) => c.level ?? 1);
+    expect([...lv].sort((a, b) => a - b)).toEqual(lv);
+    expect(lv.filter((x) => x === 1).length).toBe(20);
+    expect(lv.filter((x) => x === 2).length).toBe(18);
+    expect(lv.filter((x) => x === 3).length).toBe(13);
+    expect(new Set(BANK.map(riddleHardness))).toEqual(new Set([1, 2, 3]));
+  });
+  it('쉬움·어려움 목록의 수수께끼 이름은 모두 은행에 있어요', async () => {
+    const src = (await import('node:fs')).readFileSync('src/escape-level.ts', 'utf8');
+    const { BANK } = await import('../src/escape-bank');
+    const ideas = new Set(BANK.map((b) => b.idea));
+    const named = [...src.matchAll(/'([a-z0-9-]+)'/g)].map((m) => m[1]!);
+    expect(named.length).toBeGreaterThan(100);
+    for (const n of named) expect(ideas.has(n), n).toBe(true);
   });
 });
