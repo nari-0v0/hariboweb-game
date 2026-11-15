@@ -1817,8 +1817,9 @@ main.wide { max-width: 1320px; }
 .gb-room-page:has(.gb-room[data-gb-settled].gb-motion-running) .gb-room-balance { visibility: hidden; }
 /* gamble.js가 움직임을 시작하기 전(첫 화면이 그려지는 순간)에도 결과를 미리 보이지 않게 가려요.
    gamble.js가 안 돌면 4초 뒤에 그냥 보여 줘요. */
-.gb-room[data-gb-motion]:not(.gb-motion-done) [data-gb-reveal],
-.gb-room-page:has(.gb-room[data-gb-settled][data-gb-motion]:not(.gb-motion-done)) .gb-room-balance { animation: gb-late-show 0s 4s both; }
+/* 움직임이 시작되면(gb-motion-started) 이 대체 공개를 빼고 위의 gb-motion-running 숨김만 따라요. */
+.gb-room[data-gb-motion]:not(.gb-motion-done):not(.gb-motion-started) [data-gb-reveal],
+.gb-room-page:has(.gb-room[data-gb-settled][data-gb-motion]:not(.gb-motion-done):not(.gb-motion-started)) .gb-room-balance { animation: gb-late-show 0s 4s both; }
 .gb-room[data-gb-motion]:not(.gb-motion-done):not(.gb-motion-started) .gb-coin { animation: gb-coin-late 0s 4s both; }
 @keyframes gb-late-show { from { visibility: hidden; } to { visibility: visible; } }
 @keyframes gb-coin-late { from { transform: rotateX(0deg); } to { transform: rotateX(var(--gb-coin-end, 0deg)); } }
