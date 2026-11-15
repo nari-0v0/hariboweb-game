@@ -48,7 +48,7 @@ function setup(jelly: number) {
 describe('디스코드 물건(벌점·경고 지우기, 닉네임 변경권)', () => {
   it('값은 살 때마다 1.5배(올림), 닉네임 변경권은 그대로', () => {
     const penalty = serviceItem('svc:penalty')!;
-    expect([0, 1, 2, 3].map((n) => servicePrice(penalty, n))).toEqual([100, 150, 225, 338]);
+    expect([0, 1, 2, 3].map((n) => servicePrice(penalty, n))).toEqual([200, 300, 450, 675]);
     expect(servicePrice(serviceItem('svc:nickname')!, 9)).toBe(5);
     expect(SERVICES.map((s) => s.id)).toEqual(['svc:penalty', 'svc:warning', 'svc:nickname']);
   });
