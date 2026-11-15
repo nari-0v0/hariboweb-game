@@ -4,7 +4,7 @@
 --
 -- 지우는 것: 카드·도감(경험치, 레벨, 통화 시간), 혼자 경험치, 도감 젤리(처음 선물 5개만 남김),
 --   산 물건·칭호, 칭찬, 빙고, 시즌 칭호, 납치 대소동 진행, 젤리피, 원정대·사건파일 진행, 겜블장 젤칩, 같이 배정되지 않기.
--- 남기는 것: 멤버 목록, 성별·캐릭터, 자기소개, 이번 시즌 팀과 팀 퀘스트 짝, 서버 퀘스트 목표(18명),
+-- 남기는 것: 멤버 목록, 성별·캐릭터, 자기소개, 이번 시즌(안 끝난 시즌) 팀과 팀 퀘스트 짝, 서버 퀘스트 목표(18명),
 --   지난 시즌 정산 표시(season_settle: 지우면 지난 시즌 보상을 또 줘요), 봇 동기화 기록.
 
 DELETE FROM cards;
@@ -28,6 +28,10 @@ DELETE FROM gq_scrim;
 DELETE FROM gq_newbie;
 DELETE FROM gq_attend;
 DELETE FROM season_snap;
+-- 끝난 시즌의 팀 기록도 지워요. 남겨 두면 "끝까지 함께한 시즌" 칭호가 바로 다시 생겨요(title-db.ts loadTitleStats).
+-- 이번 시즌(아직 안 끝난 시즌) 팀은 그대로 둬요.
+DELETE FROM season_quests WHERE season_id IN (SELECT id FROM seasons WHERE ends_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+DELETE FROM season_members WHERE season_id IN (SELECT id FROM seasons WHERE ends_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 DELETE FROM season_titles;
 DELETE FROM kidnap_min;
 DELETE FROM jellypi;
