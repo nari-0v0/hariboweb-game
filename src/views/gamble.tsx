@@ -136,6 +136,15 @@ const SUIT_NAMES = ['스페이드', '하트', '다이아', '클로버'] as const
 const cardImage = (card: number) =>
   `/gamble/cards/${SUIT_FILES[Math.floor(card / 13)]}-${CARD_RANKS[rankOf(card)]!.toLowerCase()}.webp?v=1`;
 
+// 카드 21 방: 지금 판의 카드는 미리 받고(preload), 나머지 52장(다 합쳐 약 27KB)은 gamble.js가 한가할 때 받아 둬요.
+// 그래야 다음 판에 처음 보는 카드도 바로 보여요(나리 2026-11-15: 카드가 느리게 뜸).
+const ALL_CARD_IMAGES = Array.from({ length: 52 }, (_, card) => cardImage(card));
+const handImages = (round: Round | null) => {
+  if (!round) return [];
+  const { player, dealer } = publicHand(round);
+  return [...player, ...dealer].map(cardImage);
+};
+
 function PlayingCard({ card, order, flip }: { card?: number; order?: number; flip?: boolean }) {
   const hidden = card === undefined;
   return (
@@ -339,9 +348,10 @@ export function GambleRoom(props: {
   const result = !hand && props.result?.multiplier != null ? props.result : null;
   const motion = result ?? (hand && hand.token === props.result?.token ? hand : null);
   const notice = noticeText(props.notice);
+  const cardsShown = game === 'cards' ? handImages(hand ?? result) : [];
   return (
-    <Layout title={GAMES[game]} viewer={props.viewer} active="gamble" scripts={[{ src: '/gamble.js?v=7', type: 'module' }]}
-      preloadImages={[gameBackground(game, 'room'), ...[MAIN_ART[game]].flatMap((name) => GAMBLE_ART[name]?.image ?? [])]}>
+    <Layout title={GAMES[game]} viewer={props.viewer} active="gamble" scripts={[{ src: '/gamble.js?v=8', type: 'module' }]}
+      preloadImages={[gameBackground(game, 'room'), ...[MAIN_ART[game]].flatMap((name) => GAMBLE_ART[name]?.image ?? []), ...cardsShown]}>
       <div class="gb-page gb-room-page">
         <div class="gb-room-bar">
           <a href="/gamble">← 겜블장</a>
@@ -349,7 +359,7 @@ export function GambleRoom(props: {
           {game !== 'cards' && props.hand && <a class="gb-resume" href="/gamble/cards">진행 중인 카드 21로 가기</a>}
           {props.daily && <p role="status">오늘 젤칩 1000개 받았어요.</p>}
         </div>
-        <section class="gb-panel gb-room" aria-label={GAMES[game]} data-gb-settled={result ? 'yes' : undefined} data-gb-url={props.url}
+        <section class="gb-panel gb-room" aria-label={GAMES[game]} data-gb-settled={result ? 'yes' : undefined} data-gb-url={props.url} data-gb-prefetch={game === 'cards' ? ALL_CARD_IMAGES.join(' ') : undefined}
           data-gb-motion={motion?.game} data-gb-key={motion ? `${motion.token}:${motion.revision}:${result ? 'done' : 'active'}` : undefined}>
           <h1><Art name={game} /> {GAMES[game]}</h1>
           {notice && <p role="status">{notice}</p>}
