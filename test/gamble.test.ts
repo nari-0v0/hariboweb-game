@@ -82,13 +82,14 @@ describe('겜블장 배당', () => {
     expect(mean).toBeLessThanOrEqual(1.05);
   });
 
-  it('동전 던지기는 맞히면 2.05배(내림), 틀리면 0배이고 평균 1.025배', async () => {
-    expect(COIN_PAYOUT / 2).toBeCloseTo(1.025);
+  it('동전 던지기는 맞히면 2배, 틀리면 0배이고 평균 1배(배수는 정수)', async () => {
+    expect(COIN_PAYOUT).toBe(2);
+    expect(Number.isInteger(COIN_PAYOUT)).toBe(true);
     const { db } = fixture();
     await claimDaily(db, USER, TODAY);
     roll(0); // 0 → 곰(heads)
     const win = await betChips(db, USER, 'coinflip', 10, 'c1', TODAY, 'heads');
-    expect(win).toMatchObject({ multiplier: 2.05 });
+    expect(win).toMatchObject({ multiplier: 2 });
     expect(JSON.parse(win!.state)).toEqual({ pick: 'heads', side: 'heads' });
     expect(await gambleAccount(db, USER)).toMatchObject({ chips: 1010, won: 10 });
     roll(1); // 1 → 발바닥(tails)
@@ -96,10 +97,10 @@ describe('겜블장 배당', () => {
     expect(lose).toMatchObject({ multiplier: 0 });
     expect((await gambleAccount(db, USER))?.chips).toBe(1000);
     expect(await betChips(db, USER, 'coinflip', 10, 'c3', LATER(4))).toBeNull();
-    // 100 × 2.05는 부동소수점으로 204.999…라 그냥 내림하면 204가 돼요. 정확히 205를 줘야 해요.
     roll(0);
     await betChips(db, USER, 'coinflip', 100, 'c4', LATER(6), 'heads');
-    expect(await gambleAccount(db, USER)).toMatchObject({ chips: 1105, won: 115, best_win: 105 });
+    expect(await gambleAccount(db, USER)).toMatchObject({ chips: 1100, won: 110, best_win: 100 });
+    // 예전 2.05배 기록: 100 × 2.05는 부동소수점으로 204.999…라 그냥 내림하면 204가 돼요. 정확히 205로 계산해요.
     expect(payback(100, 2.05)).toBe(205);
   });
 
