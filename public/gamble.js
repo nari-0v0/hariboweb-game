@@ -153,6 +153,25 @@ function firstView(key) {
 
 const playMotion = { slot: spinReels, roulette: spinWheel, cards: dealCards, coinflip: tossCoin };
 
+// 그림이 아직 안 받아졌으면(처음 보는 카드 등) 잠깐(최대 1.5초) 기다렸다가 움직여요. 빈 카드가 날아오지 않게요.
+function imagesReady(stage) {
+  const images = [...stage.querySelectorAll('img')].filter((img) => !img.complete);
+  if (!images.length) return Promise.resolve();
+  return Promise.race([
+    Promise.allSettled(images.map((img) => img.decode())),
+    new Promise((resolve) => setTimeout(resolve, 1500)),
+  ]);
+}
+
+// 카드 52장을 한가할 때 받아 둬요(브라우저에 1년 저장돼서 다음부터는 바로 보여요).
+function prefetchImages(room) {
+  const urls = (room?.dataset.gbPrefetch ?? '').split(' ').filter(Boolean);
+  if (!urls.length) return;
+  const run = () => { for (const url of urls) new Image().src = url; };
+  if ('requestIdleCallback' in window) requestIdleCallback(run, { timeout: 3000 });
+  else setTimeout(run, 1000);
+}
+
 async function showResult(stage) {
   // 움직임이 끝나거나 건너뛸 때 gb-motion-done을 붙여요. 그 전에는 CSS가 결과를 가려 둬요.
   if (!canAnimate() || !firstView(stage.dataset.gbKey)) {
@@ -160,6 +179,7 @@ async function showResult(stage) {
     return;
   }
 
+  await imagesReady(stage);
   const actions = stage.querySelector('[data-gb-card-actions]');
   stage.classList.add('gb-motion-running');
   stage.setAttribute('aria-busy', 'true');
@@ -197,4 +217,5 @@ if (typeof document !== 'undefined') {
   for (const form of document.querySelectorAll('[data-gb-balance]')) initBet(form);
   const stage = document.querySelector('[data-gb-motion]');
   if (stage) void showResult(stage);
+  prefetchImages(document.querySelector('[data-gb-prefetch]'));
 }
