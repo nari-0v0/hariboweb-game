@@ -103,9 +103,9 @@ function SlotReels({ reels }: { reels?: number[] }) {
   );
 }
 
-// 룰렛 판 그림(나리 그림)은 같은 크기 8칸이에요. 12시 방향 칸부터 시계 방향으로 이 배수예요.
+// 룰렛 판 그림(나리 그림, 2026-11-15)은 같은 크기 6칸이에요. 12시 방향 칸부터 시계 방향으로 이 배수예요.
 // 나올 확률은 그림 크기와 상관없이 서버의 ROULETTE(WHEEL)가 정하고, 여기서는 나온 배수 칸으로 판을 돌려 세워요.
-const DISC_SLICES = [0, 0.5, 1, 1.5, 2, 3, 5, 10];
+const DISC_SLICES = [0, 1, 2, 3, 5, 10];
 const SLICE = 360 / DISC_SLICES.length;
 if (ROULETTE.some(({ payout }) => !DISC_SLICES.includes(payout))) throw new Error('룰렛 판 그림에 없는 배수가 있어요');
 
@@ -113,7 +113,7 @@ function RouletteWheel({ landed: raw, multiplier }: { landed?: number; multiplie
   // 멈출 칸은 저장된 배수로 정해요(확률표가 바뀌어도 그림과 실제 받은 칩이 같게). 그림에 없는 배수면 멈춘 칸 없이 그려요.
   const slice = multiplier == null ? -1 : DISC_SLICES.indexOf(multiplier);
   const landed = raw !== undefined && slice >= 0 ? raw : undefined;
-  // 칸 한가운데만 서지 않게, 결과 번호에 따라 칸 안에서 조금씩 다른 자리에 서요(칸 폭 45도 중 ±15도).
+  // 칸 한가운데만 서지 않게, 결과 번호에 따라 칸 안에서 조금씩 다른 자리에 서요(칸 폭 60도 중 ±15도).
   const wobble = landed === undefined ? 0 : ((landed * 37) % 31) - 15;
   return (
     <div class={`gb-wheel-stage${GAMBLE_ART.wheel?.image ? ' gb-wheel-stage--rim' : ''}`}>
@@ -248,7 +248,7 @@ function GameRules({ game }: { game: Game }) {
           <p><Art name="cherry" /> 2개는 {CHERRY_PAIR}배예요.</p>
         </>
       )}
-      {game === 'roulette' && <p>1배는 본전이고, 0.5배·1.5배는 받을 젤칩을 내림해요. 나올 확률: {ROULETTE.map(({ payout, count }) => `${payout}배 ${count}%`).join(' · ')}</p>}
+      {game === 'roulette' && <p>1배는 본전이에요. 나올 확률: {ROULETTE.map(({ payout, count }) => `${payout}배 ${count}%`).join(' · ')}</p>}
       {game === 'coinflip' && <p>곰과 발바닥이 나올 확률은 50%씩이에요. 맞히면 {COIN_PAYOUT}배, 틀리면 건 젤칩을 잃어요.</p>}
       {game === 'cards' && <p>딜러는 17점부터 멈춰요. 승리 2배 · 첫 두 장으로 21을 만들어 이기면 3배 · 비기면 1배</p>}
     </details>
