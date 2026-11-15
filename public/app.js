@@ -72,6 +72,8 @@ addEventListener('pageshow', (e) => {
     show();
   });
   document.addEventListener('submit', (e) => {
+    // 겜블장처럼 같은 화면으로 바로 돌아오는 폼은 로딩 화면을 띄우지 않아요(data-no-loader, 나리 2026-11-15)
+    if (e.target instanceof HTMLFormElement && e.target.hasAttribute('data-no-loader')) return;
     if (!e.defaultPrevented && !(e.target instanceof HTMLFormElement && e.target.target)) show();
   });
   addEventListener('pageshow', hide);
