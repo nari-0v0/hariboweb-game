@@ -179,13 +179,14 @@ async function showResult(stage) {
     return;
   }
 
-  await imagesReady(stage);
+  // 그림을 기다리는 동안에도 카드 버튼은 잠가 둬요(새 패를 보기 전에 '한 장 더'가 눌리지 않게).
   const actions = stage.querySelector('[data-gb-card-actions]');
-  stage.classList.add('gb-motion-running');
-  stage.setAttribute('aria-busy', 'true');
   if (actions) actions.inert = true;
   let animations = [];
   try {
+    await imagesReady(stage);
+    stage.classList.add('gb-motion-running');
+    stage.setAttribute('aria-busy', 'true');
     animations = playMotion[stage.dataset.gbMotion](stage);
     stage.classList.add('gb-motion-started');
     await Promise.allSettled(animations.map((animation) => animation.finished));
