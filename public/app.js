@@ -184,6 +184,21 @@ addEventListener('pageshow', (e) => {
   sync();
 })();
 
+// 원정대가 끝난 날: 마지막 싸움을 평소 진행 화면 모양으로 보여 준 뒤, 모션이 끝나면 결과로 바꿔요(화면 길이로 미리 알 수 없게).
+(() => {
+  const result = document.querySelector('[data-final-wait]');
+  const fight = document.querySelector('.jr-final-fight');
+  if (!result || !fight) return;
+  const show = () => {
+    fight.remove();
+    result.id = 'now';
+    result.hidden = false;
+    result.scrollIntoView({ block: 'start' });
+  };
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  setTimeout(show, reduced ? 0 : Number(result.getAttribute('data-final-wait')) || 0);
+})();
+
 // 게임 화면이 POST 응답으로 바로 올 때: 주소를 원래 화면으로 바꾸고 #now 로 내려가요(새로 고침해도 다시 보내지 않게)
 (() => {
   const el = document.querySelector('[data-replace-url]');

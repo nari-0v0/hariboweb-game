@@ -376,16 +376,17 @@ function Log(props: { lines: JourneyState['today'] }) {
 }
 
 // 게임 화면: 위는 무대(체력·레벨은 무대 위에 겹쳐요), 아래는 대화창과 큰 버튼.
-function Play(props: { run: JourneyRun; art: string; name: string }) {
-  const { run } = props;
+// preview: 원정이 끝난 날의 마지막 싸움을 평소 진행 화면 모양 그대로 보여 줄 때(결과 화면 앞). 누를 수 없고 자동 진행도 안 걸려요.
+function Play(props: { run: JourneyRun; art: string; name: string; preview?: boolean }) {
+  const { run, preview } = props;
   const s = run.state;
   const st = stat(s);
   const lost = s.hp <= 0;
   const ch = chapterOf(s.ch);
   const reveal = s.fx ? fightPlan(s.fx).reveal : 0;
   return (
-    <section class="jr-game" id="now">
-      <div id="journey" data-journey-play class={reveal ? 'jr-fighting' : undefined} style={reveal ? `--reveal:${reveal}ms` : undefined}>
+    <section class={`jr-game${preview ? ' jr-final-fight' : ''}`} id="now" inert={preview} aria-hidden={preview ? 'true' : undefined}>
+      <div id="journey" data-journey-play={preview ? undefined : ''} class={reveal ? 'jr-fighting' : undefined} style={reveal ? `--reveal:${reveal}ms` : undefined}>
         <div class="jr-view">
           <header class="jr-hud">
             <span class="jr-hud-ch">
@@ -427,10 +428,12 @@ function Play(props: { run: JourneyRun; art: string; name: string }) {
                 </Act>
               </div>
             )}
-            <Act run={run} a="idle" idle>
-              {null}
-            </Act>
-            <label class="jr-auto" hidden data-auto-toggle>
+            {!preview && (
+              <Act run={run} a="idle" idle>
+                {null}
+              </Act>
+            )}
+            <label class="jr-auto" hidden data-auto-toggle={preview ? undefined : ''}>
               <input type="checkbox" />
               <span>
                 <b>🤖 자동</b> 켜 두면 스킬·갈림길·상점까지 알아서 골라요
@@ -454,7 +457,7 @@ function Play(props: { run: JourneyRun; art: string; name: string }) {
           )}
         </details>
       </div>
-      <form method="post" action="/api/journey/quit" class="jr-quit">
+      <form method="post" action={preview ? undefined : '/api/journey/quit'} class="jr-quit">
         <input type="hidden" name="run" value={run.row.id} />
         <input type="hidden" name="rev" value={String(run.row.rev)} />
         <button class="btn btn-small btn-ghost" type="submit">
@@ -536,12 +539,17 @@ function ChapterPick(props: { unlocked: number; top: number; dogam: DogamProgres
 function Result(props: { run: JourneyRun; art: string; name: string; unlocked: number; top: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number; going: boolean }) {
   const { run } = props;
   const s = run.state;
-  // 마지막 날 싸움이 있으면, 싸움 모션이 끝난 뒤(--reveal)에 "멈췄어요"·보상 같은 결과가 나와요(나리 2026-11-15).
+  // 마지막 날 싸움이 있으면 먼저 평소 진행 화면 모양으로 싸움을 보여 주고(화면 길이로도 끝난 걸 알 수 없게),
+  // 싸움 모션이 끝나면(data-final-wait ms) app.js가 그 화면을 빼고 결과를 보여 줘요(나리 2026-11-15).
   const reveal = s.fx ? fightPlan(s.fx).reveal : 0;
   return (
-    <section class={`jr-game jr-result${reveal ? ' jr-fighting' : ''}`} id="now" style={reveal ? `--reveal:${reveal}ms` : undefined}>
+    <>
+      {reveal > 0 && <Play run={run} art={props.art} name={props.name} preview />}
+      {reveal > 0 && <noscript><style>{'.jr-final-fight { display: none !important; } .jr-result[hidden] { display: block !important; }'}</style></noscript>}
+    <section class="jr-game jr-result" id={reveal > 0 ? undefined : 'now'} hidden={reveal > 0} data-final-wait={reveal > 0 ? String(reveal) : undefined}>
       <span class="eyebrow">{s.cleared ? '원정 성공' : '원정 끝'}</span>
-      <Stage s={s} art={props.art} name={props.name} lost={!s.cleared} />
+      {/* 싸움은 앞 화면에서 이미 보여 줬으니 여기서는 다시 싸우지 않고 그 자리 풍경만 그려요. */}
+      <Stage s={reveal > 0 ? { ...s, fx: undefined } : s} art={props.art} name={props.name} lost={!s.cleared} />
       <div class="jr-result-head">
         <div>
           <h2>
@@ -572,6 +580,7 @@ function Result(props: { run: JourneyRun; art: string; name: string; unlocked: n
         ? <a class="btn btn-primary" href="/expedition/go#now">진행 중인 원정 이어 하기</a>
         : <ChapterPick unlocked={props.unlocked} top={props.top} dogam={props.dogam} farmed={props.farmed} coins={props.coins} again />}
     </section>
+    </>
   );
 }
 
