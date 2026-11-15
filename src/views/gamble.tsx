@@ -62,7 +62,8 @@ function CoinPick({ pick }: { pick: CoinSide }) {
 }
 
 function BetForm({ game, balance, previousBet, pick }: { game: Game; balance: number; previousBet?: number; pick?: CoinSide }) {
-  const bet = Math.min(balance, previousBet ?? 0);
+  // 판이 끝나 결과가 나온 뒤에도 걸 젤칩은 0개에서 다시 골라요(나리 2026-11-14). 앞 판 금액을 그대로 두지 않아요.
+  const bet = 0;
   return (
     <form class="gb-form gb-bet-form" action={`/gamble/${game}/play`} method="post" data-gb-balance={balance}>
       <input type="hidden" name="game" value={game} />
@@ -180,6 +181,7 @@ function Cards({ round }: { round: Round }) {
 function CoinStage({ round }: { round: Round | null }) {
   const flip = round ? (JSON.parse(round.state) as CoinFlip) : null;
   const side = flip?.side ?? 'heads';
+  const won = flip ? flip.pick === flip.side : null;
   return (
     <div class="gb-coin-stage">
       <div class="gb-coin-toss">
@@ -188,12 +190,11 @@ function CoinStage({ round }: { round: Round | null }) {
           <img class="gb-coin-face gb-coin-heads" src={GAMBLE_ART.coinHeads!.image} alt="" />
           <img class="gb-coin-face gb-coin-tails" src={GAMBLE_ART.coinTails!.image} alt="" />
         </div>
+        {/* 결과는 고른 면·나온 면 대신 동전 가운데에 성공/실패로만 보여 줘요(나리 2026-11-14) */}
+        {won !== null && (
+          <p class={`gb-coin-result ${won ? 'is-win' : 'is-lose'}`} data-gb-reveal>{won ? '성공' : '실패'}</p>
+        )}
       </div>
-      {flip && (
-        <p class="gb-coin-call" data-gb-reveal>
-          고른 면 <b>{COIN_NAMES[flip.pick]}</b> · 나온 면 <b>{COIN_NAMES[flip.side]}</b>
-        </p>
-      )}
     </div>
   );
 }
@@ -254,6 +255,21 @@ const noticeText = (key?: string) => key && Object.hasOwn(NOTICES, key) ? NOTICE
 
 function ChipBalance({ balance }: { balance: number }) {
   return <p class="gb-room-balance">가진 젤칩 <strong class="gb-balance">{chips(balance)}개</strong></p>;
+}
+
+// 겜블장이 잠겼을 때 보이는 화면(GAMBLE_LOCKED)
+export function GambleLocked(props: { viewer: Member }) {
+  return (
+    <Layout title="겜블장" viewer={props.viewer} active="gamble">
+      <section class="panel message">
+        <h1>🔒 겜블장은 지금 잠겨 있어요</h1>
+        <p class="muted">지금은 들어갈 수 없어요. 다시 열리면 메뉴에서 들어갈 수 있어요.</p>
+        <p>
+          <a class="btn btn-primary" href="/me">내 카드로</a>
+        </p>
+      </section>
+    </Layout>
+  );
 }
 
 export function GambleLobby(props: {

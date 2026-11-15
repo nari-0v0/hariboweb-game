@@ -1,3 +1,7 @@
+// 겜블장 잠금 스위치(나리 2026-11-14: 준비만 해 두고, 나리가 잠가 달라고 할 때 true로 바꿔요).
+// true면 메뉴에 🔒로 보이고, 겜블장 주소로 들어가도 잠금 안내만 보여요. 젤칩·순위 기록은 그대로 남아요.
+export const GAMBLE_LOCKED = false;
+
 export const DAILY_CHIPS = 1000;
 export const SLOTS = [
   { weight: 39, payout: 3 },

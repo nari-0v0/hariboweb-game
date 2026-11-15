@@ -1,3 +1,4 @@
+import { GAMBLE_LOCKED } from '../gamble';
 import { OWNER_CONTACT_URL } from '../contact';
 import { PREFETCH_RULES } from '../prefetch';
 import type { Child } from 'hono/jsx';
@@ -31,7 +32,7 @@ export function Layout(props: {
         <link rel="preload" href="/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin="" />
         {props.preloadImages?.map((href) => <link rel="preload" href={href} as="image" fetchpriority="high" />)}
         <link rel="icon" type="image/png" href="/char/deco/explorer.png" />
-        <link rel="stylesheet" href="/styles.css?v=coin-2" />
+        <link rel="stylesheet" href="/styles.css?v=coin-result-1" />
         <script src="/app.js?v=review50-1" defer></script>
         {props.scripts?.map((script) => typeof script === 'string'
           ? <script src={script} defer></script>
@@ -66,7 +67,13 @@ export function Layout(props: {
               {nav('bingo', '/bingo', '하리보 빙고', '🎯')}
               {nav('plaza', '/plaza', '광장', '🏞️')}
               {nav('expedition', '/expedition/go', '원정대', '🧭')}
-              {nav('gamble', '/gamble', '겜블장', '🎰')}
+              {GAMBLE_LOCKED ? (
+                <span class="menu-locked" aria-disabled="true" title="지금은 잠겨 있어요">
+                  <span aria-hidden="true">🔒</span> 겜블장 <small>잠금</small>
+                </span>
+              ) : (
+                nav('gamble', '/gamble', '겜블장', '🎰')
+              )}
               {nav('cases', '/cases/room', '사건파일', '🔎')}
               {nav('rank', '/rank', '순위', '🏆')}
               {nav('shop', '/shop', '상점', '🍬')}

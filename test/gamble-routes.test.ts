@@ -13,6 +13,8 @@ vi.mock('../src/db', async (original) => ({
   }),
   touchVisit: async () => {},
 }));
+// 잠금 전 게임 동작을 계속 확인해요(잠금은 test/gamble-lock.test.ts)
+vi.mock('../src/gamble', async (original) => ({ ...await original<typeof import('../src/gamble')>(), GAMBLE_LOCKED: false }));
 vi.mock('../src/gamble-db', async (original) => ({
   ...await original<typeof import('../src/gamble-db')>(),
   activeHand: vi.fn(),
@@ -57,7 +59,7 @@ beforeEach(() => {
 });
 
 describe('동전 던지기', () => {
-  it('고른 면을 서버에 넘기고, 결과에 두 면과 다음 판의 같은 선택을 보여 줘요', async () => {
+  it('고른 면을 서버에 넘기고, 결과는 동전 가운데에 성공/실패로, 다음 판은 같은 면이 골라져 있어요', async () => {
     const r = { ...round('coinflip', 2.05), state: JSON.stringify({ pick: 'tails', side: 'tails' }) };
     vi.mocked(betChips).mockResolvedValue(r);
     vi.mocked(gambleRound).mockResolvedValue(r);
@@ -65,7 +67,13 @@ describe('동전 던지기', () => {
     expect(post.headers.get('location')).toBe(`/gamble/coinflip?r=${TOKEN}`);
     expect(betChips).toHaveBeenCalledWith(ENV.DB, USER, 'coinflip', 20, TOKEN, expect.any(String), 'tails');
     const html = await (await request(`/gamble/coinflip?r=${TOKEN}`)).text();
-    expect(html).toContain('고른 면 <b>발바닥</b> · 나온 면 <b>발바닥</b>');
+    expect(html).toContain('gb-coin-result is-win');
+    expect(html).toContain('>성공</p>');
+    expect(html).not.toContain('고른 면');
+    const lose = { ...r, multiplier: 0, state: JSON.stringify({ pick: 'heads', side: 'tails' }) };
+    vi.mocked(gambleRound).mockResolvedValue(lose);
+    expect(await (await request(`/gamble/coinflip?r=${TOKEN}`)).text()).toContain('>실패</p>');
+    vi.mocked(gambleRound).mockResolvedValue(r);
     expect(html).toContain('--gb-coin-end:180deg');
     expect(html).toMatch(/value="tails" checked/);
     // 면을 안 고르면 걸지 않아요
@@ -117,7 +125,8 @@ describe('겜블장 로비와 게임 방', () => {
     expect(gambleRound).toHaveBeenCalledWith(ENV.DB, USER, TOKEN);
     const html = await (await request(resultPath)).text();
     expect(html).toContain(`action="/gamble/${game}/play"`);
-    expect(html).toContain('name="bet" value="15"');
+    // 결과가 나온 뒤 걸 젤칩은 0개로 돌아가요
+    expect(html).toContain('name="bet" value="0"');
     expect(html).toContain('한 번 더');
     expect((await request(`/gamble/${game}/play`, { ...form, bet: '0' })).headers.get('location'))
       .toBe(`/gamble/${game}?n=bet`);
