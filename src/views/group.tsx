@@ -21,7 +21,7 @@ export function GroupPage(props: { viewer: Member; view: GroupView | null }) {
       <Layout title="우리 모둠" viewer={props.viewer} active="group">
         <section class="panel message">
           <h1>아직 모둠이 없어요</h1>
-          <p class="muted">시즌이 시작될 때 최근 2주 동안 활동한 멤버로 모둠을 만들어요. 시즌 중에 같이 통화하면 모둠에 들어가요.</p>
+          <p class="muted">시즌이 시작될 때 초록하리보 역할이 있는 멤버로 팀을 만들어요. 시즌 중에 역할이 생기면 사람이 제일 적은 팀에 들어가고, 역할이 빠지면 팀에서 빠져요.</p>
           <a class="btn btn-primary" href="/me">내 카드로</a>
         </section>
       </Layout>

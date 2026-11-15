@@ -189,20 +189,23 @@ export async function ensureSeason(db: D1Database, season: Season, nowMs: number
   const cutoffDay = kstParts(cutoffIso).day;
   const { results: rows } = await db
     .prepare(
-      `SELECT m.user_id, m.games, m.last_login_at, p.updated_at AS profile_at,
+      `SELECT m.user_id, m.games, m.last_login_at, p.updated_at AS profile_at, m.green,
          (SELECT COALESCE(SUM(minutes), 0) FROM member_voice_day v WHERE v.user_id = m.user_id AND v.day >= ?1) AS recent,
          (SELECT COALESCE(SUM(voice_seconds), 0) / 60 FROM cards c WHERE c.owner_id = m.user_id AND c.updated_at >= ?2) AS fallback
        FROM members m LEFT JOIN profiles p ON p.user_id = m.user_id WHERE m.active = 1`,
     )
     .bind(cutoffDay, cutoffIso)
-    .all<{ user_id: string; games: string; last_login_at: string | null; profile_at: string | null; recent: number; fallback: number }>();
+    .all<{ user_id: string; games: string; last_login_at: string | null; profile_at: string | null; green: number | null; recent: number; fallback: number }>();
   // 처음 시즌에는 날마다 통화 기록이 아직 없어서 카드 통화 시간으로 대신 재요
   const useRecent = rows.some((r) => r.recent > 0);
   const prior: Prior = await loadPrior(db, season);
   const people: Person[] = [];
+  // 팀은 초록하리보 역할이 있는 사람으로만 짜요(잠수하면 역할이 빠져요, 나리 2026-11-15).
+  // 봇이 아직 초록하리보 여부를 안 보내면(모두 NULL) 예전처럼 지난 2주 활동으로 골라요.
+  const greenKnown = rows.some((r) => r.green !== null);
   for (const r of rows) {
     const activity = useRecent ? r.recent : r.fallback;
-    const active = activity > 0 || (r.profile_at ?? '') >= cutoffIso || (r.last_login_at ?? '') >= cutoffIso;
+    const active = greenKnown ? r.green === 1 : activity > 0 || (r.profile_at ?? '') >= cutoffIso || (r.last_login_at ?? '') >= cutoffIso;
     if (active) people.push({ id: r.user_id, games: parseGames(r.games), activity, slot: prior.slot.get(r.user_id) });
   }
   const rand = seededRandom(`season:${season.id}`);
@@ -267,7 +270,7 @@ export type RoomMinute = { at: string; room: string; members: string[] };
 export type ScrimRecord = { id: string; game: string; at: string; members: string[] };
 export type Attendance = { id: string; day: string };
 export type SeasonPayload = {
-  members: { id: string; is_newbie: boolean; games?: string[] }[];
+  members: { id: string; is_newbie: boolean; green?: boolean; games?: string[] }[];
   removed: string[];
   room_minutes: RoomMinute[];
   scrims: ScrimRecord[];
@@ -391,6 +394,9 @@ async function groupStatements(
   // 이번 묶음에서 나간 사람의 원래 모둠. 나가기 전의 통화는 같은 묶음에 같이 와도 세요(따로 왔을 때와 같게).
   const leftNow = new Map([...group].filter(([id]) => removed.has(id)));
   for (const id of removed) group.delete(id);
+  // 초록하리보 여부(이번 묶음 정보가 먼저, 없으면 웹에 있던 값). undefined = 모름(예전 봇)
+  const greenOf = new Map<string, boolean>();
+  for (const m of p.members) if (typeof m.green === 'boolean') greenOf.set(m.id, m.green);
 
   // 기록에 나오는 사람의 신입 여부·게임 역할(이번 묶음 정보가 먼저)
   const seen = new Set<string>();
@@ -401,11 +407,12 @@ async function groupStatements(
   const seasonLastDay = kstParts(new Date(endMs - 1).toISOString()).day;
   for (const a of p.attendance) if (a.day >= seasonFirstDay && a.day <= seasonLastDay) seen.add(a.id);
   const { results: info } = await db
-    .prepare('SELECT user_id, games, is_newbie, active FROM members WHERE user_id IN (SELECT value FROM json_each(?))')
+    .prepare('SELECT user_id, games, is_newbie, active, green FROM members WHERE user_id IN (SELECT value FROM json_each(?))')
     .bind(JSON.stringify([...seen]))
-    .all<{ user_id: string; games: string; is_newbie: number; active: number }>();
+    .all<{ user_id: string; games: string; is_newbie: number; active: number; green: number | null }>();
   const activeNow = new Set<string>();
   for (const r of info) {
+    if (r.green !== null && !greenOf.has(r.user_id)) greenOf.set(r.user_id, r.green === 1);
     if (r.is_newbie) newbie.add(r.user_id);
     if (r.active) activeNow.add(r.user_id);
     if (!gamesOf.has(r.user_id)) gamesOf.set(r.user_id, parseGames(r.games));
@@ -417,7 +424,22 @@ async function groupStatements(
     if (m.games) gamesOf.set(m.id, m.games);
   }
 
-  // 시즌 중에 새로 활동한 사람 → 역할 겹치는 제일 작은 모둠
+  // 시즌 중에 초록하리보가 빠진 사람은 팀에서 빠져요(이미 쌓은 기록은 남아요). 지금 시즌에서만.
+  if (join) {
+    const markLeft = db.prepare('UPDATE season_members SET left_at = ? WHERE season_id = ? AND user_id = ? AND left_at IS NULL');
+    for (const [u, g] of [...group]) {
+      if (greenOf.get(u) !== false) continue;
+      group.delete(u);
+      leftNow.set(u, g); // 이번 묶음에서 빠지기 전 통화는 세요
+      departed.set(u, g);
+      stmts.push(markLeft.bind(t, season.id, u));
+    }
+  }
+
+  // 시즌 중에 새로 들어온 사람 → 제일 작은 팀
+  // 초록하리보를 아는 사람: 역할이 생기면 활동과 상관없이 바로 들어가고, 인원이 같으면 아무 팀(랜덤)이에요(나리 2026-11-15).
+  // 모르는 사람(예전 봇): 예전처럼 기록에 나오면 게임 역할이 겹치는 제일 작은 팀으로 가요.
+  for (const m of p.members) if (m.green === true) seen.add(m.id);
   const groupNos = new Set(rows.map((r) => r.group_no));
   const rand = seededRandom(`join:${season.id}:${t}`);
   const addLate = db.prepare(
@@ -427,6 +449,8 @@ async function groupStatements(
   let blocked: Set<string> | null = null; // 같이 배정되지 않기(새로 들어오는 사람이 있을 때만 읽어요)
   for (const u of join ? [...seen].sort() : []) {
     if (removed.has(u) || !activeNow.has(u)) continue;
+    const green = greenOf.get(u);
+    if (green === false) continue; // 초록하리보가 없으면 팀에 들어가지 않아요
     // 나갔다가 다시 들어온 사람은 원래 모둠으로 돌아가요
     const back = departed.get(u);
     if (back !== undefined) {
@@ -442,7 +466,7 @@ async function groupStatements(
     });
     blocked ??= await approvedBlocks(db);
     const avoid = new Set([...group].filter(([id]) => blocked!.has(blockKey(u, id))).map(([, g]) => g));
-    const no = joinGroup(gamesOf.get(u) ?? [], groups, rand, avoid);
+    const no = joinGroup(green === true ? [] : gamesOf.get(u) ?? [], groups, rand, avoid);
     if (no === null) continue;
     group.set(u, no);
     known.add(u);
