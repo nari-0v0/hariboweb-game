@@ -737,7 +737,7 @@ members.post('/api/shop/service', async (c) => {
   return c.redirect(`/shop?n=${result === 'pending' ? 'service_pending' : result === 'busy' ? 'service_busy' : 'not_enough_jelly'}`);
 });
 
-// 도감 닉네임 변경권 쓰기: 하리보봇이 1분 안쪽에 디스코드 닉네임 앞부분을 바꿔요(칭호·생년은 그대로).
+// 도감 닉네임 변경권 쓰기: 하리보봇이 5분 안쪽에 디스코드 닉네임 앞부분을 바꿔요(칭호·생년은 그대로).
 members.post('/api/shop/nick', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
   const front = String((await c.req.parseBody()).front ?? '').trim();

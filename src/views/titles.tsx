@@ -7,7 +7,7 @@ import { Layout } from './layout';
 import { Popup, ShopHead, type PopupLine } from './shop';
 
 const NOTICES: Record<string, PopupLine[]> = {
-  equipped: [{ title: '변경 완료', text: '칭호를 바꿨어요. 하리보봇이 곧(1분 안쪽) 디스코드 닉네임 앞에 붙여요.' }],
+  equipped: [{ title: '변경 완료', text: '칭호를 바꿨어요. 하리보봇이 곧(5분 안쪽) 디스코드 닉네임 앞에 붙여요.' }],
   removed: [{ title: '변경 완료', text: '칭호를 뗐어요. 하리보봇이 곧 디스코드 닉네임에서도 떼요.' }],
   bought: [{ title: '구매 완료', text: '칭호 구매가 완료되었습니다. 아래에서 "쓰기"를 누르면 닉네임 앞에 붙어요.' }],
   owned: [{ title: '알림', text: '이미 가지고 있는 칭호입니다.' }],
@@ -23,7 +23,7 @@ const NOTICES: Record<string, PopupLine[]> = {
 // 닉네임에 붙었는지 알려 주는 한 줄
 function applyText(s: TitleState): { text: string; retry?: boolean } | null {
   const want = s.title_id ?? '';
-  if (want !== (s.title_applied ?? '')) return { text: want ? '하리보봇이 곧 디스코드 닉네임 앞에 붙여요(1분 안쪽).' : '하리보봇이 곧 디스코드 닉네임에서 떼요.' };
+  if (want !== (s.title_applied ?? '')) return { text: want ? '하리보봇이 곧 디스코드 닉네임 앞에 붙여요(5분 안쪽).' : '하리보봇이 곧 디스코드 닉네임에서 떼요.' };
   if (!want)
     return s.title_note ? { text: '디스코드 닉네임에서 칭호를 떼지 못했어요(봇보다 높은 역할일 수 있어요). 다시 떼어 볼 수 있어요.', retry: true } : null;
   if (s.title_note === 'too_long') return { text: '닉네임이 길어서 칭호를 붙이지 못했어요(디스코드 닉네임은 32자까지). 닉네임을 줄인 뒤 다시 붙여 보세요.', retry: true };
