@@ -49,4 +49,11 @@ describe('parseSync', () => {
   ])('rejects %s', (_, payload) => {
     expect(parseSync(payload).ok).toBe(false);
   });
+
+  it('accepts real attendance days and rejects impossible ones like 2026-02-31', () => {
+    expect(parseSync({ batch_id: 'x', attendance: [{ id: A, day: '2026-02-28' }] }).ok).toBe(true);
+    expect(parseSync({ batch_id: 'x', attendance: [{ id: A, day: '2028-02-29' }] }).ok).toBe(true);
+    expect(parseSync({ batch_id: 'x', attendance: [{ id: A, day: '2026-02-31' }] }).ok).toBe(false);
+    expect(parseSync({ batch_id: 'x', attendance: [{ id: A, day: '2026-13-01' }] }).ok).toBe(false);
+  });
 });
