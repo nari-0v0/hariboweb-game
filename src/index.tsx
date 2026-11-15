@@ -84,6 +84,7 @@ import { GambleLobby, GambleLocked, GambleRoom } from './views/gamble';
 import { GAMBLE_LOCKED, gambleTester, isCoinSide } from './gamble';
 import { activeHand, betChips, betTooSoon, claimDaily, expireAllHands, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, moveHand, rescueChips, type Game } from './gamble-db';
 import { prefetchAllowed } from './prefetch';
+import { imageRequestAllowed } from './image-guard';
 import { EscapePage } from './views/escape';
 import { JourneyPage } from './views/journey';
 import { NO_COINS, STALE_PICK, activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from './journey-db';
@@ -101,6 +102,18 @@ const app = new Hono<AppEnv>();
 
 // 요청 크기 한도(가져다 놓기만 하고 안 쓰고 있었어요). 봇 동기화 묶음은 크게, 멤버 화면의 폼은 작게.
 const tooLarge = (c: Context<AppEnv>) => c.text('요청이 너무 커요', 413);
+
+// 그림 퍼 가기 막기: 다른 사이트에 우리 그림 주소를 붙여 쓰거나, 그림 주소를 새 탭에서 바로 여는 건 거절해요.
+// 우리 화면 안에서 쓰는 그림, 하리보봇이 가져가는 그림(Referer 없음)은 그대로 보여요.
+const imageGuard = async (c: Context<AppEnv>) => {
+  if (!imageRequestAllowed(c.req.header('Referer'), c.req.header('Sec-Fetch-Dest'), new URL(c.req.url).origin, baseUrl(c)))
+    return c.text('', 403, { 'Cache-Control': 'no-store' });
+  const res = await c.env.ASSETS.fetch(c.req.raw);
+  return res.status === 404 ? c.notFound() : res;
+};
+app.get('/char/:file{.+}', imageGuard);
+app.get('/case/:file{.+}', imageGuard);
+app.get('/journey/:file{.+}', imageGuard);
 app.use('/api/bot/*', bodyLimit({ maxSize: 16 * 1024 * 1024, onError: tooLarge }));
 
 async function page(c: Context<AppEnv>, node: unknown, status: 200 | 403 | 404 = 200) {

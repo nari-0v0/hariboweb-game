@@ -2,6 +2,8 @@ import type { PlazaRoom } from './plaza-room';
 
 export type Env = {
   DB: D1Database;
+  // public 폴더 파일. 그림 폴더(/char, /case, /journey)는 서버를 먼저 거쳐서 다른 사이트가 퍼 가지 못하게 해요.
+  ASSETS: Fetcher;
   DISCORD_CLIENT_ID: string;
   DISCORD_CLIENT_SECRET: string;
   GUILD_ID: string;

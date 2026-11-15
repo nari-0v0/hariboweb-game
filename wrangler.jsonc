@@ -3,7 +3,7 @@
   "name": "hariboweb-game",
   "main": "src/index.tsx",
   "compatibility_date": "2026-10-01",
-  "assets": { "directory": "./public" },
+  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": ["/char/*", "/case/*", "/journey/*"] },
   // 워커를 D1 데이터베이스(APAC) 가까이에서 실행해서, 화면 하나에 DB를 여러 번 읽어도 빨라요.
   "placement": { "mode": "smart" },
   // 요청마다 걸린 시간을 Cloudflare 로그에서 볼 수 있게 켜요(무료 한도 안, 느린 화면 찾기용).
