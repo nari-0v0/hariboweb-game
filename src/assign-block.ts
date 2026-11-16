@@ -232,6 +232,64 @@ export async function approvedBlocks(db: D1Database): Promise<Set<string>> {
   return new Set(results.map((r) => blockKey(r.from_id, r.to_id)));
 }
 
+// 두 팀은 제외 관계를 따라 양편으로 나누면 돼요. 서로 연결된 묶음마다 어느 쪽을
+// 첫 팀에 넣을지 골라, 원래 팀 인원을 맞추면서 이동하는 사람이 가장 적은 해를 찾아요.
+// 한 명씩 교환해서 더 나아지지 않는 경우에만 쓰고, 해가 없으면 기존 배정을 남겨요.
+function separateTwoTeams(plan: Map<string, number>, blocked: Set<string>, keep: (ids: string[]) => boolean): void {
+  const teams = [...new Set(plan.values())].sort((a, b) => a - b);
+  if (teams.length !== 2) return;
+  const [leftNo, rightNo] = teams as [number, number];
+  const ids = [...plan.keys()].sort();
+  const neighbors = new Map(ids.map((id) => [id, [] as string[]]));
+  for (const pair of blocked) {
+    const [a, b] = pair.split('|') as [string, string];
+    if (!neighbors.has(a) || !neighbors.has(b)) continue;
+    neighbors.get(a)!.push(b);
+    neighbors.get(b)!.push(a);
+  }
+  const colors = new Map<string, number>();
+  const parts: [string[], string[]][] = [];
+  for (const root of ids) {
+    if (colors.has(root)) continue;
+    const sides: [string[], string[]] = [[], []];
+    const pending = [root];
+    colors.set(root, 0);
+    while (pending.length) {
+      const id = pending.pop()!;
+      const side = colors.get(id)!;
+      sides[side]!.push(id);
+      for (const other of neighbors.get(id)!) {
+        if (colors.get(other) === side) return; // 세 사람이 서로 제외한 경우처럼 두 팀으로 나눌 수 없어요
+        if (!colors.has(other)) {
+          colors.set(other, 1 - side);
+          pending.push(other);
+        }
+      }
+    }
+    parts.push(sides);
+  }
+  const capacity = ids.filter((id) => plan.get(id) === leftNo).length;
+  type Choice = { moved: number; left: string[] };
+  let sizes = new Map<number, Choice>([[0, { moved: 0, left: [] }]]);
+  for (const [a, b] of parts) {
+    const next = new Map<number, Choice>();
+    for (const [size, chosen] of sizes) {
+      for (const [left, right] of [[a, b], [b, a]] as const) {
+        const count = size + left.length;
+        if (count > capacity) continue;
+        const moved = chosen.moved + left.filter((id) => plan.get(id) !== leftNo).length + right.filter((id) => plan.get(id) !== rightNo).length;
+        if (!next.has(count) || moved < next.get(count)!.moved) next.set(count, { moved, left: [...chosen.left, ...left] });
+      }
+    }
+    sizes = next;
+  }
+  const solution = sizes.get(capacity);
+  if (!solution) return;
+  const left = new Set(solution.left);
+  if (!keep(solution.left) || !keep(ids.filter((id) => !left.has(id)))) return;
+  for (const id of ids) plan.set(id, left.has(id) ? leftNo : rightNo);
+}
+
 // 같은 팀에 승인된 짝이 있으면 다른 팀 사람과 한 명씩 바꿔요.
 // 바꾼 뒤 두 팀의 막힌 짝 수가 줄어들 때만 바꿔요(한 팀에 짝이 여럿이어도 하나씩 풀려요).
 // keep(팀원 목록)이 false가 되는 바꾸기는 하지 않아요(팀 퀘스트 짝 같은 다른 조건을 지키려고).
@@ -270,5 +328,6 @@ export function separateBlocked(
     }
     if (!moved) break;
   }
+  if ([...new Set(plan.values())].some((no) => clashes(members(no)) > 0)) separateTwoTeams(plan, blocked, keep);
   return plan;
 }
