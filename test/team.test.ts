@@ -204,6 +204,15 @@ describe('동기화로 팀·서버 퀘스트', () => {
     expect(jelly(sql, C) - before[C]!).toBe(3 + 5);
     expect(jelly(sql, D) - before[D]!).toBe(3 + 5);
     expect([jp(sql, A), jp(sql, C)]).toEqual([3, 3 + 2]);
+    // 결과 알림(🔔): 사람마다 한 번, 두 번 정산해도 그대로
+    const alerts = sql.prepare('SELECT user_id, ref, title, body FROM alerts ORDER BY user_id').all() as { user_id: string; ref: string; title: string; body: string }[];
+    expect(alerts.map((a) => a.user_id)).toEqual([A, B, C, D]);
+    expect(alerts[0]).toMatchObject({ ref: 'season:2026-11-03', title: '지난 시즌 퀘스트 결과 (11.3~11.16)' });
+    expect(alerts[0]!.body).toBe('🤝 팀 퀘스트 달성! 팀도 완료해서 도감 젤리 3개와 젤리피 3를 받았어요.');
+    expect(alerts[2]!.body.split('\n')).toEqual([
+      '🤝 팀 퀘스트 달성! 팀도 완료해서 도감 젤리 3개와 젤리피 3를 받았어요.',
+      '🟢 납치 대소동: 서버 목표 달성! 참여해서 도감 젤리 5개와 젤리피 2를 받았어요.',
+    ]);
   });
 
   it('시즌 종료 뒤 탈퇴했다 재가입한 사람에게 밀린 옛 시즌 보상을 주지 않아요', async () => {

@@ -89,6 +89,8 @@ import { EscapePage } from './views/escape';
 import { JourneyPage } from './views/journey';
 import { NO_COINS, STALE_PICK, activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from './journey-db';
 import { GEAR, PERKS, cleanKit, type GearId, type PerkId } from './journey';
+import { clearReadAlerts, deleteAlert, listAlerts, markAlertsRead } from './alerts';
+import { AlertBox, AlertsPage } from './views/alerts';
 import { activeEscape, actEscapeRun, beginEscape, escapeOpen, escapeRecord, getEscape, quitEscape } from './escape-db';
 
 // 광장은 없앴지만 Cloudflare에 만든 Durable Object 칸(PLAZA)은 지우려면 따로 정리 단계가 필요해서 이름만 남겨 둬요.
@@ -652,6 +654,33 @@ members.get('/me/praise', async (c) => {
   const box = await praiseBox(c.env.DB, viewer.user_id, 20, true);
   if (box.unread) await markPraiseSeen(c.env.DB, viewer.user_id, seenThrough).catch((e) => console.error('칭찬함 읽음 표시 실패', e));
   return page(c, <PraisePage viewer={viewer} box={box} />);
+});
+
+// 알림함(🔔). 열면 다 읽은 걸로 해요. ?box=1이면 팝업에 넣을 조각만 돌려줘요.
+async function alertsView(c: Context<AppEnv>, asBox: boolean) {
+  const viewer = c.get('viewer');
+  const now = Date.now();
+  const alerts = await listAlerts(c.env.DB, viewer.user_id, now);
+  const fresh = new Set(alerts.filter((a) => !a.read_at).map((a) => a.id));
+  if (fresh.size) await markAlertsRead(c.env.DB, viewer.user_id, now);
+  c.header('Cache-Control', 'no-store');
+  if (asBox) return c.html(String(await (<AlertBox alerts={alerts} fresh={fresh} />)));
+  return page(c, <AlertsPage viewer={{ ...viewer, unread_alerts: 0 }} alerts={alerts} fresh={fresh} />);
+}
+
+members.get('/alerts', (c) => alertsView(c, c.req.query('box') === '1'));
+
+members.post('/alerts/clear', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  await clearReadAlerts(c.env.DB, c.get('viewer').user_id);
+  return c.req.header('X-Alert-Box') === '1' ? alertsView(c, true) : c.redirect('/alerts');
+});
+
+members.post('/alerts/:id/delete', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const id = Number(c.req.param('id'));
+  if (Number.isSafeInteger(id) && id > 0) await deleteAlert(c.env.DB, c.get('viewer').user_id, id);
+  return c.req.header('X-Alert-Box') === '1' ? alertsView(c, true) : c.redirect('/alerts');
 });
 
 members.post('/api/me/profile', async (c) => {

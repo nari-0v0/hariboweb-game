@@ -2259,3 +2259,38 @@ main.wide { max-width: 1320px; }
 .title-search input { flex: 1 1 160px; min-width: 0; }
 .title-search-none { flex-basis: 100%; margin: 0; }
 .title-group[hidden], .title-group .title-cell[hidden], .title-group .title-item[hidden] { display: none; }
+
+/* 알림함(🔔) */
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+.alert-btn {
+  position: relative; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 36px;
+  border: 3px solid var(--ink); background: #fff; text-decoration: none; font-size: 1.05rem; clip-path: var(--notch);
+}
+.alert-btn:hover { translate: 0 -1px; }
+.alert-btn.on { background: var(--sky); }
+.alert-dot { position: absolute; top: 3px; right: 4px; width: 10px; height: 10px; border-radius: 50%; background: #ff3b30; border: 2px solid #fff; }
+.alert-pop {
+  position: fixed; z-index: 22; top: 70px; right: max(16px, calc((100vw - 1088px) / 2));
+  width: min(360px, calc(100vw - 32px)); max-height: calc(100dvh - 90px); overflow-y: auto;
+  background: var(--paper); border: 4px solid var(--ink); box-shadow: 0 8px 0 rgba(42, 32, 48, .15);
+}
+.alert-pop[hidden] { display: none; }
+.al-box { padding: 10px 12px; }
+.al-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.al-close { border: 0; background: none; font: inherit; font-size: 1rem; cursor: pointer; color: var(--ink); padding: 2px 6px; }
+.al-empty { margin: 10px 0; color: var(--ink-soft); }
+.al-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.al-item { padding: 8px 10px; background: #fff; border: 3px solid var(--ink); }
+.al-item.al-new { background: #fff6d9; }
+.al-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.al-title { font-weight: 700; font-size: .92rem; overflow-wrap: anywhere; }
+.al-tag { display: inline-block; padding: 0 5px; margin-right: 2px; font-size: .7rem; color: #fff; background: #ff3b30; }
+.al-when { flex: none; font-size: .78rem; color: var(--ink-soft); }
+.al-body { margin: 4px 0 6px; font-size: .86rem; white-space: pre-line; overflow-wrap: anywhere; }
+.al-item form { text-align: right; }
+.al-del { border: 2px solid var(--ink); background: var(--paper-2); font: inherit; font-size: .78rem; padding: 1px 8px; cursor: pointer; }
+.al-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 10px; font-size: .78rem; color: var(--ink-soft); }
+.al-page .al-close { display: none; }
+@media (max-width: 420px) {
+  .topbar .menu-word { display: none; }
+}

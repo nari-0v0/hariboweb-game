@@ -32,8 +32,8 @@ export function Layout(props: {
         <link rel="preload" href="/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin="" />
         {props.preloadImages?.map((href) => <link rel="preload" href={href} as="image" fetchpriority="high" />)}
         <link rel="icon" type="image/png" href="/char/deco/explorer.png" />
-        <link rel="stylesheet" href="/styles.css?v=pink-text-1" />
-        <script src="/app.js?v=img-guard-1" defer></script>
+        <link rel="stylesheet" href="/styles.css?v=alerts-1" />
+        <script src="/app.js?v=alerts-1" defer></script>
         {props.scripts?.map((script) => typeof script === 'string'
           ? <script src={script} defer></script>
           : <script src={script.src} type={script.type}></script>)}
@@ -52,10 +52,22 @@ export function Layout(props: {
             <span class="brand-text">하리보 멤버 도감</span>
           </a>
           {props.viewer && (
-            <label for="menu-toggle" class="menu-btn" role="button" tabindex={0} aria-label="메뉴 열기">
-              <span class="menu-icon" aria-hidden="true"></span>
-              <span class="menu-word">메뉴</span>
-            </label>
+            <div class="topbar-right">
+              {/* 알림함: 안 읽은 알림이 있으면 빨간 점. 누르면 팝업(app.js), 자바스크립트가 없으면 /alerts 화면 */}
+              <a
+                class="alert-btn"
+                href="/alerts"
+                data-alert-open
+                aria-label={(props.viewer.unread_alerts ?? 0) > 0 ? `알림 (새 알림 ${props.viewer.unread_alerts}개)` : '알림'}
+              >
+                <span aria-hidden="true">🔔</span>
+                {(props.viewer.unread_alerts ?? 0) > 0 && <i class="alert-dot" aria-hidden="true" />}
+              </a>
+              <label for="menu-toggle" class="menu-btn" role="button" tabindex={0} aria-label="메뉴 열기">
+                <span class="menu-icon" aria-hidden="true"></span>
+                <span class="menu-word">메뉴</span>
+              </label>
+            </div>
           )}
         </header>
         {props.viewer && (
@@ -90,6 +102,7 @@ export function Layout(props: {
             </nav>
           </>
         )}
+        {props.viewer && <div class="alert-pop" id="alert-pop" role="dialog" aria-label="알림" hidden></div>}
         <main class={props.wide ? 'wide' : undefined}>{props.children}</main>
         {/* 다음 화면이 늦게 오면(0.1초 넘게) 보이는 로딩 화면. app.js가 켜고 꺼요. */}
         <div class="loader" role="status" aria-live="polite">

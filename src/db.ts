@@ -1,3 +1,4 @@
+import { ALERT_KEEP_DAYS } from './alerts';
 import { XP_SCALE, levelFromXp } from './levels';
 import type { Member } from './env';
 import { stripTitle } from './titles';
@@ -36,7 +37,15 @@ export type DogamEntry = {
 const now = () => new Date().toISOString();
 
 export function getMember(db: D1Database, id: string) {
-  return db.prepare('SELECT * FROM members WHERE user_id = ?').bind(id).first<Member>();
+  // unread_alerts: 오른쪽 위 🔔 빨간 점(안 읽은 알림, 보관 기간 15일 안)
+  return db
+    .prepare(
+      `SELECT m.*, (SELECT COUNT(*) FROM alerts a WHERE a.user_id = m.user_id AND a.read_at IS NULL
+         AND a.created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-${ALERT_KEEP_DAYS} days')) AS unread_alerts
+       FROM members m WHERE m.user_id = ?`,
+    )
+    .bind(id)
+    .first<Member>();
 }
 
 // 로그인한 채로 다시 들어와도 '들어온 때'를 남겨요(세션이 시즌보다 길어서). 한 시간에 한 번만 써요.
