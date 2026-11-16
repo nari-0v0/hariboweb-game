@@ -2264,7 +2264,10 @@ main.wide { max-width: 1320px; }
 .topbar-right { display: flex; align-items: center; gap: 8px; }
 .alert-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; text-decoration: none; }
 .alert-btn img { display: block; width: 32px; height: 32px; }
-.alert-btn:hover img, .alert-btn.on img { rotate: -12deg; }
+.alert-btn img { transition: filter .15s, rotate .15s; }
+.alert-btn:hover img { rotate: -10deg; }
+/* 눌렸을 때(팝업 열림)는 배경 대신 종 색이 하늘색으로 바뀌어요 */
+.alert-btn.on img { filter: hue-rotate(170deg) saturate(1.8) brightness(1.02); rotate: -10deg; }
 .alert-dot { position: absolute; top: 1px; right: 1px; width: 12px; height: 12px; border-radius: 50%; background: #ff3b30; border: 2px solid #fff; }
 /* 팝업은 종에서 말풍선처럼 나와요(꼬리가 종을 가리켜요). 위치·꼬리 자리는 app.js가 종에 맞춰요. */
 .alert-pop {
