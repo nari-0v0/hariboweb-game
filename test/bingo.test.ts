@@ -170,6 +170,9 @@ describe('나갔다 다시 들어오기', () => {
     if (!again.ok) throw new Error(again.error);
     await applySync(db, again.value, NOW + 5 * 60_000);
     expect((await loadStats(db, week, [A])).get(A)!.bestPair).toBe(1);
+    // 짝 기록을 지우면(정식 시작 초기화) 빼 줄 값도 같이 지워져요
+    sql.exec('DELETE FROM bingo_pair');
+    expect((sql.prepare('SELECT COUNT(*) AS n FROM bingo_pair_reset').get() as { n: number }).n).toBe(0);
   });
 });
 
@@ -293,9 +296,9 @@ describe('줄 보상', () => {
 });
 
 describe('칭찬하기용 오늘 같이 통화한 사람', () => {
-  it('동기화 기록으로 알고, 3일 지난 줄은 지워요', async () => {
+  it('동기화 기록으로 알고, 보관 기간(16일) 지난 줄은 지워요', async () => {
     const { sql, db } = fakeD1();
-    sql.exec(`INSERT INTO pair_day (day, a, b, minutes) VALUES ('2026-10-28', '${A}', '${C}', 9)`);
+    sql.exec(`INSERT INTO pair_day (day, a, b, minutes) VALUES ('2026-10-10', '${A}', '${C}', 9), ('2026-10-28', '${A}', '${C}', 9)`);
     const r = parseSync({
       batch_id: '2026-11-02T14:05:00Z-y',
       members: [A, B, C].map((id) => ({ id, name: id })),
@@ -305,7 +308,8 @@ describe('칭찬하기용 오늘 같이 통화한 사람', () => {
     await applySync(db, r.value, Date.parse('2026-11-02T14:06:00Z'));
     expect(await todayPartners(db, B, '2026-11-02')).toEqual([{ id: A, minutes: 2 }]);
     expect(await todayPartners(db, A, '2026-11-02')).toEqual([{ id: B, minutes: 2 }]);
-    expect((sql.prepare('SELECT COUNT(*) AS n FROM pair_day').get() as { n: number }).n).toBe(1);
+    // 10월 10일 줄만 지워지고 10월 28일(팀 짝 고르기에 쓰는 2주 안)은 남아요
+    expect((sql.prepare('SELECT day FROM pair_day ORDER BY day').all() as { day: string }[]).map((r) => r.day)).toEqual(['2026-10-28', '2026-11-02']);
   });
 });
 

@@ -502,7 +502,8 @@ async function withTeammates(db: D1Database, p: Week, users: Set<string>): Promi
 
 // ── 칭찬하기: 오늘 같이 통화한 사람 ──
 
-export const PAIR_DAY_KEEP_DAYS = 3;
+// 칭찬하기(오늘)와 팀 짝 고르기(시즌 시작 전 정확히 2주)에 써요.
+export const PAIR_DAY_KEEP_DAYS = 16;
 
 // 오래된 하루치 짝을 지워요(동기화 때마다)
 export function prunePairDays(db: D1Database, nowMs: number): D1PreparedStatement {

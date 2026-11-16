@@ -336,4 +336,14 @@ describe('팀 짝 고르기: 시즌 시작 전 2주', () => {
     // 앞 기간 10.5일 중 2주 안에 든 건 3.5일 → 105분의 1/3
     expect(prior.minutes.get(`${A}|${B}`)).toBe(35);
   });
+  it('하루치 짝 기록이 2주 전까지 있으면 그 날짜 안의 통화만 정확히 세요', async () => {
+    const { sql, db } = fakeD1([A, B]);
+    sql.prepare('INSERT INTO bingo_periods (id, starts_at, ends_at) VALUES (?, ?, ?)').run('p1', '2026-10-12T15:00:00.000Z', '2026-10-23T03:00:00.000Z');
+    sql.prepare('INSERT INTO bingo_pair (week, a, b, minutes) VALUES (?, ?, ?, ?)').run('p1', A, B, 15);
+    // 2주(한국 10월 20일~11월 2일) 바깥 날 하루, 안쪽 날 15분
+    sql.prepare('INSERT INTO pair_day (day, a, b, minutes) VALUES (?, ?, ?, ?)').run('2026-10-19', A, B, 40);
+    sql.prepare('INSERT INTO pair_day (day, a, b, minutes) VALUES (?, ?, ?, ?)').run('2026-10-22', A, B, 15);
+    const prior = await loadPrior(db, seasonFrom(START, END));
+    expect(prior.minutes.get(`${A}|${B}`)).toBe(15);
+  });
 });
