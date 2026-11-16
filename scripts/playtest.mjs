@@ -38,6 +38,19 @@ const {
   visible,
   coinSpots,
 } = await import("../work/playtest-cases.mjs?" + Date.now());
+// PLAYTEST_ONLY=cases,journey,gamble limits a run to some parts (default: everything).
+const ONLY = (process.env.PLAYTEST_ONLY || "cases,journey,gamble").split(",");
+const only = (part) => ONLY.includes(part);
+await build({
+  entryPoints: ["src/journey-chapters.ts"],
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  outfile: "work/playtest-chapters.mjs",
+});
+const { MAX_CHAPTER: CHAPTER_COUNT } = await import(
+  "../work/playtest-chapters.mjs?" + Date.now()
+);
 function solution(c) {
   if (c.solution) return c.solution;
   let s = startEscape(c);
@@ -80,10 +93,11 @@ function solution(c) {
   return steps;
 }
 let ownedServer;
+const userId = String(900000000000000000n + BigInt(Date.now()));
 let browser;
 try {
   if (!external) {
-    ownedServer = await startLocalServer();
+    ownedServer = await startLocalServer({ gambleTester: userId });
     base = ownedServer.url;
   }
   browser = await chromium.launch({
@@ -446,13 +460,23 @@ try {
     );
   }
   try {
+    if (ownedServer) {
+      // Robot-only unlock: give the test account 60 high-level dogam cards on its own local D1,
+      // so every case and expedition chapter opens. External runs keep real locks.
+      const now = new Date().toISOString();
+      const fakes = Array.from({ length: 60 }, (_, i) => `pt-${userId}-${i}`);
+      await ownedServer.sql(
+        "INSERT OR IGNORE INTO members (user_id, display_name, active, updated_at) VALUES " +
+          fakes.map((id, i) => `('${id}', '로봇친구${i}', 1, '${now}')`).join(",") +
+          "; INSERT OR REPLACE INTO cards (owner_id, target_id, xp, first_met, updated_at) VALUES " +
+          fakes.map((id) => `('${userId}', '${id}', 100000, '${now}', '${now}')`).join(",") +
+          "; INSERT OR REPLACE INTO journey_bank (user_id, coins, atk, hp, def, weapon, armor, charm, updated_at) VALUES " +
+          `('${userId}', 1000000, 34, 34, 13, 9, 9, 9, '${now}');`,
+      );
+      console.log("Seeded 60 Lv-high cards + max expedition gear for robot unlock");
+    }
     await page.goto(
-      new URL(
-        "/auth/dev?id=" +
-          String(900000000000000000n + BigInt(Date.now())) +
-          "&name=Playtest",
-        base,
-      ).href,
+      new URL("/auth/dev?id=" + userId + "&name=Playtest", base).href,
     );
     assert(!page.url().includes("/auth/dev"), "DEV_LOGIN login failed");
     if (page.url().includes("/choose")) {
@@ -464,15 +488,22 @@ try {
       await page.getByRole("button", { name: "네, 이걸로 할게요" }).click();
     }
     console.log(`Authenticated; ${ESCAPE_CASES.length} cases`);
-    for (const c of ESCAPE_CASES) {
+    for (const c of only("cases") ? ESCAPE_CASES : []) {
       const result = { id: c.id, title: c.title, completed: false, steps: 0 };
       report.cases.push(result);
       where = c.id;
       try {
         await page.goto(new URL("/cases/room?list=1", base).href);
-        await page
-          .locator(`form:has(input[name=case][value="${c.id}"]) button`)
-          .click();
+        const start = page.locator(
+          `form:has(input[name=case][value="${c.id}"]) button`,
+        );
+        // A fresh test account only sees the first cases; locked ones show their unlock rule, not a start form.
+        if (!(await start.count())) {
+          result.locked = true;
+          console.log(`LOCKED ${c.id}`);
+          continue;
+        }
+        await start.click();
         await page.locator(".esc-room").waitFor();
         let s = startEscape(c),
           lastScene = null,
@@ -499,8 +530,13 @@ try {
             await page.setViewportSize({ width: 390, height: 844 });
             await inspect(`${c.id}-${s.scene}-puzzle-${index}-390`, true);
           }
-          if (a.a === "tap")
-            await click(form("tap", a.o).locator("button"), true);
+          if (a.a === "tap") {
+            const goto = c.objects.find((o) => o.id === a.o)?.goto;
+            // Way-back doors to an already-open room are replaced by the open-room buttons (a=go).
+            const f =
+              goto && !(await form("tap", a.o).count()) ? form("go", goto) : form("tap", a.o);
+            await click(f.locator("button"), true);
+          }
           else if (a.a === "use")
             await click(
               form("use", a.o)
@@ -597,47 +633,109 @@ try {
       }
       await writeFile(`${dir}/results.json`, JSON.stringify(report, null, 2));
     }
-    where = "expedition";
-    await page.goto(new URL("/expedition/go", base).href);
-    await page.locator(".jr-depart").first().click();
-    await page.locator("[data-auto-toggle] input").check();
-    const started = Date.now();
-    let rev = null,
-      scene = 0;
-    while (
-      !(await page.locator(".jr-result").count()) &&
-      Date.now() - started < 20 * 60 * 1000
-    ) {
-      const now = await page
-        .locator("#journey input[name=rev]")
-        .first()
-        .inputValue()
-        .catch(() => null);
-      if (now !== rev) {
-        rev = now;
-        where = `expedition/rev-${now}`;
-        // Auto mode deliberately locks manual choices. Pause it through the UI
-        // so every meaningful button is audited while active; all progression
-        // is still performed by the app's automatic mode after resuming.
-        await page.locator("[data-auto-toggle] input").uncheck();
-        await inspect(`expedition-${scene++}`, true);
-        await page.setViewportSize({ width: 390, height: 844 });
-        await inspect(`expedition-${scene}-390`, true);
-        await page.setViewportSize({ width: 1280, height: 900 });
+    // Expedition: play every chapter in order (each clear opens the next), up to 3 tries per chapter.
+    report.expedition = { chapters: [] };
+    for (let ch = 1; only("journey") && ch <= CHAPTER_COUNT; ch++) {
+      const run = { ch, cleared: false, tries: 0 };
+      report.expedition.chapters.push(run);
+      while (!run.cleared && run.tries < 3) {
+        run.tries++;
+        where = `expedition/ch${ch}/try${run.tries}`;
+        await page.goto(new URL("/expedition/go", base).href);
+        const pick = page.locator(`.jr-chapters input[name=ch][value="${ch}"]`);
+        if (!(await pick.count()) || (await pick.isDisabled())) {
+          run.error = "chapter not open";
+          break;
+        }
+        await pick.check();
+        await page.locator(".jr-depart").first().click();
         await page.locator("[data-auto-toggle] input").check();
+        const started = Date.now();
+        let rev = null,
+          scene = 0;
+        while (
+          !(await page.locator(".jr-result").count()) &&
+          Date.now() - started < 20 * 60 * 1000
+        ) {
+          const now = await page
+            .locator("#journey input[name=rev]")
+            .first()
+            .inputValue()
+            .catch(() => null);
+          if (now !== rev) {
+            rev = now;
+            where = `expedition/ch${ch}/rev-${now}`;
+            // Auto mode deliberately locks manual choices. Pause it through the UI
+            // so every meaningful button is audited while active; all progression
+            // is still performed by the app's automatic mode after resuming.
+            await page.locator("[data-auto-toggle] input").uncheck();
+            await inspect(`expedition-ch${ch}-${scene++}`, true);
+            await page.setViewportSize({ width: 390, height: 844 });
+            await inspect(`expedition-ch${ch}-${scene}-390`, true);
+            await page.setViewportSize({ width: 1280, height: 900 });
+            await page.locator("[data-auto-toggle] input").check();
+          }
+          await page.waitForTimeout(700);
+        }
+        await page
+          .locator(".jr-result")
+          .waitFor({ state: "visible", timeout: 30000 })
+          .catch(() => {});
+        assert(
+          await page.locator(".jr-result").isVisible(),
+          `Expedition ch${ch} auto timeout`,
+        );
+        run.text = await page.locator(".jr-result").innerText();
+        run.scenes = scene;
+        run.cleared = run.text.includes("물리쳤어요");
+        await inspect(`expedition-ch${ch}-result`, true);
       }
-      await page.waitForTimeout(700);
+      console.log(`EXPEDITION ch${ch} ${run.cleared ? "CLEARED" : "NOT CLEARED"} (${run.tries} tries)`);
+      if (!run.cleared) {
+        issue("failure", `Expedition ch${ch} not cleared: ${run.error ?? run.text ?? ""}`.slice(0, 300));
+        break;
+      }
     }
-    assert(
-      await page.locator(".jr-result").isVisible(),
-      "Expedition auto timeout",
-    );
-    report.expedition = {
-      completed: true,
-      text: await page.locator(".jr-result").innerText(),
-      scenes: scene,
-    };
-    await inspect("expedition-result", true);
+    report.expedition.completed =
+      !only("journey") || report.expedition.chapters.filter((r) => r.cleared).length === CHAPTER_COUNT;
+
+    // Gamble hall: one small bet in each game, with screens before and after.
+    report.gamble = [];
+    for (const game of only("gamble") ? ["slot", "roulette", "cards", "coinflip"] : []) {
+      const g = { game, played: false };
+      report.gamble.push(g);
+      where = `gamble/${game}`;
+      try {
+        await page.goto(new URL(`/gamble/${game}`, base).href);
+        await inspect(`gamble-${game}`, true);
+        await page.setViewportSize({ width: 390, height: 844 });
+        await inspect(`gamble-${game}-390`, true);
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.locator('.gb-bet-form [data-gb-bet="10"]').click();
+        await page.locator(".gb-bet-form .gb-play-button").click();
+        await page.waitForLoadState("load");
+        // Card 21: keep pressing "멈추기" until the hand is settled.
+        for (let k = 0; k < 5 && game === "cards"; k++) {
+          const stand = page.locator(".gb-move-stand");
+          if (!(await stand.count())) break;
+          await stand.click();
+          await page.waitForLoadState("load");
+        }
+        await page.locator('[data-gb-settled="yes"]').waitFor({ timeout: 15000 });
+        await page.waitForTimeout(4500); // let the result motion finish
+        await inspect(`gamble-${game}-result`, true);
+        await page.setViewportSize({ width: 390, height: 844 });
+        await inspect(`gamble-${game}-result-390`, true);
+        await page.setViewportSize({ width: 1280, height: 900 });
+        g.played = true;
+        console.log(`GAMBLE ${game} OK`);
+      } catch (e) {
+        g.error = e.message;
+        issue("failure", `Gamble ${game}: ${e.message}`.slice(0, 300));
+        await page.screenshot({ path: `${dir}/gamble-${game}-failure.png`, fullPage: true });
+        console.log("FAIL gamble", game, e.message.slice(0, 180));
+      }
+    }
   } catch (e) {
     issue("fatal", e.message);
     console.error(e);
@@ -654,12 +752,13 @@ try {
     ];
     await writeFile(
       `${dir}/playtest-report.md`,
-      `# UI 플레이테스트 (${label})\n\n- 로그인: /auth/dev, 실제 브라우저 세션\n- 사건: ${report.cases.filter((c) => c.completed).length}/${ESCAPE_CASES.length} 완료 (요청 50개, 현재 저장소 ${ESCAPE_CASES.length}개 모두 대상)\n- 원정 자동 종료: ${report.expedition?.completed ?? false}\n- 단계 검사: ${report.checks}\n- 시각: ${report.started} ~ ${report.finished}\n- 화면: 1280×900, 장면별 390×844\n- 캡처: ${dir}\n\n## 사건별 결과\n\n${report.cases.map((c) => `- ${c.id}: ${c.completed ? "완료" : "실패"} (${c.steps} steps) ${c.error || ""}`).join("\n")}\n\n## 재현 위치 및 문제\n\n${unique.map((i) => `- ${i.where}: **${i.kind}** ${typeof i.detail === "string" ? i.detail : JSON.stringify(i.detail)}`).join("\n") || "없음"}\n\n## 검사 한계\n\n대비 검사는 계산된 단색 배경과 텍스트의 WCAG AA 비율입니다. 이미지 배경·그림 안 글자, 스크린리더와 실제 터치 기기는 검증하지 않습니다. 의도된 돋보기는 닫기 UI로 닫고 가림을 검사합니다. 가림은 버튼 여러 지점의 elementFromPoint와 실제 풀이 클릭으로 검사하며 force를 사용하지 않습니다.\n`,
+      `# UI 플레이테스트 (${label})\n\n- 로그인: /auth/dev, 실제 브라우저 세션\n- 사건: ${report.cases.filter((c) => c.completed).length}/${ESCAPE_CASES.length} 완료, 잠김 ${report.cases.filter((c) => c.locked).length}개 (현재 저장소 ${ESCAPE_CASES.length}개 모두 대상)\n- 원정대: ${(report.expedition?.chapters ?? []).filter((r) => r.cleared).length}/${CHAPTER_COUNT}장 깸 (${(report.expedition?.chapters ?? []).map((r) => `${r.ch}장 ${r.cleared ? "✓" : "✗"}${r.tries > 1 ? `(${r.tries}번)` : ""}`).join(", ")})\n- 겜블장: ${(report.gamble ?? []).map((g) => `${g.game} ${g.played ? "✓" : "✗"}`).join(", ") || "안 함"}\n- 단계 검사: ${report.checks}\n- 시각: ${report.started} ~ ${report.finished}\n- 화면: 1280×900, 장면별 390×844\n- 캡처: ${dir}\n\n## 사건별 결과\n\n${report.cases.map((c) => `- ${c.id}: ${c.completed ? "완료" : c.locked ? "잠김(새 계정)" : "실패"} (${c.steps} steps) ${c.error || ""}`).join("\n")}\n\n## 재현 위치 및 문제\n\n${unique.map((i) => `- ${i.where}: **${i.kind}** ${typeof i.detail === "string" ? i.detail : JSON.stringify(i.detail)}`).join("\n") || "없음"}\n\n## 검사 한계\n\n대비 검사는 계산된 단색 배경과 텍스트의 WCAG AA 비율입니다. 이미지 배경·그림 안 글자, 스크린리더와 실제 터치 기기는 검증하지 않습니다. 의도된 돋보기는 닫기 UI로 닫고 가림을 검사합니다. 가림은 버튼 여러 지점의 elementFromPoint와 실제 풀이 클릭으로 검사하며 force를 사용하지 않습니다.\n`,
     );
     await writeSummary(report);
     console.log("Report", dir);
     if (
-      report.cases.filter((c) => c.completed).length !== ESCAPE_CASES.length ||
+      report.cases.some((c) => !c.completed && !c.locked) ||
+      (report.gamble ?? []).some((g) => !g.played) ||
       !report.expedition?.completed ||
       report.issues.length
     )

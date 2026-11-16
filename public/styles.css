@@ -2135,7 +2135,7 @@ main.wide { max-width: 1320px; }
 .jp-hero-pic img { width: 104px; height: 104px; object-fit: contain; image-rendering: pixelated; }
 .jp-slot { position: relative; display: grid; place-items: center; width: 52px; height: 52px; border: 3px solid var(--ink); background: #fff; font-size: 1.5rem; text-decoration: none; color: var(--ink); box-shadow: 0 3px 0 var(--ink); }
 .jp-slot:hover { background: #fff6c9; }
-.jp-slot b { position: absolute; right: -8px; bottom: -8px; padding: 0 4px; border: 2px solid var(--ink); background: #ff7aa8; color: #fff; font-size: .7rem; line-height: 1.3; }
+.jp-slot b { position: absolute; right: -8px; bottom: -8px; padding: 0 4px; border: 2px solid var(--ink); background: #ff7aa8; color: var(--ink); font-size: .7rem; line-height: 1.3; }
 .jp-slot-weapon { grid-area: weapon; }
 .jp-slot-armor { grid-area: armor; }
 .jp-slot-charm { grid-area: charm; }
@@ -2151,7 +2151,7 @@ main.wide { max-width: 1320px; }
 .jp-tab:active { translate: 0 3px; box-shadow: 0 1px 0 var(--ink); }
 .jp-tab.on { background: #ffe58a; translate: 0 3px; box-shadow: 0 1px 0 var(--ink); }
 .jp-tab-icon { font-size: 1.7rem; line-height: 1.2; }
-.jp-badge { position: absolute; top: -10px; right: -8px; min-width: 22px; padding: 1px 5px; border: 2px solid var(--ink); background: #ff7aa8; color: #fff; font-size: .72rem; font-weight: 700; text-align: center; }
+.jp-badge { position: absolute; top: -10px; right: -8px; min-width: 22px; padding: 1px 5px; border: 2px solid var(--ink); background: #ff7aa8; color: var(--ink); font-size: .72rem; font-weight: 700; text-align: center; }
 .jp-pane { display: grid; gap: 8px; padding: 10px; border: 3px dashed var(--ink); background: #fbfdff; }
 .jp-pane > .hint, .jp-tip { margin: 0; }
 .jp-pane-title { margin: -10px -10px 0; padding: 6px 12px; border-bottom: 3px dashed var(--ink); background: #ffe58a; font-size: 1.05rem; }
@@ -2188,7 +2188,7 @@ main.wide { max-width: 1320px; }
 .jp-item { height: 100%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border: 3px solid var(--ink); background: #fff; text-align: center; box-shadow: 0 4px 0 var(--ink); }
 .jp-item.full { background: #fff6c9; }
 .jp-item-pic { position: relative; display: grid; place-items: center; width: 64px; height: 64px; border: 3px solid var(--ink); background: radial-gradient(circle, #fff 0 40%, #ffe7f0 41% 100%); font-size: 2rem; }
-.jp-plus { position: absolute; right: -10px; bottom: -8px; padding: 0 5px; border: 2px solid var(--ink); background: #ff7aa8; color: #fff; font-size: .8rem; }
+.jp-plus { position: absolute; right: -10px; bottom: -8px; padding: 0 5px; border: 2px solid var(--ink); background: #ff7aa8; color: var(--ink); font-size: .8rem; }
 .jp-item-now { font-weight: 700; font-size: .82rem; }
 .jp-item-next, .jp-item-need { font-size: .72rem; color: var(--ink-soft); overflow-wrap: anywhere; }
 .jp-item-need { color: #c0392b; }
