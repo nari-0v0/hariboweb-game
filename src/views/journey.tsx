@@ -267,14 +267,26 @@ export function fightPlan(fx: BattleFx) {
   const hero: string[] = [];
   const foe: string[] = [];
   const pops: { on: 0 | 1; at: number; text: string; cls: string }[] = [];
+  // 몬스터 체력 막대: 언제 몇 %까지 줄어드는지
+  const max = fx.mhp ?? 0;
+  const pct = (v: number) => Math.max(0, Math.min(100, Math.round((v / Math.max(1, max)) * 100)));
+  const drops: { at: number; pct: number }[] = [];
+  let shown = 100;
+  const drop = (at: number, v: number | undefined) => {
+    if (!max || v === undefined || pct(v) >= shown) return;
+    shown = pct(v);
+    drops.push({ at, pct: shown });
+  };
   let t = START;
   if (fx.spark) {
     foe.push(`jr-zap .4s ${t}s`);
     pops.push({ on: 1, at: t, text: `⚡${fx.spark}`, cls: 'zap' });
+    drop(t, max - fx.spark);
     t += STEP;
   }
-  for (const [who, dmg, crit] of fx.hits) {
+  for (const [i, [who, dmg, crit]] of fx.hits.entries()) {
     const hit = (t + 0.14).toFixed(2);
+    drop(+hit, fx.left?.[i]);
     if (who === 0) {
       hero.push(`jr-lunge-r .34s ${t.toFixed(2)}s`);
       foe.push(`jr-hit .3s ${hit}s`);
@@ -300,6 +312,7 @@ export function fightPlan(fx: BattleFx) {
     heroEnd: fx.won ? '' : `jr-fall .6s ${end}s both`,
     foeEnd: fx.won ? `jr-die .45s ${end}s both` : '',
     pops,
+    foeHp: max ? { max, now: Math.max(0, fx.left?.at(-1) ?? (fx.won ? 0 : max)), drops } : null,
     ms: Math.round((t + 0.9) * 1000),
     reveal: Math.round((t + 0.5) * 1000), // 결과(대화창·체력·버튼)가 나오는 때: 쓰러지는 모션이 끝난 뒤
   };
@@ -347,6 +360,13 @@ export function Stage(props: { s: JourneyState; art: string; name: string; lost:
           {img ? (
             <span>
               <img class="jr-sprite jr-pic" src={img.src} alt="" width={img.w} height={img.h} />
+              {plan?.foeHp && (
+                <span class="jr-mhp" role="meter" aria-label="몬스터 체력" aria-valuemin={0} aria-valuemax={plan.foeHp.max} aria-valuenow={plan.foeHp.now} title={`몬스터 체력 ${plan.foeHp.now}/${plan.foeHp.max}`}>
+                  {plan.foeHp.drops.map((d) => (
+                    <i style={`left:${d.pct}%;--d:${d.at}s`} />
+                  ))}
+                </span>
+              )}
             </span>
           ) : pic ? (
             <span

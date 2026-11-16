@@ -32,7 +32,8 @@ export const SKILL_IDS = Object.keys(SKILLS) as SkillId[];
 export type Line = { icon: string; text: string; tone?: 'good' | 'bad' };
 // 화면 전투 모션용 기록: 누가(0 = 나, 1 = 적) 얼마나 때렸는지. 처음 몇 번과 마지막 한 번만 남겨요.
 export type Hit = [who: 0 | 1, dmg: number, crit?: 1];
-export type BattleFx = { foe: string; won: boolean; spark?: number; hits: Hit[]; hp0?: number }; // hp0: 싸우기 전 체력(결과는 모션이 끝난 뒤 보여요)
+// hp0: 싸우기 전 체력(결과는 모션이 끝난 뒤 보여요). mhp: 몬스터 처음 체력, left: hits 칸마다 그 뒤 남은 몬스터 체력(몬스터 체력 막대용)
+export type BattleFx = { foe: string; won: boolean; spark?: number; hits: Hit[]; hp0?: number; mhp?: number; left?: number[] };
 export const FX_HITS = 6;
 export type Offer = { id: 'potion' | 'sword' | 'armor' | 'heart' | 'scroll'; price: number };
 export const OFFERS: Record<Offer['id'], { name: string; icon: string; text: string; price: number }> = {
@@ -216,11 +217,13 @@ function battle(s: JourneyState, m: Monster, power: number, r: () => number, lin
   let shields = sk(s, 'shield');
   let turns = 0;
   const hits: Hit[] = [];
+  const left: number[] = [];
   const note = (h: Hit) => {
-    if (hits.length < FX_HITS) hits.push(h);
-    else hits[FX_HITS - 1] = h; // 마지막 칸은 늘 끝난 순간
+    const i = hits.length < FX_HITS ? hits.length : FX_HITS - 1; // 마지막 칸은 늘 끝난 순간
+    hits[i] = h;
+    left[i] = Math.max(0, mhp);
   };
-  const fx: BattleFx = { foe: m.key, won: false, hits, hp0: start };
+  const fx: BattleFx = { foe: m.key, won: false, hits, hp0: start, mhp, left };
   if (sk(s, 'spark')) {
     mhp -= 10 * sk(s, 'spark');
     fx.spark = 10 * sk(s, 'spark');
@@ -251,7 +254,10 @@ function battle(s: JourneyState, m: Monster, power: number, r: () => number, lin
       s.potion = 0;
       lines.push({ icon: KIT.potion.icon, text: `위험할 때 회복 물약을 마셨어요! 체력 +${heal}`, tone: 'good' });
     }
-    if (sk(s, 'thorn')) mhp -= 3 * sk(s, 'thorn');
+    if (sk(s, 'thorn')) {
+      mhp -= 3 * sk(s, 'thorn');
+      left[left.length - 1] = Math.max(0, mhp); // 가시 피해는 방금 맞은 칸 기록에 넣어요(막대가 반격 때 줄어요)
+    }
   }
   if (s.hp <= 0 || mhp > 0) {
     s.hp = 0;
