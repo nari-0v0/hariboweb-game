@@ -57,3 +57,19 @@ it('이상한 값이 있으면 SQL을 만들지 않아요', () => {
   expect(() => buildMoveSql([{ user_id: A, jelly: 1.5 }])).toThrow();
   expect(() => buildMoveSql([{ user_id: A, jelly: 1 }, { user_id: A, jelly: 2 }])).toThrow();
 });
+
+it('시작 초기화는 겜블 기록만 지우고, 젤리를 옮긴 뒤에는 아무것도 지우지 않아요', () => {
+  const sql = freshDb();
+  sql.exec(`INSERT INTO owned_items (user_id, item_id, acquired_at) VALUES ('${A}', 'title:gamble-chips-50000', 'x'), ('${A}', 'title:other', 'x');
+    UPDATE profiles SET title_id = 'gamble-chips-50000' WHERE user_id = '${A}';`);
+  const reset = readFileSync('scripts/gamble-reset.sql', 'utf8');
+  sql.exec(reset);
+  expect(chips(sql)).toEqual([]);
+  expect(sql.prepare('SELECT item_id FROM owned_items ORDER BY item_id').all()).toEqual([{ item_id: 'title:other' }]);
+  // 옮긴 사람은 옮긴 젤칩만 갖고, 오늘의 기본 젤칩(free_day)은 아직 안 받은 상태예요.
+  sql.exec(buildMoveSql([{ user_id: A, jelly: 3000 }], '2026-11-21T00:00:00.000Z'));
+  expect(sql.prepare('SELECT chips, free_day FROM gamble_accounts').all()).toEqual([{ chips: 3000, free_day: null }]);
+  // 옮긴 뒤에 실수로 다시 실행해도 그대로예요.
+  sql.exec(reset);
+  expect(sql.prepare('SELECT chips FROM gamble_accounts').all()).toEqual([{ chips: 3000 }]);
+});
