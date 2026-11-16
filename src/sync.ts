@@ -323,6 +323,7 @@ export async function applySync(
     // 겜블장 젤칩·판 기록은 members.active가 0이 될 때 DB 트리거(gamble_member_left)가 지워요.
     stmts.push(db.prepare('DELETE FROM purchases WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM nick_jobs WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM jelly_grants WHERE user_id = ?').bind(id));
   }
 
   // 주간 빙고 기록(통화방 1분, 출석)도 같은 트랜잭션에

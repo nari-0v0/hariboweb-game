@@ -13,6 +13,7 @@ DELETE FROM cards;
 DELETE FROM owned_items WHERE item_id NOT LIKE 'title:gamble-%';
 DELETE FROM purchases;
 DELETE FROM nick_jobs;
+DELETE FROM jelly_grants;
 DELETE FROM praises;
 DELETE FROM bingo_lines;
 DELETE FROM bingo_day;
