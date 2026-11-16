@@ -215,3 +215,23 @@ it('내 카드는 칭찬 3개만 미리 보여 주고 읽음 처리는 칭찬함
   expect(full).not.toContain(senders[0]);
   expect((await praiseBox(db, A)).unread).toBe(0);
 });
+
+it('안 읽은 칭찬이 300개를 넘어도 읽음 처리할 칭찬을 빠짐없이 보여 줘요', async () => {
+  const { db, sql } = fakeD1();
+  sql.prepare("UPDATE members SET gender_chosen_at = 'chosen' WHERE user_id = ?").run(A);
+  const add = sql.prepare('INSERT INTO praises (day, from_id, to_id, jelly, created_at, note) VALUES (?, ?, ?, 0, ?, ?)');
+  // 같은 사람도 다른 날에는 다시 칭찬할 수 있어요. 오래 칭찬함을 열지 않은 상태예요.
+  for (let i = 0; i < 301; i++) {
+    const at = new Date(Date.now() - (i + 1) * 86_400_000).toISOString();
+    add.run(at.slice(0, 10), B, A, `${at}#praise`, `칭찬번호${i}끝`);
+  }
+  expect((await praiseBox(db, A, 5)).items).toHaveLength(5); // 패널 미리보기는 그대로
+  expect((await praiseBox(db, A)).unread).toBe(301);
+  const session = await signSession('test', { uid: A, exp: Date.now() + 60_000 });
+  const response = await app.request('/me/praise', { headers: { Cookie: `hs=${session}` } }, { DB: db, SESSION_SECRET: 'test' } as Env);
+  expect(response.status).toBe(200);
+  const html = await response.text();
+  expect(html.match(/class="pr-item/g)?.length).toBe(301);
+  expect(html).toContain('칭찬번호300끝'); // 가장 오래된 것도 보여 준 뒤 읽음으로 바뀌어요.
+  expect((await praiseBox(db, A)).unread).toBe(0);
+});
