@@ -334,7 +334,7 @@ document.addEventListener('click', (e) => {
   // 종 바로 아래에 붙이고, 말풍선 꼬리가 종 가운데를 가리키게 해요
   const place = () => {
     const r = btn.getBoundingClientRect();
-    const right = Math.max(8, Math.min(innerWidth - r.right - 4, innerWidth - 8 - pop.offsetWidth));
+    const right = Math.max(16, Math.min(innerWidth - r.right - 4, innerWidth - 16 - pop.offsetWidth));
     pop.style.top = `${Math.round(r.bottom + 20)}px`;
     pop.style.right = `${Math.round(right)}px`;
     pop.style.setProperty('--tail', `${Math.round(innerWidth - right - (r.left + r.width / 2))}px`);

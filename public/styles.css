@@ -2262,13 +2262,10 @@ main.wide { max-width: 1320px; }
 
 /* 알림함(🔔) */
 .topbar-right { display: flex; align-items: center; gap: 8px; }
-.alert-btn {
-  position: relative; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 36px;
-  border: 3px solid var(--ink); background: #fff; text-decoration: none; font-size: 1.05rem; clip-path: var(--notch);
-}
-.alert-btn:hover { translate: 0 -1px; }
-.alert-btn.on { background: var(--sky); }
-.alert-dot { position: absolute; top: 2px; right: 3px; width: 12px; height: 12px; border-radius: 50%; background: #ff3b30; border: 2px solid #fff; }
+.alert-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; text-decoration: none; }
+.alert-btn img { display: block; width: 32px; height: 32px; }
+.alert-btn:hover img, .alert-btn.on img { rotate: -12deg; }
+.alert-dot { position: absolute; top: 1px; right: 1px; width: 12px; height: 12px; border-radius: 50%; background: #ff3b30; border: 2px solid #fff; }
 /* 팝업은 종에서 말풍선처럼 나와요(꼬리가 종을 가리켜요). 위치·꼬리 자리는 app.js가 종에 맞춰요. */
 .alert-pop {
   --tail: 24px;
