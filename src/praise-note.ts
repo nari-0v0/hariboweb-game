@@ -29,11 +29,71 @@ export function parseNoteVerdict(text: string): 'ok' | 'bad' | null {
 
 // 보낼 한마디. 비꼬기·모욕이면 null(칭찬만 전해요). 욕설은 막지 않아요(나리 2026-11-16).
 // AI가 없거나 실패하면 그대로 보내요.
-export async function checkNote(ai: Ai | undefined, raw: unknown): Promise<{ note: string | null; filtered: boolean }> {
+export async function checkNote(
+  ai: Ai | undefined,
+  raw: unknown,
+): Promise<{ note: string | null; filtered: boolean; verdict?: 'ok' | 'bad' | 'none' }> {
   const note = cleanNote(raw);
   if (!note) return { note: null, filtered: false };
-  const verdict = parseNoteVerdict(await askAi(ai, AI_PROMPT, note, 20, '칭찬 한마디'));
-  return verdict === 'bad' ? { note: null, filtered: true } : { note, filtered: false };
+  const verdict = parseNoteVerdict(await askAi(ai, AI_PROMPT, note, 20, '칭찬 한마디')) ?? 'none';
+  return verdict === 'bad' ? { note: null, filtered: true, verdict } : { note, filtered: false, verdict };
+}
+
+// AI 판단 기록(비공개 로그 채널용). 원래 한마디를 그대로 남겨요(걸러진 것도).
+export async function logAiCheck(
+  db: D1Database,
+  kind: 'praise',
+  fromId: string,
+  toId: string | null,
+  text: string,
+  verdict: 'ok' | 'bad' | 'none',
+  nowMs: number,
+): Promise<void> {
+  await db
+    .prepare('INSERT INTO ai_logs (kind, from_id, to_id, text, verdict, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(kind, fromId, toId, text, verdict, new Date(nowMs).toISOString())
+    .run();
+}
+
+export type AiLogRow = {
+  id: number;
+  kind: string;
+  from: { id: string; name: string };
+  to: { id: string; name: string } | null;
+  text: string;
+  verdict: string;
+  created_at: string;
+};
+
+// 봇이 아직 안 올린 AI 판단 기록(오래된 것부터)
+export async function listUnpostedAiLogs(db: D1Database, limit = 20): Promise<AiLogRow[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT l.id, l.kind, l.from_id, f.display_name AS from_name, l.to_id, t.display_name AS to_name, l.text, l.verdict, l.created_at
+       FROM ai_logs l LEFT JOIN members f ON f.user_id = l.from_id LEFT JOIN members t ON t.user_id = l.to_id
+       WHERE l.posted_at IS NULL ORDER BY l.id LIMIT ?`,
+    )
+    .bind(limit)
+    .all<{ id: number; kind: string; from_id: string; from_name: string | null; to_id: string | null; to_name: string | null; text: string; verdict: string; created_at: string }>();
+  return results.map((r) => ({
+    id: r.id,
+    kind: r.kind,
+    from: { id: r.from_id, name: r.from_name ?? '알 수 없음' },
+    to: r.to_id ? { id: r.to_id, name: r.to_name ?? '알 수 없음' } : null,
+    text: r.text,
+    verdict: r.verdict,
+    created_at: r.created_at,
+  }));
+}
+
+// 봇이 채널에 올린 기록을 표시해요. 표시한 개수를 돌려줘요.
+export async function markAiLogsPosted(db: D1Database, ids: number[], nowMs: number): Promise<number> {
+  if (!ids.length) return 0;
+  const r = await db
+    .prepare('UPDATE ai_logs SET posted_at = ? WHERE posted_at IS NULL AND id IN (SELECT value FROM json_each(?))')
+    .bind(new Date(nowMs).toISOString(), JSON.stringify(ids))
+    .run();
+  return r.meta.changes ?? 0;
 }
 
 export type PraiseBoxItem = { id: number; day: string; note: string | null; hidden: boolean; unread: boolean };

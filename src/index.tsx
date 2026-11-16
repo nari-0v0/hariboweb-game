@@ -63,7 +63,7 @@ import { loadRankings } from './rankings';
 import { dogamProgress } from './unlock';
 import { RankPage, rankTab } from './views/rank';
 import { BLOCK_MAX_PENDING, BLOCK_MORE, blockCandidates, cancelBlock, decideBlock, listUnpostedBlocks, markBlockPosted, myBlocks, requestBlock } from './assign-block';
-import { checkNote, cleanNote, markPraiseSeen, praiseBox, praiseDayLabel, PRAISE_NOTE_MAX } from './praise-note';
+import { checkNote, cleanNote, listUnpostedAiLogs, logAiCheck, markAiLogsPosted, markPraiseSeen, praiseBox, praiseDayLabel, PRAISE_NOTE_MAX } from './praise-note';
 import type { BlockForm } from './views/bingo';
 import { GuidePage } from './views/guide';
 import { TitlesPage } from './views/titles';
@@ -361,6 +361,25 @@ app.post('/api/bot/assign-blocks/:id/decide', async (c) => {
   return c.json(r);
 });
 
+// AI 판단 기록: 봇이 아직 안 올린 것을 가져가 비공개 로그 채널에 올리고, 올린 번호를 알려요.
+app.get('/api/bot/ai-logs', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  return c.json({ logs: await listUnpostedAiLogs(c.env.DB) });
+});
+
+app.post('/api/bot/ai-logs/posted', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  let body: { ids?: unknown };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'bad_json' }, 400);
+  }
+  const ids = Array.isArray(body.ids) ? body.ids : null;
+  if (!ids || ids.length > 100 || !ids.every((v) => Number.isSafeInteger(v) && (v as number) > 0)) return c.json({ error: 'bad_ids' }, 400);
+  return c.json({ ok: true, changed: await markAiLogsPosted(c.env.DB, ids as number[], Date.now()) });
+});
+
 // 디스코드 고정 패널 "내 카드". 봇이 이 정보로 카드 그림과 안내를 만들어요.
 app.get('/api/bot/card/:id', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
@@ -433,6 +452,10 @@ app.post('/api/bot/praise', async (c) => {
   const asked = cleanNote(body.note) !== '';
   const check = asked && status.left > 0 && !status.given.includes(body.to) ? await checkNote(c.env.AI, body.note) : { note: null, filtered: false };
   const result = await givePraise(c.env.DB, body.from, body.to, day, check.note);
+  // AI가 본 한마디는 비공개 로그 채널용으로 남겨요(실패해도 칭찬은 끝났어요)
+  if (result.result === 'done' && check.verdict) {
+    await logAiCheck(c.env.DB, 'praise', body.from, body.to, cleanNote(body.note), check.verdict, Date.now()).catch((e) => console.error('AI 기록 실패', e));
+  }
   // 칭찬 주기·받기 빙고 칸이 채워졌으면 줄 보상을 줘요(실패해도 칭찬은 끝났어요)
   if (result.result === 'done') {
     const now = Date.now();

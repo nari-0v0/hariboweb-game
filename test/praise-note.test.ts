@@ -63,10 +63,10 @@ describe('한마디 검사', () => {
   it('AI가 비꼬기라고 하면 한마디는 빼요. 욕설은 막지 않고, AI가 없거나 실패하면 그대로 보내요', async () => {
     expect(parseNoteVerdict('{"verdict":"bad"}')).toBe('bad');
     expect(parseNoteVerdict('모르겠어요')).toBeNull();
-    expect(await checkNote(fakeAi('{"verdict":"ok"}'), '덕분에 이겼어요')).toEqual({ note: '덕분에 이겼어요', filtered: false });
-    expect(await checkNote(fakeAi('{"verdict":"bad"}'), '와 진짜 대단하시네요^^ 혼자 다 죽던데')).toEqual({ note: null, filtered: true });
-    expect(await checkNote(fakeAi(new Error('limit')), '덕분에 이겼어요')).toEqual({ note: '덕분에 이겼어요', filtered: false });
-    expect(await checkNote(undefined, '존나 잘함 ㅅㅂ')).toEqual({ note: '존나 잘함 ㅅㅂ', filtered: false });
+    expect(await checkNote(fakeAi('{"verdict":"ok"}'), '덕분에 이겼어요')).toEqual({ note: '덕분에 이겼어요', filtered: false, verdict: 'ok' });
+    expect(await checkNote(fakeAi('{"verdict":"bad"}'), '와 진짜 대단하시네요^^ 혼자 다 죽던데')).toEqual({ note: null, filtered: true, verdict: 'bad' });
+    expect(await checkNote(fakeAi(new Error('limit')), '덕분에 이겼어요')).toEqual({ note: '덕분에 이겼어요', filtered: false, verdict: 'none' });
+    expect(await checkNote(undefined, '존나 잘함 ㅅㅂ')).toEqual({ note: '존나 잘함 ㅅㅂ', filtered: false, verdict: 'none' });
     expect(await checkNote(undefined, '   ')).toEqual({ note: null, filtered: false });
   });
 });
@@ -161,6 +161,17 @@ describe('봇 칭찬 API', () => {
     // 패널은 일부만 보여 줘요. 웹에서 아직 읽지 않은 칭찬은 그대로예요.
     const again = (await (await call(env, `/api/bot/card/${C}`)).json()) as { praise_box: { unread: number } };
     expect(again.praise_box.unread).toBe(2);
+
+    // AI가 본 한마디는 원래 글 그대로 로그로 남고, 봇이 가져가 올린 뒤 표시해요
+    const logs = (await (await call(env, '/api/bot/ai-logs')).json()) as { logs: { id: number; from: { id: string }; text: string; verdict: string }[] };
+    expect(logs.logs.map((l) => [l.from.id, l.text, l.verdict])).toEqual([
+      [A, '오늘 캐리 고마워요', 'ok'],
+      [B, '잘하시네요^^', 'bad'],
+    ]);
+    const marked = await call(env, '/api/bot/ai-logs/posted', { ids: logs.logs.map((l) => l.id) });
+    expect(await marked.json()).toMatchObject({ changed: 2 });
+    expect(((await (await call(env, '/api/bot/ai-logs')).json()) as { logs: unknown[] }).logs).toHaveLength(0);
+    expect((await call(env, '/api/bot/ai-logs/posted', { ids: ['x'] })).status).toBe(400);
   });
 });
 
