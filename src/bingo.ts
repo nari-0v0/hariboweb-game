@@ -337,13 +337,16 @@ export async function loadStats(db: D1Database, week: Week, userIds: string[]): 
       .prepare(
         `SELECT from_id AS user_id, 'given' AS kind, COUNT(*) AS n FROM praises
            WHERE created_at >= ?1 AND created_at < ?2
-             AND from_id IN (SELECT value FROM json_each(?3)) GROUP BY from_id
+             AND from_id IN (SELECT value FROM json_each(?3))
+             AND created_at >= COALESCE((SELECT reset_at FROM members WHERE user_id = from_id), '') GROUP BY from_id
          UNION ALL
          SELECT to_id AS user_id, 'got' AS kind, COUNT(*) AS n FROM praises
            WHERE created_at >= ?1 AND created_at < ?2
-             AND to_id IN (SELECT value FROM json_each(?3)) GROUP BY to_id`,
+             AND to_id IN (SELECT value FROM json_each(?3))
+             AND created_at >= COALESCE((SELECT reset_at FROM members WHERE user_id = to_id), '') GROUP BY to_id`,
       )
       // 하루 한도용 day는 한마디 검사 전 날짜일 수 있어요. 판은 실제 저장 시각으로만 나눠요.
+      // 나갔다 다시 들어온 사람은 다시 들어온 뒤(reset_at 이후) 칭찬만 세요.
       // created_at은 "ISO시각#무작위"라서 문자열 비교로 시각 순서가 맞아요.
       .bind(week.start, week.end, ids)
       .all<{ user_id: string; kind: string; n: number }>(),
