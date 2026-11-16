@@ -6,6 +6,8 @@ import { describe, expect, it, vi } from 'vitest';
 import app from '../src/index';
 import { signSession } from '../src/crypto';
 import { givePraise } from '../src/db';
+import { fallbackWeek, loadStats } from '../src/bingo';
+import { loadGroups } from '../src/season';
 import { checkNote, cleanNote, hidePraiseNote, markPraiseSeen, parseNoteVerdict, praiseBox } from '../src/praise-note';
 import { applySync, parseSync } from '../src/sync';
 import type { Env } from '../src/env';
@@ -231,4 +233,30 @@ it('안 읽은 칭찬이 300개를 넘어도 읽음 처리할 칭찬을 빠짐�
   expect(html.match(/class="pr-item/g)?.length).toBe(301);
   expect(html).toContain('칭찬번호300끝'); // 가장 오래된 것도 보여 준 뒤 읽음으로 바뀌어요.
   expect((await praiseBox(db, A)).unread).toBe(0);
+});
+
+it('칭찬 한마디 검사 중 자정을 넘어도 빙고·시즌 통계에서 칭찬이 빠지지 않아요', async () => {
+  const { db, sql } = fakeD1();
+  const before = Date.parse('2026-11-08T14:59:59.000Z'); // 한국 일요일 23:59:59
+  const after = Date.parse('2026-11-08T15:00:01.000Z'); // 한국 월요일 00:00:01
+  sql.prepare("INSERT INTO seasons (id, starts_at, ends_at, created_at) VALUES ('2026-11-09', '2026-11-08T15:00:00.000Z', '2026-11-22T15:00:00.000Z', 'x')").run();
+  for (const id of [A, C]) sql.prepare("INSERT INTO season_members (season_id, user_id, group_no, start_member, joined_at) VALUES ('2026-11-09', ?, 0, 1, 'x')").run(id);
+  vi.useFakeTimers();
+  try {
+    vi.setSystemTime(before);
+    const ai = { run: async () => { vi.setSystemTime(after); return { response: '{"verdict":"ok"}' }; } } as unknown as Ai;
+    const env = { DB: db, BOT_SYNC_SECRET: 's', AI: ai } as unknown as Env;
+    const res = await app.request('/api/bot/praise', {
+      method: 'POST', headers: { Authorization: 'Bearer s', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: A, to: C, note: '오늘 고마워요' }),
+    }, env);
+    expect(await res.json()).toMatchObject({ result: 'done', note: 'sent' });
+    // 하루 한도는 요청을 시작한 날짜, 빙고·시즌은 실제로 저장된 시각 기준이에요.
+    expect(sql.prepare('SELECT day FROM praises').get()).toEqual({ day: '2026-11-08' });
+    const old = await loadStats(db, fallbackWeek(before), [A, C]);
+    const current = await loadStats(db, fallbackWeek(after), [A, C]);
+    expect([old.get(A)!.praiseGiven, old.get(C)!.praiseGot]).toEqual([0, 0]);
+    expect([current.get(A)!.praiseGiven, current.get(C)!.praiseGot]).toEqual([1, 1]);
+    expect((await loadGroups(db, '2026-11-09'))!.groups[0]!.ctx.praises).toEqual([{ from: A, to: C, day: '2026-11-08', toNewbie: false }]);
+  } finally { vi.useRealTimers(); }
 });

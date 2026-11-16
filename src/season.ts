@@ -634,7 +634,6 @@ export async function loadGroups(
   const season: Season = { id: s.id, start: s.starts_at, end: s.ends_at };
   const q = <T>(sql: string, ...args: unknown[]): Rows<T> => db.prepare(sql).bind(seasonId, groupNo, ...args).all<T>();
   const G = '(?2 IS NULL OR group_no = ?2)';
-  const endDay = kstParts(new Date(Date.parse(season.end) - 1).toISOString()).day;
   const [members, quests, voice, memberDay, pairs, rooms, runs, scrims, newbie, attend, praises, cards, newOwners, snaps] = await Promise.all([
     q<{ user_id: string; group_no: number; start_member: number; left_at: string | null; display_name: string | null; last_login_at: string | null; solo_xp: number | null; is_newbie: number | null }>(
       `SELECT s.user_id, s.group_no, s.start_member, s.left_at, m.display_name, m.last_login_at, p.solo_xp, m.is_newbie
@@ -658,9 +657,8 @@ export async function loadGroups(
        JOIN season_members a ON a.season_id = ?1 AND a.user_id = r.from_id AND a.left_at IS NULL
        JOIN season_members b ON b.season_id = ?1 AND b.user_id = r.to_id AND b.group_no = a.group_no AND b.left_at IS NULL
        LEFT JOIN members m ON m.user_id = r.to_id
-       WHERE r.day >= ?1 AND r.day <= ?3 AND r.created_at >= ?4 AND r.created_at < ?5 AND (?2 IS NULL OR a.group_no = ?2)`,
-      // 날짜로 먼저 좁히고(색인), 칭찬한 시각으로 시즌 기간 [시작, 끝) 안에 든 것만 세요(시즌이 하루 중간에 시작·끝나도 맞게).
-      endDay,
+       WHERE r.created_at >= ?3 AND r.created_at < ?4 AND (?2 IS NULL OR a.group_no = ?2)`,
+      // 한마디 검사 중 자정을 넘으면 한도용 day와 저장 날짜가 달라져요. 시즌은 저장 시각으로만 나눠요.
       season.start,
       season.end,
     ),
