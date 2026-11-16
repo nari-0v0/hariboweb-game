@@ -38,8 +38,8 @@ const {
   visible,
   coinSpots,
 } = await import("../work/playtest-cases.mjs?" + Date.now());
-// PLAYTEST_ONLY=cases,journey,gamble limits a run to some parts (default: everything).
-const ONLY = (process.env.PLAYTEST_ONLY || "cases,journey,gamble").split(",");
+// PLAYTEST_ONLY=cases,journey,gamble,site limits a run to some parts (default: everything).
+const ONLY = (process.env.PLAYTEST_ONLY || "cases,journey,gamble,site").split(",");
 const only = (part) => ONLY.includes(part);
 await build({
   entryPoints: ["src/journey-chapters.ts"],
@@ -274,6 +274,9 @@ try {
       for (const e of document.querySelectorAll(
         ".jr-game button, .panel button, .jr-game a.btn, .panel a.btn",
       )) {
+        // Inside a folded <details> the row is not drawn even though it has a size.
+        const fold = e.closest("details:not([open])");
+        if (fold && !e.closest("summary")) continue;
         if (
           !e.getBoundingClientRect().width ||
           e.disabled ||
@@ -310,7 +313,7 @@ try {
     });
     for (const b of blocked) issue("occluded", { tag, ...b });
     if (capture)
-      await page.screenshot({ path: `${dir}/${tag}.png`, fullPage: true });
+      await page.screenshot({ path: `${dir}/${tag}.png`, fullPage: true, timeout: 30000 });
   }
   async function ui(u, v) {
     const box = page.locator(".esc-ui");
@@ -488,6 +491,11 @@ try {
       await page.getByRole("button", { name: "네, 이걸로 할게요" }).click();
     }
     console.log(`Authenticated; ${ESCAPE_CASES.length} cases`);
+    // Robot-only dogam jelly so every shop item and title can be bought (profile exists after login).
+    if (ownedServer)
+      await ownedServer.sql(
+        `UPDATE profiles SET dogam_jelly = 1000000 WHERE user_id = '${userId}';`,
+      );
     for (const c of only("cases") ? ESCAPE_CASES : []) {
       const result = { id: c.id, title: c.title, completed: false, steps: 0 };
       report.cases.push(result);
@@ -743,6 +751,158 @@ try {
         console.log("FAIL gamble", game, e.message.slice(0, 180));
       }
     }
+
+    // Every other member page: open it on desktop and phone, then use what a member can use.
+    report.site = [];
+    const fake0 = `pt-${userId}-0`;
+    const PAGES = [
+      "/", "/guide", "/me", "/me/praise", "/dogam", `/dogam/${fake0}`, `/card/${fake0}`,
+      `/card/${userId}`, "/group", "/bingo", "/rank", "/shop", "/shop/deco", "/shop/gender",
+      "/titles", "/gamble", "/expedition/go", "/cases/room?list=1", "/plaza",
+    ];
+    // A notice popup is a deliberate modal: close it like a player before checking what is under it.
+    async function closePopup() {
+      const ok = page.locator('.popup-wrap label[for="popup-close"]');
+      if (await ok.isVisible().catch(() => false)) await click(ok);
+    }
+    const look = async (tag, capture) => {
+      await closePopup();
+      await inspect(tag, capture);
+    };
+    // Submit a form button and wait for the page that answers it.
+    async function submit(loc) {
+      await Promise.all([page.waitForNavigation({ waitUntil: "load" }), click(loc)]);
+    }
+    async function step(name, run) {
+      const s = { name, ok: false };
+      report.site.push(s);
+      where = `site/${name}`;
+      try {
+        await run();
+        s.ok = true;
+        console.log(`SITE ${name} OK`);
+      } catch (e) {
+        s.error = e.message;
+        issue("failure", `Site ${name}: ${e.message}`.slice(0, 300));
+        await page.screenshot({ path: `${dir}/site-${name.replace(/[^a-z0-9]+/gi, "-")}-failure.png`, fullPage: true });
+        console.log("FAIL site", name, e.message.slice(0, 180));
+      }
+      await page.setViewportSize({ width: 1280, height: 900 });
+    }
+    const shot = (path) => path.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "home";
+    for (const path of only("site") ? PAGES : []) {
+      await step(`page ${path}`, async () => {
+        const r = await page.goto(new URL(path, base).href);
+        assert(r && r.status() < 400, `HTTP ${r?.status()}`);
+        await look(`site-${shot(path)}`, true);
+        await page.setViewportSize({ width: 390, height: 844 });
+        await look(`site-${shot(path)}-390`, true);
+      });
+    }
+    if (only("site")) {
+      await step("profile intro + theme", async () => {
+        await page.goto(new URL("/me", base).href);
+        const f = page.locator('form[action="/api/me/profile"]');
+        await f.locator("input[name=intro]").fill("로봇이 시험 중이에요");
+        await submit(f.locator("button[type=submit]").last());
+        await closePopup();
+        assert.equal(await page.locator('form[action="/api/me/profile"] input[name=intro]').inputValue(), "로봇이 시험 중이에요");
+        await look("site-me-saved", true);
+      });
+      // Buy every item that is on sale, then use each one (themes, decorations).
+      for (const tab of ["/shop", "/shop/deco"]) {
+        await step(`buy all ${tab}`, async () => {
+          let bought = 0;
+          for (let n = 0; n < 200; n++) {
+            await page.goto(new URL(tab, base).href);
+            await closePopup();
+            const buy = page.locator('form[action="/api/shop/buy"] button').first();
+            if (!(await buy.count())) break;
+            await submit(buy);
+            bought++;
+            await look(`site-${shot(tab)}-buy-${n}`, n < 2);
+          }
+          console.log(`SITE ${tab} bought ${bought}`);
+          await page.goto(new URL(tab, base).href);
+          await closePopup();
+          assert.equal(await page.locator('form[action="/api/shop/buy"]').count(), 0, "items left unbought");
+          // Use every owned theme/decoration once, by its id (the list is read before any change).
+          const uses = await page
+            .locator('form[action="/api/me/theme"], form[action="/api/me/deco"]')
+            .evaluateAll((fs) =>
+              fs.map((f) => {
+                const i = f.querySelector("input[type=hidden]");
+                return { action: f.getAttribute("action"), name: i.name, value: i.value };
+              }),
+            );
+          let used = 0;
+          for (const u of uses) {
+            await page.goto(new URL(tab, base).href);
+            await closePopup();
+            const use = page
+              .locator(`form[action="${u.action}"]:has(input[name="${u.name}"][value="${u.value}"]) button`)
+              .first();
+            if (!(await use.count())) continue; // already in use (no button)
+            await submit(use);
+            await look(`site-${shot(tab)}-use-${used}`, used < 2);
+            used++;
+          }
+          console.log(`SITE ${tab} used ${used}/${uses.length}`);
+        });
+      }
+      await step("buy services + nickname", async () => {
+        for (let n = 0; n < 20; n++) {
+          await page.goto(new URL("/shop", base).href);
+          await closePopup();
+          const buy = page.locator('form[action="/api/shop/service"] button').first();
+          if (!(await buy.count())) break;
+          await submit(buy);
+          await look(`site-shop-service-${n}`, n < 3);
+        }
+        await page.goto(new URL("/shop", base).href);
+        await closePopup();
+        const nick = page.locator('form[action="/api/shop/nick"]');
+        if (await nick.count()) {
+          await nick.locator("input[name=front]").fill("로봇");
+          await submit(nick.locator("button"));
+          await look("site-shop-nick", true);
+        }
+      });
+      await step("titles buy + equip", async () => {
+        // 550+ titles: buy one from every folded group (each group is its own price/kind).
+        const groups = await page.goto(new URL("/titles", base).href).then(() =>
+          page.locator("details:has(form[action='/api/titles/buy'])").count());
+        for (let g = 0, n = 0; g < groups; g++) {
+          await page.goto(new URL("/titles", base).href);
+          await closePopup();
+          const grp = page.locator("details:has(form[action='/api/titles/buy'])").nth(g);
+          if (!(await grp.count())) break;
+          if (!(await grp.evaluate((d) => d.open))) await click(grp.locator(":scope > summary"));
+          const buy = grp.locator("form[action='/api/titles/buy'] button:not([disabled])").first();
+          if (!(await buy.count())) continue;
+          await submit(buy);
+          await look(`site-titles-buy-${n++}`, g < 2);
+        }
+        await page.goto(new URL("/titles", base).href);
+        await closePopup();
+        const equip = page.locator('form[action="/api/titles/equip"] button:not([disabled])').first();
+        assert(await equip.count(), "no title to equip");
+        const fold = equip.locator("xpath=ancestor::details[1]");
+        if ((await fold.count()) && !(await fold.evaluate((d) => d.open)))
+          await click(fold.locator(":scope > summary"));
+        await submit(equip);
+        await closePopup();
+        await look("site-titles-equipped", true);
+        await page.setViewportSize({ width: 390, height: 844 });
+        await look("site-titles-equipped-390", true);
+      });
+      await step("my card after shopping", async () => {
+        await page.goto(new URL(`/card/${userId}`, base).href);
+        await look("site-my-card-final", true);
+        await page.setViewportSize({ width: 390, height: 844 });
+        await look("site-my-card-final-390", true);
+      });
+    }
   } catch (e) {
     issue("fatal", e.message);
     console.error(e);
@@ -759,13 +919,14 @@ try {
     ];
     await writeFile(
       `${dir}/playtest-report.md`,
-      `# UI 플레이테스트 (${label})\n\n- 로그인: /auth/dev, 실제 브라우저 세션\n- 사건: ${report.cases.filter((c) => c.completed).length}/${ESCAPE_CASES.length} 완료, 잠김 ${report.cases.filter((c) => c.locked).length}개 (현재 저장소 ${ESCAPE_CASES.length}개 모두 대상)\n- 원정대: ${(report.expedition?.chapters ?? []).filter((r) => r.cleared).length}/${CHAPTER_COUNT}장 깸 (${(report.expedition?.chapters ?? []).map((r) => `${r.ch}장 ${r.cleared ? "✓" : "✗"}${r.tries > 1 ? `(${r.tries}번)` : ""}`).join(", ")})\n- 겜블장: ${(report.gamble ?? []).map((g) => `${g.game} ${g.played ? "✓" : "✗"}`).join(", ") || "안 함"}\n- 단계 검사: ${report.checks}\n- 시각: ${report.started} ~ ${report.finished}\n- 화면: 1280×900, 장면별 390×844\n- 캡처: ${dir}\n\n## 사건별 결과\n\n${report.cases.map((c) => `- ${c.id}: ${c.completed ? "완료" : c.locked ? "잠김(새 계정)" : "실패"} (${c.steps} steps) ${c.error || ""}`).join("\n")}\n\n## 재현 위치 및 문제\n\n${unique.map((i) => `- ${i.where}: **${i.kind}** ${typeof i.detail === "string" ? i.detail : JSON.stringify(i.detail)}`).join("\n") || "없음"}\n\n## 검사 한계\n\n대비 검사는 계산된 단색 배경과 텍스트의 WCAG AA 비율입니다. 이미지 배경·그림 안 글자, 스크린리더와 실제 터치 기기는 검증하지 않습니다. 의도된 돋보기는 닫기 UI로 닫고 가림을 검사합니다. 가림은 버튼 여러 지점의 elementFromPoint와 실제 풀이 클릭으로 검사하며 force를 사용하지 않습니다.\n`,
+      `# UI 플레이테스트 (${label})\n\n- 로그인: /auth/dev, 실제 브라우저 세션\n- 사건: ${report.cases.filter((c) => c.completed).length}/${ESCAPE_CASES.length} 완료, 잠김 ${report.cases.filter((c) => c.locked).length}개 (현재 저장소 ${ESCAPE_CASES.length}개 모두 대상)\n- 원정대: ${(report.expedition?.chapters ?? []).filter((r) => r.cleared).length}/${CHAPTER_COUNT}장 깸 (${(report.expedition?.chapters ?? []).map((r) => `${r.ch}장 ${r.cleared ? "✓" : "✗"}${r.tries > 1 ? `(${r.tries}번)` : ""}`).join(", ")})\n- 겜블장: ${(report.gamble ?? []).map((g) => `${g.game} ${g.played ? "✓" : "✗"}`).join(", ") || "안 함"}\n- 나머지 화면·기능: ${(report.site ?? []).filter((s) => s.ok).length}/${(report.site ?? []).length} 통과${(report.site ?? []).filter((s) => !s.ok).map((s) => ` / ✗ ${s.name}`).join("")}\n- 단계 검사: ${report.checks}\n- 시각: ${report.started} ~ ${report.finished}\n- 화면: 1280×900, 장면별 390×844\n- 캡처: ${dir}\n\n## 사건별 결과\n\n${report.cases.map((c) => `- ${c.id}: ${c.completed ? "완료" : c.locked ? "잠김(새 계정)" : "실패"} (${c.steps} steps) ${c.error || ""}`).join("\n")}\n\n## 재현 위치 및 문제\n\n${unique.map((i) => `- ${i.where}: **${i.kind}** ${typeof i.detail === "string" ? i.detail : JSON.stringify(i.detail)}`).join("\n") || "없음"}\n\n## 검사 한계\n\n대비 검사는 계산된 단색 배경과 텍스트의 WCAG AA 비율입니다. 이미지 배경·그림 안 글자, 스크린리더와 실제 터치 기기는 검증하지 않습니다. 의도된 돋보기는 닫기 UI로 닫고 가림을 검사합니다. 가림은 버튼 여러 지점의 elementFromPoint와 실제 풀이 클릭으로 검사하며 force를 사용하지 않습니다.\n`,
     );
     await writeSummary(report);
     console.log("Report", dir);
     if (
       report.cases.some((c) => !c.completed && !c.locked) ||
       (report.gamble ?? []).some((g) => !g.played) ||
+      (report.site ?? []).some((s) => !s.ok) ||
       !report.expedition?.completed ||
       report.issues.length
     )
