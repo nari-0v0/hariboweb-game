@@ -1,0 +1,137 @@
+import type { Member } from '../env';
+import { KIDNAP_MIN, TEAM_GOAL_MIN, TEAM_PRIOR_MAX } from '../team';
+import { PRAISE_PER_DAY } from '../db';
+import { LEVEL_STEP } from '../sync';
+import { GAMBLE_LOCKED } from '../gamble';
+import { Layout } from './layout';
+
+// 사용설명서: 나리가 다듬은 글(2026-11-16). 항목을 누르면 펼쳐져요. 숫자는 코드 값을 그대로 보여 줘요.
+export function GuidePage(props: { viewer: Member | null }) {
+  return (
+    <Layout title="사용설명서" viewer={props.viewer} active="guide">
+      <section class="panel guide">
+        <h1>💗 하리보 멤버 도감</h1>
+        <p class="guide-lead">
+          <b>함께 놀고, 카드를 모으고, 다양한 콘텐츠를 즐겨보세요!</b>
+        </p>
+        <p>별도의 신청이나 인증 없이 평소처럼 활동하면 경험치와 보상이 자동으로 쌓여요.</p>
+        <p class="guide-note">궁금한 항목을 눌러 사용 방법을 확인해 보세요.</p>
+
+        <div class="guide-acc">
+          <details>
+            <summary>🃏 멤버 카드와 도감</summary>
+            <ul>
+              <li>함께 통화하거나 내전을 하면 서로의 카드가 성장해요.</li>
+              <li>출석, 빙고 등 개인 활동으로도 내 카드가 성장해요.</li>
+              <li>함께 활동한 멤버의 카드를 도감에 수집할 수 있어요.</li>
+              <li>최대 100레벨까지 성장하며, {LEVEL_STEP}레벨마다 카드 색상이 바뀌어요.</li>
+            </ul>
+            <h3>성장 단계</h3>
+            <p class="guide-steps">첫 만남 → 친구 → 절친 → 단짝 → 평생 단짝</p>
+          </details>
+
+          <details>
+            <summary>🍬 도감 젤리와 상점</summary>
+            <p>출석, 통화, 칭찬, 빙고, 퀘스트 등으로 도감 젤리를 모을 수 있어요.</p>
+            <h3>상점에서 할 수 있는 것</h3>
+            <ul>
+              <li>카드 테마와 캐릭터 꾸미기</li>
+              <li>특별한 칭호 획득 및 착용</li>
+              <li>벌점·경고 지우기, 닉네임 변경 등</li>
+            </ul>
+            <p>판타지 캐릭터는 젤리로 구매할 수 없으며, 도감 수집량에 따라 해금돼요.</p>
+          </details>
+
+          <details>
+            <summary>💛 칭찬하기</summary>
+            <p>오늘 함께 통화하거나 내전을 한 멤버에게 익명으로 칭찬을 보낼 수 있어요.</p>
+            <ul>
+              <li>하루 최대 {PRAISE_PER_DAY}번, 같은 멤버에게는 1번</li>
+              <li>100자 이내의 메시지를 함께 보낼 수 있어요.</li>
+              <li>부적절한 메시지는 제외하고 칭찬만 전달돼요.</li>
+              <li>
+                받은 칭찬은 내 카드의 <a href="/me/praise">칭찬함</a>에서 확인할 수 있어요.
+              </li>
+            </ul>
+          </details>
+
+          <details>
+            <summary>🎯 하리보 빙고</summary>
+            <p>평소 활동으로 자동 완성되는 3×3 빙고예요.</p>
+            <p>생명력 주기(2주)마다 두 번 진행되며, 줄을 완성하면 젤리와 카드 경험치를 받아요.</p>
+            <h3>🟢 서버 퀘스트</h3>
+            <p>
+              <b>초록하리보 납치 대소동!</b>
+            </p>
+            <p>초록하리보와 같은 통화방에서 {KIDNAP_MIN}분 함께하면 납치 성공!</p>
+            <p>서버 전체 목표를 달성하면 시즌 종료 시 참여자에게 보상이 지급돼요.</p>
+            <h3>🤝 팀 퀘스트</h3>
+            <p>활동 게임과 시간대가 비슷한 멤버끼리 약 10명씩 자동으로 팀이 구성돼요.</p>
+            <p>
+              지난 2주간 통화 시간이 {TEAM_PRIOR_MAX}분 미만인 팀원과 {TEAM_GOAL_MIN}분 함께 통화하면 개인 목표 달성!
+            </p>
+            <p>팀원들이 목표 인원을 채우면 팀 퀘스트가 완료돼요.</p>
+            <h3>같이 배정되지 않기</h3>
+            <ul>
+              <li>함께 배정되고 싶지 않은 멤버 최대 3명 등록</li>
+              <li>AI가 사유를 검토하고 부적절한 사유는 자동 반려</li>
+              <li>상대방에게 알림 없이 언제든 등록·해제 가능</li>
+            </ul>
+          </details>
+
+          <details>
+            <summary>🧭 원정대와 사건파일</summary>
+            <h3>⚔️ 원정대</h3>
+            <p>캐릭터가 자동으로 이동하고 전투하는 RPG예요.</p>
+            <ul>
+              <li>전투와 레벨업으로 캐릭터 성장</li>
+              <li>스킬 선택, 장비 강화, 훈련 가능</li>
+              <li>대장을 처치하면 다음 장 해금</li>
+              <li>최초 최종 클리어 시 특별 보상 지급</li>
+            </ul>
+            <h3>🔎 사건파일</h3>
+            <p>방 안의 물건을 조사하고 단서를 모아 사건의 진실을 밝혀보세요.</p>
+            <ul>
+              <li>열쇠, 비밀번호, 수수께끼 해결</li>
+              <li>최초 해결 시 카드 경험치 획득</li>
+              <li>S·A 등급 최초 달성 시 젤리 지급</li>
+            </ul>
+            <h3>🔓 콘텐츠 해금</h3>
+            <p>원정대 1~3장과 사건파일 5개는 바로 이용할 수 있어요.</p>
+            <p>이후 콘텐츠는 도감 수집량과 카드 레벨에 따라 해금돼요.</p>
+          </details>
+
+          <details>
+            <summary>🎰 겜블장</summary>
+            {/* 잠겨 있는 동안은 잠김 한 줄만. GAMBLE_LOCKED를 끄면(나리: 11월 21일 개방) 아래 설명이 보여요. */}
+            {GAMBLE_LOCKED ? (
+              <p>
+                <b>🔒 현재 잠금 상태 · 추후 개방 예정</b>
+              </p>
+            ) : (
+              <>
+                <p>슬롯, 룰렛, 카드 21, 동전 던지기를 즐길 수 있는 공간이에요.</p>
+                <p>도감 젤리와 별개인 전용 젤칩을 사용하며, 매일 기본 젤칩이 지급돼요.</p>
+              </>
+            )}
+          </details>
+
+          <details>
+            <summary>📌 디스코드 고정 패널</summary>
+            <p>고정 패널에서 주요 기능을 바로 이용할 수 있어요.</p>
+            <p class="guide-steps">내 카드 · 칭찬하기 · 우리 팀 · 팀 순위 · 이번 주 빙고</p>
+            <ul>
+              <li>버튼을 누르면 나에게만 보이는 화면으로 열려요.</li>
+              <li>개인 DM 알림은 없어요.</li>
+              <li>카드가 {LEVEL_STEP}레벨 단위로 성장하면 축하 채널에 메시지가 올라와요.</li>
+            </ul>
+          </details>
+        </div>
+
+        <p class="guide-end">
+          <b>💗 평소처럼 함께 놀다 보면 도감도 자연스럽게 채워져요!</b>
+        </p>
+      </section>
+    </Layout>
+  );
+}
