@@ -52,7 +52,7 @@ export async function praiseBox(db: D1Database, userId: string, limit = 20, allU
     .bind(userId, since)
     .first<{ total: number; unread: number | null }>();
   // 안 읽은 칭찬은 한꺼번에 읽음이 되니, 안 읽은 게 많으면 그만큼 다 보여 줘요(못 본 채 읽음이 되지 않게).
-  const show = allUnread ? Math.min(Math.max(limit, Number(counts?.unread ?? 0)), 300) : limit;
+  const show = allUnread ? Math.max(limit, Number(counts?.unread ?? 0)) : limit;
   const rows = await db
     .prepare(`SELECT rowid AS id, day, note, note_hidden, created_at FROM praises WHERE to_id = ?1 AND ${fresh} ORDER BY created_at DESC LIMIT ?2`)
     .bind(userId, show)
