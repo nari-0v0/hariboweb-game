@@ -131,11 +131,6 @@ export function GuidePage(props: { viewer: Member | null }) {
         <p class="guide-end">
           <b>💗 평소처럼 함께 놀다 보면 도감도 자연스럽게 채워져요!</b>
         </p>
-        {!props.viewer && (
-          <p>
-            <a class="btn btn-discord" href="/auth/login">디스코드로 시작하기</a>
-          </p>
-        )}
       </section>
     </Layout>
   );
