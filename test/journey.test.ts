@@ -240,6 +240,15 @@ describe('journey battle motion', () => {
         const plan = fightPlan(next.fx);
         expect(plan.pops.length).toBe(next.fx.hits.length + (next.fx.spark ? 1 : 0));
         expect(plan.ms).toBeGreaterThan(1000);
+        // 몬스터 체력 막대: 처음 체력이 있고, 이기면 0, 줄어드는 칸은 점점 짧아져요
+        expect(next.fx.mhp).toBeGreaterThan(0);
+        expect(next.fx.left).toHaveLength(next.fx.hits.length);
+        expect(plan.foeHp!.max).toBe(next.fx.mhp);
+        if (next.fx.won) expect(plan.foeHp!.now).toBe(0);
+        else expect(plan.foeHp!.now).toBeGreaterThan(0);
+        const pcts = plan.foeHp!.drops.map((d) => d.pct);
+        expect(pcts).toEqual([...pcts].sort((x, y) => y - x));
+        if (next.fx.won) expect(pcts.at(-1)).toBe(0);
       }
       s = next;
     }
@@ -247,6 +256,8 @@ describe('journey battle motion', () => {
     // 싸움 뒤 스킬을 고르면 지난 싸움은 다시 보여 주지 않아요
     const fought = { ...startJourney('x'), fx: { foe: 'slime', won: true, hits: [[0, 5]] as [0, number][] }, pending: { kind: 'skill' as const, options: ['power' as const] } };
     expect(actJourney(fought, { a: 'pick', n: 0 })!.fx).toBeUndefined();
+    // 예전에 저장된 싸움(몬스터 체력 기록 없음)은 막대 없이 그대로 보여요
+    expect(fightPlan(fought.fx).foeHp).toBeNull();
   });
 });
 
