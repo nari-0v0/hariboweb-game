@@ -2213,6 +2213,7 @@ main.wide { max-width: 1320px; }
 
 /* 원정대 출발 준비물 */
 .jr-farm { font-size: .7rem; font-weight: 700; color: var(--ink-soft); }
+.jr-game .jr-farm { color: var(--yellow); } /* 어두운 장 카드 위에서도 읽히게 */
 .jr-kit { display: grid; gap: 8px; margin: 0; padding: 10px; border: 3px solid var(--ink); background: #fbfdff; color: var(--ink); min-width: 0; }
 .jr-kit legend { padding: 2px 8px; border: 3px solid var(--ink); background: #ffe58a; color: var(--ink); font-weight: 700; }
 .jr-kit .hint { color: var(--ink-soft); }

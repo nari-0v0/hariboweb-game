@@ -662,18 +662,25 @@ try {
             .first()
             .inputValue()
             .catch(() => null);
-          if (now !== rev) {
+          // null = the page is between screens (e.g. switching to the result); just wait.
+          if (now !== null && now !== rev) {
             rev = now;
             where = `expedition/ch${ch}/rev-${now}`;
             // Auto mode deliberately locks manual choices. Pause it through the UI
             // so every meaningful button is audited while active; all progression
             // is still performed by the app's automatic mode after resuming.
-            await page.locator("[data-auto-toggle] input").uncheck();
-            await inspect(`expedition-ch${ch}-${scene++}`, true);
-            await page.setViewportSize({ width: 390, height: 844 });
-            await inspect(`expedition-ch${ch}-${scene}-390`, true);
-            await page.setViewportSize({ width: 1280, height: 900 });
-            await page.locator("[data-auto-toggle] input").check();
+            try {
+              await page.locator("[data-auto-toggle] input").uncheck();
+              await inspect(`expedition-ch${ch}-${scene++}`, true);
+              await page.setViewportSize({ width: 390, height: 844 });
+              await inspect(`expedition-ch${ch}-${scene}-390`, true);
+              await page.setViewportSize({ width: 1280, height: 900 });
+              await page.locator("[data-auto-toggle] input").check();
+            } catch (e) {
+              // The run can end while we pause it; only the result screen excuses a missing toggle.
+              await page.setViewportSize({ width: 1280, height: 900 });
+              if (!(await page.locator(".jr-result").count())) throw e;
+            }
           }
           await page.waitForTimeout(700);
         }
