@@ -62,7 +62,7 @@ import { KIDNAP_MIN, SERVER_JELLY, TEAM_GOAL_MIN, TEAM_JELLY, TEAM_PRIOR_MAX, bi
 import { loadRankings } from './rankings';
 import { dogamProgress } from './unlock';
 import { RankPage, rankTab } from './views/rank';
-import { BLOCK_MAX_PENDING, BLOCK_MORE, blockCandidates, cancelBlock, decideBlock, listUnpostedBlocks, markBlockPosted, myBlocks, requestBlock } from './assign-block';
+import { BLOCK_MAX_PENDING, BLOCK_MORE, blockCandidates, cancelBlock, decideBlock, flipBlock, listUnpostedBlocks, markBlockPosted, myBlocks, requestBlock } from './assign-block';
 import { checkNote, cleanNote, listUnpostedAiLogs, logAiCheck, markAiLogsPosted, markPraiseSeen, praiseBox, praiseDayLabel, PRAISE_NOTE_MAX } from './praise-note';
 import type { BlockForm } from './views/bingo';
 import { GuidePage } from './views/guide';
@@ -355,8 +355,11 @@ app.post('/api/bot/assign-blocks/:id/decide', async (c) => {
     return c.json({ error: 'bad_json' }, 400);
   }
   if (!Number.isSafeInteger(id) || !isDiscordId(body.by)) return c.json({ error: 'bad_id' }, 400);
-  if (body.decision !== 'approve' && body.decision !== 'reject') return c.json({ error: 'bad_decision' }, 400);
-  const r = await decideBlock(c.env.DB, id, body.decision === 'approve' ? 'approved' : 'rejected', body.by, Date.now());
+  if (body.decision !== 'approve' && body.decision !== 'reject' && body.decision !== 'flip') return c.json({ error: 'bad_decision' }, 400);
+  const r =
+    body.decision === 'flip'
+      ? await flipBlock(c.env.DB, id, body.by, Date.now())
+      : await decideBlock(c.env.DB, id, body.decision === 'approve' ? 'approved' : 'rejected', body.by, Date.now());
   if (!r) return c.json({ error: 'not_found' }, 404);
   return c.json(r);
 });
