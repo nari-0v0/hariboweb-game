@@ -278,7 +278,9 @@ addEventListener('pageshow', (e) => {
         opt.hidden = !show;
         if (show && !first) first = opt;
       }
-      if (first && (select.selectedIndex < 0 || select.options[select.selectedIndex].hidden)) first.selected = true;
+      // 맞는 멤버가 없으면 이전 선택도 지워요. 안 보이는 사람이 신청되지 않게요(select의 required가 제출을 막아요).
+      if (!first) select.selectedIndex = -1;
+      else if (select.selectedIndex < 0 || select.options[select.selectedIndex].hidden) first.selected = true;
     });
   });
 })();

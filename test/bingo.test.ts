@@ -162,6 +162,14 @@ describe('나갔다 다시 들어오기', () => {
     expect(stats).toMatchObject({ voice: 0, attendDays: 0, praiseGiven: 0, panel: 0 });
     // 함께 논 상대의 기록은 그대로예요
     expect((sql.prepare('SELECT minutes FROM bingo_day WHERE user_id = ?').get(B) as { minutes: number }).minutes).toBe(1);
+    // 나가기 전 짝 통화는 다시 들어온 사람의 빙고에 세지 않아요(상대 쪽엔 그대로)
+    expect(stats).toMatchObject({ partners: 0, bestPair: 0 });
+    expect((await loadStats(db, week, [B])).get(B)!.bestPair).toBe(1);
+    // 다시 들어온 뒤 함께한 통화는 세요
+    const again = parseSync({ batch_id: `${t(4)}-again`, members: [A, B].map((id) => ({ id, name: id })), room_minutes: [{ at: t(4), room: ROOM, members: [A, B] }] });
+    if (!again.ok) throw new Error(again.error);
+    await applySync(db, again.value, NOW + 5 * 60_000);
+    expect((await loadStats(db, week, [A])).get(A)!.bestPair).toBe(1);
   });
 });
 
@@ -309,6 +317,9 @@ describe('빙고 기간 = 생명력 주기의 절반', () => {
       { id: '2026-11-10', start: '2026-11-09T21:00:00.000Z', end: '2026-11-16T21:00:00.000Z' },
     ]);
     expect(periodFor(Date.parse('2026-11-10T00:00:00Z'), halves).id).toBe('2026-11-10');
+    // 주기가 하루면 같은 날에 절반 둘이 생겨요. 시작 시각으로 나눠요.
+    const short = splitCycle('2026-11-15T15:00:00.000Z', '2026-11-16T15:00:00.000Z');
+    expect(short.map((h) => h.id)).toEqual(['2026-11-16-00', '2026-11-16-12']);
     // 주기를 모르면 월요일 기준 주
     expect(periodFor(NOW, []).id).toBe('w2026-11-02');
 

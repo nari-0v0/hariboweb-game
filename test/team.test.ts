@@ -4,11 +4,12 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 import { seededRandom } from '../src/quests';
-import { type Person, ensurePairs, planGroups } from '../src/season';
+import { type Person, ensurePairs, planGroups, seasonFrom } from '../src/season';
 import { applySync, parseSync } from '../src/sync';
 import {
   type Prior,
   bingoExtras,
+  loadPrior,
   canPair,
   jellypiRanking,
   kidnapTarget,
@@ -320,5 +321,19 @@ describe('패널 팀 순위', () => {
       [0, 3, 1, 4],
       [1, 4, 0, 0],
     ]);
+  });
+});
+
+describe('팀 짝 고르기: 시즌 시작 전 2주', () => {
+  it('2주 경계에 걸친 빙고 기간은 2주 안에 든 만큼만 세요', async () => {
+    const { sql, db } = fakeD1([A, B]);
+    // 21일 시즌의 절반(10.5일)짜리 기간 둘. 다음 시즌 시작 2주 전은 앞 기간 한가운데쯤이에요.
+    sql.prepare('INSERT INTO bingo_periods (id, starts_at, ends_at) VALUES (?, ?, ?)').run('p1', '2026-10-12T15:00:00.000Z', '2026-10-23T03:00:00.000Z');
+    sql.prepare('INSERT INTO bingo_periods (id, starts_at, ends_at) VALUES (?, ?, ?)').run('p2', '2026-10-23T03:00:00.000Z', '2026-11-02T15:00:00.000Z');
+    sql.prepare('INSERT INTO bingo_pair (week, a, b, minutes) VALUES (?, ?, ?, ?)').run('p1', A, B, 105);
+    sql.prepare('INSERT INTO bingo_pair (week, a, b, minutes) VALUES (?, ?, ?, ?)').run('p2', A, B, 0);
+    const prior = await loadPrior(db, seasonFrom(START, END));
+    // 앞 기간 10.5일 중 2주 안에 든 건 3.5일 → 105분의 1/3
+    expect(prior.minutes.get(`${A}|${B}`)).toBe(35);
   });
 });

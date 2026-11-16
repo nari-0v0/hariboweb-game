@@ -65,12 +65,19 @@ export async function loadPrior(db: D1Database, season: Season): Promise<Prior> 
       .prepare('SELECT DISTINCT user_id FROM member_voice_day WHERE day >= ?1 AND day < ?2 AND minutes > 0')
       .bind(fromDay, toDay)
       .all<{ user_id: string }>(),
-    // 빙고 기간(시즌의 절반)마다 모아 둔 짝 기록에서, 시즌 시작 전 2주에 걸친 기간만
+    // 빙고 기간(시즌의 절반)마다 모아 둔 짝 기록에서, 시즌 시작 전 2주에 걸친 기간만.
+    // 기간이 2주 경계에 걸쳐 있으면(시즌을 14일이 아닌 길이로 바꾼 경우) 2주 안에 든 만큼만 비율로 세요.
     db
       .prepare(
-        `SELECT a, b, SUM(minutes) AS minutes FROM bingo_pair
-         WHERE week IN (SELECT id FROM bingo_periods WHERE starts_at < ?1 AND ends_at > ?2)
-            OR week IN (SELECT value FROM json_each(?3)) GROUP BY a, b`,
+        `SELECT a, b, CAST(ROUND(SUM(minutes * share)) AS INTEGER) AS minutes FROM (
+           SELECT bp.a, bp.b, bp.minutes,
+             MAX(0.0, MIN(julianday(p.ends_at), julianday(?1)) - MAX(julianday(p.starts_at), julianday(?2)))
+               / MAX(julianday(p.ends_at) - julianday(p.starts_at), 1e-9) AS share
+           FROM bingo_pair bp JOIN bingo_periods p ON p.id = bp.week
+           WHERE p.starts_at < ?1 AND p.ends_at > ?2
+           UNION ALL
+           SELECT a, b, minutes, 1.0 AS share FROM bingo_pair WHERE week IN (SELECT value FROM json_each(?3))
+         ) GROUP BY a, b`,
       )
       .bind(season.start, cutoffIso, JSON.stringify(tempWeeks))
       .all<{ a: string; b: string; minutes: number }>(),

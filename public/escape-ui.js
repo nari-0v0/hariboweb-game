@@ -737,6 +737,8 @@
       }
       for (const n of parts) document.querySelector(`[data-esc-sync="${n.dataset.escSync}"]`)?.replaceWith(document.importNode(n, true));
       for (const r of document.querySelectorAll('input[name="rev"]')) r.value = rev.value;
+      // 공통 로딩 가림막이 먼저 켜졌을 수 있어요. 화면 일부만 바꿨으니 직접 꺼요.
+      document.dispatchEvent(new Event('haribo:ready'));
     } catch {
       f.submit();
     } finally {

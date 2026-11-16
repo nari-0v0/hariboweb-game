@@ -318,6 +318,16 @@ export async function applySync(
     stmts.push(db.prepare('DELETE FROM jellypi WHERE user_id = ?').bind(id));
     // 빙고도 처음부터예요(같은 빙고 기간에 다시 들어와도 예전 칸·받은 줄이 남지 않게, 나리 2026-11-16).
     // 다른 사람과 함께한 통화(bingo_pair)는 상대의 빙고 기록이기도 해서 남겨요.
+    // 대신 나갈 때까지 쌓인 분을 적어 두고, 다시 들어온 사람의 빙고에서는 그만큼 빼고 세요.
+    stmts.push(db.prepare('DELETE FROM bingo_pair_reset WHERE user_id = ?').bind(id));
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO bingo_pair_reset (week, user_id, other, minutes)
+           SELECT week, ?1, CASE WHEN a = ?1 THEN b ELSE a END, minutes FROM bingo_pair WHERE a = ?1 OR b = ?1`,
+        )
+        .bind(id),
+    );
     stmts.push(db.prepare('DELETE FROM bingo_day WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM bingo_flag WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM bingo_lines WHERE user_id = ?').bind(id));

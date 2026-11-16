@@ -66,14 +66,19 @@ export async function loadPeriods(db: D1Database, nowMs: number): Promise<Week[]
 }
 
 // 주기 하나 → 앞 절반, 뒤 절반. id는 각 절반이 시작하는 날의 한국 날짜.
+// 절반이 하루보다 짧으면(주기를 1일로 바꾼 경우) 같은 날에 기간이 둘 생길 수 있어서 시작 시각(한국 시)도 붙여요.
 export function splitCycle(start: string, end: string): Week[] {
   const s = Date.parse(start);
   const e = Date.parse(end);
   const mid = s + Math.round((e - s) / 2 / 3_600_000) * 3_600_000;
   const iso = (ms: number) => new Date(ms).toISOString();
+  const id = (from: number, to: number) => {
+    const k = kstParts(iso(from));
+    return to - from >= DAY_MS ? k.day : `${k.day}-${String(k.hour).padStart(2, '0')}`;
+  };
   return [
-    { id: kstParts(iso(s)).day, start: iso(s), end: iso(mid) },
-    { id: kstParts(iso(mid)).day, start: iso(mid), end: iso(e) },
+    { id: id(s, mid), start: iso(s), end: iso(mid) },
+    { id: id(mid, e), start: iso(mid), end: iso(e) },
   ];
 }
 
@@ -321,9 +326,12 @@ export async function loadStats(db: D1Database, week: Week, userIds: string[]): 
       .all<{ user_id: string; day: string; minutes: number; crowd: number; night: number; attended: number }>(),
     db
       .prepare(
-        `SELECT a AS user_id, b AS other, minutes FROM bingo_pair WHERE week = ?1 AND a IN (SELECT value FROM json_each(?2))
-         UNION ALL
-         SELECT b AS user_id, a AS other, minutes FROM bingo_pair WHERE week = ?1 AND b IN (SELECT value FROM json_each(?2))`,
+        // 나갔다 다시 들어온 사람은 나가기 전 짝 통화(bingo_pair_reset)를 빼고 세요.
+        `SELECT x.user_id, x.other, x.minutes - COALESCE(r.minutes, 0) AS minutes FROM (
+           SELECT a AS user_id, b AS other, minutes FROM bingo_pair WHERE week = ?1 AND a IN (SELECT value FROM json_each(?2))
+           UNION ALL
+           SELECT b AS user_id, a AS other, minutes FROM bingo_pair WHERE week = ?1 AND b IN (SELECT value FROM json_each(?2))
+         ) x LEFT JOIN bingo_pair_reset r ON r.week = ?1 AND r.user_id = x.user_id AND r.other = x.other`,
       )
       .bind(week.id, ids)
       .all<{ user_id: string; other: string; minutes: number }>(),
