@@ -207,6 +207,21 @@ export async function decideBlock(
   return { applied: (res.meta?.changes ?? 0) > 0, status: row.status, decided_at: row.decided_at };
 }
 
+// 나리가 잘못 눌렀을 때: 이미 정한 결정을 승인↔반려로 뒤집어요(나리 2026-11-16).
+export async function flipBlock(db: D1Database, id: number, by: string, nowMs: number): Promise<{ applied: boolean; status: string; decided_at: string | null } | null> {
+  const t = new Date(nowMs).toISOString();
+  const res = await db
+    .prepare(
+      `UPDATE assign_blocks SET status = CASE status WHEN 'approved' THEN 'rejected' ELSE 'approved' END, decided_at = ?, decided_by = ?
+       WHERE id = ? AND status IN ('approved', 'rejected')`,
+    )
+    .bind(t, by, id)
+    .run();
+  const row = await db.prepare('SELECT status, decided_at FROM assign_blocks WHERE id = ?').bind(id).first<{ status: string; decided_at: string | null }>();
+  if (!row) return null;
+  return { applied: (res.meta?.changes ?? 0) > 0, status: row.status, decided_at: row.decided_at };
+}
+
 // ── 팀 짜기 ──
 
 export const blockKey = (x: string, y: string) => (x < y ? `${x}|${y}` : `${y}|${x}`);

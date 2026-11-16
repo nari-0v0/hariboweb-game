@@ -8,6 +8,7 @@ import {
   blockKey,
   cancelBlock,
   decideBlock,
+  flipBlock,
   isEmptyReason,
   listUnpostedBlocks,
   markBlockPosted,
@@ -166,6 +167,18 @@ describe('봇', () => {
     expect(await decideBlock(db, b!.id, 'rejected', '7'.repeat(18), NOW + 1)).toMatchObject({ applied: false, status: 'approved' });
     expect(await decideBlock(db, 999, 'rejected', '7'.repeat(18), NOW)).toBeNull();
     expect(await approvedBlocks(db)).toEqual(new Set([blockKey(A, B)]));
+    // 잘못 눌렀으면 결정 바꾸기로 승인↔반려를 뒤집어요
+    expect(await flipBlock(db, b!.id, '7'.repeat(18), NOW + 2)).toMatchObject({ applied: true, status: 'rejected' });
+    expect(await approvedBlocks(db)).toEqual(new Set());
+    expect(await flipBlock(db, b!.id, '7'.repeat(18), NOW + 3)).toMatchObject({ applied: true, status: 'approved' });
+    expect(await flipBlock(db, 999, '7'.repeat(18), NOW)).toBeNull();
+  });
+
+  it('아직 결정 안 한 요청은 뒤집지 않아요', async () => {
+    const { db } = fakeD1();
+    await requestBlock(db, undefined, A, B, REASON, false, NOW);
+    const [b] = await listUnpostedBlocks(db);
+    expect(await flipBlock(db, b!.id, '7'.repeat(18), NOW)).toMatchObject({ applied: false, status: 'pending' });
   });
 });
 
