@@ -2,9 +2,10 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buyWithJelly } from '../src/db';
-import { activeHand, awardGambleSeason, betChips, betTooSoon, claimDaily, expireHand, gambleAccount, gambleRanks, moveHand, publicHand, rescueChips } from '../src/gamble-db';
+import { activeHand, awardGambleSeason, betChips, betTooSoon, claimDaily, expireAllHands, expireHand, gambleAccount, gambleRanks, moveHand, publicHand, rescueChips } from '../src/gamble-db';
 import { cardScore, COIN_PAYOUT, payback, openingPayout, playHand, SLOTS, slotPayout, WHEEL } from '../src/gamble';
 import { SHOP_ITEMS } from '../src/shop';
+import { loadRankings } from '../src/rankings';
 
 const TODAY = '2026-11-10T14:59:00.000Z';
 const TOMORROW = '2026-11-10T15:00:00.000Z';
@@ -253,4 +254,26 @@ describe('칩과 판 기록', () => {
     sql.exec('UPDATE members SET active = 0');
     expect((await gambleRanks(db, TODAY)).every((rank) => rank.length === 0)).toBe(true);
   });
+});
+
+it('지난 카드 21이 51명분 쌓여도 모두 정산한 잔액과 칭호로 순위를 보여 줘요', async () => {
+  const { sql, db } = fixture();
+  const addMember = sql.prepare("INSERT INTO members (user_id, display_name, active, updated_at) VALUES (?, ?, 1, ?)");
+  const addAccount = sql.prepare('INSERT INTO gamble_accounts (user_id, chips) VALUES (?, 10000)');
+  const addRound = sql.prepare("INSERT INTO gamble_rounds (user_id, token, game, bet, all_in, state, expires_at) VALUES (?, 'pending', 'cards', 10000, 1, ?, ?)");
+  // 둘 다 자연 21은 아님. 플레이어 20, 딜러 17 → 2배 승리.
+  const state = JSON.stringify({ player: [9, 10], dealer: [8, 7], deck: [] });
+  for (let i = 0; i < 51; i++) {
+    const id = `expired-${String(i).padStart(2, '0')}`;
+    addMember.run(id, id, TODAY);
+    addAccount.run(id);
+    addRound.run(id, state, TOMORROW);
+  }
+  const ranks = await loadRankings(db, 'expired-50', Date.parse(LATER(61)), 'gamble');
+  expect(ranks.gamble.chips.me).toMatchObject({ rank: 1, value: 20000 });
+  expect(sql.prepare('SELECT COUNT(*) AS n FROM gamble_rounds WHERE settled_at IS NULL').get()).toEqual({ n: 0 });
+  expect(sql.prepare('SELECT COUNT(*) AS n FROM gamble_accounts WHERE chips = 20000 AND plays = 1 AND all_in_wins = 1').get()).toEqual({ n: 51 });
+  expect(sql.prepare("SELECT COUNT(*) AS n FROM owned_items WHERE item_id = 'title:gamble-all-in-1'").get()).toEqual({ n: 51 });
+  await expireAllHands(db, LATER(62));
+  expect(sql.prepare('SELECT SUM(chips) AS n FROM gamble_accounts').get()).toEqual({ n: 51 * 20000 });
 });

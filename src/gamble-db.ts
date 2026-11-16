@@ -92,17 +92,21 @@ export async function betChips(db: D1Database, user: string, game: Game, bet: nu
   return gambleRound(db, user, token);
 }
 
-async function updateHand(db: D1Database, round: Round, move: CardMove, now: string, expired: boolean) {
+function handStatements(db: D1Database, round: Round, move: CardMove, now: string, expired: boolean): D1PreparedStatement[] {
   const hand: Hand = JSON.parse(round.state);
   const multiplier = playHand(hand, move);
-  const [result] = await db.batch([
+  return [
     db.prepare(`UPDATE gamble_rounds SET state = ?, revision = revision + 1, multiplier = ?, settled_at = ?
       WHERE user_id = ? AND token = ? AND revision = ? AND settled_at IS NULL
         AND ((? = 1 AND expires_at <= ?) OR (? = 0 AND expires_at > ?))`)
       .bind(JSON.stringify(hand), multiplier, multiplier === null ? null : expired ? round.expires_at : now,
         round.user_id, round.token, round.revision, Number(expired), now, Number(expired), now),
     awardMilestones(db, round.user_id, now),
-  ]);
+  ];
+}
+
+async function updateHand(db: D1Database, round: Round, move: CardMove, now: string, expired: boolean) {
+  const [result] = await db.batch(handStatements(db, round, move, now, expired));
   return result!.meta.changes === 1;
 }
 
@@ -131,10 +135,14 @@ export async function expireHand(db: D1Database, user: string, now: string) {
 // 자정이 지나 저절로 멈춘 카드 21을 누구 것이든 정산해요(그 사람이 안 들어와도 순위에 바로 반영되게).
 export async function expireAllHands(db: D1Database, now: string) {
   const { results } = await db
-    .prepare(`SELECT * FROM gamble_rounds WHERE game = 'cards' AND settled_at IS NULL AND expires_at <= ? LIMIT 50`)
+    .prepare(`SELECT * FROM gamble_rounds WHERE game = 'cards' AND settled_at IS NULL AND expires_at <= ?`)
     .bind(now)
     .all<Round>();
-  for (const round of results) await updateHand(db, round, 'stand', now, true);
+  // 읽은 뒤에 순위를 만들므로, 남은 판이 있어도 50명에서 멈추면 안 돼요.
+  // 판마다 따로 요청하지 않고 50판씩 저장해 요청 횟수 제한 안에서 전부 정산해요.
+  for (let i = 0; i < results.length; i += 50) {
+    await db.batch(results.slice(i, i + 50).flatMap((r) => handStatements(db, r, 'stand', now, true)));
+  }
 }
 
 export function publicHand(round: Round) {

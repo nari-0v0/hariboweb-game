@@ -188,6 +188,25 @@ export function isStaleBatch(batchId: string, nowMs: number): boolean {
   return nowMs - ms > SYNC_BATCH_MAX_AGE_DAYS * DAY_MS || ms - nowMs > DAY_MS;
 }
 
+// 초기화·탈퇴 전에 만든 활동을 늦게 받더라도 개인 기록이 되살아나지 않게 해요.
+// 시각이 없는 혼자 경험치·젤리는 묶음을 만든 시각, 출석은 한국 날짜까지만 구분할 수 있어요.
+async function afterReset(db: D1Database, p: SyncPayload): Promise<SyncPayload> {
+  const { results } = await db.prepare('SELECT user_id, reset_at FROM members WHERE reset_at IS NOT NULL')
+    .all<{ user_id: string; reset_at: string }>();
+  const resets = new Map(results.map((r) => [r.user_id, Date.parse(r.reset_at)]));
+  const fresh = (id: string, ms: number) => ms >= (resets.get(id) ?? -Infinity);
+  const made = batchTime(p.batch_id)!;
+  return {
+    ...p,
+    pair_xp: p.pair_xp.filter((x) => fresh(x.a, Date.parse(x.at)) && fresh(x.b, Date.parse(x.at))),
+    solo_xp: p.solo_xp.filter((x) => fresh(x.id, made)),
+    jelly_earned: p.jelly_earned.filter((x) => fresh(x.id, made)),
+    room_minutes: p.room_minutes.map((r) => ({ ...r, members: r.members.filter((id) => fresh(id, Date.parse(r.at))) })).filter((r) => r.members.length >= 2),
+    scrims: p.scrims.map((r) => ({ ...r, members: r.members.filter((id) => fresh(id, Date.parse(r.at))) })).filter((r) => r.members.length > 0),
+    attendance: p.attendance.filter((a) => !resets.has(a.id) || a.day >= new Date(resets.get(a.id)! + 9 * 3_600_000).toISOString().slice(0, 10)),
+  };
+}
+
 // groupQuests: 예전 모둠 퀘스트 8개를 새 시즌에도 만들기(테스트용, 기본은 안 만들어요)
 export type SyncOptions = { scrimQuests?: boolean; groupQuests?: boolean };
 
@@ -201,6 +220,7 @@ export async function applySync(
   if (isStaleBatch(p.batch_id, nowMs)) return 'stale';
   const seen = await db.prepare('SELECT 1 FROM sync_batches WHERE batch_id = ?').bind(p.batch_id).first();
   if (seen) return 'duplicate';
+  p = await afterReset(db, p);
 
   const upsertMember = db.prepare(
     `INSERT INTO members (user_id, display_name, avatar_url, joined_at, is_newbie, active, updated_at, games, green)
