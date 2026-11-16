@@ -301,7 +301,9 @@ export async function markFlag(db: D1Database, userId: string, flag: 'panel' | '
     .bind(period.id, userId, flag)
     .run();
   const fresh = (res.meta?.changes ?? 0) > 0;
-  if (fresh) await grantBingo(db, period, [userId], nowMs);
+  // 칸 표시 뒤 보상 저장만 실패했을 수 있어요. 다시 열 때 못 받은 보상을 확인해요.
+  // 기간이 바뀐 뒤 다시 열어도 지난 보상을 확인하고, 이미 받은 줄은 두 번 주지 않아요.
+  await myBingo(db, userId, nowMs);
   return fresh;
 }
 
@@ -312,8 +314,6 @@ export async function loadStats(db: D1Database, week: Week, userIds: string[]): 
   const out = new Map(userIds.map((u) => [u, emptyStats()]));
   if (!userIds.length) return out;
   const ids = JSON.stringify(userIds);
-  const firstDay = kstParts(week.start).day;
-  const lastDay = kstParts(new Date(Date.parse(week.end) - 1).toISOString()).day;
   const [days, pairs, newCards, praises, flags] = await Promise.all([
     db
       .prepare('SELECT user_id, day, minutes, crowd, night, attended FROM bingo_day WHERE week = ?1 AND user_id IN (SELECT value FROM json_each(?2))')
@@ -336,16 +336,16 @@ export async function loadStats(db: D1Database, week: Week, userIds: string[]): 
     db
       .prepare(
         `SELECT from_id AS user_id, 'given' AS kind, COUNT(*) AS n FROM praises
-           WHERE day >= ?1 AND day <= ?2 AND created_at >= ?4 AND created_at < ?5
+           WHERE created_at >= ?1 AND created_at < ?2
              AND from_id IN (SELECT value FROM json_each(?3)) GROUP BY from_id
          UNION ALL
          SELECT to_id AS user_id, 'got' AS kind, COUNT(*) AS n FROM praises
-           WHERE day >= ?1 AND day <= ?2 AND created_at >= ?4 AND created_at < ?5
+           WHERE created_at >= ?1 AND created_at < ?2
              AND to_id IN (SELECT value FROM json_each(?3)) GROUP BY to_id`,
       )
-      // 날짜로 먼저 좁히고(색인), 칭찬한 시각으로 이 빙고판 기간 [시작, 끝) 안에 든 것만 세요.
+      // 하루 한도용 day는 한마디 검사 전 날짜일 수 있어요. 판은 실제 저장 시각으로만 나눠요.
       // created_at은 "ISO시각#무작위"라서 문자열 비교로 시각 순서가 맞아요.
-      .bind(firstDay, lastDay, ids, week.start, week.end)
+      .bind(week.start, week.end, ids)
       .all<{ user_id: string; kind: string; n: number }>(),
     db
       .prepare('SELECT user_id, flag FROM bingo_flag WHERE week = ?1 AND user_id IN (SELECT value FROM json_each(?2))')

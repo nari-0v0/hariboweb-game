@@ -226,6 +226,51 @@ describe('팀 짜기', () => {
     expect([...plan.values()].filter((g) => g === 0)).toHaveLength(4);
   });
 
+  it('20명을 두 팀으로 나눌 해가 있어도 한 명씩 교환하다 멈추는 경우를 풀어요', () => {
+    const people = Array.from({ length: 20 }, (_, i) => String(i).padStart(18, '0'));
+    const zero = new Set([3, 4, 7, 8, 9, 10, 12, 14, 15, 16]);
+    const plan = new Map(people.map((id, i) => [id, zero.has(i) ? 0 : 1]));
+    // 0~9가 각각 세 명씩 제외 신청한 상태예요. 0~9 / 10~19로 나누면 모두 지킬 수 있어요.
+    const targets = [[10, 14, 16], [11, 14, 18], [12, 13, 16], [10, 16, 17], [14, 17, 18],
+      [11, 12, 18], [13, 15, 18], [10, 13, 18], [14, 17, 19], [11, 18, 19]];
+    const pairs = targets.flatMap((to, from) => to.map((t) => [people[from]!, people[t]!] as const));
+    separateBlocked(plan, new Set(pairs.map(([a, b]) => blockKey(a, b))));
+    expect(pairs.filter(([a, b]) => plan.get(a) === plan.get(b))).toEqual([]);
+    expect([...plan.values()].filter((no) => no === 0)).toHaveLength(10);
+    expect([...plan.values()].filter((no) => no === 1)).toHaveLength(10);
+  });
+
+  it('해가 있는 두 팀 배정 30가지는 인원과 모든 제외 관계를 지켜요', () => {
+    const people = Array.from({ length: 20 }, (_, i) => String(i).padStart(18, '0'));
+    for (let seed = 0; seed < 30; seed++) {
+      const random = seededRandom(`two-teams:${seed}`);
+      const order = people.map((id) => ({ id, key: random() })).sort((a, b) => a.key - b.key);
+      const plan = new Map(order.map(({ id }, i) => [id, i < 10 ? 0 : 1]));
+      const blocked = new Set<string>();
+      for (const id of people.slice(0, 10))
+        for (let n = 0; n < 3; n++) blocked.add(blockKey(id, people[10 + Math.floor(random() * 10)]!));
+      separateBlocked(plan, blocked);
+      for (const pair of blocked) {
+        const [a, b] = pair.split('|');
+        expect(plan.get(a!)).not.toBe(plan.get(b!));
+      }
+      expect([...plan.values()].filter((no) => no === 0)).toHaveLength(10);
+      expect([...plan.values()].filter((no) => no === 1)).toHaveLength(10);
+    }
+  });
+
+  it('두 팀으로 풀 수 없는 제외 관계와 추가 조건 때문에 임의로 인원을 바꾸지 않아요', () => {
+    const plan = new Map([[A, 0], [B, 0], [C, 0], [D, 1]]);
+    const triangle = new Set([blockKey(A, B), blockKey(B, C), blockKey(C, A)]);
+    separateBlocked(plan, triangle);
+    expect([...plan.values()].filter((no) => no === 0)).toHaveLength(3);
+    expect([...plan.values()].filter((no) => no === 1)).toHaveLength(1);
+    const guarded = new Map([[A, 0], [B, 0], [C, 1], [D, 1]]);
+    const before = [...guarded];
+    separateBlocked(guarded, new Set([blockKey(A, B)]), () => false);
+    expect([...guarded]).toEqual(before);
+  });
+
   it('시즌 중간에 들어오는 사람은 막힌 상대가 있는 팀을 피해요', () => {
     const groups = [
       { no: 0, size: 1, games: new Set(['롤']) },

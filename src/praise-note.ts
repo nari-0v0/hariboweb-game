@@ -107,18 +107,22 @@ export async function praiseBox(db: D1Database, userId: string, limit = 20, allU
   const since = seen?.praise_seen_at ?? '';
   // 떠났다가 다시 들어온 사람은 다시 들어온 뒤에 받은 칭찬만 보여요
   const fresh = "created_at >= COALESCE((SELECT reset_at FROM members WHERE user_id = ?1), '')";
-  const counts = await db
-    .prepare(`SELECT COUNT(*) AS total, SUM(CASE WHEN substr(created_at, 1, 24) > ?2 THEN 1 ELSE 0 END) AS unread FROM praises WHERE to_id = ?1 AND ${fresh}`)
-    .bind(userId, since)
-    .first<{ total: number; unread: number | null }>();
-  // 안 읽은 칭찬은 한꺼번에 읽음이 되니, 안 읽은 게 많으면 그만큼 다 보여 줘요(못 본 채 읽음이 되지 않게).
-  const show = allUnread ? Math.max(limit, Number(counts?.unread ?? 0)) : limit;
+  // 개수와 목록은 같은 조회에서 정해요. 둘 사이 새 칭찬이 오면, 먼저 센 개수만큼만
+  // 가져오다가 기존 한마디가 목록에서 밀려난 채 읽음 처리될 수 있어요.
   const rows = await db
-    .prepare(`SELECT rowid AS id, day, note, note_hidden, created_at FROM praises WHERE to_id = ?1 AND ${fresh} ORDER BY created_at DESC LIMIT ?2`)
-    .bind(userId, show)
-    .all<{ id: number; day: string; note: string | null; note_hidden: number; created_at: string }>();
+    .prepare(`WITH inbox AS (
+      SELECT rowid AS id, day, note, note_hidden, created_at,
+        COUNT(*) OVER () AS total,
+        SUM(CASE WHEN substr(created_at, 1, 24) > ?3 THEN 1 ELSE 0 END) OVER () AS unread_count
+      FROM praises WHERE to_id = ?1 AND ${fresh}
+    )
+    SELECT * FROM inbox ORDER BY created_at DESC
+    LIMIT CASE WHEN ?4 THEN MAX(?2, COALESCE((SELECT MAX(unread_count) FROM inbox), 0)) ELSE ?2 END`)
+    .bind(userId, limit, since, allUnread ? 1 : 0)
+    .all<{ id: number; day: string; note: string | null; note_hidden: number; created_at: string; total: number; unread_count: number }>();
+  const counts = rows.results[0];
   return {
-    unread: Number(counts?.unread ?? 0),
+    unread: Number(counts?.unread_count ?? 0),
     total: Number(counts?.total ?? 0),
     items: rows.results.map((r) => ({
       id: Number(r.id),
