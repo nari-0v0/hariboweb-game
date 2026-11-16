@@ -138,6 +138,33 @@ describe('기록 모으기', () => {
   });
 });
 
+describe('나갔다 다시 들어오기', () => {
+  it('같은 빙고 기간에 다시 들어와도 빙고는 처음부터예요', async () => {
+    const { sql, db } = fakeD1();
+    const week = fallbackWeek(NOW);
+    const t = (m: number) => new Date(NOW + m * 60_000).toISOString();
+    const first = parseSync({ batch_id: `${t(0)}-a`, members: [A, B].map((id) => ({ id, name: id })), room_minutes: [{ at: t(0), room: ROOM, members: [A, B] }], attendance: [{ id: A, day: '2026-11-02' }] });
+    if (!first.ok) throw new Error(first.error);
+    await applySync(db, first.value, NOW + 60_000);
+    sql.prepare("INSERT INTO praises (day, from_id, to_id, jelly, created_at) VALUES ('2026-11-02', ?, ?, 1, ?)").run(A, B, `${t(1)}#a`);
+    sql.prepare("INSERT INTO bingo_flag (week, user_id, flag) VALUES (?, ?, 'panel')").run(week.id, A);
+    sql.prepare("INSERT INTO bingo_lines (week, user_id, line, mark, created_at) VALUES (?, ?, 0, 'x', 'x')").run(week.id, A);
+    const left = parseSync({ batch_id: `${t(2)}-left`, removed: [A] });
+    if (!left.ok) throw new Error(left.error);
+    await applySync(db, left.value, NOW + 2 * 60_000);
+    const back = parseSync({ batch_id: `${t(3)}-back`, members: [{ id: A, name: A }] });
+    if (!back.ok) throw new Error(back.error);
+    await applySync(db, back.value, NOW + 3 * 60_000);
+    for (const table of ['bingo_day', 'bingo_flag', 'bingo_lines']) {
+      expect((sql.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE user_id = ?`).get(A) as { n: number }).n).toBe(0);
+    }
+    const stats = (await loadStats(db, week, [A, B])).get(A)!;
+    expect(stats).toMatchObject({ voice: 0, attendDays: 0, praiseGiven: 0, panel: 0 });
+    // 함께 논 상대의 기록은 그대로예요
+    expect((sql.prepare('SELECT minutes FROM bingo_day WHERE user_id = ?').get(B) as { minutes: number }).minutes).toBe(1);
+  });
+});
+
 describe('줄 보상', () => {
   function fill(sql: DatabaseSync, id: string) {
     const week = fallbackWeek(NOW).id;
