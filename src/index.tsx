@@ -426,7 +426,7 @@ app.post('/api/bot/praise', async (c) => {
   }
   if (!isDiscordId(body.from) || !isDiscordId(body.to)) return c.json({ error: 'bad_id' }, 400);
   if (body.note != null && (typeof body.note !== 'string' || [...body.note].length > PRAISE_NOTE_MAX * 2)) return c.json({ error: 'bad_note' }, 400);
-  // 한마디는 비꼬기·욕이면 빼고 칭찬만 전해요. 이미 줬거나 한도면 AI에 묻지 않아요.
+  // 한마디는 비꼬기·모욕이면 빼고 칭찬만 전해요. 이미 줬거나 한도면 AI에 묻지 않아요.
   // 한도 확인과 저장이 같은 날짜를 쓰게 한 번만 정해요(자정에 걸쳐도 한마디가 사라지지 않게).
   const day = kstDay();
   const status = await praiseToday(c.env.DB, body.from, day);
