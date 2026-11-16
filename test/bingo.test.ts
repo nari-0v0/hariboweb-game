@@ -195,6 +195,36 @@ describe('줄 보상', () => {
     expect(profileOf(sql, user)).toEqual(want);
   });
 
+  it.each(['web', 'panel'] as const)('%s 카드 열기 뒤 보상 저장이 실패해도 같은 카드를 다시 열면 한 번만 받아요', async (flag) => {
+    for (const nextPeriod of [false, true]) {
+      const { sql, db } = fakeD1();
+      const week = fallbackWeek(NOW);
+      const user = Array.from({ length: 100 }, (_, i) => `7${String(i).padStart(17, '0')}`)
+        .find((id) => boardFor(week.id, id).some((cell) => cell.def.id === flag))!;
+      sql.prepare("INSERT INTO members (user_id, display_name, active, updated_at) VALUES (?, 'test', 1, 'x')").run(user);
+      fill(sql, user);
+      sql.prepare('DELETE FROM bingo_flag WHERE week = ? AND user_id = ? AND flag = ?').run(week.id, user, flag);
+      await grantBingo(db, week, [user], NOW);
+      const before = profileOf(sql, user);
+      const batch = db.batch.bind(db);
+      let fail = true;
+      db.batch = (async (statements: D1PreparedStatement[]) => {
+        if (fail) { fail = false; throw new Error('temporary D1 failure'); }
+        return batch(statements);
+      }) as typeof db.batch;
+      await expect(markFlag(db, user, flag, NOW)).rejects.toThrow('temporary D1 failure');
+      expect(profileOf(sql, user)).toEqual(before);
+      // 같은 기간과 다음 기간 모두, 칸 표시만 남은 지난 보상을 다시 받아야 해요.
+      const retryAt = nextPeriod ? Date.parse(week.end) + 1000 : NOW + 1000;
+      expect(await markFlag(db, user, flag, retryAt)).toBe(nextPeriod);
+      const want = { dogam_jelly: LINES.length * LINE_JELLY + FULL_JELLY, solo_xp: LINES.length * LINE_XP };
+      expect(profileOf(sql, user)).toEqual(want);
+      expect(await markFlag(db, user, flag, retryAt + 1000)).toBe(false);
+      expect(profileOf(sql, user)).toEqual(want);
+      expect(sql.prepare('SELECT COUNT(*) AS n FROM bingo_lines WHERE user_id = ?').get(user)).toEqual({ n: LINES.length + 1 });
+    }
+  });
+
   it('끝난 기간의 줄 보상을 못 받았으면 빙고를 열 때 다시 받아요(한 번만)', async () => {
     const { sql, db } = fakeD1();
     fill(sql, B);

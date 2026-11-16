@@ -301,7 +301,9 @@ export async function markFlag(db: D1Database, userId: string, flag: 'panel' | '
     .bind(period.id, userId, flag)
     .run();
   const fresh = (res.meta?.changes ?? 0) > 0;
-  if (fresh) await grantBingo(db, period, [userId], nowMs);
+  // 칸 표시 뒤 보상 저장만 실패했을 수 있어요. 다시 열 때 못 받은 보상을 확인해요.
+  // 기간이 바뀐 뒤 다시 열어도 지난 보상을 확인하고, 이미 받은 줄은 두 번 주지 않아요.
+  await myBingo(db, userId, nowMs);
   return fresh;
 }
 
