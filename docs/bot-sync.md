@@ -150,10 +150,13 @@ Content-Type: application/json
     "praise_box": { "unread": 1, "total": 4, "items": [{ "day": "2026-11-12", "date": "11월 12일", "note": "오늘 캐리 고마워요", "unread": true }] },
     "palette": { "rim": "#6b7a90", "body": ["#eef2f8", "..."], "ring": ["#f4f7fb", "#9aa8bc"], "sky": ["#a9dcff", "#e6f6ff"],
                  "ground": "#8fd67a", "plate": ["#ffffff", "#dfe5ee"], "ink": "#2a2030", "sparkle": false },
-    "character_url": "https://.../char/girl-01-0.png", "page_url": "https://.../me" }
+    "character_url": "https://.../char/girl-01-0.png", "page_url": "https://.../me", "gender_chosen": false }
   ```
+  `gender_chosen`이 `false`면 아직 여자·남자 캐릭터를 안 고른 사람이에요. 봇은 카드 대신 고르기 버튼부터 보여 줘요(나리 2026-11-16).
   `palette`는 웹 카드와 같은 색이에요(`src/palette.ts`). 봇은 이 색으로 디스코드용 카드 그림을 그려요.
   `praise_box`는 칭찬함이에요. 최근 5개, 보낸 사람은 없어요(DB에만 있어요). `note`가 `null`이면 한마디 없는 칭찬이거나 받은 사람이 숨긴 한마디예요. 디스코드 패널은 일부만 보여 주므로 읽음 표시는 웹 칭찬함에서만 해요. 화면 안내는 "받는 사람에게는 보낸 사람이 보이지 않아요."만 써요.
+- `POST /api/bot/gender` `{"user_id":"ID","pool":"girl"|"boy"}` → `{"result":"done"}` 또는 이미 골랐으면 `{"result":"already"}`. 서버에 없는 사람은 `404 {"error":"not_member"}`.
+  웹 처음 화면(`/choose`)과 같아요. 처음 한 번만 무료이고, 그다음은 젤리 상점 "성별 바꾸기"예요.
 - `GET /api/bot/praise/<디스코드ID>` → `{"given":["오늘 이미 칭찬한 ID"],"left":2,"partners":[{"id":"ID","minutes":42}]}`
   - `partners`: 웹에 쌓인 `room_minutes`로 본 오늘(한국 날짜) 같이 통화한 사람. 봇은 오늘 기록을 메모리에만 들고 있어서 재시작하면 비니까, 봇 기록과 이 목록을 합쳐서 칭찬할 사람을 보여 줘요. 웹은 하루치 짝만 3일 동안 남겨요.
 - `POST /api/bot/praise` `{"from":"ID","to":"ID","note":"한마디(선택, 100자)"}` → `{"result":"done","jelly":true,"left":2,"note":"sent"}`
