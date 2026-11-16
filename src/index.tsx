@@ -89,6 +89,7 @@ import { EscapePage } from './views/escape';
 import { JourneyPage } from './views/journey';
 import { NO_COINS, STALE_PICK, activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from './journey-db';
 import { GEAR, PERKS, cleanKit, type GearId, type PerkId } from './journey';
+import { grantJelly, parseGrant } from './jelly-grant';
 import { activeEscape, actEscapeRun, beginEscape, escapeOpen, escapeRecord, getEscape, quitEscape } from './escape-db';
 
 // 광장은 없앴지만 Cloudflare에 만든 Durable Object 칸(PLAZA)은 지우려면 따로 정리 단계가 필요해서 이름만 남겨 둬요.
@@ -322,6 +323,21 @@ app.post('/api/bot/refunds/:id', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
   const changed = await markRefunded(c.env.DB, c.req.param('id'));
   return c.json({ ok: true, changed });
+});
+
+// 나리 전용 /도감젤리지급. 봇이 나리인지 확인하고 바로 보내요. 같은 id는 한 번만 반영돼요.
+app.post('/api/bot/jelly-grants', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  let raw: unknown;
+  try {
+    raw = await c.req.json();
+  } catch {
+    return c.json({ error: 'JSON이 아니에요' }, 400);
+  }
+  const parsed = parseGrant(raw);
+  if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+  const out = await grantJelly(c.env.DB, parsed.value, Date.now());
+  return c.json({ ok: out.result !== 'no_member', ...out });
 });
 
 const isDiscordId = (v: unknown): v is string => typeof v === 'string' && /^\d{17,20}$/.test(v);
