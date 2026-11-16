@@ -298,3 +298,22 @@ it('칭찬함의 개수를 센 뒤 새 칭찬이 와도 기존 한마디를 못 
     expect((await praiseBox(db, A)).unread).toBe(1); // 페이지를 연 뒤 온 것은 다음에도 새 칭찬이에요.
   } finally { vi.useRealTimers(); }
 });
+
+describe('디스코드에서 처음 여자·남자 고르기', () => {
+  const call = (env: Env, path: string, body?: unknown) =>
+    app.request(path, { method: body ? 'POST' : 'GET', headers: { Authorization: 'Bearer s', 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }, env);
+
+  it('안 고른 사람은 카드에 gender_chosen=false, 고르면 그 묶음 캐릭터가 되고 두 번째는 already예요', async () => {
+    const { db, sql } = fakeD1();
+    const env = { DB: db, BOT_SYNC_SECRET: 's' } as unknown as Env;
+    expect(await (await call(env, `/api/bot/card/${A}`)).json()).toMatchObject({ gender_chosen: false });
+    expect((await call(env, '/api/bot/gender', { user_id: A, pool: 'other' })).status).toBe(400);
+    expect(await (await call(env, '/api/bot/gender', { user_id: A, pool: 'boy' })).json()).toEqual({ result: 'done' });
+    const card = (await (await call(env, `/api/bot/card/${A}`)).json()) as { gender_chosen: boolean; character_url: string };
+    expect(card.gender_chosen).toBe(true);
+    expect(card.character_url).toContain('/boy-');
+    expect(await (await call(env, '/api/bot/gender', { user_id: A, pool: 'girl' })).json()).toEqual({ result: 'already' });
+    expect((sql.prepare('SELECT character_id FROM profiles WHERE user_id = ?').get(A) as { character_id: string }).character_id).toMatch(/^boy-/);
+    expect((await call(env, '/api/bot/gender', { user_id: '999999999999999999', pool: 'boy' })).status).toBe(404);
+  });
+});

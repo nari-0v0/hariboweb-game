@@ -442,7 +442,26 @@ app.get('/api/bot/card/:id', async (c) => {
     palette: cardPalette(profile.theme_id, p.level),
     character_url: base + characterUrl(profile.character_id, id, profile.deco_id),
     page_url: base + '/me',
+    // 아직 여자·남자를 안 골랐으면 디스코드 "내 카드"가 고르기부터 보여 줘요(나리 2026-11-16)
+    gender_chosen: !!member.gender_chosen_at,
   });
+});
+
+// 디스코드 "내 카드"에서 처음 여자·남자 고르기. 웹 /choose와 같아요(처음 한 번만, 무료).
+app.post('/api/bot/gender', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  let body: { user_id?: unknown; pool?: unknown };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'JSON이 아니에요' }, 400);
+  }
+  if (!isDiscordId(body.user_id) || !isCharacterPool(body.pool)) return c.json({ error: 'bad_request' }, 400);
+  const member = await getMember(c.env.DB, body.user_id);
+  if (!member || !member.active) return c.json({ error: 'not_member' }, 404);
+  if (member.gender_chosen_at) return c.json({ result: 'already' });
+  const done = await chooseFirstGender(c.env.DB, body.user_id, body.pool);
+  return c.json({ result: done ? 'done' : 'already' });
 });
 
 // 오늘 칭찬을 몇 번 남겼는지, 누구에게 이미 줬는지
