@@ -2278,3 +2278,47 @@ main.wide { max-width: 1320px; }
 .title-search input { flex: 1 1 160px; min-width: 0; }
 .title-search-none { flex-basis: 100%; margin: 0; }
 .title-group[hidden], .title-group .title-cell[hidden], .title-group .title-item[hidden] { display: none; }
+
+/* 알림함(🔔) */
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+.alert-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; text-decoration: none; }
+.alert-btn img { display: block; width: 32px; height: 32px; }
+.alert-btn img { transition: filter .15s; }
+/* 눌렸을 때(팝업 열림)는 배경 대신 종 색이 하늘색으로 바뀌어요 */
+.alert-btn.on img { filter: hue-rotate(170deg) saturate(1.8) brightness(1.02); }
+.alert-dot { position: absolute; top: 1px; right: 1px; width: 12px; height: 12px; border-radius: 50%; background: #ff3b30; border: 2px solid #fff; }
+/* 팝업은 종에서 말풍선처럼 나와요(꼬리가 종을 가리켜요). 위치·꼬리 자리는 app.js가 종에 맞춰요. */
+.alert-pop {
+  --tail: 24px;
+  position: fixed; z-index: 22; top: 70px; right: max(16px, calc((100vw - 1088px) / 2));
+  width: min(360px, calc(100vw - 32px));
+  background: #cfe9ff; border: 4px solid var(--ink); box-shadow: 0 8px 0 rgba(42, 32, 48, .15);
+  transform-origin: calc(100% - var(--tail)) -12px; animation: al-pop .16s ease-out;
+}
+.alert-pop[hidden] { display: none; }
+.alert-pop::before, .alert-pop::after { content: ''; position: absolute; width: 0; height: 0; border-style: solid; border-color: transparent; border-top: 0; }
+.alert-pop::before { top: -20px; right: calc(var(--tail) - 16px); border-width: 0 16px 16px; border-bottom-color: var(--ink); }
+.alert-pop::after { top: -11px; right: calc(var(--tail) - 11px); border-width: 0 11px 11px; border-bottom-color: #cfe9ff; }
+.alert-pop .al-box { max-height: calc(100dvh - 110px); overflow-y: auto; }
+@keyframes al-pop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .alert-pop { animation: none; } }
+.al-box { padding: 10px 12px; }
+.al-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.al-close { border: 0; background: none; font: inherit; font-size: 1.6rem; line-height: 1; font-weight: 700; cursor: pointer; color: var(--ink); padding: 4px 8px; min-width: 40px; min-height: 40px; }
+.al-empty { margin: 10px 0; color: var(--ink-soft); }
+.al-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.al-item { padding: 8px 10px; background: #fff; border: 3px solid var(--ink); }
+.al-page .al-box { background: #cfe9ff; border: 4px solid var(--ink); }
+.al-item.al-new { background: #fff6d9; }
+.al-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.al-title { font-weight: 700; font-size: .92rem; overflow-wrap: anywhere; }
+.al-tag { display: inline-block; padding: 0 5px; margin-right: 2px; font-size: .7rem; color: #fff; background: #ff3b30; }
+.al-when { flex: none; font-size: .78rem; color: var(--ink-soft); }
+.al-body { margin: 4px 0 6px; font-size: .86rem; white-space: pre-line; overflow-wrap: anywhere; }
+.al-item form { text-align: right; }
+.al-del { border: 2px solid var(--ink); background: var(--paper-2); font: inherit; font-size: .78rem; padding: 1px 8px; cursor: pointer; }
+.al-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 10px; font-size: .78rem; color: var(--ink-soft); }
+.al-page .al-close { display: none; }
+@media (max-width: 420px) {
+  .topbar .menu-word { display: none; }
+}

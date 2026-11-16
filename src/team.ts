@@ -1,6 +1,7 @@
 // 하리보 빙고의 팀 퀘스트(빙고 가운데 칸), 서버 퀘스트(초록하리보 납치 대소동!), 젤리피 기록.
 // 신청·인증·관리자 확인은 없어요. 봇이 보내는 통화방 1분 기록으로 저절로 세요.
 import { kstParts, type Season } from './season';
+import { seasonLabel, seasonResultAlerts } from './alerts';
 import { fallbackWeek } from './bingo';
 
 const DAY_MS = 86_400_000;
@@ -367,6 +368,22 @@ export async function settleSeason(db: D1Database, season: Season, nowMs: number
         stmts.push(jelly.bind(u, season.id, 'server', mark, SERVER_JELLY, t));
         stmts.push(jp.bind(u, season.id, 'server', mark, JP_SERVER, t));
       }
+  }
+  // 결과 알림(웹 🔔). 이번에 정산한 경우에만, 사람마다 한 번만 넣어요.
+  if (!done.has('team') || !done.has('server')) {
+    const alert = db.prepare(
+      `INSERT OR IGNORE INTO alerts (user_id, ref, title, body, created_at) SELECT ?1, ?2, ?3, ?4, ?5
+       WHERE EXISTS (SELECT 1 FROM season_settle WHERE season_id = ?6 AND mark = ?7)
+         AND EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1
+           AND COALESCE(reset_at, '') < (SELECT ends_at FROM seasons WHERE id = ?6))`,
+    );
+    const lines = seasonResultAlerts(
+      done.has('team') ? [] : [...teams.values()].map((tm) => ({ complete: tm.complete, bonus: tm.bonus, achievers: tm.achievers, members: tm.members })),
+      done.has('server') ? null : server ? { met: server.met, participants: server.participants } : null,
+      { teamJelly: TEAM_JELLY, teamJp: JP_TEAM, serverJelly: SERVER_JELLY, serverJp: JP_SERVER },
+    );
+    const title = `지난 시즌 퀘스트 결과 (${seasonLabel(season.start, season.end)})`;
+    for (const [u, list] of lines) stmts.push(alert.bind(u, `season:${season.id}`, title, list.join('\n'), t, season.id, mark));
   }
   await db.batch(stmts);
   return true;

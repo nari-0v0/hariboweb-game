@@ -2,6 +2,7 @@ import { awardEndedGambleSeasons } from './gamble-db';
 import { stripTitle } from './titles';
 import { MAX_LEVEL, xpForLevel } from './levels';
 import { ensureSeasonQuests, settleEnded } from './team';
+import { purgeAlerts } from './alerts';
 import { bingoStatements, grantTouched, loadPeriods, prunePairDays, savePeriod, splitCycle } from './bingo';
 import { type Attendance, type RoomMinute, type ScrimRecord, type Season, ENDED_GRACE_MS, ensureSeason, evaluateSeason, seasonFrom, seasonStatements, seasonTargets } from './season';
 
@@ -245,6 +246,8 @@ export async function applySync(
   const stmts: D1PreparedStatement[] = [
     db.prepare('INSERT INTO sync_batches (batch_id, applied_at) VALUES (?, ?)').bind(p.batch_id, t),
     db.prepare('DELETE FROM sync_batches WHERE applied_at < ?').bind(new Date(nowMs - SYNC_BATCH_KEEP_DAYS * DAY_MS).toISOString()),
+    // 15일 지난 알림(🔔)은 저절로 지워요
+    purgeAlerts(db, nowMs),
     ...memberStmts,
   ];
   // 시즌 모둠 기록(통화방 1분, 내전, 출석)도 같은 트랜잭션에. 묶음이 한 번만 반영되니까 두 번 세지 않아요.
@@ -328,6 +331,7 @@ export async function applySync(
     // 겜블장 젤칩·판 기록은 members.active가 0이 될 때 DB 트리거(gamble_member_left)가 지워요.
     stmts.push(db.prepare('DELETE FROM purchases WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM nick_jobs WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM alerts WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM jelly_grants WHERE user_id = ?').bind(id));
   }
 

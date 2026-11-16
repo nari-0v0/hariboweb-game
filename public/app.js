@@ -321,3 +321,72 @@ document.addEventListener('click', (e) => {
   field.scrollIntoView({ behavior: 'smooth', block: 'center' });
   field.focus({ preventScroll: true });
 });
+
+// 알림함(🔔): 누르면 오른쪽 위에 팝업으로 열려요. 열면 다 읽은 걸로 되고 빨간 점이 꺼져요.
+(() => {
+  const pop = document.getElementById('alert-pop');
+  const btn = document.querySelector('[data-alert-open]');
+  if (!pop || !btn) return;
+  const close = () => {
+    pop.hidden = true;
+    btn.classList.remove('on');
+  };
+  // 종 바로 아래에 붙이고, 말풍선 꼬리가 종 가운데를 가리키게 해요
+  const place = () => {
+    const r = btn.getBoundingClientRect();
+    const right = Math.max(16, Math.min(innerWidth - r.right - 4, innerWidth - 16 - pop.offsetWidth));
+    pop.style.top = `${Math.round(r.bottom + 20)}px`;
+    pop.style.right = `${Math.round(right)}px`;
+    pop.style.setProperty('--tail', `${Math.round(innerWidth - right - (r.left + r.width / 2))}px`);
+  };
+  addEventListener('resize', () => !pop.hidden && place());
+  const render = (html) => {
+    pop.innerHTML = html;
+    pop.hidden = false;
+    place();
+    btn.classList.add('on');
+    btn.querySelector('.alert-dot')?.remove();
+  };
+  btn.addEventListener(
+    'click',
+    async (e) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      if (!pop.hidden) return close();
+      try {
+        const r = await fetch('/alerts?box=1', { headers: { 'X-Alert-Box': '1' }, credentials: 'same-origin' });
+        if (!r.ok) throw new Error(String(r.status));
+        render(await r.text());
+      } catch {
+        location.href = '/alerts';
+      }
+    },
+    true,
+  );
+  pop.addEventListener('click', (e) => {
+    if (e.target instanceof Element && e.target.closest('[data-alert-close]')) close();
+  });
+  pop.addEventListener(
+    'submit',
+    async (e) => {
+      const form = e.target;
+      if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-alert-form')) return;
+      e.preventDefault();
+      try {
+        const r = await fetch(form.action, { method: 'POST', headers: { 'X-Alert-Box': '1' }, credentials: 'same-origin' });
+        if (!r.ok) throw new Error(String(r.status));
+        render(await r.text());
+      } catch {
+        form.submit();
+      }
+    },
+    true,
+  );
+  document.addEventListener('click', (e) => {
+    if (pop.hidden || !(e.target instanceof Element)) return;
+    if (!e.target.closest('#alert-pop') && !e.target.closest('[data-alert-open]')) close();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !pop.hidden) close();
+  });
+})();
