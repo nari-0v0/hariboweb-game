@@ -2269,18 +2269,28 @@ main.wide { max-width: 1320px; }
 .alert-btn:hover { translate: 0 -1px; }
 .alert-btn.on { background: var(--sky); }
 .alert-dot { position: absolute; top: 2px; right: 3px; width: 12px; height: 12px; border-radius: 50%; background: #ff3b30; border: 2px solid #fff; }
+/* 팝업은 종에서 말풍선처럼 나와요(꼬리가 종을 가리켜요). 위치·꼬리 자리는 app.js가 종에 맞춰요. */
 .alert-pop {
+  --tail: 24px;
   position: fixed; z-index: 22; top: 70px; right: max(16px, calc((100vw - 1088px) / 2));
-  width: min(360px, calc(100vw - 32px)); max-height: calc(100dvh - 90px); overflow-y: auto;
-  background: var(--paper); border: 4px solid var(--ink); box-shadow: 0 8px 0 rgba(42, 32, 48, .15);
+  width: min(360px, calc(100vw - 32px));
+  background: #cfe9ff; border: 4px solid var(--ink); box-shadow: 0 8px 0 rgba(42, 32, 48, .15);
+  transform-origin: calc(100% - var(--tail)) -12px; animation: al-pop .16s ease-out;
 }
 .alert-pop[hidden] { display: none; }
+.alert-pop::before, .alert-pop::after { content: ''; position: absolute; width: 0; height: 0; border-style: solid; border-color: transparent; border-top: 0; }
+.alert-pop::before { top: -20px; right: calc(var(--tail) - 16px); border-width: 0 16px 16px; border-bottom-color: var(--ink); }
+.alert-pop::after { top: -11px; right: calc(var(--tail) - 11px); border-width: 0 11px 11px; border-bottom-color: #cfe9ff; }
+.alert-pop .al-box { max-height: calc(100dvh - 110px); overflow-y: auto; }
+@keyframes al-pop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .alert-pop { animation: none; } }
 .al-box { padding: 10px 12px; }
 .al-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .al-close { border: 0; background: none; font: inherit; font-size: 1rem; cursor: pointer; color: var(--ink); padding: 2px 6px; }
 .al-empty { margin: 10px 0; color: var(--ink-soft); }
 .al-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .al-item { padding: 8px 10px; background: #fff; border: 3px solid var(--ink); }
+.al-page .al-box { background: #cfe9ff; border: 4px solid var(--ink); }
 .al-item.al-new { background: #fff6d9; }
 .al-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
 .al-title { font-weight: 700; font-size: .92rem; overflow-wrap: anywhere; }
