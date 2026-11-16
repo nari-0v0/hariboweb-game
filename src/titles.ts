@@ -98,7 +98,7 @@ export const GAMBLE_WINNER_ID = 'gamble-season-winner';
 const gambleTitle = (id: string, name: string, metric: GambleMetric, count: number): Title =>
   ({ id: `gamble-${id}`, name, group: '겜블장', rule: { kind: 'gamble', metric, count } });
 export const GAMBLE_TITLES: Title[] = [
-  gambleTitle('chips-10000', '타짜', 'chips', 10_000),
+  gambleTitle('chips-50000', '타짜', 'chips', 50_000),
   gambleTitle('chips-100000', '큰손', 'chips', 100_000),
   gambleTitle('chips-1000000', '재벌', 'chips', 1_000_000),
   gambleTitle('all-in-1', '올인', 'all_in_wins', 1),
