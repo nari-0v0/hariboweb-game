@@ -60,17 +60,30 @@ export async function loadPrior(db: D1Database, season: Season): Promise<Prior> 
     const w = fallbackWeek(ms);
     if (w.start < season.start && w.end > cutoffIso && !tempWeeks.includes(w.id)) tempWeeks.push(w.id);
   }
-  const [voice, pairs, slots] = await Promise.all([
+  const [voice, dayPairs, oldestDay, periodPairs, slots] = await Promise.all([
     db
       .prepare('SELECT DISTINCT user_id FROM member_voice_day WHERE day >= ?1 AND day < ?2 AND minutes > 0')
       .bind(fromDay, toDay)
       .all<{ user_id: string }>(),
-    // 빙고 기간(시즌의 절반)마다 모아 둔 짝 기록에서, 시즌 시작 전 2주에 걸친 기간만
+    // 하루치 짝 기록(pair_day)이 2주 전까지 남아 있으면 그걸로 정확히 2주만 세요.
+    db
+      .prepare('SELECT a, b, SUM(minutes) AS minutes FROM pair_day WHERE day >= ?1 AND day < ?2 GROUP BY a, b')
+      .bind(fromDay, toDay)
+      .all<{ a: string; b: string; minutes: number }>(),
+    db.prepare('SELECT MIN(day) AS day FROM pair_day').first<{ day: string | null }>(),
+    // 하루치 기록이 아직 2주치가 안 쌓였으면(보관 기간을 늘리기 전 기록) 빙고 기간마다 모아 둔 짝 기록으로 세요.
+    // 기간이 2주 경계에 걸쳐 있으면(시즌을 14일이 아닌 길이로 바꾼 경우) 2주 안에 든 만큼만 비율로 세요.
     db
       .prepare(
-        `SELECT a, b, SUM(minutes) AS minutes FROM bingo_pair
-         WHERE week IN (SELECT id FROM bingo_periods WHERE starts_at < ?1 AND ends_at > ?2)
-            OR week IN (SELECT value FROM json_each(?3)) GROUP BY a, b`,
+        `SELECT a, b, CAST(ROUND(SUM(minutes * share)) AS INTEGER) AS minutes FROM (
+           SELECT bp.a, bp.b, bp.minutes,
+             MAX(0.0, MIN(julianday(p.ends_at), julianday(?1)) - MAX(julianday(p.starts_at), julianday(?2)))
+               / MAX(julianday(p.ends_at) - julianday(p.starts_at), 1e-9) AS share
+           FROM bingo_pair bp JOIN bingo_periods p ON p.id = bp.week
+           WHERE p.starts_at < ?1 AND p.ends_at > ?2
+           UNION ALL
+           SELECT a, b, minutes, 1.0 AS share FROM bingo_pair WHERE week IN (SELECT value FROM json_each(?3))
+         ) GROUP BY a, b`,
       )
       .bind(season.start, cutoffIso, JSON.stringify(tempWeeks))
       .all<{ a: string; b: string; minutes: number }>(),
@@ -79,6 +92,8 @@ export async function loadPrior(db: D1Database, season: Season): Promise<Prior> 
       .bind(fromDay, toDay)
       .all<{ user_id: string; day: string; slot: string; minutes: number }>(),
   ]);
+  const exact = !!oldestDay?.day && oldestDay.day <= fromDay;
+  const pairs = exact ? dayPairs : periodPairs;
   const bySlot = new Map<string, Map<string, number>>();
   for (const r of slots.results) {
     const key = `${isWeekend(r.day) ? '주말' : '평일'}-${r.slot}`;

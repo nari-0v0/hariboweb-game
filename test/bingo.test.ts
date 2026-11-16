@@ -162,6 +162,17 @@ describe('나갔다 다시 들어오기', () => {
     expect(stats).toMatchObject({ voice: 0, attendDays: 0, praiseGiven: 0, panel: 0 });
     // 함께 논 상대의 기록은 그대로예요
     expect((sql.prepare('SELECT minutes FROM bingo_day WHERE user_id = ?').get(B) as { minutes: number }).minutes).toBe(1);
+    // 나가기 전 짝 통화는 다시 들어온 사람의 빙고에 세지 않아요(상대 쪽엔 그대로)
+    expect(stats).toMatchObject({ partners: 0, bestPair: 0 });
+    expect((await loadStats(db, week, [B])).get(B)!.bestPair).toBe(1);
+    // 다시 들어온 뒤 함께한 통화는 세요
+    const again = parseSync({ batch_id: `${t(4)}-again`, members: [A, B].map((id) => ({ id, name: id })), room_minutes: [{ at: t(4), room: ROOM, members: [A, B] }] });
+    if (!again.ok) throw new Error(again.error);
+    await applySync(db, again.value, NOW + 5 * 60_000);
+    expect((await loadStats(db, week, [A])).get(A)!.bestPair).toBe(1);
+    // 짝 기록을 지우면(정식 시작 초기화) 빼 줄 값도 같이 지워져요
+    sql.exec('DELETE FROM bingo_pair');
+    expect((sql.prepare('SELECT COUNT(*) AS n FROM bingo_pair_reset').get() as { n: number }).n).toBe(0);
   });
 });
 
@@ -285,9 +296,9 @@ describe('줄 보상', () => {
 });
 
 describe('칭찬하기용 오늘 같이 통화한 사람', () => {
-  it('동기화 기록으로 알고, 3일 지난 줄은 지워요', async () => {
+  it('동기화 기록으로 알고, 보관 기간(16일) 지난 줄은 지워요', async () => {
     const { sql, db } = fakeD1();
-    sql.exec(`INSERT INTO pair_day (day, a, b, minutes) VALUES ('2026-10-28', '${A}', '${C}', 9)`);
+    sql.exec(`INSERT INTO pair_day (day, a, b, minutes) VALUES ('2026-10-10', '${A}', '${C}', 9), ('2026-10-28', '${A}', '${C}', 9)`);
     const r = parseSync({
       batch_id: '2026-11-02T14:05:00Z-y',
       members: [A, B, C].map((id) => ({ id, name: id })),
@@ -297,7 +308,8 @@ describe('칭찬하기용 오늘 같이 통화한 사람', () => {
     await applySync(db, r.value, Date.parse('2026-11-02T14:06:00Z'));
     expect(await todayPartners(db, B, '2026-11-02')).toEqual([{ id: A, minutes: 2 }]);
     expect(await todayPartners(db, A, '2026-11-02')).toEqual([{ id: B, minutes: 2 }]);
-    expect((sql.prepare('SELECT COUNT(*) AS n FROM pair_day').get() as { n: number }).n).toBe(1);
+    // 10월 10일 줄만 지워지고 10월 28일(팀 짝 고르기에 쓰는 2주 안)은 남아요
+    expect((sql.prepare('SELECT day FROM pair_day ORDER BY day').all() as { day: string }[]).map((r) => r.day)).toEqual(['2026-10-28', '2026-11-02']);
   });
 });
 
@@ -309,6 +321,9 @@ describe('빙고 기간 = 생명력 주기의 절반', () => {
       { id: '2026-11-10', start: '2026-11-09T21:00:00.000Z', end: '2026-11-16T21:00:00.000Z' },
     ]);
     expect(periodFor(Date.parse('2026-11-10T00:00:00Z'), halves).id).toBe('2026-11-10');
+    // 주기가 하루면 같은 날에 절반 둘이 생겨요. 시작 시각으로 나눠요.
+    const short = splitCycle('2026-11-15T15:00:00.000Z', '2026-11-16T15:00:00.000Z');
+    expect(short.map((h) => h.id)).toEqual(['2026-11-16-00', '2026-11-16-12']);
     // 주기를 모르면 월요일 기준 주
     expect(periodFor(NOW, []).id).toBe('w2026-11-02');
 
