@@ -1175,8 +1175,8 @@ main.wide { max-width: 1320px; }
 .jr-foe.flip .jr-sprite { scale: -1 1; }
 .jr-foe .jr-shadow { width: 70%; bottom: 0; }
 .jr-foe.beaten > span:first-child, .jr-foe.beaten .jr-shadow { opacity: 0; }
-/* 몬스터 체력 막대: 몬스터 머리 위(그림과 같이 사라져요). 맞을 때마다 오른쪽부터 어두운 칸이 덮여요 */
-.jr-mhp { position: absolute; top: -18px; left: 50%; z-index: 2; translate: -50% 0; width: min(96px, 70%); min-width: 56px; height: 12px; border: 2px solid var(--ink); background: #ff5a6e; box-shadow: 0 2px 0 rgba(0, 0, 0, .25); overflow: hidden; }
+/* 몬스터 체력 막대: 몬스터 발밑(위쪽 능력치 칸·피해 숫자와 안 겹치게, 그림과 같이 사라져요). 맞을 때마다 오른쪽부터 어두운 칸이 덮여요 */
+.jr-mhp { position: absolute; top: calc(100% + 2px); left: 50%; z-index: 2; translate: -50% 0; width: min(96px, 70%); min-width: 56px; height: 12px; border: 2px solid var(--ink); background: #ff5a6e; box-shadow: 0 2px 0 rgba(0, 0, 0, .25); overflow: hidden; }
 .jr-mhp i { position: absolute; top: 0; bottom: 0; right: 0; background: #3a3350; }
 @media (prefers-reduced-motion: no-preference) {
   .jr-mhp i { animation: jr-reveal 0s var(--d, 0s) both; }

@@ -254,9 +254,11 @@ function battle(s: JourneyState, m: Monster, power: number, r: () => number, lin
       s.potion = 0;
       lines.push({ icon: KIT.potion.icon, text: `위험할 때 회복 물약을 마셨어요! 체력 +${heal}`, tone: 'good' });
     }
-    if (sk(s, 'thorn')) mhp -= 3 * sk(s, 'thorn');
+    if (sk(s, 'thorn')) {
+      mhp -= 3 * sk(s, 'thorn');
+      left[left.length - 1] = Math.max(0, mhp); // 가시 피해는 방금 맞은 칸 기록에 넣어요(막대가 반격 때 줄어요)
+    }
   }
-  if (left.length) left[left.length - 1] = Math.max(0, mhp); // 가시 피해까지 넣은 마지막 남은 체력
   if (s.hp <= 0 || mhp > 0) {
     s.hp = 0;
     lines.push({ icon: m.emoji, text: `${m.name}에게 지고 말았어요… (${turns}턴)`, tone: 'bad' });

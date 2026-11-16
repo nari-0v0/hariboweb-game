@@ -256,6 +256,12 @@ describe('journey battle motion', () => {
     // 싸움 뒤 스킬을 고르면 지난 싸움은 다시 보여 주지 않아요
     const fought = { ...startJourney('x'), fx: { foe: 'slime', won: true, hits: [[0, 5]] as [0, number][] }, pending: { kind: 'skill' as const, options: ['power' as const] } };
     expect(actJourney(fought, { a: 'pick', n: 0 })!.fx).toBeUndefined();
+    // 가시 반격 피해는 그 반격 칸의 남은 체력에 바로 들어가요
+    const thorny = { ...startJourney('thorn'), day: 9, skills: { thorn: 3 } } as JourneyState;
+    const tf = actJourney(thorny, { a: 'next' })!.fx!;
+    const ti = tf.hits.findIndex((h, i) => h[0] === 1 && i < tf.hits.length - 1);
+    expect(ti).toBeGreaterThan(0);
+    expect(tf.left![ti]).toBe(Math.max(0, tf.left![ti - 1]! - 9));
     // 예전에 저장된 싸움(몬스터 체력 기록 없음)은 막대 없이 그대로 보여요
     expect(fightPlan(fought.fx).foeHp).toBeNull();
   });
