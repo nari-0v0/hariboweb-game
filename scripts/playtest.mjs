@@ -826,15 +826,28 @@ try {
           await page.goto(new URL(tab, base).href);
           await closePopup();
           assert.equal(await page.locator('form[action="/api/shop/buy"]').count(), 0, "items left unbought");
-          for (let n = 0; n < 60; n++) {
-            const use = page.locator('form[action="/api/me/theme"] button, form[action="/api/me/deco"] button').nth(n);
-            if (!(await use.count())) break;
-            await submit(use);
-            await closePopup();
-            await look(`site-${shot(tab)}-use-${n}`, n < 2);
+          // Use every owned theme/decoration once, by its id (the list is read before any change).
+          const uses = await page
+            .locator('form[action="/api/me/theme"], form[action="/api/me/deco"]')
+            .evaluateAll((fs) =>
+              fs.map((f) => {
+                const i = f.querySelector("input[type=hidden]");
+                return { action: f.getAttribute("action"), name: i.name, value: i.value };
+              }),
+            );
+          let used = 0;
+          for (const u of uses) {
             await page.goto(new URL(tab, base).href);
             await closePopup();
+            const use = page
+              .locator(`form[action="${u.action}"]:has(input[name="${u.name}"][value="${u.value}"]) button`)
+              .first();
+            if (!(await use.count())) continue; // already in use (no button)
+            await submit(use);
+            await look(`site-${shot(tab)}-use-${used}`, used < 2);
+            used++;
           }
+          console.log(`SITE ${tab} used ${used}/${uses.length}`);
         });
       }
       await step("buy services + nickname", async () => {
