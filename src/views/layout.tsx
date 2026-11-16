@@ -60,7 +60,7 @@ export function Layout(props: {
                 data-alert-open
                 aria-label={(props.viewer.unread_alerts ?? 0) > 0 ? `알림 (새 알림 ${props.viewer.unread_alerts}개)` : '알림'}
               >
-                <img src="/ui/bell.webp?v=2" alt="" width="32" height="32" />
+                <img src="/ui/bell.webp?v=3" alt="" width="32" height="32" />
                 {(props.viewer.unread_alerts ?? 0) > 0 && <i class="alert-dot" aria-hidden="true" />}
               </a>
               <label for="menu-toggle" class="menu-btn" role="button" tabindex={0} aria-label="메뉴 열기">
