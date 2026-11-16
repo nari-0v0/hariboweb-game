@@ -260,3 +260,41 @@ it('칭찬 한마디 검사 중 자정을 넘어도 빙고·시즌 통계에서 
     expect((await loadGroups(db, '2026-11-09'))!.groups[0]!.ctx.praises).toEqual([{ from: A, to: C, day: '2026-11-08', toNewbie: false }]);
   } finally { vi.useRealTimers(); }
 });
+
+it('칭찬함의 개수를 센 뒤 새 칭찬이 와도 기존 한마디를 못 본 채 읽음 처리하지 않아요', async () => {
+  const { db, sql } = fakeD1();
+  const opened = Date.parse('2026-11-16T03:00:00.000Z');
+  sql.prepare("UPDATE members SET gender_chosen_at = 'chosen' WHERE user_id = ?").run(A);
+  const add = sql.prepare('INSERT INTO praises (day, from_id, to_id, created_at, note) VALUES (?, ?, ?, ?, ?)');
+  for (let i = 0; i < 20; i++) {
+    const at = new Date(opened - (i + 1) * 86_400_000).toISOString();
+    add.run(at.slice(0, 10), B, A, `${at}#old`, `기존칭찬${i}끝`);
+  }
+  const prepare = db.prepare.bind(db);
+  let inserted = false;
+  const inject = (s: D1PreparedStatement): D1PreparedStatement => ({
+    ...s,
+    bind: (...values: unknown[]) => inject(s.bind(...values)),
+    all: async <T>() => {
+      if (!inserted) {
+        inserted = true;
+        vi.setSystemTime(opened + 1000);
+        add.run('2026-11-16', C, A, '2026-11-16T03:00:01.000Z#new', '방금온칭찬');
+      }
+      return s.all<T>();
+    },
+  }) as D1PreparedStatement;
+  db.prepare = (query) => query.includes('SELECT rowid AS id') ? inject(prepare(query)) : prepare(query);
+  vi.useFakeTimers();
+  try {
+    vi.setSystemTime(opened);
+    const session = await signSession('test', { uid: A, exp: opened + 60_000 });
+    const response = await app.request('/me/praise', { headers: { Cookie: `hs=${session}` } }, { DB: db, SESSION_SECRET: 'test' } as Env);
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(inserted).toBe(true);
+    for (let i = 0; i < 20; i++) expect(html).toContain(`기존칭찬${i}끝`);
+    expect(html).toContain('방금온칭찬');
+    expect((await praiseBox(db, A)).unread).toBe(1); // 페이지를 연 뒤 온 것은 다음에도 새 칭찬이에요.
+  } finally { vi.useRealTimers(); }
+});
