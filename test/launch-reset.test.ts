@@ -30,7 +30,7 @@ it('개시 초기화를 두 번 실행해도 겜블장과 이번 팀은 보존�
   } as unknown as D1Database;
   const now = Date.now();
   const iso = (offset: number) => new Date(now + offset).toISOString();
-  sql.exec(`INSERT INTO members (user_id, display_name, updated_at, starter_jelly_at) VALUES ('a', 'a', 'x', 'given'), ('b', 'b', 'x', NULL);
+  sql.exec(`INSERT INTO members (user_id, display_name, updated_at, starter_jelly_at, gender_chosen_at) VALUES ('a', 'a', 'x', 'given', 'g'), ('b', 'b', 'x', NULL, NULL), ('323412514224209921', '나리', 'x', NULL, 'g');
     INSERT INTO profiles (user_id, solo_xp, dogam_jelly, title_id, title_applied, intro, updated_at) VALUES ('a', 100, 99, 'gamble-season-winner', 'gamble-season-winner', '안녕', 'x'), ('b', 0, 0, 'ace', 'ace', '', 'x');
     INSERT INTO owned_items (user_id, item_id, acquired_at) VALUES ('a', 'title:gamble-season-winner', 'x'), ('a', 'title:ace', 'x');
     INSERT INTO cards (owner_id, target_id, xp, first_met, updated_at) VALUES ('a', 'b', 400, 'x', 'x');
@@ -64,6 +64,8 @@ it('개시 초기화를 두 번 실행해도 겜블장과 이번 팀은 보존�
     expect([stats.bestXp, stats.bingoLines, stats.praiseGot, stats.fullClears]).toEqual([0, 0, 0, 0]);
     expect(stats.seasons).toEqual([]);
     expect(await praiseBox(db, 'a')).toEqual({ unread: 0, total: 0, items: [] });
+    // 성별 고른 표시는 나리만 남아요
+    expect(sql.prepare('SELECT user_id FROM members WHERE gender_chosen_at IS NOT NULL').all()).toEqual([{ user_id: '323412514224209921' }]);
     for (const table of ['cards', 'bingo_lines', 'gq_pair', 'kidnap_min']) expect(sql.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get()).toEqual({ n: 0 });
   }
 });
