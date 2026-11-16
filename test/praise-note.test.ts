@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import app from '../src/index';
 import { signSession } from '../src/crypto';
 import { givePraise } from '../src/db';
-import { checkNote, cleanNote, hasBadWord, hidePraiseNote, markPraiseSeen, parseNoteVerdict, praiseBox } from '../src/praise-note';
+import { checkNote, cleanNote, hidePraiseNote, markPraiseSeen, parseNoteVerdict, praiseBox } from '../src/praise-note';
 import { applySync, parseSync } from '../src/sync';
 import type { Env } from '../src/env';
 
@@ -60,27 +60,13 @@ describe('한마디 검사', () => {
     expect(cleanNote(3)).toBe('');
   });
 
-  it('욕설 단어는 띄어쓰기·문장부호를 넣어도 찾아요', () => {
-    expect(hasBadWord('ㅅ ㅂ 진짜 잘하네')).toBe(true);
-    expect(hasBadWord('존.나 웃겼어')).toBe(true);
-    expect(hasBadWord('오늘 같이 해서 즐거웠어요!')).toBe(false);
-    // 욕이 아닌 흔한 칭찬은 막지 않아요
-    expect(hasBadWord('누구에게도 뒤지지 않는 실력이에요')).toBe(false);
-    expect(hasBadWord('너무 웃겨 죽어 ㅋㅋ')).toBe(false);
-    expect(hasBadWord('시바견처럼 귀여워요')).toBe(false);
-    // 진짜 욕은 그대로 막아요
-    expect(hasBadWord('그냥 죽어')).toBe(true);
-    expect(hasBadWord('시바 진짜')).toBe(true);
-    expect(hasBadWord('뒤질래?')).toBe(true);
-  });
-
-  it('AI가 비꼬기라고 하면 한마디는 빼요. AI가 없거나 실패하면 단어 검사만 해요', async () => {
+  it('AI가 비꼬기라고 하면 한마디는 빼요. 욕설은 막지 않고, AI가 없거나 실패하면 그대로 보내요', async () => {
     expect(parseNoteVerdict('{"verdict":"bad"}')).toBe('bad');
     expect(parseNoteVerdict('모르겠어요')).toBeNull();
     expect(await checkNote(fakeAi('{"verdict":"ok"}'), '덕분에 이겼어요')).toEqual({ note: '덕분에 이겼어요', filtered: false });
     expect(await checkNote(fakeAi('{"verdict":"bad"}'), '와 진짜 대단하시네요^^ 혼자 다 죽던데')).toEqual({ note: null, filtered: true });
     expect(await checkNote(fakeAi(new Error('limit')), '덕분에 이겼어요')).toEqual({ note: '덕분에 이겼어요', filtered: false });
-    expect(await checkNote(undefined, '병신')).toEqual({ note: null, filtered: true });
+    expect(await checkNote(undefined, '존나 잘함 ㅅㅂ')).toEqual({ note: '존나 잘함 ㅅㅂ', filtered: false });
     expect(await checkNote(undefined, '   ')).toEqual({ note: null, filtered: false });
   });
 });

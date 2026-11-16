@@ -11,27 +11,10 @@ export function cleanNote(raw: unknown): string {
   return [...raw.replace(/\s+/g, ' ').trim()].slice(0, PRAISE_NOTE_MAX).join('').trim();
 }
 
-// 욕설 단어(띄어쓰기·문장부호·숫자를 빼고 찾아요)
-const BAD_WORDS = [
-  '씨발', '시발', '씨바', '시바', 'ㅅㅂ', 'ㅆㅂ', '병신', '븅신', 'ㅂㅅ', '개새', '개색', '새끼', 'ㅅㄲ', '좆', 'ㅈ같', '존나', 'ㅈㄴ',
-  '지랄', 'ㅈㄹ', '꺼져', '닥쳐', '미친놈', '미친년', '또라이', '등신', '찐따', '느금', '니애미', '느그애미', '애미', '애비', '엠창',
-  '죽어', '뒤져', '뒤지', '뒤질', '한남', '한녀', '틀딱', '급식충', '병맛', 'fuck', 'shit', 'bitch',
-];
-
-// 욕이 아닌데 욕 글자가 들어 있는 흔한 칭찬 말. 이걸 먼저 지우고 봐요(그 뒤 AI 검사는 그대로).
-// 예: "누구에게도 뒤지지 않는 실력", "웃겨 죽어", "시바견 닮았어"
-const SAFE_PHRASES = ['시바견', '시바이누', '뒤지지않', '웃겨죽어', '웃다죽어', '귀여워죽어', '좋아죽어', '한남동', '애비뉴'];
-
-export function hasBadWord(note: string): boolean {
-  let core = note.toLowerCase().replace(/[\s0-9.,!?~…·\-_'"^*()[\]{}<>/\\|@#$%&+=:;]/g, '');
-  for (const safe of SAFE_PHRASES) core = core.split(safe).join('');
-  return BAD_WORDS.some((w) => core.includes(w));
-}
-
 const AI_PROMPT = `너는 디스코드 게임 모임의 칭찬 한마디 검사기야. 한 멤버가 같이 논 사람에게 칭찬과 함께 보낼 한마디를 적었어.
 JSON 한 줄로만 답해: {"verdict":"ok|bad"}
-- ok: 칭찬, 고마움, 응원, 장난스럽지만 다정한 말
-- bad: 비꼬기, 놀리기, 욕, 모욕, 성적인 말, 개인정보, 칭찬처럼 보이지만 상대를 깎아내리는 말`;
+- ok: 칭찬, 고마움, 응원, 장난스럽지만 다정한 말. 욕설이 섞여 있어도 강조나 친한 장난이면 ok야(예: "존나 잘함", "ㅅㅂ 개웃겼어").
+- bad: 상대를 비꼬거나 깎아내리는 말, 상대를 향한 모욕, 성적인 말, 개인정보`;
 
 export function parseNoteVerdict(text: string): 'ok' | 'bad' | null {
   const m = text.match(/\{[\s\S]*?\}/);
@@ -44,11 +27,11 @@ export function parseNoteVerdict(text: string): 'ok' | 'bad' | null {
   }
 }
 
-// 보낼 한마디. 비꼬기·욕이면 null(칭찬만 전해요). AI가 없거나 실패하면 욕설 단어 검사만 해요.
+// 보낼 한마디. 비꼬기·모욕이면 null(칭찬만 전해요). 욕설은 막지 않아요(나리 2026-11-16).
+// AI가 없거나 실패하면 그대로 보내요.
 export async function checkNote(ai: Ai | undefined, raw: unknown): Promise<{ note: string | null; filtered: boolean }> {
   const note = cleanNote(raw);
   if (!note) return { note: null, filtered: false };
-  if (hasBadWord(note)) return { note: null, filtered: true };
   const verdict = parseNoteVerdict(await askAi(ai, AI_PROMPT, note, 20, '칭찬 한마디'));
   return verdict === 'bad' ? { note: null, filtered: true } : { note, filtered: false };
 }
