@@ -32,7 +32,7 @@ export function Layout(props: {
         <link rel="preload" href="/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin="" />
         {props.preloadImages?.map((href) => <link rel="preload" href={href} as="image" fetchpriority="high" />)}
         <link rel="icon" type="image/png" href="/char/deco/explorer.png" />
-        <link rel="stylesheet" href="/styles.css?v=alerts-guide-1" />
+        <link rel="stylesheet" href="/styles.css?v=bell-pixel-1" />
         <script src="/app.js?v=alerts-guard-1" defer></script>
         {props.scripts?.map((script) => typeof script === 'string'
           ? <script src={script} defer></script>
@@ -60,7 +60,8 @@ export function Layout(props: {
                 data-alert-open
                 aria-label={(props.viewer.unread_alerts ?? 0) > 0 ? `알림 (새 알림 ${props.viewer.unread_alerts}개)` : '알림'}
               >
-                <img src="/ui/bell.webp?v=3" alt="" width="32" height="32" />
+                <img class="bell-off" src="/ui/bell.webp?v=4" alt="" width="32" height="32" />
+                <img class="bell-on" src="/ui/bell-on.webp?v=4" alt="" width="32" height="32" />
                 {(props.viewer.unread_alerts ?? 0) > 0 && <i class="alert-dot" aria-hidden="true" />}
               </a>
               <label for="menu-toggle" class="menu-btn" role="button" tabindex={0} aria-label="메뉴 열기">
