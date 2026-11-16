@@ -66,7 +66,7 @@ ${rows.map((r) => `| ${r.join(" | ")} |`).join("\n")}
 - 정답 풀이 행동: ${report.cases.reduce((n, c) => n + c.steps, 0)} steps (퍼즐 내부 클릭·초점 선택·동전 클릭은 별도)
 - 최종 실행: ${report.started} ~ ${report.finished} (UTC; 한국 시간은 +9시간)
 - 최종 서버: ${report.server.managed ? "스크립트가 npx wrangler dev로 시작" : "기존 로컬 서버 사용"}, ${report.server.url}, 자체 서버 정리 ${report.server.stopped ? "완료" : "해당 없음/미완료"}
-- 실제 원정 결과: ${report.expedition?.text.split("\n").find((t) => t.includes("멈췄어요") || t.includes("물리쳤어요")) ?? "미완료"}
+- 실제 원정 결과: ${(report.expedition?.chapters ?? []).map((r) => `${r.ch}장 ${r.cleared ? "깸" : "못 깸"}`).join(", ") || "미완료"}
 
 ## 재현 위치와 수정
 
@@ -97,7 +97,7 @@ ${report.issues.length ? report.issues.map((i) => `- ${i.where}: ${i.kind} ${JSO
 - 상세 단계별 문제: output/playtest/baseline/playtest-report.md 및 results.json
 - 최종 상세 결과: output/playtest/final/playtest-report.md 및 results.json
 - 캡처 색인: output/playtest/index.html (압축을 풀고 열면 전체 캡처를 볼 수 있습니다).
-- PNG 파일 이름: 사건ID-장면ID-단계, -390, -puzzle-단계, -result. 원정은 expedition-순번 및 expedition-result.
+- PNG 파일 이름: 사건ID-장면ID-단계, -390, -puzzle-단계, -result. 원정은 expedition-ch장-순번 및 expedition-ch장-result. 겜블장은 gamble-게임, gamble-게임-result.
 
 ## 검사 한계
 

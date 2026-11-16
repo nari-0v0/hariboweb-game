@@ -9,7 +9,7 @@ import { setTimeout as delay } from "node:timers/promises";
 
 const WRANGLER_BIN = resolve("node_modules/wrangler/bin/wrangler.js");
 
-export async function startLocalServer() {
+export async function startLocalServer({ gambleTester } = {}) {
   const root = resolve("work/playtest-server");
   await mkdir(root, { recursive: true });
   const env = {
@@ -104,6 +104,8 @@ export async function startLocalServer() {
       "DEV_LOGIN:1",
       "--var",
       `SESSION_SECRET:${randomBytes(32).toString("hex")}`,
+      // The robot's own account may play even while the gamble hall is locked for members.
+      ...(gambleTester ? ["--var", `GAMBLE_TESTERS:${gambleTester}`] : []),
     ]);
     const deadline = Date.now() + 60000;
     while (Date.now() < deadline) {
