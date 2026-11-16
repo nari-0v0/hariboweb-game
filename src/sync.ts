@@ -316,6 +316,11 @@ export async function applySync(
     stmts.push(db.prepare('DELETE FROM story_rewards WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM rooms WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM jellypi WHERE user_id = ?').bind(id));
+    // 빙고도 처음부터예요(같은 빙고 기간에 다시 들어와도 예전 칸·받은 줄이 남지 않게, 나리 2026-11-16).
+    // 다른 사람과 함께한 통화(bingo_pair)는 상대의 빙고 기록이기도 해서 남겨요.
+    stmts.push(db.prepare('DELETE FROM bingo_day WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM bingo_flag WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM bingo_lines WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM room_likes WHERE from_id = ?1 OR to_id = ?1').bind(id));
     // 같이 배정되지 않기 요청도(신청했든 받았든) 지워요. 사유가 채널에 새로 올라가지 않게요.
     stmts.push(db.prepare('DELETE FROM assign_blocks WHERE from_id = ?1 OR to_id = ?1').bind(id));
@@ -327,6 +332,7 @@ export async function applySync(
     stmts.push(db.prepare('DELETE FROM purchases WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM nick_jobs WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM alerts WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM jelly_grants WHERE user_id = ?').bind(id));
   }
 
   // 주간 빙고 기록(통화방 1분, 출석)도 같은 트랜잭션에
