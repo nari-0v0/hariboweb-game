@@ -189,3 +189,43 @@ describe('rejoined member titles', () => {
     expect(st.seasons).toHaveLength(1);
   });
 });
+
+describe('초기화 전 동기화 기록', () => {
+  const reset = '2026-11-15T03:00:00.000Z';
+  const before = '2026-11-14T03:00:00.000Z';
+  const after = '2026-11-15T04:00:00.000Z';
+  const room = '900000000000000001';
+  function setup() {
+    const f = fakeD1();
+    for (const id of [A, B]) f.sql.prepare('INSERT INTO members (user_id, display_name, active, reset_at, updated_at) VALUES (?, ?, 1, ?, ?)').run(id, id, reset, reset);
+    return f;
+  }
+  it('늦게 도착한 초기화 전 묶음이 카드·레벨 젤리·혼자 경험치·출석 젤리·빙고를 되살리지 않아요', async () => {
+    const { sql, db } = setup();
+    const p = batch(`${before}-pending`, 400, {
+      pair_xp: [{ a: A, b: B, xp: 400, at: before }],
+      solo_xp: [{ id: A, xp: 20 }], jelly_earned: [{ id: A, amount: 4 }],
+      room_minutes: [{ at: before, room, members: [A, B] }],
+      attendance: [{ id: A, day: '2026-11-14' }],
+    });
+    expect(await applySync(db, p, Date.parse(after))).toBe('applied');
+    expect(await applySync(db, p, Date.parse(after))).toBe('duplicate');
+    for (const table of ['cards', 'profiles', 'bingo_day', 'bingo_pair', 'pair_day', 'member_voice_day'])
+      expect(sql.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get()).toEqual({ n: 0 });
+  });
+  it('새 묶음에 섞인 예전 통화도 빼고 초기화 뒤 활동은 한 번만 줘요', async () => {
+    const { sql, db } = setup();
+    const p = batch(`${after}-mixed`, 0, {
+      pair_xp: [{ a: A, b: B, xp: 400, at: before }, { a: A, b: B, xp: 400, at: after }],
+      solo_xp: [{ id: A, xp: 20 }], jelly_earned: [{ id: A, amount: 4 }],
+      room_minutes: [{ at: before, room, members: [A, B] }, { at: after, room, members: [A, B] }],
+      attendance: [{ id: A, day: '2026-11-14' }, { id: A, day: '2026-11-15' }],
+    });
+    await applySync(db, p, Date.parse(after));
+    await applySync(db, p, Date.parse(after));
+    expect(sql.prepare('SELECT xp, first_met, jelly_level FROM cards WHERE owner_id = ?').get(A)).toEqual({ xp: 400, first_met: after, jelly_level: 10 });
+    expect(sql.prepare('SELECT solo_xp, dogam_jelly FROM profiles WHERE user_id = ?').get(A)).toEqual({ solo_xp: 20, dogam_jelly: 7 });
+    expect(sql.prepare('SELECT SUM(minutes) AS n, SUM(attended) AS a FROM bingo_day WHERE user_id = ?').get(A)).toEqual({ n: 1, a: 1 });
+    expect(sql.prepare('SELECT SUM(minutes) AS n FROM member_voice_day WHERE user_id = ?').get(A)).toEqual({ n: 1 });
+  });
+});

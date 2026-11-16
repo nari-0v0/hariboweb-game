@@ -341,7 +341,8 @@ export async function settleSeason(db: D1Database, season: Season, nowMs: number
   const mark = `${t}#${crypto.randomUUID()}`;
   const settle = db.prepare('INSERT OR IGNORE INTO season_settle (season_id, kind, mark, created_at) VALUES (?, ?, ?, ?)');
   const marked = `EXISTS (SELECT 1 FROM season_settle WHERE season_id = ?2 AND kind = ?3 AND mark = ?4)
-    AND EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)`;
+    AND EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1
+      AND COALESCE(reset_at, '') < (SELECT ends_at FROM seasons WHERE id = ?2))`;
   const jelly = db.prepare(
     `INSERT INTO profiles (user_id, dogam_jelly, updated_at) SELECT ?1, ?5, ?6 WHERE ${marked}
      ON CONFLICT (user_id) DO UPDATE SET dogam_jelly = dogam_jelly + excluded.dogam_jelly, updated_at = excluded.updated_at`,

@@ -206,6 +206,38 @@ describe('동기화로 팀·서버 퀘스트', () => {
     expect([jp(sql, A), jp(sql, C)]).toEqual([3, 3 + 2]);
   });
 
+  it('시즌 종료 뒤 탈퇴했다 재가입한 사람에게 밀린 옛 시즌 보상을 주지 않아요', async () => {
+    const { sql, db } = await setup();
+    await applySync(db, payload({ room_minutes: minutes(30, [C, D]) }), NOW + 3_600_000);
+    // 시즌이 끝난 뒤, 정산 전에 나가면 season_members는 옛 시즌에 남아요.
+    const left = Date.parse(END) + 5 * 60_000;
+    const removed = payload({ removed: [C] });
+    removed.batch_id = new Date(left).toISOString() + '-left';
+    await applySync(db, removed, left);
+    const back = payload({ members: [member(C)] });
+    back.batch_id = new Date(left + 60_000).toISOString() + '-back';
+    await applySync(db, back, left + 60_000);
+    const dBefore = jelly(sql, D);
+    await settleEnded(db, Date.parse(END) + 31 * 60_000);
+    expect(sql.prepare('SELECT 1 FROM profiles WHERE user_id = ?').get(C)).toBeUndefined();
+    expect(jp(sql, C)).toBe(0);
+    expect(jelly(sql, D) - dBefore).toBe(3 + 5);
+    await settleEnded(db, Date.parse(END) + 32 * 60_000);
+    expect(jelly(sql, D) - dBefore).toBe(3 + 5);
+  });
+
+  it('초기화 전에 한 통화는 팀 달성·납치 진행으로 되살아나지 않아요', async () => {
+    const { sql, db } = await setup();
+    const reset = NOW + 2 * 3_600_000;
+    sql.prepare('UPDATE members SET reset_at = ?').run(new Date(reset).toISOString());
+    await applySync(db, payload({ room_minutes: minutes(30, [C, D]) }), reset + 3_600_000);
+    expect((await bingoExtras(db, C, START)).server).toMatchObject({ kidnapped: [], participants: [], met: false });
+    expect((await teamStatesFor(db, '2026-11-03', [C, D])).get(C)).toBe('todo');
+    await applySync(db, payload({ room_minutes: minutes(30, [C, D], reset + 60_000) }), reset + 3_600_000);
+    expect((await bingoExtras(db, C, START)).server).toMatchObject({ kidnapped: [D], met: true });
+    expect((await teamStatesFor(db, '2026-11-03', [C, D])).get(C)).toBe('done');
+  });
+
   it('서버 목표를 못 채우면 아무도 못 받아요', async () => {
     const { sql, db } = await setup();
     sql.exec("UPDATE server_quest SET target = 2");
