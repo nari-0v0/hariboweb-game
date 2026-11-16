@@ -51,11 +51,12 @@ export function LandingPage(props: { error?: string; notMember?: boolean; devLog
               </a>
             </div>
           )}
-          <a class="btn btn-discord" href="/auth/login">
-            <DiscordIcon /> 디스코드로 시작하기
+          <p class="land-lock">🔒 도감은 디스코드로 로그인해야 볼 수 있어요. 하리보 디스코드 서버 멤버만 들어올 수 있어요.</p>
+          <a class="btn btn-discord land-login" href="/auth/login">
+            <DiscordIcon /> 디스코드로 로그인하고 보러가기
           </a>
           <p class="hint">
-            하리보 서버 멤버만 들어올 수 있어요. 처음이라면 <a href="/guide">사용설명서</a>를 먼저 읽어 보세요.
+            처음이라면 <a href="/guide">사용설명서</a>를 먼저 읽어 보세요.
           </p>
           {props.devLogin && (
             <form class="dev" method="get" action="/auth/dev">
