@@ -241,7 +241,7 @@ export function MePage(props: { viewer: Member; profile: Profile; items: Set<str
               <h1>{viewer.display_name}</h1>
               <span class={`chip tier-chip t-${tierFor(level)}`}>{tierLabel(tierFor(level))}</span>
             </div>
-            <p class="muted">출석, 서바이벌, 빙고처럼 혼자 하는 활동으로 내 카드가 자라요.</p>
+            <p class="muted">출석, 빙고, 사건파일·원정대처럼 혼자 하는 활동으로 내 카드가 자라요.</p>
             <XpBar xp={profile.solo_xp} />
             <TierRoad level={level} />
             <CardGoal owned={props.owned} claimed={props.claimed} />
