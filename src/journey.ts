@@ -110,7 +110,7 @@ export const bankRate = (farmed: number) => BANK_RATES[Math.min(Math.max(0, farm
 export const perkCost = (lv: number) => 20 + lv * 15; // 지금 단계에서 다음 단계로 가는 값
 
 // 장비 강화(나리 2026-11-13): 훈련은 젤코인으로 조금씩, 장비는 장마다 나오는 재료로 한 단계씩 크게.
-// +N 강화에는 N장 재료가 필요해서, 장을 깰수록 차례로 강해져요.
+// +N 강화에는 N장 재료(그리고 앞 장 재료들)가 필요해서, 장을 깰수록 차례로 강해져요.
 export type GearId = 'weapon' | 'armor' | 'charm';
 export type Gear = Record<GearId, number>;
 export const NO_GEAR: Gear = { weapon: 0, armor: 0, charm: 0 };
@@ -134,7 +134,20 @@ export const MATERIALS = [
   { icon: '🔥', name: '화산석' },
 ];
 export const material = (ch: number) => MATERIALS[Math.min(MATERIALS.length, Math.max(1, ch)) - 1]!;
-export const gearNeed = (next: number) => ({ ch: next, mats: 2 + Math.floor((next - 1) / 3), coins: Math.round(30 * next * (1 + 0.45 * (next - 1))) }); // +next로 가는 값. 젤코인은 뒤 장일수록 몬스터가 주는 만큼 비싸져요(+1 30 … +9 약 1240).
+// 앞 장 재료도 같이 써요(흐물한 어피치님 제안, 나리 2026-11-17): 한 번 강화하고 나면 앞 장 재료가 쓸모없어지지 않게,
+// +N에는 N장 재료에 더해 1장 ~ N-1장 재료를 장마다 LOWER_MATS개씩 더 내요. 장비를 끝까지 올릴 때까지 모든 재료가 쓰여요.
+export const LOWER_MATS = 2;
+export type MatCost = { ch: number; n: number };
+// +next로 가는 값. mats = 그 장 재료 수, cost = 앞 장 재료까지 넣은 전체(뒤 장부터).
+// 젤코인은 뒤 장일수록 몬스터가 주는 만큼 비싸져요(+1 30 … +9 약 1240).
+export const gearNeed = (next: number) => {
+  const ch = Math.min(MATERIALS.length, Math.max(1, Math.floor(next)));
+  const mats = 2 + Math.floor((ch - 1) / 3);
+  const cost: MatCost[] = [{ ch, n: mats }];
+  for (let k = ch - 1; k >= 1; k--) cost.push({ ch: k, n: LOWER_MATS });
+  return { ch, mats, cost, coins: Math.round(30 * ch * (1 + 0.45 * (ch - 1))) };
+};
+export const hasMats = (have: Record<number, number>, cost: MatCost[]) => cost.every((c) => (have[c.ch] ?? 0) >= c.n);
 // 뒤 장 재료로 올린 단계일수록 더 많이 올라요(장마다 몬스터가 세지는 만큼).
 export const GEAR_GROW = 0.18;
 export function gearBonus(id: GearId, lv: number): number {

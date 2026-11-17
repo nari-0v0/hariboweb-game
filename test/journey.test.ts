@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DAYS, journeyJelly, KIT_SHIELD_HITS, kitCost, actJourney, autoChoice, decodeJourney, journeyXp, perkMax, gearBonus, FIRST_CLEAR_BONUS, startJourney, stat, type JourneyState } from '../src/journey';
+import { DAYS, journeyJelly, KIT_SHIELD_HITS, kitCost, actJourney, autoChoice, decodeJourney, journeyXp, perkMax, gearBonus, gearNeed, hasMats, GEAR_MAX, LOWER_MATS, FIRST_CLEAR_BONUS, startJourney, stat, type JourneyState } from '../src/journey';
 import { NO_COINS, STALE_PICK, actJourneyRun, activeJourney, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from '../src/journey-db';
 
 function database() {
@@ -180,12 +180,36 @@ describe('원정대 저장과 보상', () => {
     let bank = await journeyBank(db, 'me');
     expect([bank.weapon, bank.coins, bank.mats[1]]).toEqual([1, 70, 1]);
     expect(await upgradeGear(db, 'me', 'armor')).toBe(false); // 1장 재료 1개뿐
-    expect(await upgradeGear(db, 'me', 'weapon')).toBe(false); // +2는 2장 재료
+    expect(await upgradeGear(db, 'me', 'weapon')).toBe(false); // +2는 2장 재료(+ 1장 재료 2개)
     const id = (await beginJourney(db, 'me'))!;
     const run = (await getJourney(db, 'me', id))!;
     expect(run.state.atk).toBe(12 + gearBonus('weapon', 1));
     bank = await journeyBank(db, 'me');
     expect(bank.armor).toBe(0);
+  });
+  it('+2부터는 앞 장 재료도 장마다 2개씩 같이 써요(하나라도 모자라면 아무것도 빼지 않아요)', async () => {
+    const { db, sql } = database();
+    sql.prepare(`INSERT INTO journey_bank (user_id, coins, weapon, mats, updated_at) VALUES ('me', 1000, 1, '{"1":1,"2":5}', 'x')`).run();
+    expect(await upgradeGear(db, 'me', 'weapon')).toBe(false); // 1장 재료가 1개뿐
+    let bank = await journeyBank(db, 'me');
+    expect([bank.weapon, bank.coins, bank.mats[1], bank.mats[2]]).toEqual([1, 1000, 1, 5]);
+    sql.prepare(`UPDATE journey_bank SET mats = '{"1":4,"2":5,"3":7}'`).run();
+    expect(await upgradeGear(db, 'me', 'weapon')).toBe(true); // +2: 2장 2개 + 1장 2개
+    bank = await journeyBank(db, 'me');
+    expect([bank.weapon, bank.mats[1], bank.mats[2]]).toEqual([2, 2, 3]);
+    expect(await upgradeGear(db, 'me', 'weapon')).toBe(true); // +3: 3장 2개 + 2장 2개 + 1장 2개
+    bank = await journeyBank(db, 'me');
+    expect([bank.weapon, bank.mats[1] ?? 0, bank.mats[2], bank.mats[3]]).toEqual([3, 0, 1, 5]);
+    expect(await upgradeGear(db, 'me', 'armor')).toBe(false); // 갑옷 +1에 쓸 1장 재료가 이제 없어요
+  });
+  it('강화 값: 그 장 재료는 2~4개, 앞 장 재료는 장마다 2개, 1장 재료도 +9까지 계속 쓰여요', () => {
+    expect(gearNeed(1).cost).toEqual([{ ch: 1, n: 2 }]);
+    expect(gearNeed(3).cost).toEqual([{ ch: 3, n: 2 }, { ch: 2, n: LOWER_MATS }, { ch: 1, n: LOWER_MATS }]);
+    const top = gearNeed(GEAR_MAX);
+    expect(top.cost[0]).toEqual({ ch: GEAR_MAX, n: 4 });
+    expect(top.cost.map((c) => c.ch)).toEqual([9, 8, 7, 6, 5, 4, 3, 2, 1]);
+    expect(hasMats({ 1: 2, 2: 2 }, gearNeed(2).cost)).toBe(true);
+    expect(hasMats({ 1: 1, 2: 9 }, gearNeed(2).cost)).toBe(false);
   });
   it('오래된 화면(다른 단계)에서 누르면 다음 단계 값을 내지 않아요', async () => {
     const { db, sql } = database();
