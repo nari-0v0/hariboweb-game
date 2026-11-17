@@ -491,10 +491,11 @@ function Play(props: { run: JourneyRun; art: string; name: string; preview?: boo
   );
 }
 
-// 장 고르기: 열린 장만 누를 수 있어요. 기본은 가장 높은 장.
-// 앞 장 대장을 이겨야 하고, 4장부터는 도감 카드도 모아야 열려요(src/unlock.ts).
-function ChapterPick(props: { unlocked: number; top: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number; again?: boolean }) {
+// 장 고르기: 열린 장만 누를 수 있어요. 기본은 마지막으로 돈 장(아래 장 재료를 모으는 사람이 매번 다시 안 골라도 되게),
+// 처음이거나 그 장을 못 가면 가장 높은 장이에요. 앞 장 대장을 이겨야 하고, 4장부터는 도감 카드도 모아야 열려요(src/unlock.ts).
+function ChapterPick(props: { unlocked: number; top: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number; last?: number; again?: boolean }) {
   const pick = Math.min(props.unlocked, journeyOpenTo(props.dogam));
+  const chosen = props.last && props.last >= 1 && props.last <= pick ? props.last : pick;
   return (
     <form method="post" action="/api/journey/start" class="jr-chapters">
       <input type="hidden" name="kl" value={pick} />
@@ -506,7 +507,7 @@ function ChapterPick(props: { unlocked: number; top: number; dogam: DogamProgres
           const boss = picOf('foe', c.boss.key);
           return (
             <label class={`jr-chapter${open ? '' : ' locked'}`}>
-              <input type="radio" name="ch" value={c.n} checked={c.n === pick} disabled={!open} />
+              <input type="radio" name="ch" value={c.n} checked={c.n === chosen} disabled={!open} />
               <span class="jr-chapter-pic" aria-hidden="true">
                 {boss ? <img src={boss.src} alt="" loading="lazy" /> : <span>{c.boss.emoji}</span>}
               </span>
@@ -601,7 +602,7 @@ function Result(props: { run: JourneyRun; art: string; name: string; unlocked: n
       </p>
       {props.going
         ? <a class="btn btn-primary" href="/expedition/go#now">진행 중인 원정 이어 하기</a>
-        : <ChapterPick unlocked={props.unlocked} top={props.top} dogam={props.dogam} farmed={props.farmed} coins={props.coins} again />}
+        : <ChapterPick unlocked={props.unlocked} top={props.top} dogam={props.dogam} farmed={props.farmed} coins={props.coins} last={s.ch ?? 1} again />}
     </section>
     </>
   );
@@ -884,7 +885,7 @@ export function JourneyPage(props: {
               </div>
             </div>
             <h2 class="jr-pick-title">어느 장으로 떠날까요?</h2>
-            <ChapterPick unlocked={record.unlocked} top={record.top} dogam={props.dogam} farmed={record.farmed} coins={props.bank.coins} />
+            <ChapterPick unlocked={record.unlocked} top={record.top} dogam={props.dogam} farmed={record.farmed} coins={props.bank.coins} last={record.last} />
           </section>
         )}
         <PerkPanel bank={props.bank} going={!!run} unlocked={Math.min(record.unlocked, journeyOpenTo(props.dogam))} art={props.art} name={name} tab={prepTab(props.prep)} />
