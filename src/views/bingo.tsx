@@ -8,7 +8,9 @@ import {
   SERVER_JELLY,
   TEAM_GOAL_MIN,
   TEAM_JELLY,
-  TEAM_PRIOR_MAX,
+  matesOf,
+  myMates,
+  pairKey,
 } from '../team';
 import { Layout } from './layout';
 import { BLOCK_HELP, BLOCK_LIMIT_NOTICE, BLOCK_MAX_PENDING, BLOCK_NOTICE, BLOCK_QUESTION, BLOCK_REASON_MAX, BLOCK_UNDO_NOTICE, type MyBlock } from '../assign-block';
@@ -163,6 +165,33 @@ function ServerQuestBar(props: { extras: BingoExtras; me: string }) {
   );
 }
 
+// 나와 팀원이 이번 시즌에 함께한 시간: 30분을 채운 팀원이 need명이면 나는 달성
+function MyMates(props: { team: NonNullable<BingoExtras['team']>; me: string }) {
+  const mates = myMates(props.team, props.me);
+  const met = matesOf(
+    props.me,
+    props.team.members.map((m) => m.id),
+    new Map(props.team.pairs.map((p) => [pairKey(p.a, p.b), p.minutes])),
+  );
+  return (
+    <div class="bgo-partners">
+      <b>
+        나와 {TEAM_GOAL_MIN}분 이상 함께한 팀원 {Math.min(met, props.team.need)} / {props.team.need}명
+      </b>
+      {mates.length ? (
+        <ul aria-label="팀원과 함께한 시간">
+          {mates.map((x) => (
+            <li class={x.minutes >= TEAM_GOAL_MIN ? 'done' : undefined}>
+              {x.minutes >= TEAM_GOAL_MIN ? '✓ ' : ''}
+              {x.name} · {Math.min(x.minutes, TEAM_GOAL_MIN)}/{TEAM_GOAL_MIN}분
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 // 가운데 칸 팀 퀘스트 자세히
 function TeamPanel(props: { extras: BingoExtras; view: BingoView; me: string }) {
   const t = props.extras.team;
@@ -194,19 +223,20 @@ function TeamPanel(props: { extras: BingoExtras; view: BingoView; me: string }) 
         </ul>
       </div>
       <p class="bgo-team-text">
-        지난 2주간 {TEAM_PRIOR_MAX}분 미만 통화자와 이번 시즌에 같은 통화방에서 {TEAM_GOAL_MIN}분 함께하기
+        팀원 {t.need}명(팀 인원의 절반)과 각각 같은 통화방에서 {TEAM_GOAL_MIN}분 이상 함께하면 나는 달성! 팀원 절반이 달성하면 팀 완료예요.
       </p>
       {t.bonus ? (
-        <p class="bgo-team-bonus">우리 팀은 후보가 2명보다 적어서 가운데 칸을 보너스 칸으로 채웠어요. (팀 퀘스트 보상은 없어요)</p>
+        <p class="bgo-team-bonus">우리 팀은 2명보다 적어서 가운데 칸을 보너스 칸으로 채웠어요. (팀 퀘스트 보상은 없어요)</p>
       ) : (
         <>
           <p class="bgo-team-count">
-            우리 팀 <b>{t.achievers.length}</b> / {t.target}명
+            우리 팀 달성 <b>{t.achievers.length}</b> / {t.target}명 ({pct}%)
           </p>
           <div class="bgo-server-bar small" aria-hidden="true">
             <i style={`width:${pct}%`} />
           </div>
           <p class={`bgo-team-me s-${state}`}>{TEAM_STATE[state]}</p>
+          {mates.some((m) => m.id === props.me) ? <MyMates team={t} me={props.me} /> : null}
           <p class="bgo-team-reward">
             시즌이 끝날 때 팀 목표를 채웠으면 달성한 사람만 젤리 {TEAM_JELLY}개 + 젤리피 {JP_TEAM}.
           </p>

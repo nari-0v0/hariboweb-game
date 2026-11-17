@@ -193,13 +193,11 @@ describe('줄 보상', () => {
       }
     }
     sql.prepare("INSERT INTO bingo_flag (week, user_id, flag) VALUES (?, ?, 'panel'), (?, ?, 'web')").run(week, id, week, id);
-    // 가운데 칸: 이 시즌 팀 퀘스트 짝과 30분
+    // 가운데 칸: 혼자인 팀이라 보너스 칸
     const p = fallbackWeek(NOW);
     sql.prepare("INSERT OR IGNORE INTO seasons (id, starts_at, ends_at, created_at) VALUES ('s1', ?, ?, 'x')").run(p.start, p.end);
     sql.prepare("INSERT INTO season_members (season_id, user_id, group_no, start_member, joined_at) VALUES ('s1', ?, 0, 1, 'x')").run(id);
     sql.prepare("INSERT OR IGNORE INTO server_quest (season_id, newbies, target, created_at) VALUES ('s1', 0, 1, 'x')").run();
-    sql.prepare("INSERT INTO team_pairs (season_id, group_no, a, b) VALUES ('s1', 0, ?, ?)").run(id, others[0]);
-    sql.prepare("INSERT INTO gq_pair (season_id, group_no, a, b, minutes) VALUES ('s1', 0, ?, ?, 30)").run(id, others[0]);
   }
 
   it('줄마다 한 번만, 9칸을 다 채우면 더 줘요', async () => {

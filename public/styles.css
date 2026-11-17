@@ -623,6 +623,12 @@ main.wide { max-width: 1320px; }
 .bgo-mates b { display: block; font-size: .85rem; margin-bottom: 4px; }
 .bgo-mates ul { list-style: none; display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; }
 .bgo-mates li { max-width: 100%; padding: 1px 8px; font-size: .8rem; background: #fff; border: 2px solid var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bgo-partners { margin: 6px 0 8px; padding: 6px 8px; background: #eaf6ff; border: 2px solid var(--ink); }
+.bgo-partners b { display: block; font-size: .85rem; margin-bottom: 4px; }
+.bgo-partners ul { list-style: none; display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 4px; padding: 0; }
+.bgo-partners li { max-width: 100%; padding: 1px 8px; font-size: .8rem; background: #fff; border: 2px solid var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bgo-partners li.done { background: #e9fbef; }
+.bgo-partners small { display: block; font-size: .75rem; color: var(--ink-soft); }
 .bgo-mates li.done { background: #d9f7d9; font-weight: 700; }
 .bgo-mates li.me { box-shadow: 0 0 0 2px var(--pink); }
 .bgo-team-me { display: inline-block; padding: 0 8px; font-weight: 700; border: 2px solid var(--ink); background: var(--paper); }
