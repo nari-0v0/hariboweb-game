@@ -117,12 +117,10 @@ describe('처음 성별 고르기와 상점 성별 바꾸기', () => {
     expect(row().character_id).toBe(boy);
   });
 
-  it('처음 고르기에서 반대 성별을 고르면 원래 캐릭터를 맡겨 둬요', async () => {
-    const { db, row, sql } = setup(40);
+  it('처음 성별 고르기는 그냥 고르기라 예전 캐릭터를 맡겨 두지 않아요(나리 2026-11-17)', async () => {
+    const { db, sql } = setup(40);
     expect(await chooseFirstGender(db, A, 'boy')).toBe('done');
-    expect(sql.prepare('SELECT character_id FROM character_keep WHERE user_id = ?').get(A)).toEqual({ character_id: 'girl-01-0' });
-    expect(await buyGenderChange(db, A, 'girl', 30)).toBe('done');
-    expect(row().character_id).toBe('girl-01-0');
+    expect(sql.prepare('SELECT COUNT(*) AS n FROM character_keep').get()).toEqual({ n: 0 });
   });
 
   it('못 산 성별 바꾸기는 아무것도 맡겨 두지 않아요', async () => {
@@ -130,5 +128,18 @@ describe('처음 성별 고르기와 상점 성별 바꾸기', () => {
     await chooseFirstGender(db, A, 'girl');
     expect(await buyGenderChange(db, A, 'boy', 30)).toBe('not_enough_jelly');
     expect(sql.prepare('SELECT COUNT(*) AS n FROM character_keep').get()).toEqual({ n: 0 });
+  });
+
+  it('다른 사람이 맡겨 둔 캐릭터는 저장할 때도 막아요(겹쳐도 절대 안 줘요)', async () => {
+    const { db, row, sql } = setup(100);
+    await chooseFirstGender(db, A, 'girl');
+    const plan = await planCharacterPool(db, A, 'boy');
+    // 미리보기를 본 뒤 다른 사람이 그 캐릭터를 맡겨 둔 상황
+    sql.prepare("INSERT INTO character_keep (user_id, character_id, character_sig, updated_at) VALUES ('999', ?, ?, 'x')").run(plan.character, plan.character);
+    expect(await buyGenderChange(db, A, 'boy', 30, plan.character)).toBe('changed');
+    expect(row().character_id).toBe('girl-01-0');
+    expect(row().dogam_jelly).toBe(100);
+    const again = await planCharacterPool(db, A, 'boy');
+    expect(again.character).not.toBe(plan.character);
   });
 });

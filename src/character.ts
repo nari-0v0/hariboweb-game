@@ -36,18 +36,17 @@ export function isCharacterId(id: string | null | undefined): id is string {
 }
 
 // 아직 아무도 안 쓰는 캐릭터 하나(pool을 주면 그 묶음 안에서). 전부 차면 겹치는 걸 허락해요.
-export function pickCharacter(userId: string, taken: Set<string>, pool?: CharacterPool | null): string {
+// forbidden: 겹쳐도 절대 주면 안 되는 캐릭터(다른 사람이 맡겨 둔 예전 캐릭터).
+export function pickCharacter(userId: string, taken: Set<string>, pool?: CharacterPool | null, forbidden?: Set<string>): string {
   const bases = basesIn(pool);
   const start = hash(userId) % bases.length;
   const rot = hash(`${userId}:color`) % (CHARACTER_VARIANTS - 1);
+  const order: string[] = [];
   for (let i = 0; i < CHARACTER_VARIANTS; i++) {
     const variant = i === 0 ? 0 : ((rot + i - 1) % (CHARACTER_VARIANTS - 1)) + 1;
-    for (let b = 0; b < bases.length; b++) {
-      const id = key(bases[(start + b) % bases.length]!, variant);
-      if (!taken.has(id)) return id;
-    }
+    for (let b = 0; b < bases.length; b++) order.push(key(bases[(start + b) % bases.length]!, variant));
   }
-  return key(bases[start]!, 0);
+  return order.find((id) => !taken.has(id) && !forbidden?.has(id)) ?? order.find((id) => !forbidden?.has(id)) ?? key(bases[start]!, 0);
 }
 
 // 다시 골라야 하는 캐릭터인지: 캐릭터가 없거나 그림이 없어진 때뿐이에요.

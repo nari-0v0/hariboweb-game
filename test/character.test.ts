@@ -51,4 +51,11 @@ describe('member characters', () => {
     expect([...taken].filter((c) => c.endsWith('-0')).length).toBe(50);
     expect(shouldRepick('boy-01-2')).toBe(false);
   });
+
+  it('never hands out a forbidden (kept) character, even when everything is taken', () => {
+    const taken = new Set<string>();
+    for (const id of ids(CHARACTER_TOTAL)) taken.add(pickCharacter(id, taken));
+    const forbidden = new Set([pickCharacter('1', taken)]);
+    expect(forbidden.has(pickCharacter('1', taken, null, forbidden))).toBe(false);
+  });
 });
