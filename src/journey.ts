@@ -134,7 +134,7 @@ export const MATERIALS = [
   { icon: '🔥', name: '화산석' },
 ];
 export const material = (ch: number) => MATERIALS[Math.min(MATERIALS.length, Math.max(1, ch)) - 1]!;
-// 앞 장 재료도 같이 써요(흐물한 어피치님 제안, 나리 2026-11-17): 한 번 강화하고 나면 앞 장 재료가 쓸모없어지지 않게,
+// 앞 장 재료도 같이 써요(멍쑤님 제안, 나리 2026-11-17): 한 번 강화하고 나면 앞 장 재료가 쓸모없어지지 않게,
 // +N에는 N장 재료에 더해 1장 ~ N-1장 재료를 장마다 LOWER_MATS개씩 더 내요. 장비를 끝까지 올릴 때까지 모든 재료가 쓰여요.
 export const LOWER_MATS = 2;
 export type MatCost = { ch: number; n: number };
