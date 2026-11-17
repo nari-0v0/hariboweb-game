@@ -303,6 +303,7 @@ export async function applySync(
     // 다시 들어오면 캐릭터를 새로 받으니 성별도 다시 골라요
     stmts.push(db.prepare('UPDATE members SET active = 0, gender_chosen_at = NULL, reset_at = ?1, updated_at = ?1 WHERE user_id = ?2').bind(t, id));
     stmts.push(db.prepare('DELETE FROM profiles WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM character_keep WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM cards WHERE owner_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM owned_items WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM exp_runs WHERE user_id = ?').bind(id));

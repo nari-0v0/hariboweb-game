@@ -3,7 +3,7 @@ import { XP_SCALE, levelFromXp } from './levels';
 import type { Member } from './env';
 import { stripTitle } from './titles';
 import type { LoginProfile } from './discord';
-import { type CharacterPool, pickCharacter, poolOf, shouldRepick } from './character';
+import { type CharacterPool, isCharacterId, pickCharacter, poolOf, shouldRepick } from './character';
 
 export type Profile = {
   user_id: string;
@@ -144,12 +144,44 @@ export async function assignCharacters(db: D1Database, userIds: string[]) {
   await retrySigConflict(() => assignCharactersOnce(db, userIds));
 }
 
-async function assignCharactersOnce(db: D1Database, userIds: string[]) {
-  const { results: rows } = await db
-    .prepare('SELECT user_id, character_id, character_sig FROM profiles WHERE character_sig IS NOT NULL OR user_id IN (SELECT value FROM json_each(?))')
+// 다른 사람이 맡겨 둔 캐릭터는 저장할 때도 한 번 더 막아요(?1 = 받을 사람, ?2 = 받을 캐릭터).
+const NOT_KEPT_BY_OTHER = 'NOT EXISTS (SELECT 1 FROM character_keep k WHERE k.character_id = ?2 AND k.user_id <> ?1)';
+
+type CharRow = { user_id: string; character_id: string | null; character_sig: string | null; kept: number };
+
+// 지금 쓰는 캐릭터와 맡겨 둔 캐릭터를 한 번에(같은 순간 기준으로) 읽어요.
+async function readCharacters(db: D1Database, userIds: string[]): Promise<CharRow[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT user_id, character_id, character_sig, 0 AS kept FROM profiles
+         WHERE character_sig IS NOT NULL OR user_id IN (SELECT value FROM json_each(?1))
+       UNION ALL
+       SELECT user_id, character_id, character_sig, 1 AS kept FROM character_keep`,
+    )
     .bind(JSON.stringify(userIds))
-    .all<{ user_id: string; character_id: string | null; character_sig: string | null }>();
-  const taken = new Set(rows.flatMap((r) => (r.character_sig ? [r.character_sig] : [])));
+    .all<CharRow>();
+  return results;
+}
+
+// 겹치면 안 되는 캐릭터(지금 쓰는 것 + 맡겨 둔 것)와, 겹쳐도 절대 안 되는 캐릭터(맡겨 둔 것)
+function takenSets(rows: CharRow[], userId?: string) {
+  const taken = new Set<string>();
+  const forbidden = new Set<string>();
+  for (const r of rows) {
+    if (!r.kept) {
+      if (r.character_sig) taken.add(r.character_sig);
+    } else if (r.character_id && r.user_id !== userId) {
+      taken.add(r.character_id);
+      forbidden.add(r.character_id);
+    }
+  }
+  return { taken, forbidden };
+}
+
+async function assignCharactersOnce(db: D1Database, userIds: string[]) {
+  const all = await readCharacters(db, userIds);
+  const rows = all.filter((r) => !r.kept);
+  const { taken, forbidden } = takenSets(all);
   const current = new Map(rows.map((r) => [r.user_id, r.character_id]));
   const stmts: D1PreparedStatement[] = [];
   const t = now();
@@ -157,7 +189,7 @@ async function assignCharactersOnce(db: D1Database, userIds: string[]) {
     const before = current.get(id) ?? null;
     if (!shouldRepick(before)) continue;
     // 소녀/소년을 골라 둔 멤버는 그 묶음 안에서만 바꿔요
-    const character = pickCharacter(id, taken, poolOf(before));
+    const character = pickCharacter(id, taken, poolOf(before), forbidden);
     // 전부 차서 겹치는 캐릭터를 받으면 겹침 검사(sig)는 비워 둬요
     const sig = taken.has(character) ? null : character;
     taken.add(character);
@@ -166,7 +198,7 @@ async function assignCharactersOnce(db: D1Database, userIds: string[]) {
         .prepare(
           // 지금 있는 멤버에게만 줘요(같은 묶음에서 나간 사람은 프로필을 다시 만들지 않아요)
           `INSERT INTO profiles (user_id, character_id, character_sig, updated_at)
-           SELECT ?1, ?2, ?3, ?4 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
+           SELECT ?1, ?2, ?3, ?4 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1) AND ${NOT_KEPT_BY_OTHER}
            ON CONFLICT (user_id) DO UPDATE SET character_id = ?2, character_sig = ?3, updated_at = ?4
            WHERE profiles.character_id IS ?5`,
         )
@@ -182,34 +214,52 @@ export async function chooseCharacterPool(db: D1Database, userId: string, pool: 
 }
 
 // 이 묶음(소녀/소년)을 고르면 받을 캐릭터. 이미 그 묶음이면 지금 캐릭터 그대로예요.
+// 전에 그 성별이었다가 바꾼 적이 있으면, 맡겨 둔 예전 캐릭터를 그대로 돌려받아요(나리 2026-11-17).
+// beforeSig/keep: 바꿀 때 지금 캐릭터를 맡겨 두려고 같이 돌려줘요.
 export async function planCharacterPool(
   db: D1Database,
   userId: string,
   pool: CharacterPool,
-): Promise<{ before: string | null; character: string; sig: string | null; same: boolean }> {
-  const { results: rows } = await db
-    .prepare('SELECT user_id, character_id, character_sig FROM profiles WHERE character_sig IS NOT NULL OR user_id = ?')
-    .bind(userId)
-    .all<{ user_id: string; character_id: string | null; character_sig: string | null }>();
-  const before = rows.find((r) => r.user_id === userId)?.character_id ?? null;
-  if (before && poolOf(before) === pool) return { before, character: before, sig: null, same: true };
-  const taken = new Set(rows.flatMap((r) => (r.character_sig ? [r.character_sig] : [])));
-  const character = pickCharacter(userId, taken, pool);
-  return { before, character, sig: taken.has(character) ? null : character, same: false };
+): Promise<{ before: string | null; beforeSig: string | null; character: string; sig: string | null; same: boolean; returning: boolean }> {
+  const all = await readCharacters(db, [userId]);
+  const mine = all.find((r) => !r.kept && r.user_id === userId);
+  const before = mine?.character_id ?? null;
+  const beforeSig = mine?.character_sig ?? null;
+  if (before && poolOf(before) === pool) return { before, beforeSig, character: before, sig: null, same: true, returning: false };
+  const kept = all.find((r) => r.kept && r.user_id === userId);
+  if (kept?.character_id && poolOf(kept.character_id) === pool && isCharacterId(kept.character_id)) {
+    return { before, beforeSig, character: kept.character_id, sig: kept.character_sig, same: false, returning: true };
+  }
+  const { taken, forbidden } = takenSets(all, userId);
+  const character = pickCharacter(userId, taken, pool, forbidden);
+  return { before, beforeSig, character, sig: taken.has(character) ? null : character, same: false, returning: false };
+}
+
+// 성별을 바꿀 때 지금 캐릭터를 맡겨 둬요. cond가 참일 때만(바꾸기가 실제로 된 때만) 저장돼요.
+function keepStatement(db: D1Database, userId: string, before: string | null, beforeSig: string | null, cond: string, condArg: unknown) {
+  return db
+    .prepare(
+      `INSERT INTO character_keep (user_id, character_id, character_sig, updated_at)
+       SELECT ?1, ?2, ?3, ?4 WHERE ?2 IS NOT NULL AND ${cond}
+       ON CONFLICT (user_id) DO UPDATE SET character_id = ?2, character_sig = ?3, updated_at = ?4`,
+    )
+    .bind(userId, before, beforeSig, now(), condArg);
 }
 
 async function chooseCharacterPoolOnce(db: D1Database, userId: string, pool: CharacterPool): Promise<string | null> {
-  const { before, character, sig, same } = await planCharacterPool(db, userId, pool);
+  const { before, beforeSig, character, sig, same } = await planCharacterPool(db, userId, pool);
   if (same) return before;
-  const res = await db
-    .prepare(
-      `INSERT INTO profiles (user_id, character_id, character_sig, updated_at) VALUES (?1, ?2, ?3, ?4)
-       ON CONFLICT (user_id) DO UPDATE SET character_id = ?2, character_sig = ?3, updated_at = ?4
-       WHERE profiles.character_id IS ?5`,
-    )
-    .bind(userId, character, sig, now(), before)
-    .run();
-  return res.meta.changes ? character : before;
+  const [res] = await db.batch([
+    db
+      .prepare(
+        `INSERT INTO profiles (user_id, character_id, character_sig, updated_at) SELECT ?1, ?2, ?3, ?4 WHERE ${NOT_KEPT_BY_OTHER}
+         ON CONFLICT (user_id) DO UPDATE SET character_id = ?2, character_sig = ?3, updated_at = ?4
+         WHERE profiles.character_id IS ?5`,
+      )
+      .bind(userId, character, sig, now(), before),
+    keepStatement(db, userId, before, beforeSig, 'EXISTS (SELECT 1 FROM profiles WHERE user_id = ?1 AND character_id IS ?5)', character),
+  ]);
+  return res?.meta?.changes ? character : before;
 }
 
 // 처음 성별 고르기: 캐릭터를 그 묶음으로 정하고 "골랐어요" 표시. 이미 골랐으면 바꾸지 않아요.
@@ -243,9 +293,10 @@ async function chooseFirstGenderOnce(
   const claim = db
     .prepare(
       `UPDATE members SET gender_chosen_at = ?1 WHERE user_id = ?2 AND gender_chosen_at IS NULL
-         AND (SELECT character_id FROM profiles WHERE user_id = ?2) IS ?3`,
+         AND (SELECT character_id FROM profiles WHERE user_id = ?2) IS ?3
+         AND NOT EXISTS (SELECT 1 FROM character_keep k WHERE k.character_id = ?4 AND k.user_id <> ?2)`,
     )
-    .bind(mark, userId, plan.before);
+    .bind(mark, userId, plan.before, plan.same ? null : plan.character);
   const steps = [claim];
   if (!plan.same) {
     steps.push(
@@ -288,17 +339,26 @@ export async function buyGenderChange(
           `INSERT INTO purchases (id, user_id, item_id, price, status, created_at, settled_at)
            SELECT ?1, ?2, ?3, ?4, 'done', ?5, ?5
            WHERE EXISTS (SELECT 1 FROM profiles WHERE user_id = ?2 AND dogam_jelly >= ?4 AND character_id IS ?6)
-             AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1 AND gender_chosen_at IS NOT NULL)`,
+             AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1 AND gender_chosen_at IS NOT NULL)
+             AND NOT EXISTS (SELECT 1 FROM character_keep k WHERE k.character_id = ?7 AND k.user_id <> ?2)`,
         )
-        .bind(id, userId, GENDER_ITEM_ID, price, t, plan.before),
+        .bind(id, userId, GENDER_ITEM_ID, price, t, plan.before, plan.character),
       db
         .prepare(`UPDATE profiles SET dogam_jelly = dogam_jelly - ?3, character_id = ?4, character_sig = ?5, updated_at = ?6 WHERE user_id = ?2 AND ${won}`)
         .bind(id, userId, price, plan.character, plan.sig, t),
+      // 예전 캐릭터는 맡겨 둬요. 다시 바꾸면 그대로 돌려받아요(나리 2026-11-17).
+      keepStatement(db, userId, plan.before, plan.beforeSig, 'EXISTS (SELECT 1 FROM purchases WHERE id = ?5)', id),
     ]);
     if (await db.prepare('SELECT 1 FROM purchases WHERE id = ?').bind(id).first()) return 'done';
     // 그 사이 다른 탭에서 먼저 캐릭터가 바뀌어 못 샀으면 잔액 부족이 아니라고 알려요.
     const cur = await db.prepare('SELECT character_id FROM profiles WHERE user_id = ?').bind(userId).first<{ character_id: string | null }>();
-    return (cur?.character_id ?? null) !== plan.before ? 'changed' : 'not_enough_jelly';
+    if ((cur?.character_id ?? null) !== plan.before) return 'changed';
+    // 그 사이 다른 사람이 받을 캐릭터를 맡겨 뒀으면 새 미리보기를 보여 줘요
+    const keptByOther = await db
+      .prepare('SELECT 1 FROM character_keep WHERE character_id = ? AND user_id <> ?')
+      .bind(plan.character, userId)
+      .first();
+    return keptByOther ? 'changed' : 'not_enough_jelly';
   });
 }
 
