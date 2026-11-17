@@ -18,18 +18,19 @@ export async function getJourney(db: D1Database, user: string, id: string): Prom
   return decode(await db.prepare('SELECT * FROM journey_runs WHERE user_id = ? AND id = ?').bind(user, id).first<JourneyRow>());
 }
 
-export type JourneyRecord = { best: number; clears: number; rewardedToday: number; farmed: Record<number, number>; unlocked: number; top: number }; // farmed: 장마다 이미 깬 뒤 다시 돈 판 수(평생) // unlocked = 대장을 깨서 열린 가장 높은 장
+export type JourneyRecord = { best: number; clears: number; rewardedToday: number; farmed: Record<number, number>; unlocked: number; top: number; last?: number }; // last = 마지막으로 돈(끝낸) 판의 장. 다음 판도 그 장이 먼저 골라져요 // farmed: 장마다 이미 깬 뒤 다시 돈 판 수(평생) // unlocked = 대장을 깨서 열린 가장 높은 장
 export async function journeyRecord(db: D1Database, user: string, day = kstDay()): Promise<JourneyRecord> {
   const r = await db
     .prepare(
       `SELECT COALESCE(MAX((chapter - 1) * 20 + day), 0) AS best, COALESCE(SUM(cleared), 0) AS clears,
          COALESCE(MAX(CASE WHEN cleared = 1 THEN chapter ELSE 0 END), 0) AS top,
-         COALESCE(SUM(CASE WHEN reward_day = ?2 AND xp > 0 THEN 1 ELSE 0 END), 0) AS today
+         COALESCE(SUM(CASE WHEN reward_day = ?2 AND xp > 0 THEN 1 ELSE 0 END), 0) AS today,
+         (SELECT chapter FROM journey_runs WHERE user_id = ?1 AND status != 'going' ORDER BY started_at DESC LIMIT 1) AS last
        FROM journey_runs WHERE user_id = ?1 AND status = 'done'`,
     )
     .bind(user, day)
-    .first<{ best: number; clears: number; today: number; top: number }>();
-  return { best: r?.best ?? 0, clears: r?.clears ?? 0, rewardedToday: r?.today ?? 0, farmed: await farmedByChapter(db, user), unlocked: Math.min(MAX_CHAPTER, (r?.top ?? 0) + 1), top: r?.top ?? 0 };
+    .first<{ best: number; clears: number; today: number; top: number; last: number | null }>();
+  return { best: r?.best ?? 0, clears: r?.clears ?? 0, rewardedToday: r?.today ?? 0, farmed: await farmedByChapter(db, user), unlocked: Math.min(MAX_CHAPTER, (r?.top ?? 0) + 1), top: r?.top ?? 0, last: r?.last ?? undefined };
 }
 
 // 장마다 이미 깬 뒤 다시 돈 판 수(날짜와 상관없이 전부)

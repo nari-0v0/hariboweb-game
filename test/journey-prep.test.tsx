@@ -77,3 +77,24 @@ describe('훈련·장비 강화 뒤 돌아오는 곳', () => {
     expect(r.headers.get('Location')).toBe('/expedition/go?prep=gear&n=nogear#perks');
   });
 });
+
+describe('원정대 장 고르기', () => {
+  const checked = (html: string) => [...html.matchAll(/<input type="radio" name="ch" value="(\d+)" checked/g)].map((m) => Number(m[1]));
+  const page = (record: JourneyRecord) =>
+    (async () => String(await (<JourneyPage viewer={VIEWER} art="/a.png" run={null} result={null} record={record} bank={BANK} dogam={{ cards: 0, levels: [] }} />)))();
+
+  it('처음엔 갈 수 있는 가장 높은 장이 골라져 있어요', async () => {
+    const top = checked(await page(RECORD));
+    expect(top).toHaveLength(1);
+    expect(top[0]).toBeGreaterThan(1);
+  });
+
+  it('마지막으로 돈 장이 그대로 골라져 있어요', async () => {
+    expect(checked(await page({ ...RECORD, last: 1 }))).toEqual([1]);
+  });
+
+  it('마지막 장을 못 가면 가장 높은 장으로 돌아가요', async () => {
+    const top = checked(await page(RECORD))[0];
+    expect(checked(await page({ ...RECORD, last: 9 }))).toEqual([top]);
+  });
+});
