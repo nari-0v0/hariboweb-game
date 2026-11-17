@@ -35,3 +35,41 @@ describe('사건파일 수수께끼 회귀 검사', () => {
     expect(checkUi(ui!, a + '.PR')).toBe(false);
   });
 });
+
+describe('다이얼 문제 목표와 풀이', () => {
+  const dialPuzzles = BANK.filter((entry) => entry.ui?.t === 'dials');
+
+  it('글자 바퀴 문제의 설명 속 목표가 화면 목표와 같다', () => {
+    const { q, ui } = puzzle('dials-word');
+    if (ui?.t !== 'dials') throw new Error('dials-word must be a dials puzzle');
+    const shown = ui.goal.map((g, i) => ui.faces[i]![g]).join('');
+    expect(q).toContain(`「${shown}」`);
+  });
+
+  it('모든 다이얼 문제는 정해진 횟수 안에 풀리고, 정답 예시도 맞는다', () => {
+    expect(dialPuzzles.length).toBeGreaterThan(0);
+    for (const entry of dialPuzzles) {
+      const ui = entry.ui!;
+      if (ui.t !== 'dials') continue;
+      expect(checkUi(ui, entry.a!), entry.idea).toBe(true);
+      // 가장 짧은 풀이 길이를 너비 우선 탐색으로 구해요.
+      const key = (s: number[]) => s.join(',');
+      const goal = key(ui.goal);
+      let frontier = [ui.init];
+      const seen = new Set([key(ui.init)]);
+      let depth = 0;
+      while (!seen.has(goal) && frontier.length && depth < (ui.max ?? 99)) {
+        depth++;
+        const next: number[][] = [];
+        for (const s of frontier) for (const b of ui.buttons) {
+          const t = s.map((x, i) => (x + b.turns[i]! + ui.faces[i]!.length * 10) % ui.faces[i]!.length);
+          if (!seen.has(key(t))) { seen.add(key(t)); next.push(t); }
+        }
+        frontier = next;
+      }
+      expect(seen.has(goal), entry.idea).toBe(true);
+      expect(depth, entry.idea).toBeLessThanOrEqual(ui.max ?? 99);
+      expect(depth, `${entry.idea} 너무 쉬움`).toBeGreaterThanOrEqual(7);
+    }
+  });
+});
