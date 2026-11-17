@@ -30,9 +30,12 @@
    먼저 겜블장을 처음부터 시작하게 지우고(나리 2026-11-16: 다 초기화), 그다음 젤칩을 넣어요.
    `npx wrangler d1 execute haribo-dogam --remote --file scripts/gamble-reset.sql`
    `npx wrangler d1 execute haribo-dogam --remote --file gamble-jelly-moves.sql`
-   (초기화는 젤리를 옮긴 뒤에 다시 실행해도 아무것도 지우지 않아요.)
+   (초기화와 완료 표시를 한 문장으로 처리해요. 지급이 0건이어도 다시 실행하면 지우지 않아요.)
 5. **확인**: `SELECT COUNT(*), SUM(jelly) FROM gamble_jelly_moves WHERE moved_at IS NOT NULL`
    승인한 스냅샷의 ID와 예상 지급액을 실제 `gamble_accounts.chips` 증분과 계정별로 대조해요. 대조가 끝날 때까지 테스터의 플레이도 멈춰요.
+   초기화 직후·지급 직전과 지급 직후에 `SELECT user_id, chips FROM gamble_accounts ORDER BY user_id` 결과 전체를 각각 `before.json`, `after.json`으로 저장해요.
+   `approved.json`은 승인된 지급 대상의 양수 금액 목록(`user_id`, `jelly`)이에요. 지급 결과로 승인 목록을 만들면 누락을 찾을 수 없어요.
+   `node scripts/verify-gamble-jelly-moves.mjs approved.json before.json after.json`에서 오류가 나거나 차이가 있으면 잠금을 유지해요.
    웹에 없어서 못 받은 사람은 `WHERE moved_at IS NULL`로 보고해요.
 6. **웹 겜블장 열기**: 숫자가 맞으면 `GAMBLE_LOCKED`를 `false`로 바꾸는 한 줄 PR → 배포.
 
