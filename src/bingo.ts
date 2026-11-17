@@ -109,7 +109,7 @@ export type BingoStats = {
   weekend: number; // 토·일
   voiceDays: number; // 30분 넘게 통화한 날 수
   attendDays: number;
-  partners: number; // 10분 넘게 같이 통화한 사람 수
+  partners: number; // 10분 이상 같이 통화한 사람 수
   bestPair: number; // 한 사람과 제일 오래 통화한 분
   newFriends: number; // 이번 주에 처음 만나서 30분 넘게 통화한 사람 수
   praiseGiven: number;
@@ -142,7 +142,7 @@ export const CELLS: CellDef[] = [
   { id: 'attend', icon: '📅', stat: 'attendDays', targets: [2, 4, 6], text: (t) => `출석 ${t}일` },
   { id: 'praise', icon: '💛', stat: 'praiseGiven', targets: [1, 3, 6], text: (t) => `칭찬 ${t}번 주기` },
   { id: 'praised', icon: '🎁', stat: 'praiseGot', targets: [null, 1, 3], text: (t) => `칭찬 ${t}번 받기` },
-  { id: 'partners', icon: '👋', stat: 'partners', targets: [2, 4, 7], text: (t) => `${t}명과 같이 통화` },
+  { id: 'partners', icon: '👋', stat: 'partners', targets: [2, 4, 7], text: (t) => `${t}명과 각각 ${PARTNER_MIN}분 이상 통화` },
   { id: 'crowd', icon: '👥', stat: 'crowd', targets: [30, 60, 180], text: (t) => `4명 이상 방에서 ${time(t)}`, unit: 'min' },
   { id: 'night', icon: '🌙', stat: 'night', targets: [30, 60, 180], text: (t) => `밤 10시~새벽 2시 통화 ${time(t)}`, unit: 'min' },
   { id: 'weekend', icon: '🎉', stat: 'weekend', targets: [30, 90, 240], text: (t) => `주말에 통화 ${time(t)}`, unit: 'min' },
