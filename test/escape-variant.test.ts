@@ -40,6 +40,23 @@ describe('사건파일 다시 푸는 판', () => {
     expect(culpritChanged).toBeGreaterThan(ids.length / 2);
   });
 
+  it('물건 찾기 카드도 처음 판과 같은 수수께끼·같은 정답 물건이에요', () => {
+    let cards = 0;
+    for (const id of ids) {
+      const a = escCase(id)!;
+      const card = (c: typeof a) => {
+        const paper = c.objects.find((o) => o.name && o.look.includes('수수께끼 카드'));
+        const ans = c.objects.find((o) => o.id.startsWith('rd0'));
+        return paper && ans ? [paper.look.split('\n')[1], ans.at, ans.scene] : null;
+      };
+      const base = card(a);
+      if (!base) continue;
+      cards++;
+      for (const vr of [1, 2, 3]) expect(card(escCase(id, vr)!), `${id}#${vr}`).toEqual(base);
+    }
+    expect(cards).toBeGreaterThan(0);
+  });
+
   it('같은 판 번호면 늘 같은 판이에요(다른 판을 먼저 만들어도)', () => {
     const first = JSON.stringify(escCase(ids[0]!, 5));
     for (const id of ids.slice(0, 10)) escCase(id, 7);

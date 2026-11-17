@@ -40,13 +40,26 @@ export async function beginEscape(
 ): Promise<string | null> {
   if (!escCase(caseId)) return null;
   if (!(await escapeOpen(db, user, caseId))) return null;
+  // 판 번호(전에 이 사건을 시작한 횟수)는 넣는 순간에도 같을 때만 넣어요. 두 탭에서 동시에 시작해
+  // 횟수가 바뀌었으면 다시 세서 해요(같은 판이 두 번 나오지 않게).
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const out = await beginOnce(db, user, caseId, now, replace);
+    if (out !== 'retry') return out;
+  }
+  return null;
+}
+
+const TRIED = 'SELECT COUNT(*) FROM escape_runs WHERE user_id = ?2 AND case_id = ?7';
+async function beginOnce(
+  db: D1Database, user: string, caseId: string, now: Date, replace?: { id: string; rev: number },
+): Promise<string | null | 'retry'> {
   const going = await activeEscape(db, user);
   if (going && !replace) return going.row.id;
   if (replace && (!going || going.row.id !== replace.id || going.row.rev !== replace.rev)) return null;
   if (going?.row.case_id === caseId) return going.row.id;
   // 이 사건을 전에 시작한 적이 있으면(해결했든 그만뒀든) 범인·단서·자리를 새로 섞은 판으로 해요(수수께끼는 같아요).
-  const tried = await db.prepare('SELECT COUNT(*) AS n FROM escape_runs WHERE user_id = ? AND case_id = ?').bind(user, caseId).first<{ n: number }>();
-  const def = escCase(caseId, tried?.n ?? 0)!;
+  const tried = (await db.prepare('SELECT COUNT(*) AS n FROM escape_runs WHERE user_id = ? AND case_id = ?').bind(user, caseId).first<{ n: number }>())?.n ?? 0;
+  const def = escCase(caseId, tried)!;
   const id = crypto.randomUUID();
   const t = now.toISOString();
   const state = JSON.stringify(startEscape(def));
@@ -54,22 +67,30 @@ export async function beginEscape(
     const [quit] = await db.batch([
       db.prepare(`UPDATE escape_runs SET status = 'quit', updated_at = ?3, ended_at = ?3, mutation = ?5
         WHERE user_id = ?1 AND id = ?2 AND rev = ?4 AND status = 'going'
-          AND EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)`)
-        .bind(user, replace.id, t, replace.rev, id),
+          AND EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
+          AND (SELECT COUNT(*) FROM escape_runs WHERE user_id = ?1 AND case_id = ?7) = ?6`)
+        .bind(user, replace.id, t, replace.rev, id, tried, caseId),
       db.prepare(`INSERT INTO escape_runs (id, user_id, case_id, state, started_at, updated_at)
         SELECT ?1, ?2, ?3, ?4, ?5, ?5 FROM escape_runs WHERE id = ?6 AND mutation = ?1 AND status = 'quit'`)
         .bind(id, user, caseId, state, t, replace.id),
     ]);
-    return quit?.meta.changes === 1 ? id : null;
+    if (quit?.meta.changes === 1) return id;
+    // 판 번호가 바뀌었으면(그 사이 다른 탭에서 같은 사건을 시작함) 다시 세요. 아니면 옛 화면이에요.
+    const now2 = (await db.prepare('SELECT COUNT(*) AS n FROM escape_runs WHERE user_id = ? AND case_id = ?').bind(user, caseId).first<{ n: number }>())?.n ?? 0;
+    return now2 !== tried ? 'retry' : null;
   }
-  await db
+  const r = await db
     .prepare(
       `INSERT OR IGNORE INTO escape_runs (id, user_id, case_id, state, started_at, updated_at)
-       SELECT ?1, ?2, ?3, ?4, ?5, ?5 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)`,
+       SELECT ?1, ?2, ?3, ?4, ?5, ?5 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)
+         AND (${TRIED}) = ?6`,
     )
-    .bind(id, user, caseId, state, t)
+    .bind(id, user, caseId, state, t, tried, caseId)
     .run();
-  return (await activeEscape(db, user))?.row.id ?? null;
+  if ((r.meta.changes ?? 0) === 1) return id;
+  const active = await activeEscape(db, user);
+  if (active) return active.row.id;
+  return 'retry';
 }
 
 // rev를 주면 화면에 보이던 판 순번과 같을 때만 그만둬요(다른 탭에서 진행한 판을 옛 버튼으로 잃지 않게).

@@ -310,6 +310,26 @@ describe('사건파일 방탈출 저장과 보상', () => {
     for (const [i, act] of run.def.solution!.entries()) expect(await actEscapeRun(db, 'me', b, i, act), JSON.stringify(act)).toBe('ok');
     expect((await getEscape(db, 'me', b))!.row.status).toBe('done');
   });
+  it('판 번호를 센 뒤 다른 탭이 같은 사건을 먼저 시작해도 같은 판 번호가 두 번 나오지 않아요', async () => {
+    const { db, sql } = database();
+    const made = ESCAPE_CASES.find((x) => x.solution && !x.id.endsWith('-talk'))!;
+    let once = false;
+    const racy = {
+      ...db,
+      prepare: (q: string) => {
+        const st = db.prepare(q);
+        if (!once && q.startsWith('SELECT COUNT(*) AS n FROM escape_runs')) {
+          once = true;
+          // 센 직후 다른 탭이 같은 사건을 시작했다가 끝낸 것처럼
+          sql.prepare("INSERT INTO escape_runs (id, user_id, case_id, state, status, started_at, updated_at) VALUES ('other-tab', 'me', ?, '{}', 'quit', 'x', 'x')").run(made.id);
+        }
+        return st;
+      },
+    } as D1Database;
+    const id = (await beginEscape(racy, 'me', made.id))!;
+    expect(id).toBeTruthy();
+    expect((await activeEscape(db, 'me'))!.state.vr).toBe(1);
+  });
   it('옛 화면(순번이 다른 요청)은 반영하지 않아요', async () => {
     const { db } = database();
     const id = (await beginEscape(db, 'me', c.id))!;
