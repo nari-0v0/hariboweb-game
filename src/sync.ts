@@ -298,34 +298,6 @@ export async function applySync(
     stmts.push(markLevel.bind(owner));
   }
 
-  // 도감 젤리: 카드 장수 단계(5·10·15…장)에 처음 닿으면 한 번(src/card-rewards.ts). 받은 단계를 적고,
-  // 이 묶음에서 새로 적힌 단계만큼 젤리를 더하고 🔔 알림을 남겨요.
-  const cardCount = `(SELECT COUNT(*) FROM cards c JOIN members m ON m.user_id = c.target_id AND m.active = 1
-     WHERE c.owner_id = ?1 AND c.target_id != c.owner_id)`;
-  const markCardSteps = db.prepare(
-    `INSERT INTO card_count_rewards (user_id, cards, jelly, batch_id, paid_at)
-     SELECT ?1, v.column1, v.column2, ?2, ?3 FROM ${CARD_JELLY_VALUES} AS v
-     WHERE v.column1 <= ${cardCount} AND EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
-     ON CONFLICT (user_id, cards) DO NOTHING`,
-  );
-  const newCardJelly = '(SELECT COALESCE(SUM(jelly), 0) FROM card_count_rewards WHERE batch_id = ?2 AND user_id = ?1)';
-  const addCardJelly = db.prepare(
-    `INSERT INTO profiles (user_id, dogam_jelly, updated_at)
-     SELECT ?1, ${newCardJelly}, ?3 WHERE ${newCardJelly} > 0
-     ON CONFLICT (user_id) DO UPDATE SET dogam_jelly = dogam_jelly + excluded.dogam_jelly, updated_at = ?3`,
-  );
-  const cardAlert = db.prepare(
-    `INSERT INTO alerts (user_id, ref, title, body, created_at)
-     SELECT ?1, 'cards-' || cards, '🃏 도감 카드 ' || cards || '장 달성!', '카드 ' || cards || '장을 모아서 도감 젤리 ' || jelly || '개를 받았어요.', ?3
-     FROM card_count_rewards WHERE batch_id = ?2 AND user_id = ?1
-     ON CONFLICT (user_id, ref) DO NOTHING`,
-  );
-  for (const owner of new Set(p.pair_xp.flatMap((x) => [x.a, x.b]))) {
-    stmts.push(markCardSteps.bind(owner, p.batch_id, t));
-    stmts.push(addCardJelly.bind(owner, p.batch_id, t));
-    stmts.push(cardAlert.bind(owner, p.batch_id, t));
-  }
-
   // 나간 사람: 본인 카드와 도감은 지우고, 다른 사람이 가진 그 사람 카드는 흐리게 남겨요.
   for (const id of p.removed) {
     // 다시 들어오면 캐릭터를 새로 받으니 성별도 다시 골라요
@@ -373,6 +345,37 @@ export async function applySync(
     stmts.push(db.prepare('DELETE FROM alerts WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM jelly_grants WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM card_count_rewards WHERE user_id = ?').bind(id));
+  }
+
+  // 도감 젤리: 카드 장수 단계(5·10·15…장)에 처음 닿으면 한 번(src/card-rewards.ts). 받은 단계를 적고,
+  // (같은 묶음의 탈퇴를 먼저 반영하려고 나간 사람 처리 뒤에 둬요)
+  // 이번 묶음에 함께한 활동이 있는 사람만 살펴봐요. 모든 멤버를 매 묶음 세면 D1 무료 읽기 한도를 넘어서,
+  // 이미 조건을 채운 사람(배포 전, 상대 재가입)은 다음에 함께한 활동이 들어올 때 받아요.
+  // 이 묶음에서 새로 적힌 단계만큼 젤리를 더하고 🔔 알림을 남겨요.
+  const cardCount = `(SELECT COUNT(*) FROM cards c JOIN members m ON m.user_id = c.target_id AND m.active = 1
+     WHERE c.owner_id = ?1 AND c.target_id != c.owner_id)`;
+  const markCardSteps = db.prepare(
+    `INSERT INTO card_count_rewards (user_id, cards, jelly, batch_id, paid_at)
+     SELECT ?1, v.column1, v.column2, ?2, ?3 FROM ${CARD_JELLY_VALUES} AS v
+     WHERE v.column1 <= ${cardCount} AND EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
+     ON CONFLICT (user_id, cards) DO NOTHING`,
+  );
+  const newCardJelly = '(SELECT COALESCE(SUM(jelly), 0) FROM card_count_rewards WHERE batch_id = ?2 AND user_id = ?1)';
+  const addCardJelly = db.prepare(
+    `INSERT INTO profiles (user_id, dogam_jelly, updated_at)
+     SELECT ?1, ${newCardJelly}, ?3 WHERE ${newCardJelly} > 0
+     ON CONFLICT (user_id) DO UPDATE SET dogam_jelly = dogam_jelly + excluded.dogam_jelly, updated_at = ?3`,
+  );
+  const cardAlert = db.prepare(
+    `INSERT INTO alerts (user_id, ref, title, body, created_at)
+     SELECT ?1, 'cards-' || cards, '🃏 도감 카드 ' || cards || '장 달성!', '카드 ' || cards || '장을 모아서 도감 젤리 ' || jelly || '개를 받았어요.', ?3
+     FROM card_count_rewards WHERE batch_id = ?2 AND user_id = ?1
+     ON CONFLICT (user_id, ref) DO NOTHING`,
+  );
+  for (const owner of new Set(p.pair_xp.flatMap((x) => [x.a, x.b]))) {
+    stmts.push(markCardSteps.bind(owner, p.batch_id, t));
+    stmts.push(addCardJelly.bind(owner, p.batch_id, t));
+    stmts.push(cardAlert.bind(owner, p.batch_id, t));
   }
 
   // 주간 빙고 기록(통화방 1분, 출석)도 같은 트랜잭션에

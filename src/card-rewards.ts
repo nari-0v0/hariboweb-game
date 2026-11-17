@@ -8,13 +8,18 @@ export const CARD_JELLY: [cards: number, jelly: number][] = [
   [5, 1], [10, 1], [15, 1], [20, 1], [30, 1], [40, 2], [50, 2], [60, 2], [80, 2], [100, 3],
 ];
 
-export type CardReward = { cards: number; jelly: number; title: string | null };
-const reward = ([cards, jelly]: [number, number]): CardReward => ({ cards, jelly, title: titleName(`cards-${cards}`) });
+// waiting: 장수는 채웠지만 아직 안 받은 단계(다음에 함께한 활동이 동기화될 때 받아요)
+export type CardReward = { cards: number; jelly: number; title: string | null; waiting: boolean };
+// 다음에 받을 단계: 받은 기록(claimed)에 없는 가장 낮은 단계(다 받았으면 null).
+// 지금 장수가 아니라 받은 기록으로 골라요(상대가 떠나 장수가 줄어도 이미 받은 단계를 다시 보여 주지 않게).
+export function nextCardReward(cards: number, claimed: ReadonlySet<number>): CardReward | null {
+  const s = CARD_JELLY.find(([n]) => !claimed.has(n));
+  return s ? { cards: s[0], jelly: s[1], title: titleName(`cards-${s[0]}`), waiting: cards >= s[0] } : null;
+}
 
-// 다음에 받을 단계(다 받았으면 null)
-export function nextCardReward(cards: number): CardReward | null {
-  const s = CARD_JELLY.find(([n]) => n > cards);
-  return s ? reward(s) : null;
+export async function claimedCardSteps(db: D1Database, user: string): Promise<Set<number>> {
+  const { results } = await db.prepare('SELECT cards FROM card_count_rewards WHERE user_id = ?').bind(user).all<{ cards: number }>();
+  return new Set(results.map((r) => r.cards));
 }
 
 // SQL에 쓰는 단계 표: (VALUES (5, 1), (10, 1), …)

@@ -232,11 +232,12 @@ describe('초기화 전 동기화 기록', () => {
 
 describe('도감 카드 장수 보상', () => {
   const others = Array.from({ length: 10 }, (_, i) => `30000000000000000${i}`);
-  const cardBatch = (id: string, partners: string[]) => {
+  const cardBatch = (id: string, partners: string[], removed: string[] = []) => {
     const r = parseSync({
       batch_id: `${STARTED}-${id}`,
-      members: [{ id: A, name: 'a' }, ...others.map((o) => ({ id: o, name: o }))],
+      members: [{ id: A, name: 'a' }, ...others.filter((o) => !removed.includes(o)).map((o) => ({ id: o, name: o }))],
       pair_xp: partners.map((b) => ({ a: A, b, xp: 1, at: '2026-11-01T00:00:00Z' })),
+      ...(removed.length ? { removed } : {}),
     });
     if (!r.ok) throw new Error(r.error);
     return r.value;
@@ -270,5 +271,13 @@ describe('도감 카드 장수 보상', () => {
     await applySync(db, cardBatch('l5b', others.slice(0, 5)));
     expect(jellyOf(sql, A)).toBe(1);
     expect((sql.prepare('SELECT COUNT(*) AS n FROM card_count_rewards WHERE user_id = ?').get(A) as { n: number }).n).toBe(1);
+  });
+
+  it('같은 묶음에서 떠난 상대 카드는 세지 않아요', async () => {
+    const { sql, db } = fakeD1();
+    await applySync(db, cardBatch('r4', others.slice(0, 4)));
+    await applySync(db, cardBatch('r5', [others[4]!], [others[0]!]));
+    expect(jellyOf(sql, A)).toBe(0);
+    expect(alertsOf(sql, A)).toEqual([]);
   });
 });
