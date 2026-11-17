@@ -73,3 +73,31 @@ it('시작 초기화는 겜블 기록만 지우고, 젤리를 옮긴 뒤에는 �
   sql.exec(reset);
   expect(sql.prepare('SELECT chips FROM gamble_accounts').all()).toEqual([{ chips: 3000 }]);
 });
+
+it('입력에 없는 미지급 행은 빈 파일이나 다른 파일을 실행해도 지급하지 않아요', () => {
+  const sql = freshDb();
+  sql.exec(`INSERT INTO gamble_jelly_moves (user_id, jelly, loaded_at) VALUES ('${A}', 999, 'x');`);
+  sql.exec(buildMoveSql([]));
+  sql.exec(buildMoveSql([{ user_id: B, jelly: 250 }]));
+  expect(chips(sql)).toEqual([
+    { user_id: A, chips: 1000, won: 500 },
+    { user_id: B, chips: 250, won: 0 },
+  ]);
+});
+
+it('이미 적재한 금액과 다르면 새 행과 지급을 모두 중단해요', () => {
+  const sql = freshDb();
+  sql.exec(`INSERT INTO gamble_jelly_moves (user_id, jelly, loaded_at) VALUES ('${A}', 999, 'x');`);
+  expect(() => sql.exec(buildMoveSql([{ user_id: B, jelly: 250 }, { user_id: A, jelly: 1000 }]))).toThrow();
+  expect(sql.prepare('SELECT user_id, jelly, moved_at FROM gamble_jelly_moves').all()).toEqual([
+    { user_id: A, jelly: 999, moved_at: null },
+  ]);
+  expect(chips(sql)).toEqual([{ user_id: A, chips: 1000, won: 500 }]);
+});
+
+it('ID는 문자열, 잔액은 정수 숫자로 내보낸 경우만 받아요', () => {
+  expect(() => buildMoveSql([{ user_id: Number(A), jelly: 5 }])).toThrow();
+  for (const jelly of [null, false, '', '250']) {
+    expect(() => buildMoveSql([{ user_id: A, jelly }])).toThrow();
+  }
+});
