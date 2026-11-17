@@ -130,10 +130,17 @@ export type TitleJob = { user: string; id: string; title: string | null };
 export async function listTitleJobs(db: D1Database, limit = 50): Promise<TitleJob[]> {
   // 목록에서 빠진 칭호를 고른 채였으면(닉네임에 이미 붙은 사람도) 고른 것을 비워요. 그러면 봇이 닉네임에서 떼요.
   // 조건에 "지금 목록에 없는 칭호"를 넣어서, 그 사이 새로 고른 칭호는 건드리지 않아요.
-  await db
-    .prepare(`UPDATE profiles SET title_id = NULL WHERE title_id IS NOT NULL AND title_id NOT IN (SELECT value FROM json_each(?))`)
-    .bind(JSON.stringify(TITLES.map((x) => x.id)))
-    .run();
+  // UPDATE … NOT IN (json_each)로 하면 칭호 고른 사람마다 칭호 목록 전체를 읽어서(줄 수가 곱해져요) 여기서 걸러요.
+  const { results: titled } = await db
+    .prepare('SELECT user_id, title_id FROM profiles WHERE title_id IS NOT NULL')
+    .all<{ user_id: string; title_id: string }>();
+  const known = new Set(TITLES.map((x) => x.id));
+  const gone = titled.filter((r) => !known.has(r.title_id));
+  if (gone.length) {
+    await db.batch(
+      gone.map((r) => db.prepare('UPDATE profiles SET title_id = NULL WHERE user_id = ? AND title_id = ?').bind(r.user_id, r.title_id)),
+    );
+  }
   const { results } = await db
     .prepare(
       `SELECT p.user_id, p.title_id FROM profiles p INDEXED BY profiles_title_pending
