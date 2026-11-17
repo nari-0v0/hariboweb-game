@@ -1,4 +1,5 @@
 import { titleName } from '../titles';
+import { nextCardReward } from '../card-rewards';
 import type { Member } from '../env';
 import type { DogamEntry, Profile } from '../db';
 import { TIERS, levelName, progress, tierFor, tierLabel } from '../levels';
@@ -191,6 +192,18 @@ export function PraisePage(props: { viewer: Member; box: PraiseBox }) {
   );
 }
 
+// 다음 도감 카드 보상까지 몇 장(멍쑤님 아이디어, 나리 2026-11-17)
+function CardGoal({ owned }: { owned: number }) {
+  const next = nextCardReward(owned);
+  if (!next) return <p class="muted">🃏 도감 카드 보상을 모두 받았어요!</p>;
+  return (
+    <p class="muted card-goal">
+      🃏 다음 도감 보상: 카드 <b>{next.cards}장</b>까지 <b>{next.cards - owned}장</b> 남았어요 → 도감 젤리 +{next.jelly}
+      {next.title ? `, 칭호 「${next.title}」` : ''}
+    </p>
+  );
+}
+
 export function MePage(props: { viewer: Member; profile: Profile; items: Set<string>; owned: number; total: number; saved: boolean; praise: PraiseBox }) {
   const { viewer, profile } = props;
   const level = progress(profile.solo_xp).level;
@@ -225,6 +238,7 @@ export function MePage(props: { viewer: Member; profile: Profile; items: Set<str
             <p class="muted">출석, 서바이벌, 빙고처럼 혼자 하는 활동으로 내 카드가 자라요.</p>
             <XpBar xp={profile.solo_xp} />
             <TierRoad level={level} />
+            <CardGoal owned={props.owned} />
           </section>
 
           <PraiseBoxSection box={props.praise} />
@@ -325,6 +339,7 @@ export function DogamPage(props: {
             <p class="muted">
               지금 서버 멤버 {props.total}명 중 <b>{props.owned}명</b>의 카드를 모았어요.
             </p>
+            {mine && <CardGoal owned={props.owned} />}
             <p class="hint">캐릭터의 성별은 본인이 고른 것이라 실제 성별과 다를 수 있어요.</p>
             <div class="filters" role="radiogroup" aria-label="보기">
               {filter('f-all', '전체', props.entries.length, true)}

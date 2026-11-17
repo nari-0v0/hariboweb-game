@@ -84,6 +84,8 @@ export type JourneyState = {
   kit?: KitId[]; // 출발 준비물(이번 판에만)
   kitShield?: number; // 튼튼 방패로 절반만 맞을 남은 횟수
   potion?: number; // 남은 회복 물약
+  last?: string; // 어제 생긴 일(foe·chest·shop·camp·event:id·skill). 같은 일이 연달아 나오지 않게
+  evs?: EventId[]; // 이번 판에 나온 이벤트
 };
 // next = 하루, auto = 고를 일이 생길 때까지, idle = 자동 선택(고를 일이 있으면 알아서 고르고, 없으면 하루 나아가요)
 export type JourneyAction = { a: 'next' } | { a: 'auto' } | { a: 'idle' } | { a: 'pick'; n: number } | { a: 'buy'; n: number } | { a: 'leave' };
@@ -285,6 +287,32 @@ function finish(s: JourneyState, lines: Line[]) {
   }
 }
 
+// 하루에 생길 일 고르기(멍쑤님 제보, 나리 2026-11-17): 뜻 없는 날이 이어지지 않게
+// - 싸움이 아닌 일(모닥불·상자·이벤트·상인)은 어제와 같은 종류가 또 나오면 다시 뽑아요.
+// - 모닥불은 체력이 15% 넘게 비었을 때만 나와요(꽉 찬 체력으로 쉬는 날 없애기).
+// 세 번 뽑아도 안 되면 그날은 싸움이에요.
+export type DayKind = 'foe' | 'chest' | 'event' | 'shop' | 'camp';
+export const CAMP_MISSING = 0.15;
+function pickDay(s: JourneyState, st: { maxHp: number }, r: () => number): DayKind {
+  const prev = s.last?.startsWith('event:') ? 'event' : s.last === 'skill' ? 'camp' : s.last;
+  for (let t = 0; t < 3; t++) {
+    const roll = r();
+    const k: DayKind = roll < 0.46 ? 'foe' : roll < 0.6 ? 'chest' : roll < 0.76 ? 'event' : roll < 0.87 && s.day >= 3 ? 'shop' : 'camp';
+    if (k === 'foe') return k;
+    if (k === prev) continue;
+    if (k === 'camp' && st.maxHp - s.hp < st.maxHp * CAMP_MISSING) continue;
+    return k;
+  }
+  return 'foe';
+}
+// 이번 판에 아직 안 나온 이벤트부터 골라요(다 나왔으면 아무거나, 어제 것만 빼고).
+function pickEvent(s: JourneyState, r: () => number): EventId {
+  const all = Object.keys(EVENTS) as EventId[];
+  const fresh = all.filter((id) => !s.evs?.includes(id));
+  const pool = fresh.length ? fresh : all.filter((id) => `event:${id}` !== s.last);
+  return pool[Math.floor(r() * pool.length)]!;
+}
+
 // 하루 진행
 function nextDay(s: JourneyState): Line[] {
   s.day += 1;
@@ -300,6 +328,7 @@ function nextDay(s: JourneyState): Line[] {
     if (options.length) {
       s.queuedLevels -= 1;
       s.pending = { kind: 'skill', options };
+      s.last = 'skill'; // 쉬면서 회복한 날이라 다음 날 모닥불은 빼요
       const heal = Math.min(st.maxHp - s.hp, Math.round(st.maxHp * 0.3));
       s.hp += heal;
       lines.push({ icon: '⭐', text: `오늘은 쉬면서 새 스킬을 하나 골라요.${heal > 0 ? ` 체력 +${heal}` : ''}` });
@@ -308,6 +337,7 @@ function nextDay(s: JourneyState): Line[] {
     s.queuedLevels = 0; // 더 배울 스킬이 없어요
   }
   if (s.day === DAYS) {
+    s.last = 'foe';
     const boss = chapterOf(s.ch).boss;
     lines.push({ icon: '🌋', text: `마지막 날! ${boss.name}${(boss.name.charCodeAt(boss.name.length - 1) - 0xac00) % 28 > 0 ? '이' : '가'} 나타났어요!` });
     if (battle(s, boss, 1.65, r, lines, 1)) {
@@ -319,16 +349,18 @@ function nextDay(s: JourneyState): Line[] {
     return lines;
   }
   if (s.day === ELITE_DAY) {
+    s.last = 'foe';
     lines.push({ icon: '⚠️', text: '숲 한가운데서 커다란 그림자가…' });
     battle(s, chapterOf(s.ch).elite, 1.6, r, lines, DROP.elite);
     finish(s, lines);
     return lines;
   }
-  const roll = r();
-  if (roll < 0.46) {
+  const kind = pickDay(s, st, r);
+  s.last = kind === 'event' ? `event:${pickEvent(s, r)}` : kind;
+  if (kind === 'foe') {
     const foes = chapterOf(s.ch).foes;
     battle(s, foes[Math.floor(r() * foes.length)]!, 1, r, lines, DROP.foe);
-  } else if (roll < 0.6) {
+  } else if (kind === 'chest') {
     const c = r();
     if (c < 0.4) lines.push({ icon: '🎁', text: `보물 상자! 젤코인 +${gainCoins(s, 8 + s.day)}`, tone: 'good' });
     else if (c < 0.7) {
@@ -339,12 +371,12 @@ function nextDay(s: JourneyState): Line[] {
       s.hp += 10;
       lines.push({ icon: '🎁', text: '보물 상자에서 말랑 구미를! 최대 체력 +10', tone: 'good' });
     }
-  } else if (roll < 0.76) {
-    const ids = Object.keys(EVENTS) as EventId[];
-    const id = ids[Math.floor(r() * ids.length)]!;
+  } else if (kind === 'event') {
+    const id = s.last.slice(6) as EventId;
+    s.evs = [...(s.evs ?? []), id];
     s.pending = { kind: 'event', id };
     lines.push({ icon: EVENTS[id].icon, text: `${EVENTS[id].title}! 어떻게 할까요?` });
-  } else if (roll < 0.87 && s.day >= 3) {
+  } else if (kind === 'shop') {
     const ids = Object.keys(OFFERS) as Offer['id'][];
     const offers: Offer[] = [];
     while (offers.length < 3) {
@@ -356,7 +388,7 @@ function nextDay(s: JourneyState): Line[] {
   } else {
     const heal = Math.min(st.maxHp - s.hp, Math.round(st.maxHp * 0.3));
     s.hp += heal;
-    lines.push({ icon: '🏕️', text: heal > 0 ? `모닥불에서 푹 쉬었어요. 체력 +${heal}` : '모닥불 앞에서 노래를 불렀어요. 기분이 좋아요!', tone: 'good' });
+    lines.push({ icon: '🏕️', text: `모닥불에서 푹 쉬었어요. 체력 +${heal}`, tone: 'good' });
   }
   finish(s, lines);
   return lines;

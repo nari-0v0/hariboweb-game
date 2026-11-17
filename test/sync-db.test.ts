@@ -229,3 +229,46 @@ describe('초기화 전 동기화 기록', () => {
     expect(sql.prepare('SELECT SUM(minutes) AS n FROM member_voice_day WHERE user_id = ?').get(A)).toEqual({ n: 1 });
   });
 });
+
+describe('도감 카드 장수 보상', () => {
+  const others = Array.from({ length: 10 }, (_, i) => `30000000000000000${i}`);
+  const cardBatch = (id: string, partners: string[]) => {
+    const r = parseSync({
+      batch_id: `${STARTED}-${id}`,
+      members: [{ id: A, name: 'a' }, ...others.map((o) => ({ id: o, name: o }))],
+      pair_xp: partners.map((b) => ({ a: A, b, xp: 1, at: '2026-11-01T00:00:00Z' })),
+    });
+    if (!r.ok) throw new Error(r.error);
+    return r.value;
+  };
+  const alertsOf = (sql: DatabaseSync, id: string) =>
+    (sql.prepare('SELECT ref, body FROM alerts WHERE user_id = ? ORDER BY ref').all(id) as { ref: string; body: string }[]);
+
+  it('5·10장에 처음 닿을 때 한 번씩 젤리와 알림을 줘요', async () => {
+    const { sql, db } = fakeD1();
+    await applySync(db, cardBatch('c4', others.slice(0, 4)));
+    expect(jellyOf(sql, A)).toBe(0);
+    await applySync(db, cardBatch('c5', others.slice(0, 5)));
+    expect(jellyOf(sql, A)).toBe(1);
+    expect(alertsOf(sql, A).map((a) => a.ref)).toEqual(['cards-5']);
+    // 같은 장수로 또 와도 더 주지 않아요
+    await applySync(db, cardBatch('c5b', others.slice(0, 5)));
+    expect(jellyOf(sql, A)).toBe(1);
+    await applySync(db, cardBatch('c10', others));
+    expect(jellyOf(sql, A)).toBe(2);
+    expect(alertsOf(sql, A).map((a) => a.ref)).toEqual(['cards-10', 'cards-5']);
+    // 상대 쪽(카드 1장)은 받지 않아요
+    expect(jellyOf(sql, others[0]!)).toBe(0);
+  });
+
+  it('나갔다 돌아온 상대가 있어도 한 번 받은 단계는 다시 주지 않아요', async () => {
+    const { sql, db } = fakeD1();
+    await applySync(db, cardBatch('l5', others.slice(0, 5)));
+    expect(jellyOf(sql, A)).toBe(1);
+    sql.prepare('UPDATE members SET active = 0 WHERE user_id = ?').run(others[0]!);
+    sql.prepare('UPDATE members SET active = 1 WHERE user_id = ?').run(others[0]!);
+    await applySync(db, cardBatch('l5b', others.slice(0, 5)));
+    expect(jellyOf(sql, A)).toBe(1);
+    expect((sql.prepare('SELECT COUNT(*) AS n FROM card_count_rewards WHERE user_id = ?').get(A) as { n: number }).n).toBe(1);
+  });
+});
