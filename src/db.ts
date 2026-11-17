@@ -3,7 +3,7 @@ import { XP_SCALE, levelFromXp } from './levels';
 import type { Member } from './env';
 import { stripTitle } from './titles';
 import type { LoginProfile } from './discord';
-import { type CharacterPool, pickCharacter, poolOf, shouldRepick } from './character';
+import { type CharacterPool, isCharacterId, pickCharacter, poolOf, shouldRepick } from './character';
 
 export type Profile = {
   user_id: string;
@@ -144,12 +144,21 @@ export async function assignCharacters(db: D1Database, userIds: string[]) {
   await retrySigConflict(() => assignCharactersOnce(db, userIds));
 }
 
+// 겹치면 안 되는 캐릭터: 지금 쓰는 캐릭터 + 성별을 바꾸며 맡겨 둔 예전 캐릭터
+async function keptSigs(db: D1Database): Promise<string[]> {
+  const { results } = await db
+    .prepare('SELECT character_sig FROM character_keep WHERE character_sig IS NOT NULL')
+    .all<{ character_sig: string }>();
+  return results.map((r) => r.character_sig);
+}
+
 async function assignCharactersOnce(db: D1Database, userIds: string[]) {
+  const kept = await keptSigs(db);
   const { results: rows } = await db
     .prepare('SELECT user_id, character_id, character_sig FROM profiles WHERE character_sig IS NOT NULL OR user_id IN (SELECT value FROM json_each(?))')
     .bind(JSON.stringify(userIds))
     .all<{ user_id: string; character_id: string | null; character_sig: string | null }>();
-  const taken = new Set(rows.flatMap((r) => (r.character_sig ? [r.character_sig] : [])));
+  const taken = new Set([...rows.flatMap((r) => (r.character_sig ? [r.character_sig] : [])), ...kept]);
   const current = new Map(rows.map((r) => [r.user_id, r.character_id]));
   const stmts: D1PreparedStatement[] = [];
   const t = now();
@@ -182,34 +191,63 @@ export async function chooseCharacterPool(db: D1Database, userId: string, pool: 
 }
 
 // 이 묶음(소녀/소년)을 고르면 받을 캐릭터. 이미 그 묶음이면 지금 캐릭터 그대로예요.
+// 전에 그 성별이었다가 바꾼 적이 있으면, 맡겨 둔 예전 캐릭터를 그대로 돌려받아요(나리 2026-11-17).
+// beforeSig/keep: 바꿀 때 지금 캐릭터를 맡겨 두려고 같이 돌려줘요.
 export async function planCharacterPool(
   db: D1Database,
   userId: string,
   pool: CharacterPool,
-): Promise<{ before: string | null; character: string; sig: string | null; same: boolean }> {
-  const { results: rows } = await db
-    .prepare('SELECT user_id, character_id, character_sig FROM profiles WHERE character_sig IS NOT NULL OR user_id = ?')
-    .bind(userId)
-    .all<{ user_id: string; character_id: string | null; character_sig: string | null }>();
-  const before = rows.find((r) => r.user_id === userId)?.character_id ?? null;
-  if (before && poolOf(before) === pool) return { before, character: before, sig: null, same: true };
-  const taken = new Set(rows.flatMap((r) => (r.character_sig ? [r.character_sig] : [])));
+): Promise<{ before: string | null; beforeSig: string | null; character: string; sig: string | null; same: boolean; returning: boolean }> {
+  const [{ results: rows }, keep] = await Promise.all([
+    db
+      .prepare('SELECT user_id, character_id, character_sig FROM profiles WHERE character_sig IS NOT NULL OR user_id = ?')
+      .bind(userId)
+      .all<{ user_id: string; character_id: string | null; character_sig: string | null }>(),
+    db
+      .prepare('SELECT user_id, character_id, character_sig FROM character_keep')
+      .all<{ user_id: string; character_id: string; character_sig: string | null }>(),
+  ]);
+  const mine = rows.find((r) => r.user_id === userId);
+  const before = mine?.character_id ?? null;
+  const beforeSig = mine?.character_sig ?? null;
+  if (before && poolOf(before) === pool) return { before, beforeSig, character: before, sig: null, same: true, returning: false };
+  const kept = keep.results.find((r) => r.user_id === userId);
+  if (kept && poolOf(kept.character_id) === pool && isCharacterId(kept.character_id)) {
+    return { before, beforeSig, character: kept.character_id, sig: kept.character_sig, same: false, returning: true };
+  }
+  const taken = new Set([
+    ...rows.flatMap((r) => (r.character_sig ? [r.character_sig] : [])),
+    ...keep.results.flatMap((r) => (r.character_sig ? [r.character_sig] : [])),
+  ]);
   const character = pickCharacter(userId, taken, pool);
-  return { before, character, sig: taken.has(character) ? null : character, same: false };
+  return { before, beforeSig, character, sig: taken.has(character) ? null : character, same: false, returning: false };
+}
+
+// 성별을 바꿀 때 지금 캐릭터를 맡겨 둬요. cond가 참일 때만(바꾸기가 실제로 된 때만) 저장돼요.
+function keepStatement(db: D1Database, userId: string, before: string | null, beforeSig: string | null, cond: string, condArg: unknown) {
+  return db
+    .prepare(
+      `INSERT INTO character_keep (user_id, character_id, character_sig, updated_at)
+       SELECT ?1, ?2, ?3, ?4 WHERE ?2 IS NOT NULL AND ${cond}
+       ON CONFLICT (user_id) DO UPDATE SET character_id = ?2, character_sig = ?3, updated_at = ?4`,
+    )
+    .bind(userId, before, beforeSig, now(), condArg);
 }
 
 async function chooseCharacterPoolOnce(db: D1Database, userId: string, pool: CharacterPool): Promise<string | null> {
-  const { before, character, sig, same } = await planCharacterPool(db, userId, pool);
+  const { before, beforeSig, character, sig, same } = await planCharacterPool(db, userId, pool);
   if (same) return before;
-  const res = await db
-    .prepare(
-      `INSERT INTO profiles (user_id, character_id, character_sig, updated_at) VALUES (?1, ?2, ?3, ?4)
-       ON CONFLICT (user_id) DO UPDATE SET character_id = ?2, character_sig = ?3, updated_at = ?4
-       WHERE profiles.character_id IS ?5`,
-    )
-    .bind(userId, character, sig, now(), before)
-    .run();
-  return res.meta.changes ? character : before;
+  const [res] = await db.batch([
+    db
+      .prepare(
+        `INSERT INTO profiles (user_id, character_id, character_sig, updated_at) VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT (user_id) DO UPDATE SET character_id = ?2, character_sig = ?3, updated_at = ?4
+         WHERE profiles.character_id IS ?5`,
+      )
+      .bind(userId, character, sig, now(), before),
+    keepStatement(db, userId, before, beforeSig, 'EXISTS (SELECT 1 FROM profiles WHERE user_id = ?1 AND character_id IS ?5)', character),
+  ]);
+  return res?.meta?.changes ? character : before;
 }
 
 // 처음 성별 고르기: 캐릭터를 그 묶음으로 정하고 "골랐어요" 표시. 이미 골랐으면 바꾸지 않아요.
@@ -257,6 +295,10 @@ async function chooseFirstGenderOnce(
         )
         .bind(userId, plan.character, plan.sig, now(), mark),
     );
+    // 예전 캐릭터는 맡겨 둬요. 나중에 상점에서 성별을 다시 바꾸면 그대로 돌려받아요.
+    steps.push(
+      keepStatement(db, userId, plan.before, plan.beforeSig, 'EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND gender_chosen_at = ?5)', mark),
+    );
   }
   await db.batch(steps);
   const after = await db.prepare('SELECT gender_chosen_at FROM members WHERE user_id = ?').bind(userId).first<{ gender_chosen_at: string | null }>();
@@ -294,6 +336,8 @@ export async function buyGenderChange(
       db
         .prepare(`UPDATE profiles SET dogam_jelly = dogam_jelly - ?3, character_id = ?4, character_sig = ?5, updated_at = ?6 WHERE user_id = ?2 AND ${won}`)
         .bind(id, userId, price, plan.character, plan.sig, t),
+      // 예전 캐릭터는 맡겨 둬요. 다시 바꾸면 그대로 돌려받아요(나리 2026-11-17).
+      keepStatement(db, userId, plan.before, plan.beforeSig, 'EXISTS (SELECT 1 FROM purchases WHERE id = ?5)', id),
     ]);
     if (await db.prepare('SELECT 1 FROM purchases WHERE id = ?').bind(id).first()) return 'done';
     // 그 사이 다른 탭에서 먼저 캐릭터가 바뀌어 못 샀으면 잔액 부족이 아니라고 알려요.

@@ -274,6 +274,14 @@ describe('도감 카드 장수 보상', () => {
     expect((sql.prepare('SELECT COUNT(*) AS n FROM card_count_rewards WHERE user_id = ?').get(A) as { n: number }).n).toBe(1);
   });
 
+  it('나간 사람이 맡겨 둔 예전 캐릭터도 지워요', async () => {
+    const { sql, db } = fakeD1();
+    await applySync(db, cardBatch('k1', others.slice(0, 1)));
+    sql.prepare("INSERT INTO character_keep (user_id, character_id, character_sig, updated_at) VALUES (?, 'girl-02-0', 'girl-02-0', 'x')").run(others[0]!);
+    await applySync(db, cardBatch('k2', [], [others[0]!]));
+    expect(sql.prepare('SELECT COUNT(*) AS n FROM character_keep').get()).toEqual({ n: 0 });
+  });
+
   it('같은 묶음에서 떠난 상대 카드는 세지 않아요', async () => {
     const { sql, db } = fakeD1();
     await applySync(db, cardBatch('r4', others.slice(0, 4)));
