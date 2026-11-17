@@ -2,7 +2,7 @@ import { CHARACTERS, CHARACTER_VARIANTS, DECO_CHARACTERS } from './characters';
 
 // 멤버 캐릭터: 나리님이 준 그림 속 캐릭터들(public/char/). 서버 안에서 겹치지 않게 골라요.
 // 디자인이 모두 다른 원래 그림(-0)을 먼저 나눠 주고, 멤버가 디자인 수보다 많을 때만
-// 옷 색을 바꾼 여분(-1~)을 줘요. 새 그림이 들어오면 여분을 쓰던 멤버는 새 디자인으로 옮겨요.
+// 옷 색을 바꾼 여분(-1~)을 줘요. 한 번 받은 캐릭터는 저절로 바뀌지 않아요.
 export const CHARACTER_TOTAL = CHARACTERS.length * CHARACTER_VARIANTS;
 
 function hash(s: string): number {
@@ -50,11 +50,11 @@ export function pickCharacter(userId: string, taken: Set<string>, pool?: Charact
   return key(bases[start]!, 0);
 }
 
-// 다시 골라야 하는 캐릭터인지: 없어진 캐릭터이거나, 여분 색인데 아직 빈 디자인이 있을 때
-export function shouldRepick(characterId: string | null, taken: Set<string>): boolean {
-  if (!isCharacterId(characterId)) return true;
-  if (characterId.endsWith('-0')) return false;
-  return basesIn(poolOf(characterId)).some((b) => !taken.has(key(b, 0)));
+// 다시 골라야 하는 캐릭터인지: 캐릭터가 없거나 그림이 없어진 때뿐이에요.
+// 한 번 받은 캐릭터는 저절로 바뀌지 않아요(나리 2026-11-17). 여분 색을 쓰던 멤버도
+// 다른 사람이 나가거나 성별을 바꿔 빈 디자인이 생겼다고 옮기지 않아요.
+export function shouldRepick(characterId: string | null): boolean {
+  return !isCharacterId(characterId);
 }
 
 // DB에 정해진 캐릭터가 없을 때(떠난 멤버 등) ID로 늘 같은 캐릭터를 보여 줘요.

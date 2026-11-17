@@ -306,12 +306,22 @@ describe('디스코드에서 처음 여자·남자 고르기', () => {
   it('안 고른 사람은 카드에 gender_chosen=false, 고르면 그 묶음 캐릭터가 되고 두 번째는 already예요', async () => {
     const { db, sql } = fakeD1();
     const env = { DB: db, BOT_SYNC_SECRET: 's' } as unknown as Env;
-    expect(await (await call(env, `/api/bot/card/${A}`)).json()).toMatchObject({ gender_chosen: false });
+    const before = (await (await call(env, `/api/bot/card/${A}`)).json()) as {
+      gender_chosen: boolean;
+      gender_options: Record<string, { character: string; character_url: string; same: boolean }>;
+    };
+    expect(before.gender_chosen).toBe(false);
+    expect(before.gender_options.boy!.character).toMatch(/^boy-/);
+    expect(before.gender_options.boy!.character_url).toContain(`/char/${before.gender_options.boy!.character}.png`);
     expect((await call(env, '/api/bot/gender', { user_id: A, pool: 'other' })).status).toBe(400);
-    expect(await (await call(env, '/api/bot/gender', { user_id: A, pool: 'boy' })).json()).toEqual({ result: 'done' });
-    const card = (await (await call(env, `/api/bot/card/${A}`)).json()) as { gender_chosen: boolean; character_url: string };
+    expect((await call(env, '/api/bot/gender', { user_id: A, pool: 'boy', character: 7 })).status).toBe(400);
+    // 미리보기와 다른 캐릭터면 고르지 않아요
+    expect(await (await call(env, '/api/bot/gender', { user_id: A, pool: 'boy', character: 'boy-50-3' })).json()).toEqual({ result: 'changed' });
+    expect(await (await call(env, '/api/bot/gender', { user_id: A, pool: 'boy', character: before.gender_options.boy!.character })).json()).toEqual({ result: 'done' });
+    const card = (await (await call(env, `/api/bot/card/${A}`)).json()) as { gender_chosen: boolean; character_url: string; gender_options?: unknown };
     expect(card.gender_chosen).toBe(true);
-    expect(card.character_url).toContain('/boy-');
+    expect(card.gender_options).toBeUndefined();
+    expect(card.character_url).toContain(`/char/${before.gender_options.boy!.character}.png`);
     expect(await (await call(env, '/api/bot/gender', { user_id: A, pool: 'girl' })).json()).toEqual({ result: 'already' });
     expect((sql.prepare('SELECT character_id FROM profiles WHERE user_id = ?').get(A) as { character_id: string }).character_id).toMatch(/^boy-/);
     expect((await call(env, '/api/bot/gender', { user_id: '999999999999999999', pool: 'boy' })).status).toBe(404);

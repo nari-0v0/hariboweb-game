@@ -23,8 +23,14 @@ function Preview(props: { viewer: Member; pool: CharacterPool; character: string
 }
 
 // 처음 들어오면 여자·남자 캐릭터 중 하나를 골라요. 고르기 전에는 다른 화면으로 못 가요.
-export function ChoosePage(props: { viewer: Member; previews: Record<CharacterPool, string>; pick?: CharacterPool }) {
-  const { viewer, previews, pick } = props;
+export function ChoosePage(props: {
+  viewer: Member;
+  previews: Record<CharacterPool, string>;
+  same?: Record<CharacterPool, boolean>;
+  pick?: CharacterPool;
+  changed?: boolean;
+}) {
+  const { viewer, previews, same, pick, changed } = props;
   if (pick) {
     // 확정 → 정말 이걸로? (다시 확인)
     return (
@@ -34,7 +40,9 @@ export function ChoosePage(props: { viewer: Member; previews: Record<CharacterPo
           <div class="choose-one">
             <Preview viewer={viewer} pool={pick} character={previews[pick]} />
           </div>
+          {changed ? <p class="notice">그 사이 받을 캐릭터가 바뀌었어요. 위 그림을 다시 확인해 주세요.</p> : null}
           <p class="notice">
+            {same?.[pick] ? '지금 캐릭터를 그대로 써요. ' : '지금 캐릭터 대신 위 그림 캐릭터로 바뀌어요. '}
             <b>{POOL_LABEL[pick]}</b> 캐릭터로 정해요. 나중에 바꾸려면 젤리 상점에서 "성별 바꾸기"를 도감 젤리 {PRICES.gender}개로 사야 해요.
           </p>
           <div class="choose-actions">
@@ -43,6 +51,7 @@ export function ChoosePage(props: { viewer: Member; previews: Record<CharacterPo
             </a>
             <form method="post" action="/api/me/gender">
               <input type="hidden" name="pool" value={pick} />
+              <input type="hidden" name="character" value={previews[pick]} />
               <button class="btn btn-primary" type="submit">
                 네, 이걸로 할게요
               </button>
@@ -63,7 +72,10 @@ export function ChoosePage(props: { viewer: Member; previews: Record<CharacterPo
               <label class="choose-card">
                 <input type="radio" name="pick" value={pool} required />
                 <Preview viewer={viewer} pool={pool} character={previews[pool]} />
-                <span class="choose-label">{POOL_LABEL[pool]}</span>
+                <span class="choose-label">
+                {POOL_LABEL[pool]}
+                {same?.[pool] ? ' (지금 캐릭터 그대로)' : ''}
+              </span>
               </label>
             ))}
           </div>
