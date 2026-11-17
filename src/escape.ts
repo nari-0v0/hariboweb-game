@@ -38,6 +38,7 @@ export type EscObject = {
 };
 export type EscCase = {
   id: string;
+  vr?: number; // 다시 푸는 판 번호(만든 사건만). 없으면 처음 판
   title: string;
   emoji: string;
   place: string;
@@ -309,7 +310,30 @@ export const ESCAPE_CASES: EscCase[] = [
   ...TALK_CASES.map((c) => ({ ...c, level: 3 })),
 ].map(placeRooms);
 
-export const escCase = (id: string) => ESCAPE_CASES.find((c) => c.id === id);
+// vr > 0: 같은 수수께끼로 범인·단서·자리를 새로 섞은 다시 푸는 판(이야기 씨앗으로 만든 사건만, 나머지는 그대로).
+const VARIANTS = new Map<string, EscCase>();
+export function escCase(id: string, vr = 0): EscCase | undefined {
+  const base = ESCAPE_CASES.find((c) => c.id === id);
+  const no = STORY_SEEDS.findIndex((x) => x.id === id);
+  if (!base || vr <= 0 || no < 0) return base;
+  const key = `${id}#${vr}`;
+  let c = VARIANTS.get(key);
+  if (!c) {
+    c = placeRooms({ ...buildCase(STORY_SEEDS[no]!, 3, no, vr), level: base.level });
+    if (VARIANTS.size >= 200) VARIANTS.delete(VARIANTS.keys().next().value!);
+    VARIANTS.set(key, c);
+  }
+  return c;
+}
+// 판 기록(JSON)에 적힌 다시 푸는 판 번호
+export function escVariantOf(json: string): number {
+  try {
+    const v = (JSON.parse(json) as { vr?: unknown }).vr;
+    return Number.isSafeInteger(v) && (v as number) > 0 ? (v as number) : 0;
+  } catch {
+    return 0;
+  }
+}
 
 // 도감으로 여는 순서 = 목록 순서(쉬운 것부터). 처음 5개(입문 3개 + 가장 쉬운 사건 2개)는 그냥 할 수 있어요.
 const UNLOCK_ORDER = ESCAPE_CASES.map((c) => c.id);
@@ -334,6 +358,7 @@ export type EscState = {
   bigHints?: string[]; // 「더 쉬운 힌트」를 본 수수께끼 물건 id
   seenHints?: number[]; // 이미 본 힌트(c.hints 번호). 계속 보여 주고, 다시 봐도 동전·감점 없어요
   fx?: EscFx; // 방금 행동의 화면 움직임(다음 행동 때 지워져요)
+  vr?: number; // 다시 푸는 판 번호(EscCase.vr과 같아요)
 };
 // open = 잠긴 것을 열었어요, right/wrong = 수수께끼 정답·오답, gain = 물건·단서를 얻었어요, move = 다른 방, coin = 힌트 동전
 export type EscFx = 'open' | 'right' | 'wrong' | 'gain' | 'move' | 'coin';
@@ -350,7 +375,7 @@ export type EscAction =
 export type EscGrade = 'S' | 'A' | 'B' | 'C';
 
 export function startEscape(c: EscCase): EscState {
-  return { v: 1, scene: c.scenes[0]!.id, inv: [], opened: [], seen: [], shown: [], clues: [], mistakes: 0, hints: 0, focus: null, msg: c.intro, tone: 'info', done: false };
+  return { v: 1, scene: c.scenes[0]!.id, inv: [], opened: [], seen: [], shown: [], clues: [], mistakes: 0, hints: 0, focus: null, msg: c.intro, tone: 'info', done: false, ...(c.vr ? { vr: c.vr } : {}) };
 }
 
 // 열린 방: 처음 방, 그리고 이미 열어서 지나갈 수 있게 된 문이 이어 주는 방(방 목록 순서).
@@ -418,7 +443,7 @@ export function coinSpots(c: EscCase, scene: string): { k: number; x: number; y:
   const onPerson = (x: number, y: number) => room.people.some(([px, py]) => Math.abs(px - x) < 10 && y > py - 30);
   const out: { k: number; x: number; y: number }[] = [];
   for (let k = 0, tries = 0; out.length < COINS_PER_ROOM && tries < 400; tries++) {
-    const h = hash(`${c.id}:${scene}:${k}:${tries}`);
+    const h = hash(`${c.id}${c.vr ? `#${c.vr}` : ''}:${scene}:${k}:${tries}`);
     const x = 6 + (h % 88);
     const y = 8 + ((h >>> 8) % 84);
     if (onSpot(x, y) || onPerson(x, y)) continue;

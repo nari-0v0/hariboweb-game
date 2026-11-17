@@ -71,7 +71,7 @@ const has = (t: 'lock' | 'clock' | 'wall'): Want => (h) => !!h.tag?.includes(t);
 type Spot = Omit<EscObject, 'x' | 'y' | 'scene'>;
 type Built = { spots: Spot[]; hint: string; steps: EscAction[]; lockId: string; back?: Spot[] }; // back: 앞 방에 두는 것
 type Reward = { take?: string[]; clue?: string | string[]; text: string; got?: string }; // got: 사람·카드가 줄 때 쓰는 말
-type Ctx = { r: R; id: (k: string) => string; reward: Reward; lock?: Spot; pool: Pool; safe?: Hotspot };
+type Ctx = { r: R; id: (k: string) => string; reward: Reward; lock?: Spot; pool: Pool; safe?: Hotspot; used: Set<string>; card?: Hotspot };
 
 // 잠긴 곳 하나(혹은 문). 비밀번호를 맞히면 보상이 나와요.
 type CodeExtra = Pick<Extract<Lock, { kind: 'code' }>, 'choices' | 'order' | 'grid' | 'ui'>;
@@ -273,12 +273,16 @@ export function bankHands(): number[][] {
 
 // 사건마다 수수께끼 카드의 답이 겹치지 않게, 이미 쓴 수수께끼를 기억해 둬요.
 const USED_RID = new Set<string>();
+// 처음 판의 물건 찾기 카드 정답 자리(사건 id → 방 그림·자리). 다시 푸는 판도 같은 수수께끼(같은 정답 물건)를 내요.
+const CARD_AT = new Map<string, { bg: RoomKey; at: string }>();
 // 수수께끼: 방 그림 속 물건 중 답이 되는 것을 눌러야 숨긴 물건이 나와요(틀린 물건은 그냥 비어 있어요).
 function riddle(ctx: Ctx): Built {
   const { r } = ctx;
-  const fresh = ctx.pool.free.some((h) => !!h.rid && !h.tag?.includes('lock') && !USED_RID.has(h.rid));
-  const ans = take(r, ctx.pool, (h) => !!h.rid && !h.tag?.includes('lock') && (!fresh || !USED_RID.has(h.rid)));
-  USED_RID.add(ans.rid!);
+  const used = ctx.used;
+  const fresh = ctx.pool.free.some((h) => !!h.rid && !h.tag?.includes('lock') && !used.has(h.rid));
+  // 다시 푸는 판은 처음 판과 같은 정답 물건(미리 맡아 둔 자리)을 써요.
+  const ans = ctx.card ?? take(r, ctx.pool, (h) => !!h.rid && !h.tag?.includes('lock') && (!fresh || !used.has(h.rid)));
+  used.add(ans.rid!);
   const opts = [ans, ...[0, 1].map(() => take(r, ctx.pool, (h) => !!h.rid && !h.tag?.includes('lock')))];
   const paper = note(ctx, 'rdn', '수수께끼 카드', '🃏', `「${ans.rid} 나는 무엇일까요? 내 곁을 살펴봐요.」`);
   const spots: Spot[] = opts.map((o, i) =>
@@ -310,8 +314,12 @@ function pickRooms(r: R, names: readonly string[]): RoomKey[] {
   return out;
 }
 
-export function buildCase(seed: StorySeed, level = 3, no = 0): EscCase {
-  const r = rng(`escape:${seed.id}`);
+// vr: 다시 푸는 판 번호(나리 2026-11-17, 멍쑤님 제보). 0이면 처음 판, 1부터는 같은 수수께끼로
+// 범인·단서·물건 숨은 자리·문제 내는 방식·시계 시각 같은 것만 새로 섞어요(답을 외워서 다시 풀지 못하게).
+// 다시 푸는 판은 요청마다 늘 같은 판이 나와야 해서, 사건끼리 함께 쓰는 수수께끼 카드 기록(USED_RID)을 쓰지 않아요.
+export function buildCase(seed: StorySeed, level = 3, no = 0, vr = 0): EscCase {
+  const r = rng(vr > 0 ? `escape:${seed.id}#${vr}` : `escape:${seed.id}`);
+  const usedRid = vr > 0 ? new Set<string>() : USED_RID;
   const bgs = pickRooms(r, seed.rooms);
   const pools: Pool[] = bgs.map((key) => ({ key, free: [...ROOMS[key].spots] }));
   const scenes = seed.rooms.map((name, i) => {
@@ -346,10 +354,18 @@ export function buildCase(seed: StorySeed, level = 3, no = 0): EscCase {
 
   let n = 0;
   // 잠긴 곳은 장치마다 먼저 하나 맡아 둬요(다른 쪽지가 자물쇠 자리를 차지하지 않게).
-  const ctx = (scene: number, reward: Reward, lock?: Spot | 'none'): Ctx => ({ r, reward, lock: lock === 'none' ? undefined : lock, pool: pools[scene]!, safe: lock ? undefined : take(r, pools[scene]!, has('lock')), id: (k) => `${k}${++n}` });
+  const ctx = (scene: number, reward: Reward, lock?: Spot | 'none'): Ctx => ({ r, reward, lock: lock === 'none' ? undefined : lock, pool: pools[scene]!, safe: lock ? undefined : take(r, pools[scene]!, has('lock')), id: (k) => `${k}${++n}`, used: usedRid });
 
   // 이 사건이 받은 은행 문제 다섯 개를 다섯 자리에 놓아요. 카드는 수수께끼 물건이 넉넉한 방에만,
   // 글 수수께끼는 내는 방식(자물쇠·사람·찢어진 쪽지·다른 방 쪽지)이 서로 다르게요.
+  // 다시 푸는 판: 처음 판의 카드 정답 자리를 그 방에서 미리 빼 둬요(다른 쪽지가 차지하지 않게).
+  const base = vr > 0 ? CARD_AT.get(seed.id) : undefined;
+  const cardScene = base ? bgs.indexOf(base.bg) : -1;
+  let cardSpot: Hotspot | undefined;
+  if (base && cardScene >= 0) {
+    cardSpot = pools[cardScene]!.free.find((h) => h.id === base.at);
+    if (cardSpot) pools[cardScene]!.free = pools[cardScene]!.free.filter((h) => h !== cardSpot);
+  }
   const hand = bankHands()[no];
   if (!hand) throw new Error(`은행 묶음이 없어요: ${seed.id}`);
   const SCENE = [0, 0, 1, 1, 2];
@@ -357,7 +373,9 @@ export function buildCase(seed: StorySeed, level = 3, no = 0): EscCase {
   const slotItem: number[] = [-1, -1, -1, -1, -1];
   const card = mine.find((i) => BANK[i]!.kind === 'card');
   if (card !== undefined) {
-    const ok = shuffle(r, [0, 1, 2, 4]).find((k) => pools[SCENE[k]!]!.free.filter((h) => h.rid && !h.tag?.includes('lock')).length >= 4);
+    const ok = cardSpot
+      ? shuffle(r, [0, 1, 2, 4]).find((k) => SCENE[k] === cardScene)
+      : shuffle(r, [0, 1, 2, 4]).find((k) => pools[SCENE[k]!]!.free.filter((h) => h.rid && !h.tag?.includes('lock')).length >= 4);
     if (ok === undefined) throw new Error(`카드 놓을 방이 없어요: ${seed.id}`);
     slotItem[ok] = card;
   }
@@ -395,7 +413,11 @@ export function buildCase(seed: StorySeed, level = 3, no = 0): EscCase {
     if (use === 'far') return far(cx, t, no1, ctx(scene - 1, reward, 'none'), seed.rooms[scene - 1]!);
     if (use === 'clock') return clockQuiz(cx, b.clock!, no1);
     if (use === 'card') {
-      const out = riddle(cx);
+      const out = riddle(cardSpot ? { ...cx, card: cardSpot } : cx);
+      if (vr === 0) {
+        const at = out.spots.find((x) => x.id === out.lockId)!.at!;
+        CARD_AT.set(seed.id, { bg: pools[scene]!.key, at });
+      }
       out.spots[0] = { ...out.spots[0]!, ref: no1 };
       return out;
     }
@@ -473,7 +495,7 @@ export function buildCase(seed: StorySeed, level = 3, no = 0): EscCase {
   const motiveOpts = shuffle(r, [seed.motive.right, ...seed.motive.wrong]);
   const answer: EscAction = { a: 'answer', n: culprit, m: [methodOpts.indexOf(seed.method.right), motiveOpts.indexOf(seed.motive.right)] };
   return {
-    id: seed.id, title: seed.title, emoji: seed.emoji, place: seed.place, intro: seed.intro, level,
+    id: seed.id, title: seed.title, emoji: seed.emoji, place: seed.place, intro: seed.intro, level, ...(vr > 0 ? { vr } : {}),
     scenes, items, clues, objects,
     combos: [{ a: 'partA', b: 'partB', out: 'tool', text: combo.make }],
     question: { text: '범인은 누구일까요?', options: sus.map((s) => `${s.name} (${s.role})`), correct: culprit, needs: ['ev1', 'ev2', 'ev3', 'method', 'motive'] },
