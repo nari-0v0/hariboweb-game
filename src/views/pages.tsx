@@ -199,7 +199,7 @@ function CardGoal({ owned, claimed }: { owned: number; claimed: ReadonlySet<numb
   if (next.waiting)
     return (
       <p class="muted card-goal">
-        🃏 카드 {next.cards}장 보상(도감 젤리 +{next.jelly})은 다음에 누구와 같이 통화하면 들어와요.
+        🃏 카드 {next.cards}장 보상(도감 젤리 +{next.jelly})을 확인하고 있어요. 잠시 뒤 다시 열어 보세요.
       </p>
     );
   return (

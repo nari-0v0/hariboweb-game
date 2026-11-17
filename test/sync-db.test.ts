@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import app from '../src/index';
 import type { Env } from '../src/env';
 import { levelFromXp } from '../src/levels';
+import { claimedCardSteps, settleCardRewards } from '../src/card-rewards';
 import { applySync, batchTime, isStaleBatch, levelSql, parseSync } from '../src/sync';
 
 const A = '111111111111111111';
@@ -279,5 +280,20 @@ describe('도감 카드 장수 보상', () => {
     await applySync(db, cardBatch('r5', [others[4]!], [others[0]!]));
     expect(jellyOf(sql, A)).toBe(0);
     expect(alertsOf(sql, A)).toEqual([]);
+  });
+
+  it('장수를 채웠는데 못 받은 단계는 화면을 열 때 받아요(상대 재가입 등)', async () => {
+    const { sql, db } = fakeD1();
+    await applySync(db, cardBatch('v4', others.slice(0, 4)));
+    // 함께한 활동 없이 장수가 5장이 된 경우(예: 떠났던 상대가 돌아옴)
+    sql.prepare("INSERT INTO cards (owner_id, target_id, xp, voice_seconds, scrims, first_met, updated_at) VALUES (?, ?, 1, 0, 0, 'x', 'x')").run(A, others[5]!);
+    expect(jellyOf(sql, A)).toBe(0);
+    expect(await settleCardRewards(db, A, 5, await claimedCardSteps(db, A))).toBe(true);
+    expect(jellyOf(sql, A)).toBe(1);
+    expect(alertsOf(sql, A).map((a) => a.ref)).toEqual(['cards-5']);
+    // 다시 열어도 또 주지 않아요
+    expect(await settleCardRewards(db, A, 5, await claimedCardSteps(db, A))).toBe(false);
+    await settleCardRewards(db, A, 5, new Set());
+    expect(jellyOf(sql, A)).toBe(1);
   });
 });
