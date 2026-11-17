@@ -295,6 +295,21 @@ describe('사건파일 방탈출 저장과 보상', () => {
     expect(sql.prepare("SELECT solo_xp, dogam_jelly FROM profiles WHERE user_id = 'me'").get()).toEqual({ solo_xp: 10, dogam_jelly: 1 });
     expect((await escapeRecord(db, 'me')).get(c.id)).toBe('S');
   });
+  it('만든 사건을 다시 시작하면 같은 수수께끼로 섞은 판(다시 푸는 판)이 나오고, 이어 하기도 그 판이에요', async () => {
+    const { db } = database();
+    const made = ESCAPE_CASES.find((x) => x.solution && !x.id.endsWith('-talk'))!;
+    const a = (await beginEscape(db, 'me', made.id))!;
+    expect((await activeEscape(db, 'me'))!.def.vr).toBeUndefined();
+    expect(await quitEscape(db, 'me', a)).toBe(true);
+    const b = (await beginEscape(db, 'me', made.id))!;
+    const run = (await activeEscape(db, 'me'))!;
+    expect(run.row.id).toBe(b);
+    expect(run.def.vr).toBe(1);
+    expect(run.state.vr).toBe(1);
+    // 다시 푸는 판의 모범 풀이로 끝까지(판을 다시 읽어도 같은 판)
+    for (const [i, act] of run.def.solution!.entries()) expect(await actEscapeRun(db, 'me', b, i, act), JSON.stringify(act)).toBe('ok');
+    expect((await getEscape(db, 'me', b))!.row.status).toBe('done');
+  });
   it('옛 화면(순번이 다른 요청)은 반영하지 않아요', async () => {
     const { db } = database();
     const id = (await beginEscape(db, 'me', c.id))!;

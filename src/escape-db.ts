@@ -1,11 +1,11 @@
 import { dogamProgress, escapeNeed, meets } from './unlock';
-import { ESC_XP, escapeUnlockIndex, actEscape, decodeEscape, escCase, escGrade, escJelly, startEscape, type EscAction, type EscCase, type EscGrade, type EscState } from './escape';
+import { ESC_XP, escVariantOf, escapeUnlockIndex, actEscape, decodeEscape, escCase, escGrade, escJelly, startEscape, type EscAction, type EscCase, type EscGrade, type EscState } from './escape';
 
 export type EscRow = { id: string; user_id: string; case_id: string; state: string; rev: number; status: string; grade: string | null; xp: number; jelly: number };
 export type EscRun = { row: EscRow; def: EscCase; state: EscState };
 
 function decode(row: EscRow | null): EscRun | null {
-  const def = row && escCase(row.case_id);
+  const def = row && escCase(row.case_id, escVariantOf(row.state));
   const state = def && decodeEscape(def, row.state);
   return row && def && state ? { row, def, state } : null;
 }
@@ -38,13 +38,15 @@ export async function escapeOpen(db: D1Database, user: string, caseId: string): 
 export async function beginEscape(
   db: D1Database, user: string, caseId: string, now = new Date(), replace?: { id: string; rev: number },
 ): Promise<string | null> {
-  const def = escCase(caseId);
-  if (!def) return null;
+  if (!escCase(caseId)) return null;
   if (!(await escapeOpen(db, user, caseId))) return null;
   const going = await activeEscape(db, user);
   if (going && !replace) return going.row.id;
   if (replace && (!going || going.row.id !== replace.id || going.row.rev !== replace.rev)) return null;
   if (going?.row.case_id === caseId) return going.row.id;
+  // 이 사건을 전에 시작한 적이 있으면(해결했든 그만뒀든) 범인·단서·자리를 새로 섞은 판으로 해요(수수께끼는 같아요).
+  const tried = await db.prepare('SELECT COUNT(*) AS n FROM escape_runs WHERE user_id = ? AND case_id = ?').bind(user, caseId).first<{ n: number }>();
+  const def = escCase(caseId, tried?.n ?? 0)!;
   const id = crypto.randomUUID();
   const t = now.toISOString();
   const state = JSON.stringify(startEscape(def));
