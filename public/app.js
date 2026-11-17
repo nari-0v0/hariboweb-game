@@ -128,6 +128,8 @@ addEventListener('pageshow', (e) => {
   const set = (on) => { mem = !!on; try { on ? localStorage.setItem(KEY, '1') : localStorage.removeItem(KEY); } catch {} };
   let timer = 0;
   let busy = false;
+  // 원정 한 판이 끝나면(결과 화면이나 그만두기) 자동은 꺼져요. 다음 판은 직접 켜야 해요(슬금님 제안, 2026-11-18).
+  if (document.querySelector('.jr-result') || new URLSearchParams(location.search).get('n') === 'quit') set(false);
   const sync = () => {
     const box = document.querySelector('[data-auto-toggle]');
     if (!box) return;
@@ -158,6 +160,7 @@ addEventListener('pageshow', (e) => {
       const next = doc.getElementById('journey');
       const cur = document.getElementById('journey');
       if (!next || !cur || url.searchParams.has('r')) {
+        if (url.searchParams.has('r')) set(false);
         location.href = res.url; // 원정이 끝나면 결과 화면으로
         return;
       }

@@ -1209,19 +1209,21 @@ main.wide { max-width: 1320px; }
 @keyframes jr-die { 0% { opacity: 1; filter: none; scale: 1; } 25% { opacity: .8; filter: brightness(3); } 100% { opacity: 0; filter: grayscale(1); scale: .6 .4; translate: 0 10px; } }
 @keyframes jr-pop { 0% { opacity: 0; translate: -50% 6px; } 15% { opacity: 1; translate: -50% -10px; } 75% { opacity: 1; translate: -50% -22px; } 100% { opacity: 0; translate: -50% -28px; } }
 .jr-bar { position: relative; height: 24px; margin: 6px 0; border: 3px solid var(--ink); background: #fff; }
-.jr-bar span { position: absolute; inset: 0 auto 0 0; background: var(--pink); transition: width .4s; }
-.jr-bar.xp span { background: var(--sky); }
+.jr-bar > span, .jr-phase i { position: absolute; inset: 0 auto 0 0; background: var(--pink); transition: width .4s; }
+.jr-bar.xp > span { background: var(--sky); }
 .jr-bar b { position: relative; display: block; padding: 0 8px; font-size: .78rem; line-height: 18px; }
-.jr-bar .jr-before { display: none; position: absolute; inset: 0; }
+/* 싸우는 동안 체력 막대: 맞을 때마다(--on) 그때 값으로 바뀌고, 다음 값이 나오면(--off) 사라져요 */
+.jr-phase { display: none; position: absolute; inset: 0; }
 /* 싸움 모션이 있는 날: 결과(대화창·버튼·체력·경험치)는 쓰러지는 모션이 끝난 뒤(--reveal)에 나와요 */
 @media (prefers-reduced-motion: no-preference) {
   .jr-fighting .jr-today, .jr-fighting .jr-pad, .jr-fighting .jr-bar.xp > * { animation: jr-reveal .3s var(--reveal, 0s) both; }
-  .jr-fighting .jr-bar.later > span { animation: jr-bar .4s var(--reveal, 0s) both; }
-  .jr-fighting .jr-bar .jr-before { display: block; animation: jr-hide 0s var(--reveal, 0s) both; }
+  .jr-fighting .jr-bar.later > span { animation: jr-reveal 0s var(--reveal, 0s) both, jr-bar .4s var(--reveal, 0s) both; }
+  .jr-fighting .jr-phase { display: block; animation: jr-gone 0s var(--off, var(--reveal, 0s)) both; }
+  .jr-fighting .jr-phase > div { animation: jr-reveal 0s var(--on, 0s) both; }
   .jr-fighting .jr-bar .jr-after { animation: jr-reveal 0s var(--reveal, 0s) both; }
 }
 @keyframes jr-reveal { from { opacity: 0; visibility: hidden; } to { opacity: 1; visibility: visible; } }
-@keyframes jr-hide { to { visibility: hidden; } }
+@keyframes jr-gone { to { opacity: 0; } }
 @keyframes jr-bar { from { width: var(--from); } }
 .jr-stats { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
 .jr-stats span { padding: 0 8px; border: 3px solid var(--ink); background: #fff; font-weight: 700; }
@@ -2236,7 +2238,7 @@ main.wide { max-width: 1320px; }
 .jp-item-need.ok { color: #2c7a55; }
 .jp-item-low { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 2px 8px; max-width: 100%; font-size: .72rem; }
 .jp-item-low small { flex-basis: 100%; color: var(--ink-soft); font-size: .68rem; }
-.jp-item-low .jp-item-need { white-space: nowrap; }
+.jp-item-low .jp-item-need { white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .jp-up { margin-top: auto; width: 100%; }
 .jp-drop { font-size: .74rem; }
 @media (max-width: 560px) {

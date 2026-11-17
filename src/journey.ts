@@ -33,7 +33,8 @@ export type Line = { icon: string; text: string; tone?: 'good' | 'bad' };
 // 화면 전투 모션용 기록: 누가(0 = 나, 1 = 적) 얼마나 때렸는지. 처음 몇 번과 마지막 한 번만 남겨요.
 export type Hit = [who: 0 | 1, dmg: number, crit?: 1];
 // hp0: 싸우기 전 체력(결과는 모션이 끝난 뒤 보여요). mhp: 몬스터 처음 체력, left: hits 칸마다 그 뒤 남은 몬스터 체력(몬스터 체력 막대용)
-export type BattleFx = { foe: string; won: boolean; spark?: number; hits: Hit[]; hp0?: number; mhp?: number; left?: number[] };
+// php: hits 칸마다 그 뒤 남은 내 체력(맞을 때마다 내 체력 막대도 줄어들게, 슬금님 제보 2026-11-18)
+export type BattleFx = { foe: string; won: boolean; spark?: number; hits: Hit[]; hp0?: number; mhp?: number; left?: number[]; php?: number[] };
 export const FX_HITS = 6;
 export type Offer = { id: 'potion' | 'sword' | 'armor' | 'heart' | 'scroll'; price: number };
 export const OFFERS: Record<Offer['id'], { name: string; icon: string; text: string; price: number }> = {
@@ -233,12 +234,14 @@ function battle(s: JourneyState, m: Monster, power: number, r: () => number, lin
   let turns = 0;
   const hits: Hit[] = [];
   const left: number[] = [];
+  const php: number[] = [];
   const note = (h: Hit) => {
     const i = hits.length < FX_HITS ? hits.length : FX_HITS - 1; // 마지막 칸은 늘 끝난 순간
     hits[i] = h;
     left[i] = Math.max(0, mhp);
+    php[i] = Math.max(0, s.hp);
   };
-  const fx: BattleFx = { foe: m.key, won: false, hits, hp0: start, mhp, left };
+  const fx: BattleFx = { foe: m.key, won: false, hits, hp0: start, mhp, left, php };
   if (sk(s, 'spark')) {
     mhp -= 10 * sk(s, 'spark');
     fx.spark = 10 * sk(s, 'spark');
@@ -250,7 +253,10 @@ function battle(s: JourneyState, m: Monster, power: number, r: () => number, lin
     const dmg = Math.max(1, st.atk * (crit ? 2 : 1));
     mhp -= dmg;
     note(crit ? [0, dmg, 1] : [0, dmg]);
-    if (sk(s, 'leech')) s.hp = Math.min(st.maxHp, s.hp + Math.floor((dmg * sk(s, 'leech')) / 10));
+    if (sk(s, 'leech')) {
+      s.hp = Math.min(st.maxHp, s.hp + Math.floor((dmg * sk(s, 'leech')) / 10));
+      php[php.length - 1] = s.hp; // 흡혈 회복은 그 공격 칸 체력에 바로 넣어요
+    }
     if (mhp <= 0) break;
     let hit = Math.max(1, matk - st.def);
     if (shields > 0) {
@@ -267,6 +273,7 @@ function battle(s: JourneyState, m: Monster, power: number, r: () => number, lin
       const heal = Math.min(st.maxHp - s.hp, Math.round(st.maxHp * 0.4));
       s.hp += heal;
       s.potion = 0;
+      php[php.length - 1] = s.hp; // 물약 회복도 방금 맞은 칸 체력에 넣어요
       lines.push({ icon: KIT.potion.icon, text: `위험할 때 회복 물약을 마셨어요! 체력 +${heal}`, tone: 'good' });
     }
     if (sk(s, 'thorn')) {

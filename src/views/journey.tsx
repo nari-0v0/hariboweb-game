@@ -53,7 +53,7 @@ const NOTICES: Record<string, PopupLine[]> = {
   perk: [{ title: '훈련 완료', text: '다음 원정부터 더 강해져요.' }],
   noperk: [{ title: '알림', text: '젤코인이 모자라거나 이미 끝까지 올렸어요.' }],
   gear: [{ title: '장비 강화 성공!', text: '다음 원정부터 더 강해져요.' }],
-  nogear: [{ title: '알림', text: '재료(앞 장 재료 포함)나 젤코인이 모자라요.' }],
+  nogear: [{ title: '알림', text: '강화에 드는 재료나 젤코인이 모자라요.' }],
   kitcoins: [{ title: '알림', text: '젤코인이 모자라서 준비물을 살 수 없어요.' }],
   stalepick: [{ title: '알림', text: '화면을 연 사이 갈 수 있는 장이나 준비물 값이 바뀌었어요. 젤코인은 그대로예요. 새 화면에서 다시 골라 주세요.' }],
   error: [
@@ -79,20 +79,29 @@ function Act(props: { run: JourneyRun; a: string; n?: number; children: unknown;
   );
 }
 
-// from: 싸우기 전 값. 싸움 모션이 끝날 때(--reveal)까지는 전 값을 보여 주고, 그다음 지금 값으로 바뀌어요.
-function Bar(props: { now: number; max: number; cls: string; label: string; from?: number }) {
+// from: 싸우기 전 값. steps: 싸우는 동안 맞을 때마다 바뀌는 값(at초에 now로). 싸움 모션 동안은 칸마다 그때 값을 보여 주고,
+// 모션이 끝날 때(--reveal) 지금 값으로 바뀌어요.
+function Bar(props: { now: number; max: number; cls: string; label: string; from?: number; steps?: { at: number; now: number }[] }) {
   const pc = (v: number) => Math.max(0, Math.min(100, Math.round((v / Math.max(1, props.max)) * 100)));
   const pct = pc(props.now);
-  const from = props.from !== undefined && props.from !== props.now ? props.from : null;
+  const phases = props.from === undefined ? [] : [{ at: 0, now: props.from }, ...(props.steps ?? [])];
+  const moving = phases.some((p) => p.now !== props.now);
+  const last = phases.at(-1)?.now ?? props.now;
   return (
-    <div class={`jr-bar ${props.cls}${from !== null ? ' later' : ''}`} role="meter" aria-valuenow={props.now} aria-valuemin={0} aria-valuemax={props.max} aria-label={props.label}>
-      <span style={from !== null ? `width:${pct}%;--from:${pc(from)}%` : `width:${pct}%`} />
-      {from !== null && (
-        <b class="jr-before" aria-hidden="true">
-          {props.label} {from}/{props.max}
-        </b>
-      )}
-      <b class={from !== null ? 'jr-after' : undefined}>
+    <div class={`jr-bar ${props.cls}${moving ? ' later' : ''}`} role="meter" aria-valuenow={props.now} aria-valuemin={0} aria-valuemax={props.max} aria-label={props.label}>
+      <span style={moving ? `width:${pct}%;--from:${pc(last)}%` : `width:${pct}%`} />
+      {moving &&
+        phases.map((p, i) => (
+          <div class="jr-phase" aria-hidden="true" style={`--on:${p.at}s${i + 1 < phases.length ? `;--off:${phases[i + 1]!.at}s` : ''}`}>
+            <div>
+              <i style={`width:${pc(p.now)}%`} />
+              <b>
+                {props.label} {p.now}/{props.max}
+              </b>
+            </div>
+          </div>
+        ))}
+      <b class={moving ? 'jr-after' : undefined}>
         {props.label} {props.now}/{props.max}
       </b>
     </div>
@@ -274,6 +283,9 @@ export function fightPlan(fx: BattleFx) {
   const max = fx.mhp ?? 0;
   const pct = (v: number) => Math.max(0, Math.min(100, Math.round((v / Math.max(1, max)) * 100)));
   const drops: { at: number; pct: number }[] = [];
+  // 내 체력 막대: 맞거나(흡혈 등으로) 바뀔 때마다 그때 남은 체력
+  const heroHp: { at: number; now: number }[] = [];
+  let heroNow = fx.hp0;
   let shown = 100;
   const drop = (at: number, v: number | undefined) => {
     if (!max || v === undefined || pct(v) >= shown) return;
@@ -290,6 +302,11 @@ export function fightPlan(fx: BattleFx) {
   for (const [i, [who, dmg, crit]] of fx.hits.entries()) {
     const hit = (t + 0.14).toFixed(2);
     drop(+hit, fx.left?.[i]);
+    const hp = fx.php?.[i];
+    if (hp !== undefined && hp !== heroNow) {
+      heroNow = hp;
+      heroHp.push({ at: +hit, now: hp });
+    }
     if (who === 0) {
       hero.push(`jr-lunge-r .34s ${t.toFixed(2)}s`);
       foe.push(`jr-hit .3s ${hit}s`);
@@ -316,6 +333,7 @@ export function fightPlan(fx: BattleFx) {
     foeEnd: fx.won ? `jr-die .45s ${end}s both` : '',
     pops,
     foeHp: max ? { max, now: Math.max(0, fx.left?.at(-1) ?? (fx.won ? 0 : max)), drops } : null,
+    heroHp,
     ms: Math.round((t + 0.9) * 1000),
     reveal: Math.round((t + 0.5) * 1000), // 결과(대화창·체력·버튼)가 나오는 때: 쓰러지는 모션이 끝난 뒤
   };
@@ -406,7 +424,8 @@ function Play(props: { run: JourneyRun; art: string; name: string; preview?: boo
   const st = stat(s);
   const lost = s.hp <= 0;
   const ch = chapterOf(s.ch);
-  const reveal = s.fx ? fightPlan(s.fx).reveal : 0;
+  const plan = s.fx ? fightPlan(s.fx) : null;
+  const reveal = plan ? plan.reveal : 0;
   return (
     <section class={`jr-game${preview ? ' jr-final-fight' : ''}`} id="now" inert={preview} aria-hidden={preview ? 'true' : undefined}>
       <div id="journey" data-journey-play={preview ? undefined : ''} class={reveal ? 'jr-fighting' : undefined} style={reveal ? `--reveal:${reveal}ms` : undefined}>
@@ -425,7 +444,7 @@ function Play(props: { run: JourneyRun; art: string; name: string; preview?: boo
           <div class="jr-screen">
             <Stage s={s} art={props.art} name={props.name} lost={lost} />
             <div class="jr-meters">
-              <Bar now={s.hp} max={st.maxHp} cls="hp" label="❤️" from={s.fx?.hp0} />
+              <Bar now={s.hp} max={st.maxHp} cls="hp" label="❤️" from={s.fx?.hp0} steps={plan?.heroHp} />
               <Bar now={s.xp} max={xpNeed(s.lv)} cls="xp" label={`⭐ Lv.${s.lv}`} />
             </div>
             <div class="jr-stats">
@@ -459,7 +478,7 @@ function Play(props: { run: JourneyRun; art: string; name: string; preview?: boo
             <label class="jr-auto" hidden data-auto-toggle={preview ? undefined : ''}>
               <input type="checkbox" />
               <span>
-                <b>🤖 자동</b> 켜 두면 스킬·갈림길·상점까지 알아서 골라요
+                <b>🤖 자동</b> 켜 두면 스킬·갈림길·상점까지 알아서 골라요. 이번 원정이 끝나면 꺼져요
               </span>
             </label>
           </div>
@@ -706,7 +725,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
       {props.tab === 'bag' && (
         <div class="jp-pane">
           <PaneTitle id="bag" />
-          <p class="hint">장마다 나오는 강화 재료예요. 장비를 올릴 때 써요. 앞 장 재료도 뒤 단계 강화에 계속 들어가니, 장비를 끝까지 올릴 때까지 버릴 재료가 없어요.</p>
+          <p class="hint">장마다 나오는 강화 재료예요. 장비를 올릴 때 써요. 숫자는 지금 가방에 있는 전체 개수예요. 앞 장 재료도 뒤 단계 강화에 계속 들어가니, 장비를 끝까지 올릴 때까지 버릴 재료가 없어요.</p>
       <div class="jp-bag">
         {MATERIALS.map((m, i) => {
           const n = bank.mats[i + 1] ?? 0;
@@ -715,7 +734,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
             <span class={`jp-mat${n ? '' : ' empty'}${known ? '' : ' unknown'}`} title={known ? `${i + 1}장에서 나와요` : '아직 못 가 본 장'}>
               <span aria-hidden="true">{known ? m.icon : '❔'}</span>
               <span class="jp-mat-name">{known ? m.name : `${i + 1}장 재료`}</span>
-              <b>×{n}</b>
+              <b title="가진 개수">{n}개</b>
             </span>
           );
         })}
@@ -802,12 +821,11 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
                       </span>
                     ))}
                     {need.cost.length > 1 && (
-                      <span class="jp-item-low" title={`앞 장 재료: 1장 ~ ${need.ch - 1}장 재료를 ${LOWER_MATS}개씩`}>
-                        <small>앞 장 재료</small>
+                      <span class="jp-item-low" title={`1장 ~ ${need.ch - 1}장 재료도 ${LOWER_MATS}개씩 들어요`}>
+                        <small>이 재료도 들어요</small>
                         {need.cost.slice(1).map((c) => (
-                          <span class={`jp-item-need${matOk(c) ? ' ok' : ''}`} title={`${c.ch}장 ${material(c.ch).name}`}>
-                            {c.ch <= props.unlocked ? material(c.ch).icon : '❔'}
-                            {bank.mats[c.ch] ?? 0}/{c.n}
+                          <span class={`jp-item-need${matOk(c) ? ' ok' : ''}`} title={`${c.ch}장에서 나와요`}>
+                            {c.ch <= props.unlocked ? `${material(c.ch).icon} ${material(c.ch).name}` : `❔ ${c.ch}장 재료`} {bank.mats[c.ch] ?? 0}/{c.n}
                           </span>
                         ))}
                       </span>
