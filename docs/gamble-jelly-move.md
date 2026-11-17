@@ -24,7 +24,7 @@
    WHERE guild_id = 1261363193519935550 AND record_type = 'acct'
    ```
    (봇이 예전 저장 방식(LEGACY)일 때 기준이에요. 새 원장(PRIMARY)으로 바뀌었으면 이 표 대신 새 원장을 읽어야 해요.)
-   결과를 `wallets.json`(`[{"user_id": "...", "jelly": 123}, ...]`)으로 저장해요.
+   ID는 문자열로, 젤리는 JSON 숫자로 내보내요. 결과를 `wallets.json`(`[{"user_id": "...", "jelly": 123}, ...]`)으로 저장해요.
 3. **SQL 만들기**: `node scripts/gamble-jelly-moves.mjs wallets.json > gamble-jelly-moves.sql`
 4. **웹 DB에 넣기**(배포 스레드): 마이그레이션 0042가 먼저 적용돼 있어야 해요. D1 Time Travel 북마크를 먼저 남겨요.
    먼저 겜블장을 처음부터 시작하게 지우고(나리 2026-11-16: 다 초기화), 그다음 젤칩을 넣어요.
@@ -32,10 +32,11 @@
    `npx wrangler d1 execute haribo-dogam --remote --file gamble-jelly-moves.sql`
    (초기화는 젤리를 옮긴 뒤에 다시 실행해도 아무것도 지우지 않아요.)
 5. **확인**: `SELECT COUNT(*), SUM(jelly) FROM gamble_jelly_moves WHERE moved_at IS NOT NULL`
+   승인한 스냅샷의 ID와 예상 지급액을 실제 `gamble_accounts.chips` 증분과 계정별로 대조해요. 대조가 끝날 때까지 테스터의 플레이도 멈춰요.
    웹에 없어서 못 받은 사람은 `WHERE moved_at IS NULL`로 보고해요.
 6. **웹 겜블장 열기**: 숫자가 맞으면 `GAMBLE_LOCKED`를 `false`로 바꾸는 한 줄 PR → 배포.
 
-- 두 번 실행해도 젤칩은 한 번만 들어가요(`moved_at`이 채워질 때 트리거가 한 번만 더해요).
+- 재시도에는 승인한 동일 파일을 써요. 이미 적재한 행과 금액이 다르면 적재가 실패하므로, 보정이 필요하면 지급 여부부터 확인해요. 입력 파일에 없는 계정은 지급하지 않아요. 이미 지급한 계정에는 다시 넣지 않아요.
 - 지금 웹 도감에 있는 멤버만 받아요. 떠난 사람 몫은 표에만 남고 넣지 않아요.
 - 시작하면 모두 0에서 출발하고, 겜블장에 처음 들어올 때 기본 젤칩 1000개(오늘의 젤칩)가 들어와요. 그래서 각자 **기본 1000 + 옮긴 젤칩**이에요.
   판 기록·순위·시즌 1등·겜블 칭호(테스터가 시험한 것 포함)는 모두 지워져요.
