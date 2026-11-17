@@ -3,8 +3,8 @@ import { nextCardReward } from '../card-rewards';
 import type { Member } from '../env';
 import type { DogamEntry, Profile } from '../db';
 import { TIERS, levelName, progress, tierFor, tierLabel } from '../levels';
-import { poolOf } from '../character';
-import { canUseTheme } from '../shop';
+import { characterUrl, poolOf } from '../character';
+import { canUseTheme, type ShopItem } from '../shop';
 import { THEMES } from '../themes';
 import { Card, formatHours } from './card';
 import { Layout } from './layout';
@@ -210,7 +210,47 @@ function CardGoal({ owned, claimed }: { owned: number; claimed: ReadonlySet<numb
   );
 }
 
-export function MePage(props: { viewer: Member; profile: Profile; items: Set<string>; owned: number; total: number; saved: boolean; praise: PraiseBox; claimed: ReadonlySet<number> }) {
+// 내 카드 화면에서 가진 캐릭터(기본 캐릭터 + 산 꾸밈 캐릭터 + 열린 도감 보상 캐릭터) 중 하나를 골라요.
+// 기본 캐릭터는 그대로 남아 있어서 언제든 돌아갈 수 있어요.
+export function MySkins(props: { viewer: Member; profile: Profile; skins: ShopItem[]; notice?: string }) {
+  const { viewer, profile } = props;
+  const pick = (key: string, img: string, name: string) => {
+    const on = (profile.deco_id ?? '') === key;
+    return (
+      <div class={`shop-item ${on ? 'using' : 'usable'}`}>
+        <img src={img} alt="" loading="lazy" />
+        <span class="shop-name">{name}</span>
+        {on ? (
+          <span class="tag on">사용 중</span>
+        ) : (
+          <form method="post" action="/api/me/deco">
+            <input type="hidden" name="deco" value={key} />
+            <input type="hidden" name="back" value="me" />
+            <button class="btn btn-small" type="submit">
+              쓰기
+            </button>
+          </form>
+        )}
+      </div>
+    );
+  };
+  return (
+    <section class="panel" id="skins">
+      <h2>내 캐릭터 고르기</h2>
+      {props.notice === 'ok' && <p class="notice ok">캐릭터를 바꿨어요!</p>}
+      {(props.notice === 'locked' || props.notice === 'error') && <p class="notice">아직 쓸 수 없는 캐릭터예요.</p>}
+      <p class="muted">
+        가진 캐릭터 {props.skins.length + 1}개 중에서 카드에 보일 캐릭터를 골라요. 새 캐릭터는 <a href="/shop/deco">젤리 상점의 꾸미기</a>에서 사거나 도감 카드를 모으면 열려요.
+      </p>
+      <div class="shop-grid">
+        {pick('', characterUrl(profile.character_id, viewer.user_id, null), '기본 캐릭터')}
+        {props.skins.map((item) => pick(item.key, `/char/deco/${item.key}.png`, item.name))}
+      </div>
+    </section>
+  );
+}
+
+export function MePage(props: { viewer: Member; profile: Profile; items: Set<string>; owned: number; total: number; saved: boolean; praise: PraiseBox; claimed: ReadonlySet<number>; skins: ShopItem[]; skinNotice?: string }) {
   const { viewer, profile } = props;
   const level = progress(profile.solo_xp).level;
   return (
@@ -248,6 +288,8 @@ export function MePage(props: { viewer: Member; profile: Profile; items: Set<str
           </section>
 
           <PraiseBoxSection box={props.praise} />
+
+          <MySkins viewer={viewer} profile={profile} skins={props.skins} notice={props.skinNotice} />
 
           <section class="panel">
             <h2>카드 꾸미기</h2>

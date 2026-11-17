@@ -45,7 +45,7 @@ import {
   touchVisit,
   upsertLoginMember,
 } from './db';
-import { PRICES, canUse, canUseTheme, decoItemId, serviceItem, servicePrice, shopItem } from './shop';
+import { PRICES, canUse, usableDecos, canUseTheme, decoItemId, serviceItem, servicePrice, shopItem } from './shop';
 import { ChoosePage, GenderChangePage } from './views/choose';
 import { CHARACTER_POOLS, characterUrl, isCharacterId, isCharacterPool, poolOf } from './character';
 import { applySync, parseSync } from './sync';
@@ -699,15 +699,19 @@ members.get('/me', async (c) => {
   const { owned, total } = completion(entries);
   // 장수를 채웠는데 아직 못 받은 카드 장수 보상이 있으면 지금 줘요(젤리 잔액을 그다음에 읽어요)
   const settled = await settleCardRewards(c.env.DB, viewer.user_id, owned, claimed0).catch((e) => (console.error('카드 장수 보상 실패', e), false));
-  const [profile, items, box, claimed] = await Promise.all([
+  const [profile, items, box, claimed, cardCount, memberCount] = await Promise.all([
     getProfile(c.env.DB, viewer.user_id),
     getOwnedItems(c.env.DB, viewer.user_id),
     praiseBox(c.env.DB, viewer.user_id, PRAISE_PREVIEW),
     settled ? claimedCardSteps(c.env.DB, viewer.user_id) : claimed0,
+    countOwnedCards(c.env.DB, viewer.user_id),
+    countActiveMembers(c.env.DB),
   ]);
+  // 내 카드 화면의 "내 캐릭터 고르기": 산 꾸밈 캐릭터와 열린 도감 보상 캐릭터(상점 /api/me/deco와 같은 규칙)
+  const skins = usableDecos(items, cardCount, memberCount);
   return page(
     c,
-    <MePage viewer={viewer} profile={profile} items={items} owned={owned} total={total} saved={c.req.query('saved') === '1'} praise={box} claimed={claimed} />,
+    <MePage viewer={viewer} profile={profile} items={items} owned={owned} total={total} saved={c.req.query('saved') === '1'} praise={box} claimed={claimed} skins={skins} skinNotice={c.req.query('skin')} />,
   );
 });
 
@@ -868,17 +872,21 @@ members.post('/api/shop/nick', async (c) => {
 members.post('/api/me/deco', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
   const viewer = c.get('viewer');
-  const key = String((await c.req.parseBody()).deco ?? '');
+  const body = await c.req.parseBody();
+  const key = String(body.deco ?? '');
+  // 내 카드 화면에서 골랐으면 내 카드 화면으로 돌아가요
+  const fromMe = body.back === 'me';
+  const done = (n: string) => c.redirect(fromMe ? `/me?skin=${n === 'locked' || n === 'error' ? n : 'ok'}#skins` : `/shop/deco?n=${n}`);
   if (key === '') {
     await setDeco(c.env.DB, viewer.user_id, null);
-    return c.redirect('/shop/deco?n=unequipped');
+    return done('unequipped');
   }
   const item = shopItem(decoItemId(key));
-  if (!item) return c.redirect('/shop/deco?n=error');
+  if (!item) return done('error');
   const [owned, cards, memberCount] = await Promise.all([getOwnedItems(c.env.DB, viewer.user_id), countOwnedCards(c.env.DB, viewer.user_id), countActiveMembers(c.env.DB)]);
-  if (!canUse(item, owned, cards, memberCount)) return c.redirect('/shop/deco?n=locked');
+  if (!canUse(item, owned, cards, memberCount)) return done('locked');
   await setDeco(c.env.DB, viewer.user_id, key);
-  return c.redirect('/shop/deco?n=equipped');
+  return done('equipped');
 });
 
 members.post('/api/me/theme', async (c) => {
