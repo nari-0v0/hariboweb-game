@@ -94,6 +94,11 @@ export function canUse(item: ShopItem, owned: Set<string>, cardsOwned: number, m
   return item.rewardRank !== null && cardsOwned >= rewardNeed(item.rewardRank, members);
 }
 
+// 이 멤버가 가진 꾸밈 캐릭터(산 것 + 열린 도감 보상). 내 카드 화면의 "내 캐릭터 고르기"에 보여 줘요.
+export function usableDecos(owned: Set<string>, cardsOwned: number, members: number): ShopItem[] {
+  return SHOP_ITEMS.filter((i) => i.kind === 'deco' && canUse(i, owned, cardsOwned, members));
+}
+
 export function canUseTheme(theme: string, owned: Set<string>): boolean {
   if (theme === 'basic') return true;
   const item = shopItem(themeItemId(theme));

@@ -45,7 +45,7 @@ import {
   touchVisit,
   upsertLoginMember,
 } from './db';
-import { PRICES, SHOP_ITEMS, canUse, canUseTheme, decoItemId, serviceItem, servicePrice, shopItem } from './shop';
+import { PRICES, canUse, usableDecos, canUseTheme, decoItemId, serviceItem, servicePrice, shopItem } from './shop';
 import { ChoosePage, GenderChangePage } from './views/choose';
 import { CHARACTER_POOLS, characterUrl, isCharacterId, isCharacterPool, poolOf } from './character';
 import { applySync, parseSync } from './sync';
@@ -708,7 +708,7 @@ members.get('/me', async (c) => {
     countActiveMembers(c.env.DB),
   ]);
   // 내 카드 화면의 "내 캐릭터 고르기": 산 꾸밈 캐릭터와 열린 도감 보상 캐릭터(상점 /api/me/deco와 같은 규칙)
-  const skins = SHOP_ITEMS.filter((i) => i.kind === 'deco' && canUse(i, items, cardCount, memberCount));
+  const skins = usableDecos(items, cardCount, memberCount);
   return page(
     c,
     <MePage viewer={viewer} profile={profile} items={items} owned={owned} total={total} saved={c.req.query('saved') === '1'} praise={box} claimed={claimed} skins={skins} skinNotice={c.req.query('skin')} />,

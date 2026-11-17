@@ -212,7 +212,7 @@ function CardGoal({ owned, claimed }: { owned: number; claimed: ReadonlySet<numb
 
 // 내 카드 화면에서 가진 캐릭터(기본 캐릭터 + 산 꾸밈 캐릭터 + 열린 도감 보상 캐릭터) 중 하나를 골라요.
 // 기본 캐릭터는 그대로 남아 있어서 언제든 돌아갈 수 있어요.
-function MySkins(props: { viewer: Member; profile: Profile; skins: ShopItem[]; notice?: string }) {
+export function MySkins(props: { viewer: Member; profile: Profile; skins: ShopItem[]; notice?: string }) {
   const { viewer, profile } = props;
   const pick = (key: string, img: string, name: string) => {
     const on = (profile.deco_id ?? '') === key;
