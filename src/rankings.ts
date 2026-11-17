@@ -31,9 +31,25 @@ export function plainPodium(list: { name: string; value: number; char?: string |
   return { top: p.top.map((r, i) => ({ ...r, char: list[i]?.char ?? null })), me: null };
 }
 
+// 순위는 모두에게 같은 목록이라, 서버 하나에서 1분 동안은 읽은 걸 다시 써요(무료 DB 읽기 한도, 2026-11-17).
+// 내 순위는 이 목록에서 찾으니 그대로 맞아요. 1분 늦게 바뀔 수는 있어요.
+const RANK_CACHE_MS = 60_000;
+const rankCache = new WeakMap<D1Database, Map<string, { at: number; rows: Promise<Raw[]> }>>();
 async function rows(db: D1Database, sql: string, ...binds: unknown[]): Promise<Raw[]> {
-  const { results } = await db.prepare(sql).bind(...binds).all<Raw>();
-  return results.filter((r) => r.value > 0);
+  let byDb = rankCache.get(db);
+  if (!byDb) rankCache.set(db, (byDb = new Map()));
+  const key = JSON.stringify([sql, binds]);
+  const hit = byDb.get(key);
+  const now = Date.now();
+  if (hit && now - hit.at < RANK_CACHE_MS) return hit.rows;
+  const load = db
+    .prepare(sql)
+    .bind(...binds)
+    .all<Raw>()
+    .then(({ results }) => results.filter((r) => r.value > 0));
+  byDb.set(key, { at: now, rows: load });
+  load.catch(() => byDb.delete(key));
+  return load;
 }
 
 const WHO = `m.display_name AS name, p.character_id, p.deco_id`;

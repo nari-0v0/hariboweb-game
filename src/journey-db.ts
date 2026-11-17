@@ -20,26 +20,42 @@ export async function getJourney(db: D1Database, user: string, id: string): Prom
 
 export type JourneyRecord = { best: number; clears: number; rewardedToday: number; farmed: Record<number, number>; unlocked: number; top: number; last?: number }; // last = 마지막으로 돈(끝낸) 판의 장. 다음 판도 그 장이 먼저 골라져요 // farmed: 장마다 이미 깬 뒤 다시 돈 판 수(평생) // unlocked = 대장을 깨서 열린 가장 높은 장
 export async function journeyRecord(db: D1Database, user: string, day = kstDay()): Promise<JourneyRecord> {
+  // 가장 높이 간 레벨·대장 횟수·다시 돈 판 수는 판이 끝날 때 강화 주머니 줄에 모아 둬요(0047).
+  // 나머지도 색인으로 몇 줄만 읽어요. 지난 판을 전부 훑으면 무료 DB 읽기 한도를 넘겨요(2026-11-17).
   const r = await db
     .prepare(
-      `SELECT COALESCE(MAX((chapter - 1) * 20 + day), 0) AS best, COALESCE(SUM(cleared), 0) AS clears,
-         COALESCE(MAX(CASE WHEN cleared = 1 THEN chapter ELSE 0 END), 0) AS top,
-         COALESCE(SUM(CASE WHEN reward_day = ?2 AND xp > 0 THEN 1 ELSE 0 END), 0) AS today,
-         (SELECT chapter FROM journey_runs WHERE user_id = ?1 AND status != 'going' ORDER BY started_at DESC LIMIT 1) AS last
-       FROM journey_runs WHERE user_id = ?1 AND status = 'done'`,
+      `SELECT (SELECT COALESCE(MAX(chapter), 0) FROM journey_runs WHERE user_id = ?1 AND status = 'done' AND cleared = 1) AS top,
+         (SELECT COUNT(*) FROM journey_runs WHERE user_id = ?1 AND status = 'done' AND reward_day = ?2 AND xp > 0) AS today,
+         (SELECT chapter FROM journey_runs WHERE user_id = ?1 AND status != 'going' ORDER BY started_at DESC LIMIT 1) AS last,
+         b.best, b.clears, b.farmed
+       FROM (SELECT 1) LEFT JOIN journey_bank b ON b.user_id = ?1`,
     )
     .bind(user, day)
-    .first<{ best: number; clears: number; today: number; top: number; last: number | null }>();
-  return { best: r?.best ?? 0, clears: r?.clears ?? 0, rewardedToday: r?.today ?? 0, farmed: await farmedByChapter(db, user), unlocked: Math.min(MAX_CHAPTER, (r?.top ?? 0) + 1), top: r?.top ?? 0, last: r?.last ?? undefined };
+    .first<{ best: number | null; clears: number | null; today: number; top: number; last: number | null; farmed: string | null }>();
+  return { best: r?.best ?? 0, clears: r?.clears ?? 0, rewardedToday: r?.today ?? 0, farmed: parseFarmed(r?.farmed), unlocked: Math.min(MAX_CHAPTER, (r?.top ?? 0) + 1), top: r?.top ?? 0, last: r?.last ?? undefined };
 }
 
-// 장마다 이미 깬 뒤 다시 돈 판 수(날짜와 상관없이 전부)
-export async function farmedByChapter(db: D1Database, user: string): Promise<Record<number, number>> {
-  const rows = await db
-    .prepare("SELECT chapter, COUNT(*) AS n FROM journey_runs WHERE user_id = ?1 AND status = 'done' AND json_extract(state, '$.farm') = 1 GROUP BY chapter")
+// 대장을 깬 가장 높은 장(색인으로 한 줄만 읽어요)
+export async function journeyTop(db: D1Database, user: string): Promise<number> {
+  const r = await db
+    .prepare("SELECT COALESCE(MAX(chapter), 0) AS top FROM journey_runs WHERE user_id = ? AND status = 'done' AND cleared = 1")
     .bind(user)
-    .all<{ chapter: number; n: number }>();
-  return Object.fromEntries((rows.results ?? []).map((x) => [x.chapter, x.n]));
+    .first<{ top: number }>();
+  return r?.top ?? 0;
+}
+const unlockedFrom = (top: number) => Math.min(MAX_CHAPTER, top + 1);
+
+// 장마다 이미 깬 뒤 다시 돈 판 수(날짜와 상관없이 전부). journey_bank.farmed = {"장": 판 수}
+function parseFarmed(raw: string | null | undefined): Record<number, number> {
+  const out: Record<number, number> = {};
+  try {
+    for (const [k, v] of Object.entries(JSON.parse(raw || '{}') as Record<string, unknown>)) {
+      if (Number.isSafeInteger(Number(k)) && typeof v === 'number' && v > 0) out[Number(k)] = v;
+    }
+  } catch {
+    /* 비어 있는 걸로 봐요 */
+  }
+  return out;
 }
 
 // 강화 주머니(모은 동전 + 훈련 단계 + 장비 단계 + 장마다 모은 재료)
@@ -91,11 +107,11 @@ export async function upgradeGear(db: D1Database, user: string, id: GearId, now 
 
 // 강화 한 단계. 동전이 모자라거나 끝까지 올렸거나 다른 화면에서 먼저 샀으면 false.
 export async function buyPerk(db: D1Database, user: string, id: PerkId, now = new Date(), seen?: number): Promise<boolean> {
-  const [bank, record, dogam] = await Promise.all([journeyBank(db, user), journeyRecord(db, user), dogamProgress(db, user)]);
+  const [bank, top, dogam] = await Promise.all([journeyBank(db, user), journeyTop(db, user), dogamProgress(db, user)]);
   const lv = bank[id];
   if (seen !== undefined && seen !== lv) return false;
   const cost = perkCost(lv);
-  const max = perkMax(id, Math.min(record.unlocked, journeyOpenTo(dogam)));
+  const max = perkMax(id, Math.min(unlockedFrom(top), journeyOpenTo(dogam)));
   if (lv >= max || bank.coins < cost) return false;
   const r = await db
     .prepare(`UPDATE journey_bank SET coins = coins - ?3, ${id} = ${id} + 1, updated_at = ?5 WHERE user_id = ?1 AND ${id} = ?2 AND coins >= ?3 AND ${id} < ?4`)
@@ -114,8 +130,9 @@ export async function beginJourney(db: D1Database, user: string, chapter = 1, no
   const going = await activeJourney(db, user);
   if (going) return going.row.id;
   // 앞 장을 깼고(unlocked), 도감 조건도 채운 장까지만 떠날 수 있어요.
-  const [record, dogam] = await Promise.all([journeyRecord(db, user), dogamProgress(db, user)]);
-  const level = Math.min(record.unlocked, journeyOpenTo(dogam));
+  const [top, dogam] = await Promise.all([journeyTop(db, user), dogamProgress(db, user)]);
+  const unlocked = unlockedFrom(top);
+  const level = Math.min(unlocked, journeyOpenTo(dogam));
   if (!Number.isSafeInteger(chapter) || chapter < 1) return null;
   if (chapter > level || (kit.length > 0 && shownLevel !== undefined && shownLevel !== level)) return STALE_PICK;
   const ch = chapter;
@@ -126,7 +143,7 @@ export async function beginJourney(db: D1Database, user: string, chapter = 1, no
   if (cost > bank.coins) return NO_COINS;
   const state = startJourney(id, bank, ch, bank, kit);
   // 이미 깬 장(재료가 덜 나와요). 마지막 장을 깨도 unlocked는 더 올라가지 않아요.
-  state.farm = ch < record.unlocked || (ch === MAX_CHAPTER && !!await db
+  state.farm = ch < unlocked || (ch === MAX_CHAPTER && !!await db
     .prepare("SELECT 1 FROM journey_runs WHERE user_id = ? AND chapter = ? AND status = 'done' AND cleared = 1 LIMIT 1")
     .bind(user, ch)
     .first());
@@ -184,11 +201,10 @@ export async function actJourneyRun(db: D1Database, user: string, id: string, re
     // 이미 대장을 깬 장을 다시 도는 판(파밍)만 그 장을 다시 돈 판 수(날짜와 상관없이)에 따라 줄어요.
     const r = await db
       .prepare(
-        `SELECT COALESCE(MAX(CASE WHEN cleared = 1 THEN chapter ELSE 0 END), 0) AS top,
-           COALESCE(SUM(CASE WHEN chapter = ?2 AND json_extract(state, '$.farm') = 1 THEN 1 ELSE 0 END), 0) AS farmed
-         FROM journey_runs WHERE user_id = ?1 AND status = 'done'`,
+        `SELECT (SELECT COALESCE(MAX(chapter), 0) FROM journey_runs WHERE user_id = ?1 AND status = 'done' AND cleared = 1) AS top,
+           COALESCE((SELECT json_extract(farmed, ?2) FROM journey_bank WHERE user_id = ?1), 0) AS farmed`,
       )
-      .bind(user, s.ch ?? 1)
+      .bind(user, matPath(s.ch ?? 1))
       .first<{ top: number; farmed: number }>();
     top = r?.top ?? 0;
     s.farm = (s.ch ?? 1) <= top;
@@ -219,12 +235,16 @@ export async function actJourneyRun(db: D1Database, user: string, id: string, re
     stmts.push(
       db
         .prepare(
-          `INSERT INTO journey_bank (user_id, coins, mats, updated_at)
-           SELECT user_id, ?3, json_set('{}', ?5, ?6), ?4 FROM journey_runs WHERE id = ?1 AND mutation = ?2 AND status = 'done'
+          `INSERT INTO journey_bank (user_id, coins, mats, updated_at, best, clears, farmed)
+           SELECT user_id, ?3, json_set('{}', ?5, ?6), ?4, ?7, ?8, CASE WHEN ?9 THEN json_set('{}', ?5, 1) ELSE '{}' END
+           FROM journey_runs WHERE id = ?1 AND mutation = ?2 AND status = 'done'
            ON CONFLICT (user_id) DO UPDATE SET coins = journey_bank.coins + excluded.coins,
-             mats = json_set(journey_bank.mats, ?5, COALESCE(json_extract(journey_bank.mats, ?5), 0) + ?6), updated_at = excluded.updated_at`,
+             mats = json_set(journey_bank.mats, ?5, COALESCE(json_extract(journey_bank.mats, ?5), 0) + ?6), updated_at = excluded.updated_at,
+             best = MAX(journey_bank.best, excluded.best), clears = journey_bank.clears + excluded.clears,
+             farmed = CASE WHEN ?9 THEN json_set(journey_bank.farmed, ?5, COALESCE(json_extract(journey_bank.farmed, ?5), 0) + 1) ELSE journey_bank.farmed END`,
         )
-        .bind(id, token, s.banked ?? s.coins, t, matPath(s.ch ?? 1), s.matsBanked ?? 0),
+        // 원정대 기록 모음(0047): 가장 높이 간 레벨, 대장 깬 횟수, 이미 깬 장을 다시 돈 판 수
+        .bind(id, token, s.banked ?? s.coins, t, matPath(s.ch ?? 1), s.matsBanked ?? 0, ((s.ch ?? 1) - 1) * 20 + s.day, s.cleared ? 1 : 0, s.farm ? 1 : 0),
     );
     stmts.push(
       db
