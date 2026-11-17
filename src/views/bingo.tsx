@@ -176,14 +176,20 @@ function MyMates(props: { team: NonNullable<BingoExtras['team']>; me: string }) 
   return (
     <div class="bgo-partners">
       <b>
-        나와 {TEAM_GOAL_MIN}분 이상 함께한 팀원 {Math.min(met, props.team.need)} / {props.team.need}명
+        나와 {TEAM_GOAL_MIN}분 이상 함께한 팀원 {met}명 (목표 {props.team.need}명)
       </b>
       {mates.length ? (
         <ul aria-label="팀원과 함께한 시간">
           {mates.map((x) => (
             <li class={x.minutes >= TEAM_GOAL_MIN ? 'done' : undefined}>
-              {x.minutes >= TEAM_GOAL_MIN ? '✓ ' : ''}
-              {x.name} · {Math.min(x.minutes, TEAM_GOAL_MIN)}/{TEAM_GOAL_MIN}분
+              <span class="bgo-partner-name">
+                {x.minutes >= TEAM_GOAL_MIN ? '✓ ' : ''}
+                {x.name}
+                {x.left ? ' (떠남)' : ''}
+              </span>
+              <span class="bgo-partner-min">
+                · {Math.min(x.minutes, TEAM_GOAL_MIN)}/{TEAM_GOAL_MIN}분
+              </span>
             </li>
           ))}
         </ul>

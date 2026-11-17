@@ -315,3 +315,29 @@ describe('팀 짝 고르기: 시즌 시작 전 2주', () => {
     expect(prior.minutes.get(`${A}|${B}`)).toBe(15);
   });
 });
+
+describe('내 팀원별 함께한 시간', () => {
+  it('떠난 팀원은 함께한 시간이 있을 때만 보여요(달성에 세니까)', async () => {
+    const { myMates } = await import('../src/team');
+    const team = {
+      no: 0,
+      members: [
+        { id: A, name: 'a', left: false },
+        { id: B, name: 'b', left: true },
+        { id: C, name: 'c', left: false },
+        { id: D, name: 'd', left: true },
+      ],
+      pairs: [{ a: A, b: B, minutes: 40 }],
+      candidates: [],
+      need: 1,
+      achievers: [],
+      target: 0,
+      complete: false,
+      bonus: false,
+    };
+    expect(myMates(team, A).map((m) => [m.id, m.minutes, m.left])).toEqual([
+      [B, 40, true],
+      [C, 0, false],
+    ]);
+  });
+});

@@ -227,12 +227,12 @@ export async function loadTeams(db: D1Database, seasonId: string): Promise<Map<n
   return out;
 }
 
-// 나와 이번 시즌에 함께한 남은 팀원과 분(많이 함께한 순). 화면과 디스코드 "우리 팀"에서 써요.
-export function myMates(team: TeamState, userId: string): { id: string; name: string; minutes: number }[] {
+// 나와 이번 시즌에 함께한 팀원과 분(많이 함께한 순). 떠난 팀원은 함께한 시간이 있을 때만(달성에 세니까) 보여요.
+export function myMates(team: TeamState, userId: string): { id: string; name: string; minutes: number; left: boolean }[] {
   const mins = new Map(team.pairs.filter((p) => p.a === userId || p.b === userId).map((p) => [p.a === userId ? p.b : p.a, p.minutes]));
   return team.members
-    .filter((m) => m.id !== userId && !m.left)
-    .map((m) => ({ id: m.id, name: m.name, minutes: mins.get(m.id) ?? 0 }))
+    .map((m) => ({ id: m.id, name: m.name, minutes: mins.get(m.id) ?? 0, left: m.left }))
+    .filter((m) => m.id !== userId && (!m.left || m.minutes > 0))
     .sort((x, y) => y.minutes - x.minutes || (x.name < y.name ? -1 : x.name > y.name ? 1 : 0));
 }
 
