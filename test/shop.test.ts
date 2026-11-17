@@ -15,9 +15,9 @@ describe('jelly shop items', () => {
     expect(new Set(SHOP_ITEMS.map((i) => i.id)).size).toBe(SHOP_ITEMS.length);
   });
 
-  it('makes the 25 fantasy characters 도감 rewards at 3, 6, 9… cards', () => {
+  it('makes the 26 fantasy characters 도감 rewards at 3, 6, 9… cards', () => {
     const rewards = SHOP_ITEMS.filter((i) => i.price === null);
-    expect(rewards.length).toBe(25);
+    expect(rewards.length).toBe(26);
     expect(rewards.map((i) => i.rewardRank)).toEqual(rewards.map((_, n) => n + 1));
     // 나리: 꾸밈 캐릭터는 30개부터, 값이 여러 가지예요. 파는 캐릭터는 모두 값 표에 있어요
     const sold = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price !== null);
