@@ -41,6 +41,7 @@ export async function grantJelly(db: D1Database, g: JellyGrant, nowMs: number): 
   const member = await db.prepare('SELECT 1 AS ok FROM members WHERE user_id = ? AND active = 1').bind(g.user).first();
   if (!member) return { result: 'no_member', balance: null };
   const t = new Date(nowMs).toISOString();
+  const mark = `${t}#${crypto.randomUUID()}`;
   await db.batch([
     db
       .prepare('INSERT OR IGNORE INTO jelly_grants (id, user_id, amount, reason, granted_by, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)')
@@ -59,11 +60,11 @@ export async function grantJelly(db: D1Database, g: JellyGrant, nowMs: number): 
         `UPDATE jelly_grants SET applied_at = ?2
          WHERE id = ?1 AND applied_at IS NULL AND EXISTS (SELECT 1 FROM members WHERE user_id = jelly_grants.user_id AND active = 1)`,
       )
-      .bind(g.id, t),
+      .bind(g.id, mark),
   ]);
   const after = await db.prepare('SELECT applied_at, user_id FROM jelly_grants WHERE id = ?').bind(g.id).first<{ applied_at: string | null; user_id: string }>();
   if (!after?.applied_at) return { result: 'no_member', balance: null };
   // 같은 번호가 다른 사람 앞으로 이미 있으면 그 기록이 이겨요(봇 실수). 이번 요청은 중복으로 봐요.
   if (after.user_id !== g.user) return { result: 'duplicate', balance: null };
-  return { result: after.applied_at === t ? 'applied' : 'duplicate', balance: await balanceOf(db, g.user) };
+  return { result: after.applied_at === mark ? 'applied' : 'duplicate', balance: await balanceOf(db, g.user) };
 }

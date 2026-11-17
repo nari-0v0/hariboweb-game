@@ -11,17 +11,23 @@ export const alertCutoff = (nowMs: number) => new Date(nowMs - ALERT_KEEP_DAYS *
 // 보관 기간이 지난 알림(동기화 묶음마다 같이 지워요)
 export const purgeAlerts = (db: D1Database, nowMs: number) => db.prepare('DELETE FROM alerts WHERE created_at < ?').bind(alertCutoff(nowMs));
 
+// 안 읽은 알림은 전부, 읽은 알림은 최근 limit개 범위까지 보여 줘요.
 export async function listAlerts(db: D1Database, userId: string, nowMs: number, limit = 30): Promise<Alert[]> {
   const { results } = await db
-    .prepare('SELECT id, title, body, created_at, read_at FROM alerts WHERE user_id = ? AND created_at >= ? ORDER BY created_at DESC, id DESC LIMIT ?')
+    .prepare(`SELECT id, title, body, created_at, read_at FROM alerts
+       WHERE user_id = ?1 AND created_at >= ?2
+         AND (read_at IS NULL OR id IN (SELECT id FROM alerts WHERE user_id = ?1 AND created_at >= ?2 ORDER BY created_at DESC, id DESC LIMIT ?3))
+       ORDER BY created_at DESC, id DESC`)
     .bind(userId, alertCutoff(nowMs), limit)
     .all<Alert>();
   return results;
 }
 
-// 알림함을 열면 다 읽은 걸로 해요(빨간 점이 꺼져요)
-export async function markAlertsRead(db: D1Database, userId: string, nowMs: number): Promise<void> {
-  await db.prepare('UPDATE alerts SET read_at = ? WHERE user_id = ? AND read_at IS NULL').bind(new Date(nowMs).toISOString(), userId).run();
+// 이번 화면에 실제로 담은 알림만 읽음으로 해요. 조회 뒤 새로 온 알림은 다음에 보여 줘요.
+export async function markAlertsRead(db: D1Database, userId: string, nowMs: number, ids: readonly number[]): Promise<void> {
+  if (!ids.length) return;
+  await db.prepare('UPDATE alerts SET read_at = ?1 WHERE user_id = ?2 AND read_at IS NULL AND id IN (SELECT value FROM json_each(?3))')
+    .bind(new Date(nowMs).toISOString(), userId, JSON.stringify(ids)).run();
 }
 
 // 읽은 알림만 지워요(안 읽은 건 남아요)

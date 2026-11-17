@@ -730,7 +730,7 @@ async function alertsView(c: Context<AppEnv>, asBox: boolean) {
   const now = Date.now();
   const alerts = await listAlerts(c.env.DB, viewer.user_id, now);
   const fresh = new Set(alerts.filter((a) => !a.read_at).map((a) => a.id));
-  if (fresh.size) await markAlertsRead(c.env.DB, viewer.user_id, now);
+  if (fresh.size) await markAlertsRead(c.env.DB, viewer.user_id, now, [...fresh]);
   c.header('Cache-Control', 'no-store');
   if (asBox) return c.html(String(await (<AlertBox alerts={alerts} fresh={fresh} />)));
   return page(c, <AlertsPage viewer={{ ...viewer, unread_alerts: 0 }} alerts={alerts} fresh={fresh} />);
