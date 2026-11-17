@@ -61,6 +61,7 @@ import { BingoPage } from './views/bingo';
 import { KIDNAP_MIN, SERVER_JELLY, TEAM_GOAL_MIN, TEAM_JELLY, bingoExtras, loadServerQuest, loadTeams, matesOf, myTeamState, pairKey, rankTeams, seasonAt } from './team';
 import { loadRankings } from './rankings';
 import { dogamProgress } from './unlock';
+import { claimedCardSteps, settleCardRewards } from './card-rewards';
 import { RankPage, rankTab } from './views/rank';
 import { BLOCK_MAX_PENDING, BLOCK_MORE, blockCandidates, cancelBlock, decideBlock, flipBlock, listUnpostedBlocks, markBlockPosted, myBlocks, requestBlock } from './assign-block';
 import { checkNote, cleanNote, listUnpostedAiLogs, logAiCheck, markAiLogsPosted, markPraiseSeen, praiseBox, praiseDayLabel, PRAISE_NOTE_MAX } from './praise-note';
@@ -694,16 +695,19 @@ members.get('/me', async (c) => {
   await markFlag(c.env.DB, viewer.user_id, 'web', Date.now())
     .catch((e) => console.error('빙고 표시 실패', e));
   // 칭찬함은 미리보기만 보여 주니 읽음 처리는 /me/praise에서 해요
-  const [profile, entries, items, box] = await Promise.all([
+  const [entries, claimed0] = await Promise.all([listDogam(c.env.DB, viewer.user_id), claimedCardSteps(c.env.DB, viewer.user_id)]);
+  const { owned, total } = completion(entries);
+  // 장수를 채웠는데 아직 못 받은 카드 장수 보상이 있으면 지금 줘요(젤리 잔액을 그다음에 읽어요)
+  const settled = await settleCardRewards(c.env.DB, viewer.user_id, owned, claimed0).catch((e) => (console.error('카드 장수 보상 실패', e), false));
+  const [profile, items, box, claimed] = await Promise.all([
     getProfile(c.env.DB, viewer.user_id),
-    listDogam(c.env.DB, viewer.user_id),
     getOwnedItems(c.env.DB, viewer.user_id),
     praiseBox(c.env.DB, viewer.user_id, PRAISE_PREVIEW),
+    settled ? claimedCardSteps(c.env.DB, viewer.user_id) : claimed0,
   ]);
-  const { owned, total } = completion(entries);
   return page(
     c,
-    <MePage viewer={viewer} profile={profile} items={items} owned={owned} total={total} saved={c.req.query('saved') === '1'} praise={box} />,
+    <MePage viewer={viewer} profile={profile} items={items} owned={owned} total={total} saved={c.req.query('saved') === '1'} praise={box} claimed={claimed} />,
   );
 });
 
@@ -1251,8 +1255,11 @@ for (const [from, to] of [['/cases', '/cases/room'], ['/cases/story', '/cases/ro
 
 members.get('/dogam', async (c) => {
   const viewer = c.get('viewer');
-  const entries = await listDogam(c.env.DB, viewer.user_id);
-  return page(c, <DogamPage viewer={viewer} owner={viewer} entries={entries} {...completion(entries)} />);
+  const [entries, claimed0] = await Promise.all([listDogam(c.env.DB, viewer.user_id), claimedCardSteps(c.env.DB, viewer.user_id)]);
+  const done = completion(entries);
+  const settled = await settleCardRewards(c.env.DB, viewer.user_id, done.owned, claimed0).catch((e) => (console.error('카드 장수 보상 실패', e), false));
+  const claimed = settled ? await claimedCardSteps(c.env.DB, viewer.user_id) : claimed0;
+  return page(c, <DogamPage viewer={viewer} owner={viewer} entries={entries} claimed={claimed} {...done} />);
 });
 
 members.get('/dogam/:userId', async (c) => {

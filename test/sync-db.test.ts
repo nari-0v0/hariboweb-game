@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import app from '../src/index';
 import type { Env } from '../src/env';
 import { levelFromXp } from '../src/levels';
+import { claimedCardSteps, settleCardRewards } from '../src/card-rewards';
 import { applySync, batchTime, isStaleBatch, levelSql, parseSync } from '../src/sync';
 
 const A = '111111111111111111';
@@ -227,5 +228,72 @@ describe('초기화 전 동기화 기록', () => {
     expect(sql.prepare('SELECT solo_xp, dogam_jelly FROM profiles WHERE user_id = ?').get(A)).toEqual({ solo_xp: 20, dogam_jelly: 7 });
     expect(sql.prepare('SELECT SUM(minutes) AS n, SUM(attended) AS a FROM bingo_day WHERE user_id = ?').get(A)).toEqual({ n: 1, a: 1 });
     expect(sql.prepare('SELECT SUM(minutes) AS n FROM member_voice_day WHERE user_id = ?').get(A)).toEqual({ n: 1 });
+  });
+});
+
+describe('도감 카드 장수 보상', () => {
+  const others = Array.from({ length: 10 }, (_, i) => `30000000000000000${i}`);
+  const cardBatch = (id: string, partners: string[], removed: string[] = []) => {
+    const r = parseSync({
+      batch_id: `${STARTED}-${id}`,
+      members: [{ id: A, name: 'a' }, ...others.filter((o) => !removed.includes(o)).map((o) => ({ id: o, name: o }))],
+      pair_xp: partners.map((b) => ({ a: A, b, xp: 1, at: '2026-11-01T00:00:00Z' })),
+      ...(removed.length ? { removed } : {}),
+    });
+    if (!r.ok) throw new Error(r.error);
+    return r.value;
+  };
+  const alertsOf = (sql: DatabaseSync, id: string) =>
+    (sql.prepare('SELECT ref, body FROM alerts WHERE user_id = ? ORDER BY ref').all(id) as { ref: string; body: string }[]);
+
+  it('5·10장에 처음 닿을 때 한 번씩 젤리와 알림을 줘요', async () => {
+    const { sql, db } = fakeD1();
+    await applySync(db, cardBatch('c4', others.slice(0, 4)));
+    expect(jellyOf(sql, A)).toBe(0);
+    await applySync(db, cardBatch('c5', others.slice(0, 5)));
+    expect(jellyOf(sql, A)).toBe(1);
+    expect(alertsOf(sql, A).map((a) => a.ref)).toEqual(['cards-5']);
+    // 같은 장수로 또 와도 더 주지 않아요
+    await applySync(db, cardBatch('c5b', others.slice(0, 5)));
+    expect(jellyOf(sql, A)).toBe(1);
+    await applySync(db, cardBatch('c10', others));
+    expect(jellyOf(sql, A)).toBe(2);
+    expect(alertsOf(sql, A).map((a) => a.ref)).toEqual(['cards-10', 'cards-5']);
+    // 상대 쪽(카드 1장)은 받지 않아요
+    expect(jellyOf(sql, others[0]!)).toBe(0);
+  });
+
+  it('나갔다 돌아온 상대가 있어도 한 번 받은 단계는 다시 주지 않아요', async () => {
+    const { sql, db } = fakeD1();
+    await applySync(db, cardBatch('l5', others.slice(0, 5)));
+    expect(jellyOf(sql, A)).toBe(1);
+    sql.prepare('UPDATE members SET active = 0 WHERE user_id = ?').run(others[0]!);
+    sql.prepare('UPDATE members SET active = 1 WHERE user_id = ?').run(others[0]!);
+    await applySync(db, cardBatch('l5b', others.slice(0, 5)));
+    expect(jellyOf(sql, A)).toBe(1);
+    expect((sql.prepare('SELECT COUNT(*) AS n FROM card_count_rewards WHERE user_id = ?').get(A) as { n: number }).n).toBe(1);
+  });
+
+  it('같은 묶음에서 떠난 상대 카드는 세지 않아요', async () => {
+    const { sql, db } = fakeD1();
+    await applySync(db, cardBatch('r4', others.slice(0, 4)));
+    await applySync(db, cardBatch('r5', [others[4]!], [others[0]!]));
+    expect(jellyOf(sql, A)).toBe(0);
+    expect(alertsOf(sql, A)).toEqual([]);
+  });
+
+  it('장수를 채웠는데 못 받은 단계는 화면을 열 때 받아요(상대 재가입 등)', async () => {
+    const { sql, db } = fakeD1();
+    await applySync(db, cardBatch('v4', others.slice(0, 4)));
+    // 함께한 활동 없이 장수가 5장이 된 경우(예: 떠났던 상대가 돌아옴)
+    sql.prepare("INSERT INTO cards (owner_id, target_id, xp, voice_seconds, scrims, first_met, updated_at) VALUES (?, ?, 1, 0, 0, 'x', 'x')").run(A, others[5]!);
+    expect(jellyOf(sql, A)).toBe(0);
+    expect(await settleCardRewards(db, A, 5, await claimedCardSteps(db, A))).toBe(true);
+    expect(jellyOf(sql, A)).toBe(1);
+    expect(alertsOf(sql, A).map((a) => a.ref)).toEqual(['cards-5']);
+    // 다시 열어도 또 주지 않아요
+    expect(await settleCardRewards(db, A, 5, await claimedCardSteps(db, A))).toBe(false);
+    await settleCardRewards(db, A, 5, new Set());
+    expect(jellyOf(sql, A)).toBe(1);
   });
 });

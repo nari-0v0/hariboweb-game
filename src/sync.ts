@@ -3,6 +3,7 @@ import { stripTitle } from './titles';
 import { MAX_LEVEL, xpForLevel } from './levels';
 import { ensureSeasonQuests, settleEnded } from './team';
 import { purgeAlerts } from './alerts';
+import { cardRewardStatements } from './card-rewards';
 import { bingoStatements, grantTouched, loadPeriods, prunePairDays, savePeriod, splitCycle } from './bingo';
 import { type Attendance, type RoomMinute, type ScrimRecord, type Season, ENDED_GRACE_MS, ensureSeason, evaluateSeason, seasonFrom, seasonStatements, seasonTargets } from './season';
 
@@ -343,7 +344,13 @@ export async function applySync(
     stmts.push(db.prepare('DELETE FROM nick_jobs WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM alerts WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM jelly_grants WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM card_count_rewards WHERE user_id = ?').bind(id));
   }
+
+  // 도감 젤리: 카드 장수 단계(5·10·15…장)에 처음 닿으면 한 번(src/card-rewards.ts).
+  // 같은 묶음의 탈퇴를 먼저 반영하려고 나간 사람 처리 뒤에 둬요. 이번 묶음에 함께한 활동이 있는 사람만 살펴보고,
+  // 그 밖에 조건을 채운 사람(배포 전, 상대 재가입)은 내 카드·내 도감을 열 때 받아요(모두를 매 묶음 세면 D1 무료 한도를 넘어요).
+  for (const owner of new Set(p.pair_xp.flatMap((x) => [x.a, x.b]))) stmts.push(...cardRewardStatements(db, owner, p.batch_id, t));
 
   // 주간 빙고 기록(통화방 1분, 출석)도 같은 트랜잭션에
   // 빙고 기간 = 생명력 주기(봇이 보내는 season)의 절반. 이번 묶음의 주기를 먼저 적어 둬요.

@@ -15,6 +15,7 @@ DELETE FROM purchases;
 DELETE FROM nick_jobs;
 DELETE FROM alerts;
 DELETE FROM jelly_grants;
+DELETE FROM card_count_rewards;
 DELETE FROM praises;
 DELETE FROM bingo_lines;
 DELETE FROM bingo_day;
