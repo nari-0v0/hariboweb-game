@@ -208,4 +208,5 @@ export const DECO_CHARACTERS = [
   { id: 'courier', name: '택배기사', w: 162, h: 226 },
   { id: 'explorer', name: '탐험가', w: 178, h: 224 },
   { id: 'winter', name: '겨울 산책', w: 149, h: 224 },
+  { id: 'robot', name: '로봇 기사', w: 250, h: 221 },
 ] as const;

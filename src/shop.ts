@@ -56,6 +56,7 @@ const FANTASY = new Set([
   'wizard', 'witch', 'knight', 'valkyrie', 'archer', 'rogue', 'assassin', 'elf', 'dark-elf', 'fairy',
   'angel', 'demon', 'dragon-tamer', 'necromancer', 'priestess', 'monk', 'pirate', 'prince', 'princess', 'queen',
   'king', 'summoner', 'alchemist', 'star-mage', 'reaper',
+  'robot', // 로봇 기사(나리 2026-11-17): 맨 마지막 보상이라 도감을 다 채워야 열려요
 ]);
 
 const fantasyOrder = DECO_CHARACTERS.filter((d) => FANTASY.has(d.id)).map((d) => d.id as string);

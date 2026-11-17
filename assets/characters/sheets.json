@@ -902,6 +902,18 @@
      "겨울 산책"
     ]
    ]
+  },
+  {
+   "file": "deco/robot.png",
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "robot",
+     "로봇 기사"
+    ]
+   ]
   }
  ]
 }
