@@ -122,7 +122,7 @@ export function completion(entries: DogamEntry[]) {
 }
 
 // 캐릭터가 아직 없는 멤버에게 서버 안에서 겹치지 않는 캐릭터를 정해 줘요.
-// 여분 색을 받았던 멤버는 새 디자인이 생기면 그쪽으로 옮겨 줘요.
+// 이미 캐릭터가 있으면 절대 바꾸지 않아요(봇 재시작·동기화·로그인 때 저절로 바뀌면 안 돼요).
 // 두 사람이 동시에 같은 캐릭터를 고르면 겹침 검사(유니크 인덱스)에 한쪽이 막혀요. 그때는 다시 읽고 다시 골라요.
 function isSigConflict(e: unknown): boolean {
   const text = String(e);
@@ -155,7 +155,7 @@ async function assignCharactersOnce(db: D1Database, userIds: string[]) {
   const t = now();
   for (const id of new Set(userIds)) {
     const before = current.get(id) ?? null;
-    if (before && !shouldRepick(before, taken)) continue;
+    if (!shouldRepick(before)) continue;
     // 소녀/소년을 골라 둔 멤버는 그 묶음 안에서만 바꿔요
     const character = pickCharacter(id, taken, poolOf(before));
     // 전부 차서 겹치는 캐릭터를 받으면 겹침 검사(sig)는 비워 둬요
@@ -214,45 +214,56 @@ async function chooseCharacterPoolOnce(db: D1Database, userId: string, pool: Cha
 
 // 처음 성별 고르기: 캐릭터를 그 묶음으로 정하고 "골랐어요" 표시. 이미 골랐으면 바꾸지 않아요.
 // 표시와 캐릭터 바꾸기를 한 번에 해서, 동시에 두 번 눌러도 먼저 저장된 쪽만 남아요.
-export async function chooseFirstGender(db: D1Database, userId: string, pool: CharacterPool): Promise<boolean> {
+// shown: 고르기 화면에서 미리 보여 준 캐릭터. 그 사이 받을 캐릭터가 달라졌으면 고르지 않고 'changed'를 돌려줘요
+// (본 적 없는 캐릭터로 바뀌지 않게요).
+export async function chooseFirstGender(
+  db: D1Database,
+  userId: string,
+  pool: CharacterPool,
+  shown?: string,
+): Promise<'done' | 'already' | 'changed'> {
   const member = await db.prepare('SELECT gender_chosen_at FROM members WHERE user_id = ?').bind(userId).first<{ gender_chosen_at: string | null }>();
-  if (!member || member.gender_chosen_at) return false;
+  if (!member || member.gender_chosen_at) return 'already';
   for (let attempt = 1; attempt <= 5; attempt++) {
-    const r = await retrySigConflict(() => chooseFirstGenderOnce(db, userId, pool));
+    const r = await retrySigConflict(() => chooseFirstGenderOnce(db, userId, pool, shown));
     if (r !== 'retry') return r;
   }
-  return false;
+  return 'already';
 }
 
-async function chooseFirstGenderOnce(db: D1Database, userId: string, pool: CharacterPool): Promise<boolean | 'retry'> {
-  {
-    const plan = await planCharacterPool(db, userId, pool);
-    const mark = `${now()}#${crypto.randomUUID()}`;
-    const claim = db
-      .prepare(
-        `UPDATE members SET gender_chosen_at = ?1 WHERE user_id = ?2 AND gender_chosen_at IS NULL
-           AND (SELECT character_id FROM profiles WHERE user_id = ?2) IS ?3`,
-      )
-      .bind(mark, userId, plan.before);
-    const steps = [claim];
-    if (!plan.same) {
-      steps.push(
-        db
-          .prepare(
-            `INSERT INTO profiles (user_id, character_id, character_sig, updated_at)
-             SELECT ?1, ?2, ?3, ?4 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND gender_chosen_at = ?5)
-             ON CONFLICT (user_id) DO UPDATE SET character_id = ?2, character_sig = ?3, updated_at = ?4`,
-          )
-          .bind(userId, plan.character, plan.sig, now(), mark),
-      );
-    }
-    await db.batch(steps);
-    const after = await db.prepare('SELECT gender_chosen_at FROM members WHERE user_id = ?').bind(userId).first<{ gender_chosen_at: string | null }>();
-    if (after?.gender_chosen_at === mark) return true;
-    if (after?.gender_chosen_at) return false;
-    // 그 사이 캐릭터가 바뀌었어요(새 캐릭터 배정 등). 다시 계획해요.
-    return 'retry';
+async function chooseFirstGenderOnce(
+  db: D1Database,
+  userId: string,
+  pool: CharacterPool,
+  shown?: string,
+): Promise<'done' | 'already' | 'changed' | 'retry'> {
+  const plan = await planCharacterPool(db, userId, pool);
+  if (shown !== undefined && plan.character !== shown) return 'changed';
+  const mark = `${now()}#${crypto.randomUUID()}`;
+  const claim = db
+    .prepare(
+      `UPDATE members SET gender_chosen_at = ?1 WHERE user_id = ?2 AND gender_chosen_at IS NULL
+         AND (SELECT character_id FROM profiles WHERE user_id = ?2) IS ?3`,
+    )
+    .bind(mark, userId, plan.before);
+  const steps = [claim];
+  if (!plan.same) {
+    steps.push(
+      db
+        .prepare(
+          `INSERT INTO profiles (user_id, character_id, character_sig, updated_at)
+           SELECT ?1, ?2, ?3, ?4 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND gender_chosen_at = ?5)
+           ON CONFLICT (user_id) DO UPDATE SET character_id = ?2, character_sig = ?3, updated_at = ?4`,
+        )
+        .bind(userId, plan.character, plan.sig, now(), mark),
+    );
   }
+  await db.batch(steps);
+  const after = await db.prepare('SELECT gender_chosen_at FROM members WHERE user_id = ?').bind(userId).first<{ gender_chosen_at: string | null }>();
+  if (after?.gender_chosen_at === mark) return 'done';
+  if (after?.gender_chosen_at) return 'already';
+  // 그 사이 캐릭터가 바뀌었어요(새 캐릭터 배정 등). 다시 계획해요.
+  return 'retry';
 }
 
 // 상점 "성별 바꾸기": 도감 젤리를 빼고 반대 묶음 캐릭터로 한 번에 바꿔요.

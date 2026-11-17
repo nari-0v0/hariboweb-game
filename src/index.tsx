@@ -47,7 +47,7 @@ import {
 } from './db';
 import { PRICES, canUse, canUseTheme, decoItemId, serviceItem, servicePrice, shopItem } from './shop';
 import { ChoosePage, GenderChangePage } from './views/choose';
-import { characterUrl, isCharacterPool, poolOf } from './character';
+import { CHARACTER_POOLS, characterUrl, isCharacterId, isCharacterPool, poolOf } from './character';
 import { applySync, parseSync } from './sync';
 import { levelName, progress, tierFor, tierLabel } from './levels';
 import { cardPalette } from './palette';
@@ -444,24 +444,37 @@ app.get('/api/bot/card/:id', async (c) => {
     page_url: base + '/me',
     // 아직 여자·남자를 안 골랐으면 디스코드 "내 카드"가 고르기부터 보여 줘요(나리 2026-11-16)
     gender_chosen: !!member.gender_chosen_at,
+    // 고르기 화면에서 보여 줄 미리보기: 고르면 받을 캐릭터, 지금 캐릭터 그대로인지(same)
+    ...(member.gender_chosen_at ? {} : { gender_options: await genderOptions(c.env.DB, id, base) }),
   });
 });
 
+async function genderOptions(db: D1Database, userId: string, base: string) {
+  const out: Record<string, { character: string; character_url: string; same: boolean }> = {};
+  for (const pool of CHARACTER_POOLS) {
+    const plan = await planCharacterPool(db, userId, pool);
+    out[pool] = { character: plan.character, character_url: base + characterUrl(plan.character, userId), same: plan.same };
+  }
+  return out;
+}
+
 // 디스코드 "내 카드"에서 처음 여자·남자 고르기. 웹 /choose와 같아요(처음 한 번만, 무료).
+// character(미리보기로 보여 준 캐릭터)를 주면, 그 사이 받을 캐릭터가 달라졌을 때 고르지 않고 'changed'로 알려 줘요.
 app.post('/api/bot/gender', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
-  let body: { user_id?: unknown; pool?: unknown };
+  let body: { user_id?: unknown; pool?: unknown; character?: unknown };
   try {
     body = await c.req.json();
   } catch {
     return c.json({ error: 'JSON이 아니에요' }, 400);
   }
   if (!isDiscordId(body.user_id) || !isCharacterPool(body.pool)) return c.json({ error: 'bad_request' }, 400);
+  if (body.character !== undefined && (typeof body.character !== 'string' || !isCharacterId(body.character))) return c.json({ error: 'bad_request' }, 400);
   const member = await getMember(c.env.DB, body.user_id);
   if (!member || !member.active) return c.json({ error: 'not_member' }, 404);
   if (member.gender_chosen_at) return c.json({ result: 'already' });
-  const done = await chooseFirstGender(c.env.DB, body.user_id, body.pool);
-  return c.json({ result: done ? 'done' : 'already' });
+  const result = await chooseFirstGender(c.env.DB, body.user_id, body.pool, body.character as string | undefined);
+  return c.json({ result });
 });
 
 // 오늘 칭찬을 몇 번 남겼는지, 누구에게 이미 줬는지
@@ -650,15 +663,25 @@ members.get('/choose', async (c) => {
   ]);
   return page(
     c,
-    <ChoosePage viewer={viewer} previews={{ girl: girl.character, boy: boy.character }} pick={isCharacterPool(pick) ? pick : undefined} />,
+    <ChoosePage
+      viewer={viewer}
+      previews={{ girl: girl.character, boy: boy.character }}
+      same={{ girl: girl.same, boy: boy.same }}
+      pick={isCharacterPool(pick) ? pick : undefined}
+      changed={c.req.query('n') === 'changed'}
+    />,
   );
 });
 
 members.post('/api/me/gender', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
-  const pool = (await c.req.parseBody()).pool;
+  const body = await c.req.parseBody();
+  const pool = body.pool;
   if (!isCharacterPool(pool)) return c.redirect('/choose');
-  await chooseFirstGender(c.env.DB, c.get('viewer').user_id, pool);
+  // 확인 화면에서 본 캐릭터와 달라졌으면 고르지 않고 새 미리보기를 다시 보여 줘요
+  const shown = typeof body.character === 'string' ? body.character : undefined;
+  const result = await chooseFirstGender(c.env.DB, c.get('viewer').user_id, pool, shown);
+  if (result === 'changed') return c.redirect(`/choose?pick=${pool}&n=changed`);
   return c.redirect('/me');
 });
 

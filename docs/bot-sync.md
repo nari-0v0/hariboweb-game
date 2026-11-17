@@ -153,9 +153,13 @@ Content-Type: application/json
     "character_url": "https://.../char/girl-01-0.png", "page_url": "https://.../me", "gender_chosen": false }
   ```
   `gender_chosen`이 `false`면 아직 여자·남자 캐릭터를 안 고른 사람이에요. 봇은 카드 대신 고르기 버튼부터 보여 줘요(나리 2026-11-16).
+  이때만 `"gender_options": {"girl": {"character": "girl-01-0", "character_url": "https://.../char/girl-01-0.png", "same": true}, "boy": {...}}`도 와요.
+  고르면 받을 캐릭터예요. `same`이 `true`면 지금 캐릭터 그대로예요. 봇은 확인 화면에서 이 그림을 보여 주고, 고를 때 `character`로 돌려줘요.
   `palette`는 웹 카드와 같은 색이에요(`src/palette.ts`). 봇은 이 색으로 디스코드용 카드 그림을 그려요.
   `praise_box`는 칭찬함이에요. 최근 5개, 보낸 사람은 없어요(DB에만 있어요). `note`가 `null`이면 한마디 없는 칭찬이거나 받은 사람이 숨긴 한마디예요. 디스코드 패널은 일부만 보여 주므로 읽음 표시는 웹 칭찬함에서만 해요. 화면 안내는 "받는 사람에게는 보낸 사람이 보이지 않아요."만 써요.
-- `POST /api/bot/gender` `{"user_id":"ID","pool":"girl"|"boy"}` → `{"result":"done"}` 또는 이미 골랐으면 `{"result":"already"}`. 서버에 없는 사람은 `404 {"error":"not_member"}`.
+- `POST /api/bot/gender` `{"user_id":"ID","pool":"girl"|"boy","character":"미리보기 캐릭터(선택)"}` → `{"result":"done"}` 또는 이미 골랐으면 `{"result":"already"}`. 서버에 없는 사람은 `404 {"error":"not_member"}`.
+  `character`를 주면, 그 사이 받을 캐릭터가 미리보기와 달라졌을 때 고르지 않고 `{"result":"changed"}`를 돌려줘요. 봇은 새 미리보기를 다시 보여 줘요.
+  한 번 받은 캐릭터는 봇 재시작·동기화·배포로 저절로 바뀌지 않아요. 바뀌는 건 멤버가 직접 고르거나 상점에서 "성별 바꾸기"를 살 때뿐이에요(나리 2026-11-17).
   웹 처음 화면(`/choose`)과 같아요. 처음 한 번만 무료이고, 그다음은 젤리 상점 "성별 바꾸기"예요.
 - `GET /api/bot/praise/<디스코드ID>` → `{"given":["오늘 이미 칭찬한 ID"],"left":2,"partners":[{"id":"ID","minutes":42}]}`
   - `partners`: 웹에 쌓인 `room_minutes`로 본 오늘(한국 날짜) 같이 통화한 사람. 봇은 오늘 기록을 메모리에만 들고 있어서 재시작하면 비니까, 봇 기록과 이 목록을 합쳐서 칭찬할 사람을 보여 줘요. 웹은 하루치 짝만 3일 동안 남겨요.

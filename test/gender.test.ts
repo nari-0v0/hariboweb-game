@@ -55,11 +55,11 @@ describe('처음 성별 고르기와 상점 성별 바꾸기', () => {
     const preview = await planCharacterPool(db, A, 'boy');
     expect(poolOf(preview.character)).toBe('boy');
     expect((await planCharacterPool(db, A, 'girl')).character).toBe('girl-01-0'); // 이미 여자면 지금 캐릭터 그대로
-    expect(await chooseFirstGender(db, A, 'boy')).toBe(true);
+    expect(await chooseFirstGender(db, A, 'boy')).toBe('done');
     expect(row().character_id).toBe(preview.character);
     expect(row().gender_chosen_at).not.toBeNull();
     // 두 번째부터는 무료로 못 바꿔요
-    expect(await chooseFirstGender(db, A, 'girl')).toBe(false);
+    expect(await chooseFirstGender(db, A, 'girl')).toBe('already');
     expect(poolOf(row().character_id)).toBe('boy');
   });
 
@@ -79,8 +79,18 @@ describe('처음 성별 고르기와 상점 성별 바꾸기', () => {
   it('동시에 두 번 골라도 먼저 저장된 쪽만 남아요', async () => {
     const { db, row } = setup(0);
     const results = await Promise.all([chooseFirstGender(db, A, 'boy'), chooseFirstGender(db, A, 'girl')]);
-    expect(results.filter(Boolean)).toHaveLength(1);
-    const winner = results[0] ? 'boy' : 'girl';
+    expect(results.filter((r) => r === 'done')).toHaveLength(1);
+    const winner = results[0] === 'done' ? 'boy' : 'girl';
     expect(poolOf(row().character_id)).toBe(winner);
+  });
+
+  it('미리보기와 받을 캐릭터가 달라졌으면 고르지 않아요(본 적 없는 캐릭터로 안 바뀌어요)', async () => {
+    const { db, row } = setup(0);
+    expect(await chooseFirstGender(db, A, 'boy', 'boy-50-3')).toBe('changed');
+    expect(row().character_id).toBe('girl-01-0');
+    expect(row().gender_chosen_at).toBeNull();
+    // 지금 캐릭터 그대로인 쪽은 미리보기도 지금 캐릭터예요
+    expect(await chooseFirstGender(db, A, 'girl', 'girl-01-0')).toBe('done');
+    expect(row().character_id).toBe('girl-01-0');
   });
 });

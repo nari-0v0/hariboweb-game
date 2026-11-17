@@ -31,13 +31,12 @@ describe('member characters', () => {
     expect(characterUrl('basic-boy-0', '123')).toBe(`/char/${fallbackCharacter('123')}.png`);
   });
 
-  it('moves members off spare colors once a new design is free', () => {
-    const allBase = new Set(CHARACTERS.map((c) => `${c.id}-0`));
-    expect(shouldRepick('girl-07-0', new Set())).toBe(false);
-    expect(shouldRepick('girl-07-2', new Set(['girl-07-2']))).toBe(true);
-    expect(shouldRepick('girl-07-2', allBase)).toBe(false);
-    expect(shouldRepick('basic-boy-0', allBase)).toBe(true);
-    expect(shouldRepick(null, allBase)).toBe(true);
+  it('never moves a member off a character they already have (only missing or removed art)', () => {
+    expect(shouldRepick('girl-07-0')).toBe(false);
+    // 여분 색이어도, 빈 디자인이 생겨도 저절로 안 바뀌어요(나리 2026-11-17)
+    expect(shouldRepick('girl-07-2')).toBe(false);
+    expect(shouldRepick('basic-boy-0')).toBe(true);
+    expect(shouldRepick(null)).toBe(true);
   });
 
   it('picks inside the chosen girl or boy pool', () => {
@@ -50,7 +49,6 @@ describe('member characters', () => {
     }
     // 소년 50명이 다 차면 소년 여분 색으로 넘어가요
     expect([...taken].filter((c) => c.endsWith('-0')).length).toBe(50);
-    expect(shouldRepick('boy-01-2', taken)).toBe(false);
-    expect(shouldRepick('girl-01-2', taken)).toBe(true);
+    expect(shouldRepick('boy-01-2')).toBe(false);
   });
 });
