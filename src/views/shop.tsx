@@ -176,8 +176,10 @@ export function ShopPage(props: {
 }) {
   const { viewer, profile, owned, cards, members } = props;
   const ctx = { profile, owned, cards, members };
-  const themes = SHOP_ITEMS.filter((i) => i.kind === 'theme');
-  const decoBuy = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price !== null);
+  // 살 수 있는 테마·꾸밈 캐릭터는 싼 것부터 보여 줘요(값이 같으면 원래 순서)
+  const byPrice = (a: ShopItem, b: ShopItem) => (a.price ?? 0) - (b.price ?? 0);
+  const themes = SHOP_ITEMS.filter((i) => i.kind === 'theme').sort(byPrice);
+  const decoBuy = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price !== null).sort(byPrice);
   const decoReward = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price === null);
   const nameOf = (id: string) => SHOP_ITEMS.find((i) => i.id === id)?.name ?? serviceItem(id)?.name ?? (id === 'change:gender' ? '성별 바꾸기' : id);
   const popup = props.results.flatMap((p) => resultLines(p, nameOf(p.item_id)));
