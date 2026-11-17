@@ -623,6 +623,14 @@ main.wide { max-width: 1320px; }
 .bgo-mates b { display: block; font-size: .85rem; margin-bottom: 4px; }
 .bgo-mates ul { list-style: none; display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; }
 .bgo-mates li { max-width: 100%; padding: 1px 8px; font-size: .8rem; background: #fff; border: 2px solid var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bgo-partners { margin: 6px 0 8px; padding: 6px 8px; background: #eaf6ff; border: 2px solid var(--ink); }
+.bgo-partners b { display: block; font-size: .85rem; margin-bottom: 4px; }
+.bgo-partners ul { list-style: none; display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 4px; padding: 0; }
+.bgo-partners li { display: flex; max-width: 100%; min-width: 0; gap: 4px; padding: 1px 8px; font-size: .8rem; background: #fff; border: 2px solid var(--ink); white-space: nowrap; }
+.bgo-partner-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.bgo-partner-min { flex-shrink: 0; }
+.bgo-partners li.done { background: #e9fbef; }
+.bgo-partners small { display: block; font-size: .75rem; color: var(--ink-soft); }
 .bgo-mates li.done { background: #d9f7d9; font-weight: 700; }
 .bgo-mates li.me { box-shadow: 0 0 0 2px var(--pink); }
 .bgo-team-me { display: inline-block; padding: 0 8px; font-weight: 700; border: 2px solid var(--ink); background: var(--paper); }
@@ -2141,8 +2149,8 @@ main.wide { max-width: 1320px; }
   .pd-p1 .pd-who { height: 90px; }
   .pd-name { font-size: .74rem; }
 }
-.bgo-wrap { max-width: 600px; margin: 0 auto; display: grid; gap: 12px; align-items: start; }
-.bgo-quests { display: grid; gap: 12px; min-width: 0; }
+.bgo-wrap { max-width: 600px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: start; }
+.bgo-quests { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
 .bgo-wrap .bgo-server, .bgo-wrap .bgo-wide { max-width: none; margin: 0; }
 .bgo-wrap .bgo { margin-top: 0; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 1000px) {

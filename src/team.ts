@@ -6,11 +6,16 @@ import { fallbackWeek } from './bingo';
 
 const DAY_MS = 86_400_000;
 
-// 팀 퀘스트: 시즌 시작 전 2주 동안 같이 통화한 시간이 이 분보다 적은 팀원과
+// 팀 짜기에서 "주로 노는 시간대"를 볼 때 시즌 시작 전 이만큼의 기록을 봐요
 export const TEAM_PRIOR_DAYS = 14;
-export const TEAM_PRIOR_MAX = 10;
-// 이번 시즌에 같은 통화방에서 합쳐서 이만큼 함께하면 달성
+// 팀 퀘스트(나리 2026-11-17): 이번 시즌 같은 통화방에서 합쳐서 TEAM_GOAL_MIN분 이상 함께한 팀원이
+// 팀 인원의 절반(matesNeeded, 10명 팀이면 5명) 이상이면 나는 달성.
 export const TEAM_GOAL_MIN = 30;
+
+// 달성에 필요한 팀원 수: 지금 남은 팀 인원(나 포함)의 절반(반올림), 최소 1, 나를 뺀 팀원 수 이하
+export function matesNeeded(teamSize: number): number {
+  return Math.max(1, Math.min(teamSize - 1, Math.round(teamSize / 2)));
+}
 // 초록하리보와 같은 통화방에서 이만큼 함께하면 납치 성공
 export const KIDNAP_MIN = 30;
 
@@ -109,31 +114,6 @@ export async function loadPrior(db: D1Database, season: Season): Promise<Prior> 
   };
 }
 
-// 팀 퀘스트 짝이 될 수 있는지: 둘 다 지난 2주에 통화방에 나왔고, 게임 역할이 겹치고(둘 중 하나라도 역할이 없으면 누구나),
-// 지난 2주 동안 같이 통화한 시간이 10분 미만
-export function canPair(a: { id: string; games: string[] }, b: { id: string; games: string[] }, prior: Prior): boolean {
-  if (a.id === b.id || !prior.voiced.has(a.id) || !prior.voiced.has(b.id)) return false;
-  if (a.games.length && b.games.length && !a.games.some((g) => b.games.includes(g))) return false;
-  return (prior.minutes.get(pairKey(a.id, b.id)) ?? 0) < TEAM_PRIOR_MAX;
-}
-
-// 팀마다 짝 목록(a < b)
-export function teamPairs(teams: Map<string, number>, gamesOf: Map<string, string[]>, prior: Prior): { no: number; a: string; b: string }[] {
-  const byTeam = new Map<number, string[]>();
-  for (const [id, no] of teams) (byTeam.get(no) ?? byTeam.set(no, []).get(no)!).push(id);
-  const out: { no: number; a: string; b: string }[] = [];
-  for (const [no, ids] of byTeam) {
-    const sorted = [...ids].sort();
-    for (let i = 0; i < sorted.length; i++)
-      for (let j = i + 1; j < sorted.length; j++) {
-        const a = { id: sorted[i]!, games: gamesOf.get(sorted[i]!) ?? [] };
-        const b = { id: sorted[j]!, games: gamesOf.get(sorted[j]!) ?? [] };
-        if (canPair(a, b, prior)) out.push({ no, a: a.id, b: b.id });
-      }
-  }
-  return out;
-}
-
 const parseGames = (raw: string | null | undefined): string[] => {
   try {
     const v = JSON.parse(raw ?? '[]');
@@ -143,38 +123,21 @@ const parseGames = (raw: string | null | undefined): string[] => {
   }
 };
 
-// 시즌의 팀 퀘스트 짝과 서버 퀘스트 목표를 처음 한 번 정해요(이미 정했으면 아무것도 안 해요).
+// 시즌의 서버 퀘스트 목표를 처음 한 번 정해요(이미 정했으면 아무것도 안 해요).
 // 새 시즌은 팀을 만든 바로 뒤에, 이 기능 전에 시작한 시즌은 다음 동기화 때 정해요.
+// (예전에는 여기서 팀 퀘스트 짝(team_pairs)도 정했어요. 2026-11-17부터 팀원 누구와든 세서 짝을 정하지 않아요.)
 export async function ensureSeasonQuests(db: D1Database, season: Season, nowMs: number): Promise<boolean> {
   if (await db.prepare('SELECT 1 FROM server_quest WHERE season_id = ?').bind(season.id).first()) return false;
-  const [{ results: rows }, newbie, prior] = await Promise.all([
-    db
-      .prepare(
-        `SELECT s.user_id, s.group_no, COALESCE(m.games, '[]') AS games FROM season_members s
-         LEFT JOIN members m ON m.user_id = s.user_id WHERE s.season_id = ? AND s.left_at IS NULL`,
-      )
-      .bind(season.id)
-      .all<{ user_id: string; group_no: number; games: string }>(),
+  const [members, newbie] = await Promise.all([
+    db.prepare('SELECT 1 AS ok FROM season_members WHERE season_id = ? AND left_at IS NULL LIMIT 1').bind(season.id).first<{ ok: number }>(),
     db.prepare('SELECT COUNT(*) AS n FROM members WHERE active = 1 AND is_newbie = 1').first<{ n: number }>(),
-    loadPrior(db, season),
   ]);
-  if (!rows.length) return false;
-  const teams = new Map(rows.map((r) => [r.user_id, r.group_no]));
-  const games = new Map(rows.map((r) => [r.user_id, parseGames(r.games)]));
-  const pairs = teamPairs(teams, games, prior);
+  if (!members) return false;
   const n = newbie?.n ?? 0;
-  const t = new Date(nowMs).toISOString();
-  await db.batch([
-    db
-      .prepare(
-        `INSERT OR IGNORE INTO team_pairs (season_id, group_no, a, b)
-         SELECT ?1, json_extract(value, '$[0]'), json_extract(value, '$[1]'), json_extract(value, '$[2]') FROM json_each(?2)`,
-      )
-      .bind(season.id, JSON.stringify(pairs.map((p) => [p.no, p.a, p.b]))),
-    db
-      .prepare('INSERT OR IGNORE INTO server_quest (season_id, newbies, target, created_at) VALUES (?, ?, ?, ?)')
-      .bind(season.id, n, kidnapTarget(n), t),
-  ]);
+  await db
+    .prepare('INSERT OR IGNORE INTO server_quest (season_id, newbies, target, created_at) VALUES (?, ?, ?, ?)')
+    .bind(season.id, n, kidnapTarget(n), new Date(nowMs).toISOString())
+    .run();
   return true;
 }
 
@@ -186,40 +149,42 @@ export function kidnapTarget(newbies: number): number {
 // ── 팀 퀘스트 상태 ──
 
 export type TeamProgress = {
-  bonus: boolean; // 후보가 2명 미만이라 가운데 칸을 저절로 채운 팀
-  candidates: string[]; // 지금 남아 있는 후보
+  bonus: boolean; // 남은 팀원이 2명보다 적어서 가운데 칸을 저절로 채운 팀
+  candidates: string[]; // 지금 남아 있는 팀원
+  need: number; // 나는 달성에 필요한 "30분 이상 함께한 팀원" 수
   achievers: string[]; // 그중 달성한 사람
   target: number;
   complete: boolean; // 목표를 채움
 };
 
-// 후보 = 짝이 1명 이상 있는 사람. 목표 = 처음 후보의 절반(반올림), 최소 2, 후보 수 이하.
-// 시즌 중에 후보가 나가서 목표가 남은 후보보다 크면 남은 후보 수로 낮춰요.
-export function teamProgress(pairs: { a: string; b: string }[], minutes: Map<string, number>, left: Set<string>): TeamProgress {
-  const all = new Set(pairs.flatMap((p) => [p.a, p.b]));
-  const reached = new Set<string>();
-  const available = new Set<string>();
-  for (const p of pairs)
-    if ((minutes.get(pairKey(p.a, p.b)) ?? 0) >= TEAM_GOAL_MIN) {
-      reached.add(p.a);
-      reached.add(p.b);
-    } else if (!left.has(p.a) && !left.has(p.b)) {
-      available.add(p.a);
-      available.add(p.b);
-    }
-  const candidates = [...all].filter((u) => !left.has(u) && (reached.has(u) || available.has(u))).sort();
-  const achievers = candidates.filter((u) => reached.has(u));
-  const bonus = all.size < 2 || candidates.length === 0;
-  const base = Math.min(Math.max(2, Math.round(all.size / 2)), all.size);
-  const target = bonus ? 0 : Math.min(base, candidates.length);
-  return { bonus, candidates, achievers, target, complete: !bonus && achievers.length >= target };
+// 30분 이상 함께한 팀원 수(떠난 팀원과 함께한 시간도 이미 함께한 거라 세요)
+export function matesOf(userId: string, members: string[], minutes: Map<string, number>): number {
+  return members.filter((u) => u !== userId && (minutes.get(pairKey(u, userId)) ?? 0) >= TEAM_GOAL_MIN).length;
 }
 
-export type TeamState = TeamProgress & { no: number; members: { id: string; name: string; left: boolean }[] };
+// members: 이 팀에 한 번이라도 있었던 사람(떠난 사람 포함).
+// 나는 달성 = 30분 이상 함께한 팀원(떠난 팀원과 함께한 것도 세요)이 남은 팀 인원의 절반 이상.
+// 팀 완료 = 남은 팀원의 절반(반올림, 최소 2)이 달성. 남은 팀원이 2명보다 적으면 보너스 칸.
+export function teamProgress(members: string[], minutes: Map<string, number>, left: Set<string>): TeamProgress {
+  const all = [...new Set(members)];
+  const candidates = all.filter((u) => !left.has(u)).sort();
+  const need = matesNeeded(candidates.length);
+  const achievers = candidates.filter((u) => matesOf(u, all, minutes) >= need);
+  const bonus = candidates.length < 2;
+  const target = bonus ? 0 : Math.min(Math.max(2, Math.round(candidates.length / 2)), candidates.length);
+  return { bonus, candidates, need, achievers, target, complete: !bonus && achievers.length >= target };
+}
+
+// pairs: 팀원 두 사람(a < b)이 이번 시즌에 같은 통화방에서 함께한 분. 화면에서 "누구와 몇 분"을 보여 줄 때 써요.
+export type TeamState = TeamProgress & {
+  no: number;
+  members: { id: string; name: string; left: boolean }[];
+  pairs: { a: string; b: string; minutes: number }[];
+};
 
 // 시즌의 모든 팀 상태(팀이 10개 안팎이라 한 번에 읽어요)
 export async function loadTeams(db: D1Database, seasonId: string): Promise<Map<number, TeamState>> {
-  const [members, pairs, mins, ready] = await Promise.all([
+  const [members, pairs, ready] = await Promise.all([
     db
       .prepare(
         `SELECT s.user_id, s.group_no, s.left_at, m.display_name FROM season_members s
@@ -227,19 +192,15 @@ export async function loadTeams(db: D1Database, seasonId: string): Promise<Map<n
       )
       .bind(seasonId)
       .all<{ user_id: string; group_no: number; left_at: string | null; display_name: string | null }>(),
-    db.prepare('SELECT group_no, a, b FROM team_pairs WHERE season_id = ?').bind(seasonId).all<{ group_no: number; a: string; b: string }>(),
     db
-      .prepare(
-        `SELECT g.a, g.b, g.minutes FROM gq_pair g
-         JOIN team_pairs t ON t.season_id = g.season_id AND t.group_no = g.group_no AND t.a = g.a AND t.b = g.b
-         WHERE g.season_id = ?`,
-      )
+      .prepare('SELECT group_no, a, b, minutes FROM gq_pair WHERE season_id = ?')
       .bind(seasonId)
-      .all<{ a: string; b: string; minutes: number }>(),
-    // 짝과 서버 퀘스트는 한 번에 저장돼요. 아직 없으면 짝을 정하기 전이라 "짝 없음(보너스)"으로 보면 안 돼요.
+      .all<{ group_no: number; a: string; b: string; minutes: number }>(),
+    // 서버 퀘스트를 아직 안 정했으면 시즌을 막 만든 참이라 팀 퀘스트도 "보너스"로 보면 안 돼요.
     db.prepare('SELECT 1 AS ok FROM server_quest WHERE season_id = ?').bind(seasonId).first<{ ok: number }>(),
   ]);
-  const minutes = new Map(mins.results.map((r) => [pairKey(r.a, r.b), r.minutes]));
+  const minutes = new Map<string, number>();
+  for (const r of pairs.results) minutes.set(pairKey(r.a, r.b), (minutes.get(pairKey(r.a, r.b)) ?? 0) + r.minutes);
   const left = new Set(members.results.filter((m) => m.left_at).map((m) => m.user_id));
   const nos = [...new Set(members.results.map((m) => m.group_no))].sort((a, b) => a - b);
   const out = new Map<number, TeamState>();
@@ -249,16 +210,30 @@ export async function loadTeams(db: D1Database, seasonId: string): Promise<Map<n
       members: members.results
         .filter((m) => m.group_no === no)
         .map((m) => ({ id: m.user_id, name: m.display_name ?? '알 수 없음', left: !!m.left_at })),
+      pairs: ready
+        ? pairs.results
+            .filter((p) => p.group_no === no)
+            .map((p) => ({ a: p.a, b: p.b, minutes: minutes.get(pairKey(p.a, p.b)) ?? 0 }))
+        : [],
       ...(ready
         ? teamProgress(
-            pairs.results.filter((p) => p.group_no === no),
+            members.results.filter((m) => m.group_no === no).map((m) => m.user_id),
             minutes,
             left,
           )
-        : { bonus: false, candidates: [], achievers: [], target: 0, complete: false }),
+        : { bonus: false, candidates: [], need: 0, achievers: [], target: 0, complete: false }),
     });
   }
   return out;
+}
+
+// 나와 이번 시즌에 함께한 팀원과 분(많이 함께한 순). 떠난 팀원은 함께한 시간이 있을 때만(달성에 세니까) 보여요.
+export function myMates(team: TeamState, userId: string): { id: string; name: string; minutes: number; left: boolean }[] {
+  const mins = new Map(team.pairs.filter((p) => p.a === userId || p.b === userId).map((p) => [p.a === userId ? p.b : p.a, p.minutes]));
+  return team.members
+    .map((m) => ({ id: m.id, name: m.name, minutes: mins.get(m.id) ?? 0, left: m.left }))
+    .filter((m) => m.id !== userId && (!m.left || m.minutes > 0))
+    .sort((x, y) => y.minutes - x.minutes || (x.name < y.name ? -1 : x.name > y.name ? 1 : 0));
 }
 
 export type MyTeam = 'done' | 'todo' | 'team-done' | 'bonus' | 'none';

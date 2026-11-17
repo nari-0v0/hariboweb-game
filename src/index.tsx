@@ -58,7 +58,7 @@ import { GroupPage } from './views/group';
 import { groupViewFor, seasonRanking } from './season';
 import { currentPeriod, grantBingo, markFlag, myBingo, todayPartners, LINE_JELLY, LINE_XP, FULL_JELLY } from './bingo';
 import { BingoPage } from './views/bingo';
-import { KIDNAP_MIN, SERVER_JELLY, TEAM_GOAL_MIN, TEAM_JELLY, TEAM_PRIOR_MAX, bingoExtras, loadServerQuest, loadTeams, myTeamState, rankTeams, seasonAt } from './team';
+import { KIDNAP_MIN, SERVER_JELLY, TEAM_GOAL_MIN, TEAM_JELLY, bingoExtras, loadServerQuest, loadTeams, matesOf, myTeamState, pairKey, rankTeams, seasonAt } from './team';
 import { loadRankings } from './rankings';
 import { dogamProgress } from './unlock';
 import { RankPage, rankTab } from './views/rank';
@@ -579,7 +579,7 @@ app.get('/api/bot/ranking', async (c) => {
 });
 
 // 디스코드 고정 패널 "우리 팀": 빙고 가운데 칸 팀 퀘스트와 서버 퀘스트(초록하리보 납치 대소동!).
-// 달성한 사람 이름만 보여 줘요(후보·짝은 보여 주지 않아요).
+// 팀 퀘스트: 30분 이상 함께한 팀원이 need명 이상이면 나는 달성. my_mates = 나와 30분 이상 함께한 팀원 수.
 app.get('/api/bot/team/:id', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
   const id = c.req.param('id');
@@ -598,10 +598,12 @@ app.get('/api/bot/team/:id', async (c) => {
           complete: t.complete,
           bonus: t.bonus,
           me: myTeamState(t, id),
+          need: t.need,
+          my_mates: matesOf(id, t.members.map((m) => m.id), new Map(t.pairs.map((p) => [pairKey(p.a, p.b), p.minutes]))),
         }
       : null,
     server: x.server ? { target: x.server.target, kidnapped: x.server.kidnapped.length, met: x.server.met, joined: x.server.participants.includes(id) } : null,
-    rules: { goal_min: TEAM_GOAL_MIN, prior_max: TEAM_PRIOR_MAX, kidnap_min: KIDNAP_MIN, team_jelly: TEAM_JELLY, server_jelly: SERVER_JELLY },
+    rules: { goal_min: TEAM_GOAL_MIN, kidnap_min: KIDNAP_MIN, team_jelly: TEAM_JELLY, server_jelly: SERVER_JELLY },
     page_url: baseUrl(c) + '/bingo',
   });
 });

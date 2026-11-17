@@ -69,7 +69,7 @@ it('시즌 첫 묶음에 같이 온 시작 직전 통화도 짝 고르기에 들
     room_minutes: [{ at: '2026-11-11T09:00:00.000Z', room: ROOM, members: [A, B] }],
   }, 'first-sync'), at)).toBe('applied');
   expect((await loadPrior(db, SEASON)).voiced.has(B)).toBe(true);
-  expect(sql.prepare('SELECT a, b FROM team_pairs').all()).toEqual([{ a: A, b: B }]);
+  expect(sql.prepare('SELECT COUNT(*) AS n FROM server_quest').get()).toEqual({ n: 1 });
   expect(await ensureSeasonQuests(db, SEASON, at)).toBe(false);
 });
 
