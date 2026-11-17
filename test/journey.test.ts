@@ -273,6 +273,10 @@ describe('journey battle motion', () => {
         const pcts = plan.foeHp!.drops.map((d) => d.pct);
         expect(pcts).toEqual([...pcts].sort((x, y) => y - x));
         if (next.fx.won) expect(pcts.at(-1)).toBe(0);
+        // 내 체력 막대: 칸마다 남은 체력이 있고, 진 싸움은 모션 안에서 0까지 줄어요
+        expect(next.fx.php).toHaveLength(next.fx.hits.length);
+        if (!next.fx.won && next.fx.hits.length) expect(plan.heroHp.at(-1)?.now ?? next.fx.hp0).toBe(0);
+        expect(plan.heroHp.every((x, i, a) => i === 0 || x.at > a[i - 1]!.at)).toBe(true);
       }
       s = next;
     }
@@ -288,6 +292,7 @@ describe('journey battle motion', () => {
     expect(tf.left![ti]).toBe(Math.max(0, tf.left![ti - 1]! - 9));
     // 예전에 저장된 싸움(몬스터 체력 기록 없음)은 막대 없이 그대로 보여요
     expect(fightPlan(fought.fx).foeHp).toBeNull();
+    expect(fightPlan(fought.fx).heroHp).toEqual([]);
   });
 });
 

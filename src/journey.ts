@@ -33,7 +33,8 @@ export type Line = { icon: string; text: string; tone?: 'good' | 'bad' };
 // 화면 전투 모션용 기록: 누가(0 = 나, 1 = 적) 얼마나 때렸는지. 처음 몇 번과 마지막 한 번만 남겨요.
 export type Hit = [who: 0 | 1, dmg: number, crit?: 1];
 // hp0: 싸우기 전 체력(결과는 모션이 끝난 뒤 보여요). mhp: 몬스터 처음 체력, left: hits 칸마다 그 뒤 남은 몬스터 체력(몬스터 체력 막대용)
-export type BattleFx = { foe: string; won: boolean; spark?: number; hits: Hit[]; hp0?: number; mhp?: number; left?: number[] };
+// php: hits 칸마다 그 뒤 남은 내 체력(맞을 때마다 내 체력 막대도 줄어들게, 슬금님 제보 2026-11-18)
+export type BattleFx = { foe: string; won: boolean; spark?: number; hits: Hit[]; hp0?: number; mhp?: number; left?: number[]; php?: number[] };
 export const FX_HITS = 6;
 export type Offer = { id: 'potion' | 'sword' | 'armor' | 'heart' | 'scroll'; price: number };
 export const OFFERS: Record<Offer['id'], { name: string; icon: string; text: string; price: number }> = {
@@ -233,12 +234,14 @@ function battle(s: JourneyState, m: Monster, power: number, r: () => number, lin
   let turns = 0;
   const hits: Hit[] = [];
   const left: number[] = [];
+  const php: number[] = [];
   const note = (h: Hit) => {
     const i = hits.length < FX_HITS ? hits.length : FX_HITS - 1; // 마지막 칸은 늘 끝난 순간
     hits[i] = h;
     left[i] = Math.max(0, mhp);
+    php[i] = Math.max(0, s.hp);
   };
-  const fx: BattleFx = { foe: m.key, won: false, hits, hp0: start, mhp, left };
+  const fx: BattleFx = { foe: m.key, won: false, hits, hp0: start, mhp, left, php };
   if (sk(s, 'spark')) {
     mhp -= 10 * sk(s, 'spark');
     fx.spark = 10 * sk(s, 'spark');
