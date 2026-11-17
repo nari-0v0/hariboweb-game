@@ -13,21 +13,30 @@ export function buildMoveSql(wallets, now = new Date().toISOString()) {
   if (!Array.isArray(wallets)) throw new Error('지갑 목록은 배열이어야 해요');
   const seen = new Set();
   const rows = [];
+  const payableIds = [];
   for (const w of wallets) {
-    const id = String(w?.user_id ?? '');
-    const jelly = Number(w?.jelly);
-    if (!/^\d{15,20}$/.test(id)) throw new Error(`이상한 디스코드 ID: ${id}`);
+    const id = w?.user_id;
+    const jelly = w?.jelly;
+    if (typeof id !== 'string' || !/^\d{15,20}$/.test(id)) throw new Error(`이상한 디스코드 ID: ${id}`);
     if (!Number.isSafeInteger(jelly) || jelly < 0) throw new Error(`이상한 젤리 값: ${id}=${w?.jelly}`);
     if (seen.has(id)) throw new Error(`같은 사람이 두 번 있어요: ${id}`);
     seen.add(id);
-    if (jelly > 0) rows.push(`('${id}', ${jelly}, '${now}')`);
+    if (jelly > 0) {
+      rows.push(`('${id}', ${jelly}, '${now}')`);
+      payableIds.push(`'${id}'`);
+    }
   }
   const lines = [`-- 겜블장 지갑 젤리 → 젤칩 1:1, ${rows.length}명, 만든 때 ${now}`];
   if (rows.length) {
-    lines.push(`INSERT OR IGNORE INTO gamble_jelly_moves (user_id, jelly, loaded_at) VALUES\n  ${rows.join(',\n  ')};`);
+    // 이미 적재된 금액이 다르면 NOT NULL 제약으로 이 INSERT 전체를 중단해요.
+    lines.push(`INSERT INTO gamble_jelly_moves (user_id, jelly, loaded_at) VALUES\n  ${rows.join(',\n  ')}
+  ON CONFLICT(user_id) DO UPDATE SET jelly = NULL
+  WHERE gamble_jelly_moves.jelly <> excluded.jelly;`);
+    lines.push(`UPDATE gamble_jelly_moves SET moved_at = '${now}'
+  WHERE moved_at IS NULL
+    AND user_id IN (${payableIds.join(', ')})
+    AND user_id IN (SELECT user_id FROM members WHERE active = 1);`);
   }
-  lines.push(`UPDATE gamble_jelly_moves SET moved_at = '${now}'
-  WHERE moved_at IS NULL AND user_id IN (SELECT user_id FROM members WHERE active = 1);`);
   return lines.join('\n') + '\n';
 }
 
