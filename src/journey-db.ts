@@ -24,7 +24,7 @@ export async function journeyRecord(db: D1Database, user: string, day = kstDay()
   // 나머지도 색인으로 몇 줄만 읽어요. 지난 판을 전부 훑으면 무료 DB 읽기 한도를 넘겨요(2026-11-17).
   const r = await db
     .prepare(
-      `SELECT (SELECT COALESCE(MAX(chapter), 0) FROM journey_runs WHERE user_id = ?1 AND status = 'done' AND cleared = 1) AS top,
+      `SELECT COALESCE((SELECT chapter FROM journey_runs WHERE user_id = ?1 AND status = 'done' AND cleared = 1 ORDER BY chapter DESC LIMIT 1), 0) AS top,
          (SELECT COUNT(*) FROM journey_runs WHERE user_id = ?1 AND status = 'done' AND reward_day = ?2 AND xp > 0) AS today,
          (SELECT chapter FROM journey_runs WHERE user_id = ?1 AND status != 'going' ORDER BY started_at DESC LIMIT 1) AS last,
          b.best, b.clears, b.farmed
@@ -35,10 +35,10 @@ export async function journeyRecord(db: D1Database, user: string, day = kstDay()
   return { best: r?.best ?? 0, clears: r?.clears ?? 0, rewardedToday: r?.today ?? 0, farmed: parseFarmed(r?.farmed), unlocked: Math.min(MAX_CHAPTER, (r?.top ?? 0) + 1), top: r?.top ?? 0, last: r?.last ?? undefined };
 }
 
-// 대장을 깬 가장 높은 장(색인으로 한 줄만 읽어요)
+// 대장을 깬 가장 높은 장(색인으로 한 줄만 읽어요. MAX를 COALESCE로 감싸면 색인을 끝까지 훑어서 ORDER BY … LIMIT 1로 써요)
 export async function journeyTop(db: D1Database, user: string): Promise<number> {
   const r = await db
-    .prepare("SELECT COALESCE(MAX(chapter), 0) AS top FROM journey_runs WHERE user_id = ? AND status = 'done' AND cleared = 1")
+    .prepare("SELECT COALESCE((SELECT chapter FROM journey_runs WHERE user_id = ?1 AND status = 'done' AND cleared = 1 ORDER BY chapter DESC LIMIT 1), 0) AS top")
     .bind(user)
     .first<{ top: number }>();
   return r?.top ?? 0;
@@ -201,7 +201,7 @@ export async function actJourneyRun(db: D1Database, user: string, id: string, re
     // 이미 대장을 깬 장을 다시 도는 판(파밍)만 그 장을 다시 돈 판 수(날짜와 상관없이)에 따라 줄어요.
     const r = await db
       .prepare(
-        `SELECT (SELECT COALESCE(MAX(chapter), 0) FROM journey_runs WHERE user_id = ?1 AND status = 'done' AND cleared = 1) AS top,
+        `SELECT COALESCE((SELECT chapter FROM journey_runs WHERE user_id = ?1 AND status = 'done' AND cleared = 1 ORDER BY chapter DESC LIMIT 1), 0) AS top,
            COALESCE((SELECT json_extract(farmed, ?2) FROM journey_bank WHERE user_id = ?1), 0) AS farmed`,
       )
       .bind(user, matPath(s.ch ?? 1))
