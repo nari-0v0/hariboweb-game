@@ -1,7 +1,7 @@
 import { kstDay } from './db';
 import { MAX_CHAPTER } from './journey-chapters';
 import { dogamProgress, journeyOpenTo } from './unlock';
-import { DAILY_REWARD_JOURNEYS, FIRST_CLEAR_BONUS, GEAR_MAX, NO_GEAR, gearNeed, type Gear, type GearId, NO_PERKS, PERKS, perkMax, actJourney, bankRate, decodeJourney, journeyJelly, journeyXp, perkCost, startJourney, kitCost, type KitId, type JourneyAction, type JourneyState, type PerkId, type Perks } from './journey';
+import { DAILY_REWARD_JOURNEYS, FIRST_CLEAR_BONUS, GEAR_MAX, NO_GEAR, gearNeed, hasMats, type Gear, type GearId, NO_PERKS, PERKS, perkMax, actJourney, bankRate, decodeJourney, journeyJelly, journeyXp, perkCost, startJourney, kitCost, type KitId, type JourneyAction, type JourneyState, type PerkId, type Perks } from './journey';
 
 export type JourneyRow = { id: string; user_id: string; state: string; rev: number; status: string; day: number; cleared: number; xp: number; jelly: number; reward_day: string | null };
 export type JourneyRun = { row: JourneyRow; state: JourneyState };
@@ -60,21 +60,30 @@ export async function journeyBank(db: D1Database, user: string): Promise<Journey
 }
 const matPath = (ch: number) => `$."${ch}"`;
 
-// 장비 한 단계. +N에는 N장 재료와 젤코인이 들어요. 모자라거나 끝까지 올렸거나 다른 화면에서 먼저 했으면 false.
+// 장비 한 단계. +N에는 N장 재료, 앞 장 재료(장마다 LOWER_MATS개), 젤코인이 들어요. 모자라거나 끝까지 올렸거나 다른 화면에서 먼저 했으면 false.
 // seen = 화면에 보이던 단계(오래된 화면에서 누르면 다음 단계 값을 내지 않게).
 export async function upgradeGear(db: D1Database, user: string, id: GearId, now = new Date(), seen?: number): Promise<boolean> {
   const bank = await journeyBank(db, user);
   const lv = bank[id];
   if (lv >= GEAR_MAX || (seen !== undefined && seen !== lv)) return false;
   const need = gearNeed(lv + 1);
-  if ((bank.mats[need.ch] ?? 0) < need.mats || bank.coins < need.coins) return false;
+  if (!hasMats(bank.mats, need.cost) || bank.coins < need.coins) return false;
+  // 재료는 장마다 따로 빼요. 하나라도 모자라면(다른 화면에서 먼저 썼으면) 아무것도 빼지 않아요.
+  const sets: string[] = [];
+  const checks: string[] = [];
+  const binds: unknown[] = [user, lv, need.coins, now.toISOString()];
+  for (const c of need.cost) {
+    const p = binds.push(matPath(c.ch));
+    const n = binds.push(c.n);
+    sets.push(`?${p}, COALESCE(json_extract(mats, ?${p}), 0) - ?${n}`);
+    checks.push(`COALESCE(json_extract(mats, ?${p}), 0) >= ?${n}`);
+  }
   const r = await db
     .prepare(
-      `UPDATE journey_bank SET coins = coins - ?3, ${id} = ${id} + 1,
-         mats = json_set(mats, ?4, COALESCE(json_extract(mats, ?4), 0) - ?5), updated_at = ?6
-       WHERE user_id = ?1 AND ${id} = ?2 AND coins >= ?3 AND COALESCE(json_extract(mats, ?4), 0) >= ?5`,
+      `UPDATE journey_bank SET coins = coins - ?3, ${id} = ${id} + 1, mats = json_set(mats, ${sets.join(', ')}), updated_at = ?4
+       WHERE user_id = ?1 AND ${id} = ?2 AND coins >= ?3 AND ${checks.join(' AND ')}`,
     )
-    .bind(user, lv, need.coins, matPath(need.ch), need.mats, now.toISOString())
+    .bind(...binds)
     .run();
   return (r.meta.changes ?? 0) > 0;
 }

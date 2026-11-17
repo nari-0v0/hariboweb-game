@@ -2233,6 +2233,9 @@ main.wide { max-width: 1320px; }
 .jp-item-next, .jp-item-need { font-size: .72rem; color: var(--ink-soft); overflow-wrap: anywhere; }
 .jp-item-need { color: #c0392b; }
 .jp-item-need.ok { color: #2c7a55; }
+.jp-item-low { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 2px 8px; max-width: 100%; font-size: .72rem; }
+.jp-item-low small { flex-basis: 100%; color: var(--ink-soft); font-size: .68rem; }
+.jp-item-low .jp-item-need { white-space: nowrap; }
 .jp-up { margin-top: auto; width: 100%; }
 .jp-drop { font-size: .74rem; }
 @media (max-width: 560px) {
@@ -2247,7 +2250,8 @@ main.wide { max-width: 1320px; }
   .jp-tabs-m.open + .jp-pane { border-style: solid; }
   .jp-gear { grid-template-columns: 1fr; }
   .jp-item { display: grid; grid-template-columns: 64px minmax(0, 1fr); text-align: left; column-gap: 10px; align-items: center; }
-  .jp-item-pic { grid-row: span 5; }
+  .jp-item-pic { grid-row: span 6; }
+  .jp-item-low { justify-content: flex-start; }
   .jp-up { grid-column: 1 / -1; }
 }
 

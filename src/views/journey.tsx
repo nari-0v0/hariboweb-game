@@ -15,6 +15,9 @@ import {
   MATERIALS,
   gearBonus,
   gearNeed,
+  hasMats,
+  LOWER_MATS,
+  type MatCost,
   gearText,
   material,
   SKILLS,
@@ -50,7 +53,7 @@ const NOTICES: Record<string, PopupLine[]> = {
   perk: [{ title: '훈련 완료', text: '다음 원정부터 더 강해져요.' }],
   noperk: [{ title: '알림', text: '젤코인이 모자라거나 이미 끝까지 올렸어요.' }],
   gear: [{ title: '장비 강화 성공!', text: '다음 원정부터 더 강해져요.' }],
-  nogear: [{ title: '알림', text: '재료나 젤코인이 모자라요.' }],
+  nogear: [{ title: '알림', text: '재료(앞 장 재료 포함)나 젤코인이 모자라요.' }],
   kitcoins: [{ title: '알림', text: '젤코인이 모자라서 준비물을 살 수 없어요.' }],
   stalepick: [{ title: '알림', text: '화면을 연 사이 갈 수 있는 장이나 준비물 값이 바뀌었어요. 젤코인은 그대로예요. 새 화면에서 다시 골라 주세요.' }],
   error: [
@@ -637,7 +640,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
   const canGear = GEAR_IDS.some((id) => {
     if (bank[id] >= GEAR_MAX) return false;
     const n = gearNeed(bank[id] + 1);
-    return (bank.mats[n.ch] ?? 0) >= n.mats && bank.coins >= n.coins;
+    return hasMats(bank.mats, n.cost) && bank.coins >= n.coins;
   });
   const badge: Record<PrepTab, string | null> = { bag: matTotal ? String(matTotal) : null, train: canTrain ? '!' : null, gear: canGear ? '!' : null };
   const tabs = (cls: string) => (
@@ -702,7 +705,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
       {props.tab === 'bag' && (
         <div class="jp-pane">
           <PaneTitle id="bag" />
-          <p class="hint">장마다 나오는 강화 재료예요. 장비를 올릴 때 써요.</p>
+          <p class="hint">장마다 나오는 강화 재료예요. 장비를 올릴 때 써요. 앞 장 재료도 뒤 단계 강화에 계속 들어가니, 장비를 끝까지 올릴 때까지 버릴 재료가 없어요.</p>
       <div class="jp-bag">
         {MATERIALS.map((m, i) => {
           const n = bank.mats[i + 1] ?? 0;
@@ -718,7 +721,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
       </div>
 
           <p class="hint jp-drop">
-            재료는 그 장의 몬스터에게서 가끔(강한 적은 더 자주) 나오고, 대장은 꼭 1개 줘요. 처음 대장을 깨면 2개 더 받아요. 깬 장을 다시 돌면 재료는 하루 제한 없이 모이지만 나올 확률이 낮아요(대장도 가끔만 줘요).
+            재료는 그 장의 몬스터에게서 가끔(강한 적은 더 자주) 나오고, 대장은 꼭 1개 줘요. 처음 대장을 깨면 2개 더 받아요. 깬 장을 다시 돌면 재료는 하루 제한 없이 모이지만 나올 확률이 낮아요(대장도 가끔만 줘요). 높은 단계 강화에는 앞 장 재료도 들어서, 앞 장을 다시 돌아 모으는 것도 쓸모 있어요.
           </p>
         </div>
       )}
@@ -766,17 +769,16 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
       {props.tab === 'gear' && (
         <div class="jp-pane">
           <PaneTitle id="gear" />
-          <p class="hint">+N으로 올리려면 N장 재료와 젤코인이 들어요. 장을 깰수록 차례로 강해져요.</p>
+          <p class="hint">+N으로 올리려면 N장 재료와 젤코인에 더해, 1장부터 N-1장까지 앞 장 재료가 장마다 {LOWER_MATS}개씩 들어요. 장을 깰수록 차례로 강해지고, 앞 장 재료도 계속 쓰여요.</p>
       <div class="jp-gear">
         {GEAR_IDS.map((id) => {
           const info = GEAR[id];
           const lv = bank[id];
           const full = lv >= GEAR_MAX;
           const need = gearNeed(lv + 1);
-          const mat = material(need.ch);
-          const have = bank.mats[need.ch] ?? 0;
+          const matOk = (c: MatCost) => (bank.mats[c.ch] ?? 0) >= c.n;
           const seen = need.ch <= props.unlocked;
-          const ok = !full && have >= need.mats && bank.coins >= need.coins;
+          const ok = !full && hasMats(bank.mats, need.cost) && bank.coins >= need.coins;
           return (
             <form method="post" action="/api/journey/gear" class="jp-gear-form">
               <input type="hidden" name="k" value={id} />
@@ -793,9 +795,22 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
                 ) : (
                   <>
                     <span class="jp-item-next">+{lv + 1}: {gearText(id, lv + 1)}</span>
-                    <span class={`jp-item-need${have >= need.mats ? ' ok' : ''}`}>
-                      {seen ? `${mat.icon} ${mat.name}` : `❔ ${need.ch}장 재료`} {have}/{need.mats}
-                    </span>
+                    {need.cost.slice(0, 1).map((c) => (
+                      <span class={`jp-item-need${matOk(c) ? ' ok' : ''}`}>
+                        {seen ? `${material(c.ch).icon} ${material(c.ch).name}` : `❔ ${c.ch}장 재료`} {bank.mats[c.ch] ?? 0}/{c.n}
+                      </span>
+                    ))}
+                    {need.cost.length > 1 && (
+                      <span class="jp-item-low" title={`앞 장 재료: 1장 ~ ${need.ch - 1}장 재료를 ${LOWER_MATS}개씩`}>
+                        <small>앞 장 재료</small>
+                        {need.cost.slice(1).map((c) => (
+                          <span class={`jp-item-need${matOk(c) ? ' ok' : ''}`} title={`${c.ch}장 ${material(c.ch).name}`}>
+                            {c.ch <= props.unlocked ? material(c.ch).icon : '❔'}
+                            {bank.mats[c.ch] ?? 0}/{c.n}
+                          </span>
+                        ))}
+                      </span>
+                    )}
                     <span class={`jp-item-need${bank.coins >= need.coins ? ' ok' : ''}`}>🪙 {need.coins}</span>
                   </>
                 )}
