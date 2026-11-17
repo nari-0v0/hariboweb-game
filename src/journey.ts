@@ -253,7 +253,10 @@ function battle(s: JourneyState, m: Monster, power: number, r: () => number, lin
     const dmg = Math.max(1, st.atk * (crit ? 2 : 1));
     mhp -= dmg;
     note(crit ? [0, dmg, 1] : [0, dmg]);
-    if (sk(s, 'leech')) s.hp = Math.min(st.maxHp, s.hp + Math.floor((dmg * sk(s, 'leech')) / 10));
+    if (sk(s, 'leech')) {
+      s.hp = Math.min(st.maxHp, s.hp + Math.floor((dmg * sk(s, 'leech')) / 10));
+      php[php.length - 1] = s.hp; // 흡혈 회복은 그 공격 칸 체력에 바로 넣어요
+    }
     if (mhp <= 0) break;
     let hit = Math.max(1, matk - st.def);
     if (shields > 0) {
@@ -270,6 +273,7 @@ function battle(s: JourneyState, m: Monster, power: number, r: () => number, lin
       const heal = Math.min(st.maxHp - s.hp, Math.round(st.maxHp * 0.4));
       s.hp += heal;
       s.potion = 0;
+      php[php.length - 1] = s.hp; // 물약 회복도 방금 맞은 칸 체력에 넣어요
       lines.push({ icon: KIT.potion.icon, text: `위험할 때 회복 물약을 마셨어요! 체력 +${heal}`, tone: 'good' });
     }
     if (sk(s, 'thorn')) {

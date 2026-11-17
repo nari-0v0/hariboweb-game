@@ -290,6 +290,10 @@ describe('journey battle motion', () => {
     const ti = tf.hits.findIndex((h, i) => h[0] === 1 && i < tf.hits.length - 1);
     expect(ti).toBeGreaterThan(0);
     expect(tf.left![ti]).toBe(Math.max(0, tf.left![ti - 1]! - 9));
+    // 흡혈 회복은 그 공격 칸의 내 체력에 바로 들어가요(맞는 칸에서 체력이 오르지 않게)
+    const leechy = { ...startJourney('leech'), day: 9, hp: 60, skills: { leech: 3 } } as JourneyState;
+    const lf = actJourney(leechy, { a: 'next' })!.fx!;
+    for (const [i, h] of lf.hits.entries()) if (h[0] === 1 && i > 0) expect(lf.php![i]!).toBeLessThanOrEqual(lf.php![i - 1]!);
     // 예전에 저장된 싸움(몬스터 체력 기록 없음)은 막대 없이 그대로 보여요
     expect(fightPlan(fought.fx).foeHp).toBeNull();
     expect(fightPlan(fought.fx).heroHp).toEqual([]);
