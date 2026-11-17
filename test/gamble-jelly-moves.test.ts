@@ -101,3 +101,26 @@ it('ID는 문자열, 잔액은 정수 숫자로 내보낸 경우만 받아요', 
     expect(() => buildMoveSql([{ user_id: A, jelly }])).toThrow();
   }
 });
+
+it('지급이 0건이어도 출시 초기화는 한 번만 실행해요', () => {
+  const sql = freshDb();
+  const reset = readFileSync('scripts/gamble-reset.sql', 'utf8');
+  sql.exec(reset);
+  expect(chips(sql)).toEqual([]);
+  sql.exec(`INSERT INTO gamble_accounts (user_id, chips) VALUES ('${A}', 1000);`);
+  sql.exec(reset);
+  expect(chips(sql)).toEqual([{ user_id: A, chips: 1000, won: 0 }]);
+});
+
+it('초기화가 중단되면 삭제와 완료 기록을 함께 되돌려요', () => {
+  const sql = freshDb();
+  const reset = readFileSync('scripts/gamble-reset.sql', 'utf8');
+  sql.exec(`CREATE TRIGGER fail_reset BEFORE DELETE ON gamble_accounts
+    BEGIN SELECT RAISE(ABORT, 'failed reset'); END;`);
+  expect(() => sql.exec(reset)).toThrow();
+  expect(sql.prepare('SELECT COUNT(*) AS n FROM gamble_launch_reset').get()).toEqual({ n: 0 });
+  expect(chips(sql)).toEqual([{ user_id: A, chips: 1000, won: 500 }]);
+  sql.exec('DROP TRIGGER fail_reset;');
+  sql.exec(reset);
+  expect(chips(sql)).toEqual([]);
+});
