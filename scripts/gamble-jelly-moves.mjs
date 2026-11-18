@@ -45,13 +45,17 @@ export function buildMoveSql(wallets, now = new Date().toISOString(), approved =
   }
   if (payableIds.size) {
     const ids = [...payableIds].map(id => `'${id}'`).join(', ');
-    // 승인 대상이 비활성화됐으면 NOT NULL 제약으로 지급문 전체를 롤백해요.
-    const membershipGuard = approved === null ? '' : `,
-    jelly = CASE WHEN (
-      SELECT COUNT(*) FROM members WHERE active = 1 AND user_id IN (${ids})
-    ) = ${payableIds.size} THEN jelly ELSE NULL END`;
+    const membershipCheck = approved === null ? '' : `
+      AND (SELECT COUNT(*) FROM members WHERE active = 1 AND user_id IN (${ids})) = ${payableIds.size}`;
     const activeOnly = approved === null ? '\n    AND user_id IN (SELECT user_id FROM members WHERE active = 1)' : '';
-    lines.push(`UPDATE gamble_jelly_moves SET moved_at = '${now}'${membershipGuard}
+    // 금액 또는 승인 상태가 맞지 않으면 NOT NULL 제약으로 지급문 전체를 롤백해요.
+    lines.push(`UPDATE gamble_jelly_moves SET moved_at = '${now}',
+    jelly = CASE WHEN NOT EXISTS (
+      SELECT 1 FROM gamble_accounts AS account
+      WHERE account.user_id = gamble_jelly_moves.user_id
+        AND (typeof(account.chips) <> 'integer' OR account.chips < 0
+          OR account.chips > ${Number.MAX_SAFE_INTEGER} - gamble_jelly_moves.jelly)
+    )${membershipCheck} THEN jelly ELSE NULL END
   WHERE moved_at IS NULL
     AND user_id IN (${ids})${activeOnly};`);
   }
