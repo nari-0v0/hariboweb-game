@@ -157,19 +157,27 @@ export type TeamProgress = {
   complete: boolean; // 목표를 채움
 };
 
+// 같은 시즌에 나갔다 다시 들어온 사람이 나가기 전에 쌓은 분(season_pair_reset). 키는 "나|상대"예요.
+export type PairResets = Map<string, number>;
+export const resetKey = (me: string, other: string) => `${me}|${other}`;
+
+// 내 판정에 쓰는 함께한 분: 다시 들어온 사람은 나가기 전 분을 빼요(상대 쪽 판정에는 그대로).
+export const myMinutes = (userId: string, other: string, minutes: Map<string, number>, resets: PairResets = new Map()) =>
+  Math.max(0, (minutes.get(pairKey(other, userId)) ?? 0) - (resets.get(resetKey(userId, other)) ?? 0));
+
 // 30분 이상 함께한 팀원 수(떠난 팀원과 함께한 시간도 이미 함께한 거라 세요)
-export function matesOf(userId: string, members: string[], minutes: Map<string, number>): number {
-  return members.filter((u) => u !== userId && (minutes.get(pairKey(u, userId)) ?? 0) >= TEAM_GOAL_MIN).length;
+export function matesOf(userId: string, members: string[], minutes: Map<string, number>, resets: PairResets = new Map()): number {
+  return members.filter((u) => u !== userId && myMinutes(userId, u, minutes, resets) >= TEAM_GOAL_MIN).length;
 }
 
 // members: 이 팀에 한 번이라도 있었던 사람(떠난 사람 포함).
 // 나는 달성 = 30분 이상 함께한 팀원(떠난 팀원과 함께한 것도 세요)이 남은 팀 인원의 절반 이상.
 // 팀 완료 = 남은 팀원의 절반(반올림, 최소 2)이 달성. 남은 팀원이 2명보다 적으면 보너스 칸.
-export function teamProgress(members: string[], minutes: Map<string, number>, left: Set<string>): TeamProgress {
+export function teamProgress(members: string[], minutes: Map<string, number>, left: Set<string>, resets: PairResets = new Map()): TeamProgress {
   const all = [...new Set(members)];
   const candidates = all.filter((u) => !left.has(u)).sort();
   const need = matesNeeded(candidates.length);
-  const achievers = candidates.filter((u) => matesOf(u, all, minutes) >= need);
+  const achievers = candidates.filter((u) => matesOf(u, all, minutes, resets) >= need);
   const bonus = candidates.length < 2;
   const target = bonus ? 0 : Math.min(Math.max(2, Math.round(candidates.length / 2)), candidates.length);
   return { bonus, candidates, need, achievers, target, complete: !bonus && achievers.length >= target };
@@ -180,11 +188,12 @@ export type TeamState = TeamProgress & {
   no: number;
   members: { id: string; name: string; left: boolean }[];
   pairs: { a: string; b: string; minutes: number }[];
+  resets?: PairResets; // 같은 시즌 재가입자의 나가기 전 분(없으면 빼지 않아요)
 };
 
 // 시즌의 모든 팀 상태(팀이 10개 안팎이라 한 번에 읽어요)
 export async function loadTeams(db: D1Database, seasonId: string): Promise<Map<number, TeamState>> {
-  const [members, pairs, ready] = await Promise.all([
+  const [members, pairs, ready, resetRows] = await Promise.all([
     db
       .prepare(
         `SELECT s.user_id, s.group_no, s.left_at, m.display_name FROM season_members s
@@ -198,7 +207,12 @@ export async function loadTeams(db: D1Database, seasonId: string): Promise<Map<n
       .all<{ group_no: number; a: string; b: string; minutes: number }>(),
     // 서버 퀘스트를 아직 안 정했으면 시즌을 막 만든 참이라 팀 퀘스트도 "보너스"로 보면 안 돼요.
     db.prepare('SELECT 1 AS ok FROM server_quest WHERE season_id = ?').bind(seasonId).first<{ ok: number }>(),
+    db
+      .prepare("SELECT user_id, other, minutes FROM season_pair_reset WHERE season_id = ? AND kind = 'team'")
+      .bind(seasonId)
+      .all<{ user_id: string; other: string; minutes: number }>(),
   ]);
+  const resets: PairResets = new Map(resetRows.results.map((r) => [resetKey(r.user_id, r.other), r.minutes]));
   const minutes = new Map<string, number>();
   for (const r of pairs.results) minutes.set(pairKey(r.a, r.b), (minutes.get(pairKey(r.a, r.b)) ?? 0) + r.minutes);
   const left = new Set(members.results.filter((m) => m.left_at).map((m) => m.user_id));
@@ -215,11 +229,13 @@ export async function loadTeams(db: D1Database, seasonId: string): Promise<Map<n
             .filter((p) => p.group_no === no)
             .map((p) => ({ a: p.a, b: p.b, minutes: minutes.get(pairKey(p.a, p.b)) ?? 0 }))
         : [],
+      resets,
       ...(ready
         ? teamProgress(
             members.results.filter((m) => m.group_no === no).map((m) => m.user_id),
             minutes,
             left,
+            resets,
           )
         : { bonus: false, candidates: [], need: 0, achievers: [], target: 0, complete: false }),
     });
@@ -229,7 +245,14 @@ export async function loadTeams(db: D1Database, seasonId: string): Promise<Map<n
 
 // 나와 이번 시즌에 함께한 팀원과 분(많이 함께한 순). 떠난 팀원은 함께한 시간이 있을 때만(달성에 세니까) 보여요.
 export function myMates(team: TeamState, userId: string): { id: string; name: string; minutes: number; left: boolean }[] {
-  const mins = new Map(team.pairs.filter((p) => p.a === userId || p.b === userId).map((p) => [p.a === userId ? p.b : p.a, p.minutes]));
+  const mins = new Map(
+    team.pairs
+      .filter((p) => p.a === userId || p.b === userId)
+      .map((p) => {
+        const other = p.a === userId ? p.b : p.a;
+        return [other, Math.max(0, p.minutes - (team.resets?.get(resetKey(userId, other)) ?? 0))];
+      }),
+  );
   return team.members
     .map((m) => ({ id: m.id, name: m.name, minutes: mins.get(m.id) ?? 0, left: m.left }))
     .filter((m) => m.id !== userId && (!m.left || m.minutes > 0))
@@ -275,21 +298,41 @@ export type ServerQuest = {
   met: boolean;
 };
 
-export function serverProgress(newbies: number, target: number, rows: { newbie_id: string; user_id: string }[]): ServerQuest {
+// rows: 30분 넘게 함께한 초록하리보·상대. 납치 수(서버 진행)는 그대로 세고,
+// 같은 시즌에 나갔다 다시 들어온 사람은 나가기 전 분을 빼고도 30분이 넘어야 참여자예요(resets 키: "kidnap|나|초록하리보", "kidnapped|나|상대").
+export function serverProgress(
+  newbies: number,
+  target: number,
+  rows: { newbie_id: string; user_id: string; minutes?: number }[],
+  resets: Map<string, number> = new Map(),
+): ServerQuest {
   const kidnapped = [...new Set(rows.map((r) => r.newbie_id))].sort();
-  const participants = [...new Set(rows.flatMap((r) => [r.newbie_id, r.user_id]))].sort();
+  const left = (key: string, m: number | undefined) => (m ?? KIDNAP_MIN) - (resets.get(key) ?? 0) >= KIDNAP_MIN;
+  const participants = [
+    ...new Set(
+      rows.flatMap((r) => [
+        ...(left(`kidnapped|${r.newbie_id}|${r.user_id}`, r.minutes) ? [r.newbie_id] : []),
+        ...(left(`kidnap|${r.user_id}|${r.newbie_id}`, r.minutes) ? [r.user_id] : []),
+      ]),
+    ),
+  ].sort();
   return { newbies, target, kidnapped, participants, met: kidnapped.length >= target };
 }
 
 export async function loadServerQuest(db: D1Database, seasonId: string): Promise<ServerQuest | null> {
-  const [row, { results }] = await Promise.all([
+  const [row, { results }, resetRows] = await Promise.all([
     db.prepare('SELECT newbies, target FROM server_quest WHERE season_id = ?').bind(seasonId).first<{ newbies: number; target: number }>(),
     db
-      .prepare('SELECT newbie_id, user_id FROM kidnap_min WHERE season_id = ? AND minutes >= ?')
+      .prepare('SELECT newbie_id, user_id, minutes FROM kidnap_min WHERE season_id = ? AND minutes >= ?')
       .bind(seasonId, KIDNAP_MIN)
-      .all<{ newbie_id: string; user_id: string }>(),
+      .all<{ newbie_id: string; user_id: string; minutes: number }>(),
+    db
+      .prepare("SELECT kind, user_id, other, minutes FROM season_pair_reset WHERE season_id = ? AND kind IN ('kidnap', 'kidnapped')")
+      .bind(seasonId)
+      .all<{ kind: string; user_id: string; other: string; minutes: number }>(),
   ]);
-  return row ? serverProgress(row.newbies, row.target, results) : null;
+  const resets = new Map(resetRows.results.map((r) => [`${r.kind}|${r.user_id}|${r.other}`, r.minutes]));
+  return row ? serverProgress(row.newbies, row.target, results, resets) : null;
 }
 
 // 통화방 1분 기록 → 초록하리보와 같이 있던 분(동기화와 같은 트랜잭션, 묶음이 한 번만 반영돼요)

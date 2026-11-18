@@ -176,6 +176,31 @@ describe('나갔다 다시 들어오기', () => {
   });
 });
 
+describe('나가기 직전 기록과 나가기가 한 묶음에 오면', () => {
+  it('나간 사람의 빙고 기록을 다시 만들지 않고, 짝 통화 기준값에도 넣어요', async () => {
+    const { sql, db } = fakeD1();
+    const week = fallbackWeek(NOW);
+    const t = (m: number) => new Date(NOW + m * 60_000).toISOString();
+    const both = parseSync({
+      batch_id: `${t(0)}-both`,
+      members: [{ id: B, name: B }],
+      room_minutes: [{ at: t(0), room: ROOM, members: [A, B] }],
+      attendance: [{ id: A, day: '2026-11-02' }],
+      removed: [A],
+    });
+    if (!both.ok) throw new Error(both.error);
+    await applySync(db, both.value, NOW + 60_000);
+    expect((sql.prepare('SELECT COUNT(*) AS n FROM bingo_day WHERE user_id = ?').get(A) as { n: number }).n).toBe(0);
+    expect((sql.prepare('SELECT minutes FROM bingo_pair_reset WHERE user_id = ?').get(A) as { minutes: number }).minutes).toBe(1);
+    const back = parseSync({ batch_id: `${t(2)}-back`, members: [{ id: A, name: A }] });
+    if (!back.ok) throw new Error(back.error);
+    await applySync(db, back.value, NOW + 2 * 60_000);
+    expect((await loadStats(db, week, [A])).get(A)).toMatchObject({ voice: 0, attendDays: 0, partners: 0, bestPair: 0 });
+    // 상대의 기록은 그대로예요
+    expect((await loadStats(db, week, [B])).get(B)!.bestPair).toBe(1);
+  });
+});
+
 describe('줄 보상', () => {
   function fill(sql: DatabaseSync, id: string) {
     const week = fallbackWeek(NOW).id;

@@ -5,11 +5,11 @@ import { BANK, type BankItem } from './escape-bank';
 
 const EASY = new Set([
   // 글 수수께끼
-  'torn-leaf', 'tz009', 'tz010', 'tz012', 'tz021', 'tz030', 'tz032', 'tz035', 'tz036', 'tz040', 'tz044', 'tz050', 'tz062', 'tz071',
+  'torn-leaf', 'tz009', 'tz010', 'tz012', 'tz021', 'tz030', 'bookworm', 'tz035', 'tz036', 'tz040', 'tz044', 'tz050', 'tz062', 'tz071',
   'tz075', 'tz079', 'tz081', 'tz084', 'tz092', 'knockout', 'tz115', 'tz117', 'tz120', 'tz125', 'tz128', 'tz129', 'tz132', 'tz149',
-  'tz154', 'tz157', 'tz162', 'tz167', 'tz176', 'tz181', 'tz182', 'tz186', 'tz188', 'tz190', 'domino', 'shadow', 'same-color', 'pets-sum',
+  'abcabc', 'tz157', 'tz162', 'tz167', 'tz176', 'tz181', 'tz182', 'star-angles', 'tz188', 'tz190', 'domino', 'shadow', 'same-color', 'pets-sum',
   // 손으로 푸는 것
-  'card-riddle', 'num-triangle', 'num-fillomino', 'num-magic', 'mark-twins', 'color-map3', 'river-farmer', 'path-maze',
+  'card-riddle', 'num-crossnumber', 'num-fillomino', 'num-magic', 'mark-twins', 'color-map3', 'river-farmer', 'path-maze',
 ]);
 const HARD = new Set([
   // 글 수수께끼
@@ -20,7 +20,7 @@ const HARD = new Set([
   'ants', 'cards-split', 'lock-box', 'prime-code', 'hiker', 'race-handicap',
   // 손으로 푸는 것
   'slide-rush', 'slide-push', 'slide-ice2', 'jump-knights', 'jump-peg', 'stack-pancake', 'num-sudoku6', 'num-sky', 'num-kakuro',
-  'num-killer', 'num-kenken', 'num-futoshiki', 'num-crosssum', 'mark-queens', 'mark-tents', 'mark-ships', 'mark-nonogram',
+  'num-killer', 'num-kenken', 'num-futoshiki', 'num-suguru', 'mark-queens', 'mark-tents', 'mark-ships', 'mark-nonogram',
   'mark-binary', 'mark-akari', 'mark-hitori', 'divide-same4', 'divide-five', 'multi-wason', 'multi-liars', 'multi-coins',
   'multi-selfref', 'river-mothers', 'river-thieves', 'path-knight', 'path-loop', 'order-weights', 'order-truth', 'order-lie',
 ]);

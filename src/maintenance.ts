@@ -29,3 +29,7 @@ export function dbLimitKind(err: unknown): DbLimit | null {
   if (/daily|rows? (read|written)|exceed|quota|limit/i.test(m)) return 'daily';
   return null;
 }
+
+// 모든 화면 메뉴 위에 고정으로 붙는 공지 띠(나리 2026-11-18, 11/21 겜블장 이전 점검).
+// 점검이 끝나면 ''로 바꾸면 띠가 사라져요.
+export const NOTICE_BAR = '점검 공지 11/21 시간미정 작업시간 알수없음';

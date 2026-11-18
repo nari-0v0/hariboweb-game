@@ -150,7 +150,7 @@ const parseGames = (raw: string | null | undefined): string[] => {
 };
 
 // 시즌이 처음이면 모둠과 퀘스트를 만들어요. 만들었으면 true.
-export async function ensureSeason(db: D1Database, season: Season, nowMs: number, opts: { scrim?: boolean; groupQuests?: boolean } = {}): Promise<boolean> {
+export async function ensureSeason(db: D1Database, season: Season, nowMs: number, opts: { scrim?: boolean; groupQuests?: boolean; exclude?: string[] } = {}): Promise<boolean> {
   const exists = await db.prepare('SELECT 1 FROM seasons WHERE id = ?').bind(season.id).first();
   if (exists) return false;
   const t = new Date(nowMs).toISOString();
@@ -172,7 +172,10 @@ export async function ensureSeason(db: D1Database, season: Season, nowMs: number
   // 팀은 초록하리보 역할이 있는 사람으로만 짜요(잠수하면 역할이 빠져요, 나리 2026-11-15).
   // 봇이 아직 초록하리보 여부를 안 보내면(모두 NULL) 예전처럼 지난 2주 활동으로 골라요.
   const greenKnown = rows.some((r) => r.green !== null);
+  // 같은 묶음에서 나간 사람은 아직 active라도 빼요(넣으면 팀 인원이 한 명 모자란 채로 시작해요)
+  const exclude = new Set(opts.exclude ?? []);
   for (const r of rows) {
+    if (exclude.has(r.user_id)) continue;
     const activity = useRecent ? r.recent : r.fallback;
     const active = greenKnown ? r.green === 1 : activity > 0 || (r.profile_at ?? '') >= cutoffIso || (r.last_login_at ?? '') >= cutoffIso;
     if (active) people.push({ id: r.user_id, games: parseGames(r.games), activity, slot: prior.slot.get(r.user_id) });
@@ -829,7 +832,10 @@ export async function groupViewFor(db: D1Database, userId: string, nowMs: number
   const g = loaded?.groups.find((x) => x.no === row.group_no);
   if (!loaded || !g) return null;
   const { results: titles } = await db
-    .prepare('SELECT title FROM season_titles WHERE user_id = ? ORDER BY season_id DESC LIMIT 20')
+    // 다시 들어온 멤버는 나간 뒤 받은 칭호만 보여요(칭호 화면의 집계와 같은 기준)
+    .prepare(
+      "SELECT title FROM season_titles WHERE user_id = ?1 AND created_at >= COALESCE((SELECT reset_at FROM members WHERE user_id = ?1), '') ORDER BY season_id DESC LIMIT 20",
+    )
     .bind(userId)
     .all<{ title: string }>();
   return {

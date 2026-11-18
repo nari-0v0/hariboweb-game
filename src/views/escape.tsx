@@ -680,7 +680,7 @@ function Result(props: { run: EscRun; going: boolean }) {
       <p>
         {run.row.xp > 0
           ? `처음 해결 보상: 내 카드 경험치 +${run.row.xp}${run.row.jelly ? `, 도감 젤리 +${run.row.jelly}` : ''}`
-          : '이 사건은 전에 해결해서 이번에는 보상이 없어요. 더 좋은 등급에 도전해 보세요!'}
+          : '이 사건은 전에 해결해서 이번에는 보상이 없어요. 기록에는 더 좋은 등급이 남아요!'}
       </p>
       {/* 하던 사건이 없으면 사건 목록이 바로 아래에 있어요. 결과는 그대로 두고 목록으로 내려가요. */}
       <a class="btn btn-primary" href={props.going ? '/cases/room' : '#case-list'}>

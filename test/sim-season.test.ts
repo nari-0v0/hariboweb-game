@@ -60,6 +60,8 @@ type SeasonModel = {
   kidnap: Map<string, number>; // 초록하리보|사람 → 분
   newbiesAtStart: number;
   settled: boolean;
+  // 같은 시즌에 나갔다 온 사람의 나가기 전 분: team|나|상대, kidnap|나|초록하리보, kidnapped|나|상대
+  reset: Map<string, number>;
 };
 
 afterEach(() => vi.useRealTimers());
@@ -140,6 +142,25 @@ it('시뮬: 시즌을 넘기며 팀·서버 퀘스트 분과 시즌 끝 보상�
       const deliver = r() < 0.15 ? now + Math.floor(r() * 60) * MIN : now;
       const t = deliver;
       for (const s of seasons.values()) if (s.end > t) for (const u of removed) if (s.group.has(u)) s.left.add(u);
+      // 진행 중인 시즌에서 나가면, 그때까지 쌓인 분을 본인 판정에서 뺄 값으로 적어 둬요(나갈 때마다 새로)
+      for (const s of seasons.values()) {
+        if (s.end <= t) continue;
+        for (const u of removed) {
+          for (const k of [...s.reset.keys()]) if (k.split('|')[1] === u) s.reset.delete(k);
+          for (const [k, m] of s.pair) {
+            const [, a, b] = k.split('|') as [string, string, string];
+            if (a === u || b === u) {
+              const key = `team|${u}|${a === u ? b : a}`;
+              s.reset.set(key, (s.reset.get(key) ?? 0) + m);
+            }
+          }
+          for (const [k, m] of s.kidnap) {
+            const [nb, v] = k.split('|') as [string, string];
+            if (v === u) s.reset.set(`kidnap|${u}|${nb}`, m);
+            if (nb === u) s.reset.set(`kidnapped|${u}|${v}`, m);
+          }
+        }
+      }
       const targets = [...seasons.values()].filter((s) => s.id === kstDayId(cur.start) || rooms.some((x) => Date.parse(x.at) >= s.start && Date.parse(x.at) < s.end));
       const leftNow = new Map<string, Set<string>>();
       for (const s of targets) {
@@ -165,7 +186,7 @@ it('시뮬: 시즌을 넘기며 팀·서버 퀘스트 분과 시즌 끝 보상�
       const curId = kstDayId(cur.start);
       if (!seasons.has(curId) && sql.prepare('SELECT 1 FROM seasons WHERE id = ?').get(curId)) {
         const rows = sql.prepare('SELECT user_id u, group_no g FROM season_members WHERE season_id = ?').all(curId) as { u: string; g: number }[];
-        const sm: SeasonModel = { id: curId, start: cur.start, end: cur.end, group: new Map(rows.map((x) => [x.u, x.g])), left: new Set(), pair: new Map(), kidnap: new Map(), newbiesAtStart: [...present].filter((u) => newbie.has(u)).length, settled: false };
+        const sm: SeasonModel = { id: curId, start: cur.start, end: cur.end, group: new Map(rows.map((x) => [x.u, x.g])), left: new Set(), pair: new Map(), kidnap: new Map(), reset: new Map(), newbiesAtStart: [...present].filter((u) => newbie.has(u)).length, settled: false };
         // 처음 팀은 초록하리보 역할이 있는 지금 멤버 전부
         expect(new Set(rows.map((x) => x.u)), `seed ${seed} step ${step}`).toEqual(new Set([...present].filter((u) => green.get(u))));
         seasons.set(curId, sm);
@@ -228,14 +249,20 @@ it('시뮬: 시즌을 넘기며 팀·서버 퀘스트 분과 시즌 끝 보상�
           const all = [...s.group].filter(([, x]) => x === g).map(([u]) => u);
           const cand = all.filter((u) => !s.left.has(u));
           const need = Math.max(1, Math.min(cand.length - 1, Math.round(cand.length / 2)));
-          const ach = cand.filter((u) => all.filter((v) => v !== u && (minutes.get(pk(u, v)) ?? 0) >= 30).length >= need);
+          const ach = cand.filter((u) => all.filter((v) => v !== u && (minutes.get(pk(u, v)) ?? 0) - (s.reset.get(`team|${u}|${v}`) ?? 0) >= 30).length >= need);
           const target = Math.min(Math.max(2, Math.round(cand.length / 2)), cand.length);
           if (cand.length >= 2 && ach.length >= target) for (const u of ach) teamWin.add(u);
         }
         const kidRows = [...s.kidnap].filter(([, m]) => m >= 30).map(([k]) => k.split('|') as [string, string]);
         const kidnapped = new Set(kidRows.map(([nb]) => nb));
         const target = Math.max(1, Math.round(s.newbiesAtStart / 2));
-        const serverWin = kidnapped.size >= target ? new Set(kidRows.flat()) : new Set<string>();
+        const part = new Set<string>();
+        for (const [nb, u] of kidRows) {
+          const m = s.kidnap.get(`${nb}|${u}`)!;
+          if (m - (s.reset.get(`kidnapped|${nb}|${u}`) ?? 0) >= 30) part.add(nb);
+          if (m - (s.reset.get(`kidnap|${u}|${nb}`) ?? 0) >= 30) part.add(u);
+        }
+        const serverWin = kidnapped.size >= target ? part : new Set<string>();
         const eligible = (u: string) => present.has(u) && (resetAt.get(u) ?? 0) < s.end;
         const jp = sql.prepare('SELECT user_id u, source, amount FROM jellypi WHERE season_id = ? AND source IN (\'team\', \'server\')').all(s.id) as { u: string; source: string; amount: number }[];
         expect(new Set(jp.filter((x) => x.source === 'team').map((x) => x.u)), `seed ${seed} team reward ${s.id}`).toEqual(new Set([...teamWin].filter(eligible)));

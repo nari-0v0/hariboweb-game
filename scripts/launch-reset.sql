@@ -39,6 +39,7 @@ DELETE FROM season_quests WHERE season_id IN (SELECT id FROM seasons WHERE ends_
 DELETE FROM season_members WHERE season_id IN (SELECT id FROM seasons WHERE ends_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 DELETE FROM season_titles;
 DELETE FROM kidnap_min;
+DELETE FROM season_pair_reset;
 DELETE FROM jellypi;
 DELETE FROM exp_finds;
 DELETE FROM exp_runs;

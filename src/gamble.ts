@@ -83,7 +83,9 @@ export function openingPayout(hand: Hand): number | null {
   const player = natural(hand.player);
   const dealer = natural(hand.dealer);
   if (player && dealer) return 1;
-  if (player) return 3;
+  // 2026-11-19 나리 "좀 낮춰": 첫 두 장 21은 A와 그림 카드(J·Q·K)면 3배, A와 10이면 2배.
+  // 무승부는 그대로 1배예요. 평균이 약 100.3% → 약 99.1%(다른 게임과 비슷, 배수는 정수).
+  if (player) return hand.player.some((card) => rankOf(card) >= 10) ? 3 : 2;
   return dealer ? 0 : null;
 }
 
@@ -96,5 +98,6 @@ export function playHand(hand: Hand, move: CardMove): number | null {
   const player = cardScore(hand.player);
   const dealer = cardScore(hand.dealer);
   if (dealer > 21 || player > dealer) return 2;
-  return player === dealer ? 1 : 0;
+  if (player === dealer) return 1;
+  return 0;
 }

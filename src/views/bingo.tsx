@@ -172,6 +172,7 @@ function MyMates(props: { team: NonNullable<BingoExtras['team']>; me: string }) 
     props.me,
     props.team.members.map((m) => m.id),
     new Map(props.team.pairs.map((p) => [pairKey(p.a, p.b), p.minutes])),
+    props.team.resets,
   );
   return (
     <div class="bgo-partners">

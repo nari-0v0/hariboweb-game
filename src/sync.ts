@@ -277,7 +277,7 @@ export async function applySync(
     const exists = await db.prepare('SELECT 1 FROM seasons WHERE id = ?').bind(p.season.id).first();
     if (!exists) {
       if (memberStmts.length) await db.batch(memberStmts);
-      await ensureSeason(db, p.season, nowMs, { scrim: opts.scrimQuests, groupQuests: opts.groupQuests });
+      await ensureSeason(db, p.season, nowMs, { scrim: opts.scrimQuests, groupQuests: opts.groupQuests, exclude: p.removed });
     }
   }
 
@@ -335,6 +335,26 @@ export async function applySync(
     stmts.push(markLevel.bind(owner));
   }
 
+  // 주간 빙고 기록(통화방 1분, 출석)도 같은 트랜잭션에.
+  // 나간 사람 처리보다 먼저 넣어요: 같은 묶음에 나가기 직전 기록이 있어도 아래에서 함께 지우고,
+  // 짝 통화 기준값(bingo_pair_reset)에도 그 분이 들어가게요.
+  // 빙고 기간 = 생명력 주기(봇이 보내는 season)의 절반. 이번 묶음의 주기를 먼저 적어 둬요.
+  const periods = await loadPeriods(db, nowMs);
+  if (p.season) {
+    for (const half of splitCycle(p.season.start, p.season.end)) {
+      stmts.push(savePeriod(db, half));
+      periods.unshift(half);
+    }
+    // 주기가 바뀌는 날 새벽(한국 0~6시) 출석은 그날 정오가 든 "다음 주기" 앞 절반 몫이에요. 봇은 6시가 지나야 새 주기를
+    // 보내서, 전에는 이 출석이 임시 주(w…)로 들어가 새 빙고판에서 빠졌어요. 같은 길이로 이어진다고 보고 그 기간 id로
+    // 적어 둬요(기간 자체는 저장하지 않아요. 봇이 새 주기를 보내면 같은 id라 그대로 이어지고, 시작 전 기간은 보상 확인도 안 해요).
+    const span = Date.parse(p.season.end) - Date.parse(p.season.start);
+    const next = splitCycle(p.season.end, new Date(Date.parse(p.season.end) + span).toISOString())[0];
+    if (next) periods.push(next);
+  }
+  const bingo = bingoStatements(db, p.room_minutes, p.attendance, periods);
+  stmts.push(...bingo.stmts, prunePairDays(db, nowMs));
+
   // 나간 사람: 본인 카드와 도감은 지우고, 다른 사람이 가진 그 사람 카드는 흐리게 남겨요.
   for (const id of p.removed) {
     // 다시 들어오면 캐릭터를 새로 받으니 성별도 다시 골라요
@@ -367,6 +387,30 @@ export async function applySync(
         )
         .bind(id),
     );
+    // 시즌 팀 퀘스트·서버 퀘스트도 같은 방식이에요. 같은 시즌에 다시 들어오면 나가기 전 통화는 본인 판정에 세지 않아요.
+    // (남은 팀원·초록하리보 쪽 기록은 그대로예요) 이미 끝난 시즌은 건드리지 않아요: 끝난 뒤 정산 전에 나가도
+    // 그 시즌 팀 달성이 바뀌어 남은 팀원이 보상을 못 받는 일이 없게요.
+    const ongoing = 'season_id IN (SELECT id FROM seasons WHERE ends_at > ?2)';
+    stmts.push(db.prepare(`DELETE FROM season_pair_reset WHERE user_id = ?1 AND ${ongoing}`).bind(id, t));
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO season_pair_reset (season_id, kind, user_id, other, minutes)
+           SELECT season_id, 'team', ?1, CASE WHEN a = ?1 THEN b ELSE a END, SUM(minutes) FROM gq_pair
+           WHERE (a = ?1 OR b = ?1) AND ${ongoing} GROUP BY season_id, CASE WHEN a = ?1 THEN b ELSE a END`,
+        )
+        .bind(id, t),
+    );
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO season_pair_reset (season_id, kind, user_id, other, minutes)
+           SELECT season_id, 'kidnap', ?1, newbie_id, minutes FROM kidnap_min WHERE user_id = ?1 AND ${ongoing}
+           UNION ALL
+           SELECT season_id, 'kidnapped', ?1, user_id, minutes FROM kidnap_min WHERE newbie_id = ?1 AND ${ongoing}`,
+        )
+        .bind(id, t),
+    );
     stmts.push(db.prepare('DELETE FROM bingo_day WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM bingo_flag WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM bingo_lines WHERE user_id = ?').bind(id));
@@ -381,7 +425,10 @@ export async function applySync(
     stmts.push(db.prepare('DELETE FROM purchases WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM nick_jobs WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM alerts WHERE user_id = ?').bind(id));
-    stmts.push(db.prepare('DELETE FROM jelly_grants WHERE user_id = ?').bind(id));
+    // 젤리 지급 기록은 사유·개수를 지우고 번호만 남겨요. 봇이 응답을 못 받아 같은 번호로 다시 보내도
+    // 다시 들어온 사람에게 예전 젤리가 또 들어가지 않게요(아직 반영 안 된 기록은 지워요).
+    stmts.push(db.prepare('DELETE FROM jelly_grants WHERE user_id = ? AND applied_at IS NULL').bind(id));
+    stmts.push(db.prepare('UPDATE jelly_grants SET amount = 0, reason = NULL WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM card_count_rewards WHERE user_id = ?').bind(id));
   }
 
@@ -390,23 +437,6 @@ export async function applySync(
   // 그 밖에 조건을 채운 사람(배포 전, 상대 재가입)은 내 카드·내 도감을 열 때 받아요(모두를 매 묶음 세면 D1 무료 한도를 넘어요).
   for (const owner of new Set(p.pair_xp.flatMap((x) => [x.a, x.b]))) stmts.push(...cardRewardStatements(db, owner, p.batch_id, t));
 
-  // 주간 빙고 기록(통화방 1분, 출석)도 같은 트랜잭션에
-  // 빙고 기간 = 생명력 주기(봇이 보내는 season)의 절반. 이번 묶음의 주기를 먼저 적어 둬요.
-  const periods = await loadPeriods(db, nowMs);
-  if (p.season) {
-    for (const half of splitCycle(p.season.start, p.season.end)) {
-      stmts.push(savePeriod(db, half));
-      periods.unshift(half);
-    }
-    // 주기가 바뀌는 날 새벽(한국 0~6시) 출석은 그날 정오가 든 "다음 주기" 앞 절반 몫이에요. 봇은 6시가 지나야 새 주기를
-    // 보내서, 전에는 이 출석이 임시 주(w…)로 들어가 새 빙고판에서 빠졌어요. 같은 길이로 이어진다고 보고 그 기간 id로
-    // 적어 둬요(기간 자체는 저장하지 않아요. 봇이 새 주기를 보내면 같은 id라 그대로 이어지고, 시작 전 기간은 보상 확인도 안 해요).
-    const span = Date.parse(p.season.end) - Date.parse(p.season.start);
-    const next = splitCycle(p.season.end, new Date(Date.parse(p.season.end) + span).toISOString())[0];
-    if (next) periods.push(next);
-  }
-  const bingo = bingoStatements(db, p.room_minutes, p.attendance, periods);
-  stmts.push(...bingo.stmts, prunePairDays(db, nowMs));
 
   try {
     await db.batch(stmts);
