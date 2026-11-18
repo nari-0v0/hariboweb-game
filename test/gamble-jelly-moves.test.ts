@@ -1,4 +1,7 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, it } from 'vitest';
 // @ts-expect-error 스크립트는 .mjs라서 타입이 없어요
@@ -169,4 +172,29 @@ it('이관 후 잔액이 안전한 정수 범위를 넘으면 다른 계정도 �
     { user_id: A, chips: maximum, won: 500 },
     { user_id: B, chips: 200, won: 0 },
   ]);
+});
+
+it('운영 CLI는 완성된 SQL만 새 파일로 게시하고 기존 파일을 보존해요', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'gamble-moves-'));
+  try {
+    const wallets = join(directory, 'wallets.json');
+    const approved = join(directory, 'approved.json');
+    const output = join(directory, 'move.sql');
+    const run = () => spawnSync(process.execPath, ['scripts/gamble-jelly-moves.mjs', wallets, approved, output]);
+    writeFileSync(wallets, JSON.stringify([{ user_id: A, jelly: 100 }]));
+    writeFileSync(approved, '{');
+    expect(run().status).toEqual(1);
+    expect(readdirSync(directory).sort()).toEqual(['approved.json', 'wallets.json']);
+    writeFileSync(approved, readFileSync(wallets));
+    expect(run().status).toEqual(0);
+    const generated = readFileSync(output, 'utf8');
+    const sql = freshDb();
+    sql.exec(generated);
+    expect(chips(sql)).toEqual([{ user_id: A, chips: 1100, won: 500 }]);
+    expect(run().status).toEqual(1);
+    expect(readFileSync(output, 'utf8')).toEqual(generated);
+    expect(readdirSync(directory).sort()).toEqual(['approved.json', 'move.sql', 'wallets.json']);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
