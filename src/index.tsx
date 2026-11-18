@@ -120,7 +120,10 @@ const imageGuard = async (c: Context<AppEnv>) => {
 app.get('/char/:file{.+}', imageGuard);
 app.get('/case/:file{.+}', imageGuard);
 app.get('/journey/:file{.+}', imageGuard);
-app.use('/api/bot/*', bodyLimit({ maxSize: 16 * 1024 * 1024, onError: tooLarge }));
+// 봇 동기화 묶음만 크게(16 MiB) 받아요. 나머지 봇 API는 결과 확인 정도라 256 KiB면 충분해요.
+const botSyncLimit = bodyLimit({ maxSize: 16 * 1024 * 1024, onError: tooLarge });
+const botSmallLimit = bodyLimit({ maxSize: 256 * 1024, onError: tooLarge });
+app.use('/api/bot/*', (c, next) => (c.req.path === '/api/bot/sync' ? botSyncLimit : botSmallLimit)(c, next));
 
 async function page(c: Context<AppEnv>, node: unknown, status: 200 | 403 | 404 = 200) {
   return c.html('<!doctype html>' + String(await node), status);
@@ -260,6 +263,8 @@ app.post('/api/bot/services/:id', async (c) => {
   if (typeof ok !== 'boolean') return c.json({ error: 'bad_ok' }, 400);
   if (!ok && !(SERVICE_FAIL_REASONS as readonly unknown[]).includes(reason)) return c.json({ error: 'bad_reason' }, 400);
   const changed = await settleService(c.env.DB, c.req.param('id'), ok, ok ? null : (reason as string));
+  // 없는 번호는 404로 알려요. 이미 처리한 번호(응답을 못 받고 다시 보낸 경우)는 200 changed:false예요.
+  if (changed === null) return c.json({ ok: false, error: 'not_found' }, 404);
   return c.json({ ok: true, changed });
 });
 
@@ -279,7 +284,8 @@ app.post('/api/bot/cheers', async (c) => {
   }
   const { a, b, level } = (body ?? {}) as { a?: unknown; b?: unknown; level?: unknown };
   const id = /^\d{5,20}$/;
-  if (typeof a !== 'string' || typeof b !== 'string' || !id.test(a) || !id.test(b) || !Number.isInteger(level) || (level as number) < 10 || (level as number) > 100)
+  // 축하 목록과 같은 순서(문자열로 a < b, 목록의 owner_id < target_id와 같음)만 받아요. 반대 방향이나 같은 사람은 잘못된 요청이에요.
+  if (typeof a !== 'string' || typeof b !== 'string' || !id.test(a) || !id.test(b) || !(a < b) || !Number.isInteger(level) || (level as number) < 10 || (level as number) > 100 || (level as number) % 10 !== 0)
     return c.json({ error: 'bad_body' }, 400);
   return c.json({ ok: true, changed: await markCheer(c.env.DB, a, b, level as number) });
 });
@@ -302,6 +308,7 @@ app.post('/api/bot/nicks/:id', async (c) => {
   if (typeof ok !== 'boolean') return c.json({ error: 'bad_ok' }, 400);
   if (!ok && !(NICK_FAIL_REASONS as readonly unknown[]).includes(reason)) return c.json({ error: 'bad_reason' }, 400);
   const changed = await settleNickJob(c.env.DB, c.req.param('id'), ok, ok ? null : (reason as string));
+  if (changed === null) return c.json({ ok: false, error: 'not_found' }, 404);
   return c.json({ ok: true, changed });
 });
 
@@ -336,7 +343,10 @@ app.get('/api/bot/refunds', async (c) => {
 
 app.post('/api/bot/refunds/:id', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
-  const changed = await markRefunded(c.env.DB, c.req.param('id'));
+  const id = c.req.param('id');
+  if (!/^[A-Za-z0-9:_-]{1,64}$/.test(id)) return c.json({ ok: false, error: 'bad_id' }, 400);
+  const changed = await markRefunded(c.env.DB, id);
+  if (changed === null) return c.json({ ok: false, error: 'not_found' }, 404);
   return c.json({ ok: true, changed });
 });
 
@@ -645,6 +655,12 @@ const members = new Hono<AppEnv>();
 
 members.use('*', bodyLimit({ maxSize: 64 * 1024, onError: tooLarge }));
 
+// 로그인한 멤버의 모든 POST는 같은 사이트에서 온 것만 받아요(버튼마다 따로 확인하지 않아도 돼요).
+members.use('*', async (c, next) => {
+  if (c.req.method !== 'GET' && c.req.method !== 'HEAD' && !sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  await next();
+});
+
 members.use('*', async (c, next) => {
   const viewer = await currentViewer(c);
   if (!viewer) {
@@ -779,9 +795,23 @@ members.post('/api/me/profile', async (c) => {
 // 예전 "여자/남자" 무료 바꾸기 버튼. 이제는 상점의 "성별 바꾸기"로 바꿔요.
 members.post('/api/me/character', (c) => c.redirect('/shop#gender'));
 
+// 다른 사이트에서 보낸 요청(CSRF)을 막아요. 요즘 브라우저는 POST에 Origin을 붙여요.
+// Origin이 없으면 Sec-Fetch-Site, 그다음 Referer로 확인해요. 셋 다 없는 아주 옛 브라우저만 쿠키의 SameSite=Lax에 맡겨요.
 const sameOrigin = (c: Context<AppEnv>) => {
+  const self = new URL(c.req.url).origin;
   const origin = c.req.header('Origin');
-  return !origin || origin === new URL(c.req.url).origin;
+  if (origin) return origin === self;
+  const site = c.req.header('Sec-Fetch-Site');
+  if (site) return site === 'same-origin' || site === 'none';
+  const referer = c.req.header('Referer');
+  if (referer) {
+    try {
+      return new URL(referer).origin === self;
+    } catch {
+      return false;
+    }
+  }
+  return true;
 };
 
 // 상점: 매점(잡다매점: 디스코드 물건·성별 바꾸기)과 꾸미기(테마·꾸밈 캐릭터) 탭. 칭호 탭은 /titles예요.

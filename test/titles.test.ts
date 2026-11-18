@@ -152,7 +152,12 @@ describe('도감 칭호', () => {
     // 닉네임에 이미 붙은 뒤에 목록에서 빠져도 떼요
     await settleTitle(db, A, 'old-title', null);
     expect(await listTitleJobs(db)).toEqual([{ user: A, id: '', title: null }]);
-    expect((await titleState(db, A)).title_id).toBeNull();
+    // 목록 조회는 읽기만 해요. 고른 칭호는 그대로 두고, 떼었다는 결과가 오면 더는 나오지 않아요
+    expect((await titleState(db, A)).title_id).toBe('old-title');
+    expect(await listTitleJobs(db)).toEqual([{ user: A, id: '', title: null }]);
+    await settleTitle(db, A, '', null);
+    expect(await listTitleJobs(db)).toEqual([]);
+    expect(await listTitleJobs(db)).toEqual([]);
     // 붙기 전에 빠졌으면 뗄 것도 없어요. 지금 목록에 있는 칭호를 고른 사람은 건드리지 않아요
     await equipTitle(db, B, 'old-title');
     await equipTitle(db, A, 'shop-1');
@@ -191,4 +196,19 @@ it('다른 화면이 먼저 지급한 칭호는 새 획득으로 중복 알리�
   await recordEarnedTitles(db, A, stats, new Set());
   expect(await recordEarnedTitles(db, A, stats, oldOwned)).toEqual([]);
   expect(oldOwned.has('lv-10')).toBe(true);
+});
+
+it('배포 중 잠깐 빠졌던 칭호가 돌아오면 고른 칭호를 다시 붙여요', async () => {
+  const { db, sql } = setup();
+  sql.prepare("INSERT INTO owned_items VALUES (?, ?, 'x')").run(A, 'title:shop-1');
+  await equipTitle(db, A, 'shop-1');
+  await settleTitle(db, A, 'shop-1', null);
+  // 목록에서 빠진 상태를 흉내 내요: 고른 칭호가 지금 목록에 없는 id라고 봐요
+  sql.prepare("UPDATE profiles SET title_id = 'gone-for-a-while', title_applied = 'gone-for-a-while' WHERE user_id = ?").run(A);
+  expect(await listTitleJobs(db)).toEqual([{ user: A, id: '', title: null }]);
+  await settleTitle(db, A, '', null);
+  expect((await titleState(db, A)).title_id).toBe('gone-for-a-while');
+  // 다시 목록에 있는 칭호로 돌아오면(배포 완료) 다시 붙이는 작업이 나와요
+  sql.prepare("UPDATE profiles SET title_id = 'shop-1' WHERE user_id = ?").run(A);
+  expect(await listTitleJobs(db)).toEqual([{ user: A, id: 'shop-1', title: 'MOOD' }]);
 });

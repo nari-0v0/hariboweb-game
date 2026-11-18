@@ -136,33 +136,39 @@ export async function buyTitle(db: D1Database, userId: string, t: Title): Promis
 export type TitleJob = { user: string; id: string; title: string | null };
 
 export async function listTitleJobs(db: D1Database, limit = 50): Promise<TitleJob[]> {
-  // 목록에서 빠진 칭호를 고른 채였으면(닉네임에 이미 붙은 사람도) 고른 것을 비워요. 그러면 봇이 닉네임에서 떼요.
-  // 조건에 "지금 목록에 없는 칭호"를 넣어서, 그 사이 새로 고른 칭호는 건드리지 않아요.
-  // UPDATE … NOT IN (json_each)로 하면 칭호 고른 사람마다 칭호 목록 전체를 읽어서(줄 수가 곱해져요) 여기서 걸러요.
-  const { results: titled } = await db
-    .prepare('SELECT user_id, title_id FROM profiles WHERE title_id IS NOT NULL')
-    .all<{ user_id: string; title_id: string }>();
+  // 읽기만 해요(고른 칭호를 여기서 지우지 않아요). 지금 목록에 없는 칭호를 고른 사람은 "떼기" 작업으로 보내요.
+  // 배포 중 잠깐 목록에서 빠졌던 칭호면, 다시 생긴 뒤 title_id != title_applied('')라 저절로 다시 붙어요.
+  // 칭호 고른 사람마다 목록 전체를 읽지 않도록(줄 수가 곱해져요) 빠진 칭호는 여기서 걸러요.
   const known = new Set(TITLES.map((x) => x.id));
-  const gone = titled.filter((r) => !known.has(r.title_id));
-  if (gone.length) {
-    await db.batch(
-      gone.map((r) => db.prepare('UPDATE profiles SET title_id = NULL WHERE user_id = ? AND title_id = ?').bind(r.user_id, r.title_id)),
-    );
-  }
+  const { results: titled } = await db
+    .prepare(
+      `SELECT p.user_id, p.title_id, p.title_applied FROM profiles p
+       JOIN members m ON m.user_id = p.user_id AND m.active = 1
+       WHERE p.title_id IS NOT NULL`,
+    )
+    .all<{ user_id: string; title_id: string; title_applied: string | null }>();
+  const missing = titled.filter((r) => !known.has(r.title_id));
+  const gone = missing.filter((r) => (r.title_applied ?? '') !== '').map((r) => ({ user: r.user_id, id: '', title: null }));
+  // 이미 떼어 둔(빠진 칭호를 고른 채 title_applied가 빈) 사람은 다시 보내지 않아요. 안 그러면 매번 같은 떼기를 반복해요.
+  const settled = missing.filter((r) => (r.title_applied ?? '') === '').map((r) => r.user_id);
   const { results } = await db
     .prepare(
       `SELECT p.user_id, p.title_id FROM profiles p INDEXED BY profiles_title_pending
        JOIN members m ON m.user_id = p.user_id AND m.active = 1
        WHERE COALESCE(p.title_id, '') != COALESCE(p.title_applied, '')
-       LIMIT ?`,
+         AND p.user_id NOT IN (SELECT value FROM json_each(?1))
+       LIMIT ?2`,
     )
-    .bind(limit)
+    .bind(JSON.stringify(settled), limit)
     .all<{ user_id: string; title_id: string | null }>();
-  return results.map((r) => {
+  const jobs = new Map<string, TitleJob>(gone.map((j) => [j.user, j]));
+  for (const r of results) {
+    if (jobs.has(r.user_id)) continue;
     const t = titleById(r.title_id);
     // 목록에서 빠진 칭호는 떼요
-    return t ? { user: r.user_id, id: t.id, title: t.name } : { user: r.user_id, id: '', title: null };
-  });
+    jobs.set(r.user_id, t ? { user: r.user_id, id: t.id, title: t.name } : { user: r.user_id, id: '', title: null });
+  }
+  return [...jobs.values()].slice(0, limit);
 }
 
 export const TITLE_FAIL_REASONS = ['too_long', 'forbidden', 'left'] as const;

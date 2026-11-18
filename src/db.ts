@@ -414,9 +414,12 @@ export async function listPendingRefunds(db: D1Database, limit = 50): Promise<Re
 }
 
 // 봇이 겜블 젤리를 돌려준 뒤 부르면 다시 돌려주지 않게 표시해요. 이미 표시된 건은 그대로예요.
-export async function markRefunded(db: D1Database, id: string): Promise<boolean> {
+// 돌려주기 완료 표시. 돌려줄 대상이 아닌(없는) 번호면 null이에요.
+export async function markRefunded(db: D1Database, id: string): Promise<boolean | null> {
   const r = await db.prepare(`UPDATE purchases SET refund = 'done' WHERE id = ? AND refund = 'pending'`).bind(id).run();
-  return (r.meta.changes ?? 0) > 0;
+  if ((r.meta.changes ?? 0) > 0) return true;
+  const row = await db.prepare(`SELECT 1 FROM purchases WHERE id = ? AND refund = 'done'`).bind(id).first();
+  return row ? false : null;
 }
 
 // 도감 젤리로 바로 사요. 잔액 확인, 젤리 빼기, 물건 주기를 한 번에(트랜잭션) 해서
@@ -523,7 +526,10 @@ export async function listPendingServices(db: D1Database, limit = 20): Promise<{
 export const SERVICE_FAIL_REASONS = ['no_penalty', 'no_warning'] as const;
 
 // 봇이 적용한 결과. 실패면 뺀 젤리를 돌려줘요. 이미 끝난 결제는 그대로(두 번 돌려주지 않아요).
-export async function settleService(db: D1Database, id: string, ok: boolean, reason: string | null): Promise<boolean> {
+// 결과 적기. 디스코드 물건 결제가 아닌(없는) 번호면 null이에요.
+export async function settleService(db: D1Database, id: string, ok: boolean, reason: string | null): Promise<boolean | null> {
+  const known = await db.prepare("SELECT 1 FROM purchases WHERE id = ? AND item_id LIKE 'svc:%'").bind(id).first();
+  if (!known) return null;
   const mark = `${now()}#${crypto.randomUUID()}`;
   if (ok) {
     const r = await db.prepare("UPDATE purchases SET status = 'done', settled_at = ? WHERE id = ? AND status = 'pending' AND item_id LIKE 'svc:%'").bind(mark, id).run();
@@ -575,12 +581,14 @@ export async function listNickJobs(db: D1Database, limit = 20): Promise<NickJob[
 }
 export const NICK_FAIL_REASONS = ['invalid', 'banned', 'forbidden', 'left'] as const;
 // 실패하면 'failed'가 되어 남은 장수에서 빠지지 않아요(변경권이 그대로 남아요).
-export async function settleNickJob(db: D1Database, id: string, ok: boolean, reason: string | null): Promise<boolean> {
+// 결과 적기. 없는 작업 번호면 null이에요.
+export async function settleNickJob(db: D1Database, id: string, ok: boolean, reason: string | null): Promise<boolean | null> {
   const r = await db
     .prepare("UPDATE nick_jobs SET status = ?2, reason = ?3, settled_at = ?4 WHERE id = ?1 AND status = 'pending'")
     .bind(id, ok ? 'done' : 'failed', reason, now())
     .run();
-  return (r.meta.changes ?? 0) > 0;
+  if ((r.meta.changes ?? 0) > 0) return true;
+  return (await db.prepare('SELECT 1 FROM nick_jobs WHERE id = ?').bind(id).first()) ? false : null;
 }
 
 // ── 도감 축하(두 사람 카드가 10레벨마다) ─────────────
