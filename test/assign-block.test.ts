@@ -304,3 +304,87 @@ describe('팀 짜기', () => {
     }
   });
 });
+
+it('반려 뒤 새로 3명을 신청했으면 옛 반려를 뒤집어 4명으로 늘리지 않아요', async () => {
+  const { db } = fakeD1();
+  await requestBlock(db, undefined, A, B, REASON, false, NOW);
+  const [old] = await listUnpostedBlocks(db);
+  await decideBlock(db, old!.id, 'rejected', ids[5]!, NOW);
+  for (const to of [C, D, ids[4]!]) await requestBlock(db, undefined, A, to, REASON, false, NOW);
+  expect(await myBlocks(db, A)).toHaveLength(3);
+  expect(await flipBlock(db, old!.id, ids[5]!, NOW + 1)).toMatchObject({ applied: false, status: 'rejected' });
+  expect(await myBlocks(db, A)).toHaveLength(3);
+  const [current] = await myBlocks(db, A);
+  await cancelBlock(db, A, current!.id);
+  expect(await flipBlock(db, old!.id, ids[5]!, NOW + 2)).toMatchObject({ applied: true, status: 'approved' });
+  expect(await myBlocks(db, A)).toHaveLength(3);
+});
+
+it('같은 상대에게 다시 신청한 뒤 옛 반려를 뒤집어 요청을 두 개로 만들지 않아요', async () => {
+  const { db } = fakeD1();
+  await requestBlock(db, undefined, A, B, REASON, false, NOW);
+  const [old] = await listUnpostedBlocks(db);
+  await decideBlock(db, old!.id, 'rejected', ids[5]!, NOW);
+  await requestBlock(db, undefined, A, B, REASON, false, NOW + 1);
+  expect(await flipBlock(db, old!.id, ids[5]!, NOW + 2)).toMatchObject({ applied: false, status: 'rejected' });
+  expect(await myBlocks(db, A)).toHaveLength(1);
+});
+
+it('3개 팀에서 한 명씩 맞바꾸기로 막혀도 가능한 제외 배정을 찾아요', () => {
+  const plan = new Map(Array.from({ length: 9 }, (_, i) => [String(i), Math.floor(i / 3)]));
+  const edges = [[0, 5], [0, 6], [0, 8], [1, 3], [1, 5], [1, 8], [3, 5], [4, 6], [4, 8], [5, 6], [6, 8]];
+  const blocked = new Set(edges.map(([a, b]) => blockKey(String(a), String(b))));
+  // 각 팀 3명을 그대로 유지하면서 충돌이 없는 배정이 실제로 있어요.
+  const possible = [[6, 2, 1], [0, 3, 4], [5, 7, 8]];
+  for (const group of possible) for (const a of group) for (const b of group) expect(blocked.has(blockKey(String(a), String(b)))).toBe(false);
+  separateBlocked(plan, blocked);
+  for (const [a, b] of edges) expect(plan.get(String(a)), `${a}|${b}`).not.toBe(plan.get(String(b)));
+  for (const no of [0, 1, 2]) expect([...plan.values()].filter((g) => g === no)).toHaveLength(3);
+});
+
+it('AI 검토 중 전체 초기화가 끝나면 초기화 전 제외 요청을 다시 만들지 않아요', async () => {
+  const { db, sql } = fakeD1();
+  const ai = { run: async () => {
+    sql.exec(readFileSync('scripts/launch-reset.sql', 'utf8'));
+    return { response: '{"verdict":"ok","summary":"검토"}' };
+  } } as unknown as Ai;
+  expect(await requestBlock(db, ai, A, B, REASON, false, NOW)).toBe('unknown');
+  expect(await myBlocks(db, A)).toEqual([]);
+  expect(await listUnpostedBlocks(db)).toEqual([]);
+});
+
+
+it('3·4개 팀의 가능한 제외 관계를 여럿 확인해도 인원과 제외 조건을 함께 지켜요', () => {
+  for (const teamCount of [3, 4]) for (let seed = 0; seed < 40; seed++) {
+    const random = seededRandom(`multi-team-${teamCount}-${seed}`);
+    const ids = Array.from({ length: teamCount * 3 }, (_, i) => `p${String(i).padStart(2, '0')}`);
+    const possible = [...ids];
+    for (let i = possible.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1));
+      [possible[i], possible[j]] = [possible[j]!, possible[i]!];
+    }
+    const valid = new Map(possible.map((id, i) => [id, Math.floor(i / 3)]));
+    const blocked = new Set<string>();
+    for (const a of ids) for (const b of ids) if (a < b && valid.get(a) !== valid.get(b) && random() < 0.6) blocked.add(blockKey(a, b));
+    const plan = new Map(ids.map((id, i) => [id, Math.floor(i / 3)]));
+    separateBlocked(plan, blocked);
+    for (const edge of blocked) {
+      const [a, b] = edge.split('|');
+      expect(plan.get(a!), `seed=${seed}, ${edge}`).not.toBe(plan.get(b!));
+    }
+    for (let no = 0; no < teamCount; no++) expect([...plan.values()].filter((g) => g === no)).toHaveLength(3);
+  }
+});
+
+it('3팀으로 나눌 수 없는 제외 관계도 인원이나 별도 조건을 깨지 않아요', () => {
+  const ids = Array.from({ length: 9 }, (_, i) => String(i));
+  const plan = new Map(ids.map((id, i) => [id, Math.floor(i / 3)]));
+  const blocked = new Set<string>();
+  // 넷이 서로 모두 제외하면 최소 네 팀이 필요해요.
+  for (const a of ids.slice(0, 4)) for (const b of ids.slice(0, 4)) if (a < b) blocked.add(blockKey(a, b));
+  const before = new Map(plan);
+  separateBlocked(plan, blocked, () => false);
+  expect(plan).toEqual(before);
+  separateBlocked(plan, blocked);
+  for (const no of [0, 1, 2]) expect([...plan.values()].filter((g) => g === no)).toHaveLength(3);
+});

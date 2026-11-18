@@ -200,6 +200,25 @@ describe('줄 보상', () => {
     sql.prepare("INSERT OR IGNORE INTO server_quest (season_id, newbies, target, created_at) VALUES ('s1', 0, 1, 'x')").run();
   }
 
+  it('보상 저장 전에 초기화되면 옛 빙고 줄·젤리·경험치·젤리피를 다시 만들지 않아요', async () => {
+    const { sql, db } = fakeD1();
+    fill(sql, A);
+    const batch = db.batch.bind(db);
+    let reset = false;
+    db.batch = (async (statements: D1PreparedStatement[]) => {
+      if (!reset) {
+        reset = true;
+        sql.exec(readFileSync('scripts/launch-reset.sql', 'utf8'));
+      }
+      return batch(statements);
+    }) as typeof db.batch;
+    await grantBingo(db, fallbackWeek(NOW), [A], NOW);
+    expect(reset).toBe(true);
+    expect(profileOf(sql, A)).toEqual({ dogam_jelly: 0, solo_xp: 0 });
+    expect(sql.prepare('SELECT COUNT(*) AS n FROM bingo_lines').get()).toEqual({ n: 0 });
+    expect(sql.prepare('SELECT COUNT(*) AS n FROM jellypi').get()).toEqual({ n: 0 });
+  });
+
   it('줄마다 한 번만, 9칸을 다 채우면 더 줘요', async () => {
     const { sql, db } = fakeD1();
     fill(sql, A);

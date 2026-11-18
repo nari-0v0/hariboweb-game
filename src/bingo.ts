@@ -400,14 +400,16 @@ export async function loadStats(db: D1Database, week: Week, userIds: string[]): 
 // 같은 줄을 두 번 받지 않게: 이번 표시(mark)로 줄을 적고, 그 표시가 적힌 때만 보상을 줘요(동시에 확인해도 한 번).
 export async function grantBingo(db: D1Database, week: Week, userIds: string[], nowMs: number): Promise<Map<string, BingoView>> {
   const views = new Map<string, BingoView>();
-  const active = userIds.length
+  const activeRows = userIds.length
     ? (
         await db
-          .prepare('SELECT user_id FROM members WHERE active = 1 AND user_id IN (SELECT value FROM json_each(?))')
+          .prepare('SELECT user_id, reset_at FROM members WHERE active = 1 AND user_id IN (SELECT value FROM json_each(?))')
           .bind(JSON.stringify(userIds))
-          .all<{ user_id: string }>()
-      ).results.map((r) => r.user_id)
+          .all<{ user_id: string; reset_at: string | null }>()
+      ).results
     : [];
+  const active = activeRows.map((r) => r.user_id);
+  const epochs = new Map(activeRows.map((r) => [r.user_id, r.reset_at ?? '']));
   if (!active.length) return views;
   const season = await seasonAt(db, week.start);
   const [stats, given, teams] = await Promise.all([
@@ -421,7 +423,9 @@ export async function grantBingo(db: D1Database, week: Week, userIds: string[], 
   const had = new Set(given.results.map((r) => `${r.user_id}|${r.line}`));
   const t = new Date(nowMs).toISOString();
   const mark = `${t}#${crypto.randomUUID()}`;
-  const addLine = db.prepare('INSERT OR IGNORE INTO bingo_lines (week, user_id, line, mark, created_at) VALUES (?, ?, ?, ?, ?)');
+  // 기록을 읽은 뒤 초기화됐다면 옛 줄을 다시 적지 않아요. 보상도 이번에 적은 줄에만 붙어요.
+  const addLine = db.prepare(`INSERT OR IGNORE INTO bingo_lines (week, user_id, line, mark, created_at)
+    SELECT ?1, ?2, ?3, ?4, ?5 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1 AND COALESCE(reset_at, '') = ?6)`);
   const reward = db.prepare(
     `INSERT INTO profiles (user_id, dogam_jelly, solo_xp, updated_at)
      SELECT ?1, ?2, ?3, ?4 WHERE EXISTS (SELECT 1 FROM bingo_lines WHERE week = ?5 AND user_id = ?1 AND line = ?6 AND mark = ?7)
@@ -444,7 +448,7 @@ export async function grantBingo(db: D1Database, week: Week, userIds: string[], 
     for (const line of earned) {
       if (had.has(`${u}|${line}`)) continue;
       const full = line === FULL_LINE;
-      stmts.push(addLine.bind(week.id, u, line, mark, t));
+      stmts.push(addLine.bind(week.id, u, line, mark, t, epochs.get(u)));
       stmts.push(reward.bind(u, full ? FULL_JELLY : LINE_JELLY, full ? 0 : LINE_XP, t, week.id, line, mark));
       stmts.push(addJellypi.bind(u, seasonId, full ? 'full' : 'line', `${week.id}:${line}`, full ? JP_FULL : JP_LINE, t, week.id, line, mark));
     }

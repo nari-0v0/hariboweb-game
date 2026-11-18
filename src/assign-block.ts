@@ -80,14 +80,15 @@ export async function requestBlock(
 ): Promise<BlockResult> {
   if (fromId === toId) return 'self';
   const reason = rawReason.trim().slice(0, BLOCK_REASON_MAX);
-  const [target, mine] = await Promise.all([
-    db.prepare('SELECT 1 FROM members WHERE user_id = ? AND active = 1').bind(toId).first(),
+  const [people, mine] = await Promise.all([
+    db.prepare('SELECT user_id, reset_at FROM members WHERE user_id IN (?, ?) AND active = 1').bind(fromId, toId).all<{ user_id: string; reset_at: string | null }>(),
     db
       .prepare("SELECT to_id FROM assign_blocks WHERE from_id = ? AND status IN ('pending', 'ai_rejected', 'approved')")
       .bind(fromId)
       .all<{ to_id: string }>(),
   ]);
-  if (!target) return 'unknown';
+  if (people.results.length !== 2) return 'unknown';
+  const epochs = new Map(people.results.map((r) => [r.user_id, r.reset_at ?? '']));
   if (mine.results.some((r) => r.to_id === toId)) return 'dup';
   if (mine.results.length >= BLOCK_MAX_PENDING) return 'limit';
   if (isEmptyReason(reason)) return 'empty';
@@ -97,14 +98,14 @@ export async function requestBlock(
   const result = await db
     .prepare(`INSERT INTO assign_blocks (from_id, to_id, reason, ai_verdict, ai_summary, status, created_at)
       SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7
-      WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
-        AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)
+      WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1 AND COALESCE(reset_at, '') = ?9)
+        AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1 AND COALESCE(reset_at, '') = ?10)
         AND NOT EXISTS (SELECT 1 FROM assign_blocks WHERE from_id = ?1 AND to_id = ?2 AND status IN ('pending', 'ai_rejected', 'approved'))
         AND (SELECT COUNT(*) FROM assign_blocks WHERE from_id = ?1 AND status IN ('pending', 'ai_rejected', 'approved')) < ?8`)
-    .bind(fromId, toId, reason, verdict?.verdict ?? null, verdict?.summary || null, status, new Date(nowMs).toISOString(), BLOCK_MAX_PENDING)
+    .bind(fromId, toId, reason, verdict?.verdict ?? null, verdict?.summary || null, status, new Date(nowMs).toISOString(), BLOCK_MAX_PENDING, epochs.get(fromId), epochs.get(toId))
     .run();
   if (result.meta.changes) return 'done';
-  const active = await db.prepare('SELECT COUNT(*) AS n FROM members WHERE user_id IN (?, ?) AND active = 1').bind(fromId, toId).first<{ n: number }>();
+  const active = await db.prepare(`SELECT COUNT(*) AS n FROM members WHERE active = 1 AND ((user_id = ?1 AND COALESCE(reset_at, '') = ?3) OR (user_id = ?2 AND COALESCE(reset_at, '') = ?4))`).bind(fromId, toId, epochs.get(fromId), epochs.get(toId)).first<{ n: number }>();
   if (active?.n !== 2) return 'unknown';
   const duplicate = await db.prepare("SELECT 1 FROM assign_blocks WHERE from_id = ? AND to_id = ? AND status IN ('pending', 'ai_rejected', 'approved')")
     .bind(fromId, toId).first();
@@ -212,10 +213,14 @@ export async function flipBlock(db: D1Database, id: number, by: string, nowMs: n
   const t = new Date(nowMs).toISOString();
   const res = await db
     .prepare(
-      `UPDATE assign_blocks SET status = CASE status WHEN 'approved' THEN 'rejected' ELSE 'approved' END, decided_at = ?, decided_by = ?
-       WHERE id = ? AND status IN ('approved', 'rejected')`,
+      `UPDATE assign_blocks AS b SET status = CASE status WHEN 'approved' THEN 'rejected' ELSE 'approved' END, decided_at = ?1, decided_by = ?2
+       WHERE id = ?3 AND status IN ('approved', 'rejected')
+         AND (status = 'approved' OR (
+           (SELECT COUNT(*) FROM assign_blocks x WHERE x.from_id = b.from_id AND x.status IN ('pending', 'ai_rejected', 'approved')) < ?4
+           AND NOT EXISTS (SELECT 1 FROM assign_blocks x WHERE x.from_id = b.from_id AND x.to_id = b.to_id
+             AND x.status IN ('pending', 'ai_rejected', 'approved'))))`,
     )
-    .bind(t, by, id)
+    .bind(t, by, id, BLOCK_MAX_PENDING)
     .run();
   const row = await db.prepare('SELECT status, decided_at FROM assign_blocks WHERE id = ?').bind(id).first<{ status: string; decided_at: string | null }>();
   if (!row) return null;
@@ -290,6 +295,45 @@ function separateTwoTeams(plan: Map<string, number>, blocked: Set<string>, keep:
   for (const id of ids) plan.set(id, left.has(id) ? leftNo : rightNo);
 }
 
+// 3개 이상 팀: 한 명씩 맞바꾸면 나아지지 않는 배정도 있어요. 제외 관계가 많은 사람부터
+// 각 팀의 자리를 채우며 되짚어요. 원래 팀 인원과 keep 조건을 모두 지킨 해만 반영해요.
+// 복잡한 제외 관계가 있어도 요청을 끝낼 수 있도록 탐색량에는 한도를 둬요.
+function separateManyTeams(plan: Map<string, number>, blocked: Set<string>, keep: (ids: string[]) => boolean): void {
+  const teams = [...new Set(plan.values())].sort((a, b) => a - b);
+  if (teams.length < 3) return;
+  const ids = [...plan.keys()].sort();
+  const neighbors = new Map(ids.map((id) => [id, new Set<string>()]));
+  for (const pair of blocked) {
+    const [a, b] = pair.split('|') as [string, string];
+    if (!neighbors.has(a) || !neighbors.has(b)) continue;
+    neighbors.get(a)!.add(b);
+    neighbors.get(b)!.add(a);
+  }
+  const free = new Map(teams.map((no) => [no, ids.filter((id) => plan.get(id) === no).length]));
+  const chosen = new Map<string, number>();
+  let nodes = 0;
+  const search = (): boolean => {
+    if (++nodes > 20_000) return false;
+    if (chosen.size === ids.length) return teams.every((no) => keep(ids.filter((id) => chosen.get(id) === no)));
+    // 이미 이웃이 배정된 팀이 많을수록 선택지가 적어요. 같은 경우 제외 상대가 많은 사람 먼저.
+    const saturation = (id: string) => new Set([...neighbors.get(id)!].flatMap((other) => chosen.has(other) ? [chosen.get(other)!] : [])).size;
+    const id = ids.filter((id) => !chosen.has(id)).sort((a, b) => saturation(b) - saturation(a) || neighbors.get(b)!.size - neighbors.get(a)!.size || a.localeCompare(b))[0]!;
+    const occupied = new Set([...neighbors.get(id)!].flatMap((other) => chosen.has(other) ? [chosen.get(other)!] : []));
+    const options = teams.filter((no) => free.get(no)! > 0 && !occupied.has(no))
+      .sort((a, b) => Number(b === plan.get(id)) - Number(a === plan.get(id)) || free.get(b)! - free.get(a)! || a - b);
+    for (const no of options) {
+      chosen.set(id, no);
+      free.set(no, free.get(no)! - 1);
+      if (search()) return true;
+      chosen.delete(id);
+      free.set(no, free.get(no)! + 1);
+      if (nodes > 20_000) return false;
+    }
+    return false;
+  };
+  if (search()) for (const [id, no] of chosen) plan.set(id, no);
+}
+
 // 같은 팀에 승인된 짝이 있으면 다른 팀 사람과 한 명씩 바꿔요.
 // 바꾼 뒤 두 팀의 막힌 짝 수가 줄어들 때만 바꿔요(한 팀에 짝이 여럿이어도 하나씩 풀려요).
 // keep(팀원 목록)이 false가 되는 바꾸기는 하지 않아요(팀 퀘스트 짝 같은 다른 조건을 지키려고).
@@ -328,6 +372,9 @@ export function separateBlocked(
     }
     if (!moved) break;
   }
-  if ([...new Set(plan.values())].some((no) => clashes(members(no)) > 0)) separateTwoTeams(plan, blocked, keep);
+  if ([...new Set(plan.values())].some((no) => clashes(members(no)) > 0)) {
+    if (new Set(plan.values()).size === 2) separateTwoTeams(plan, blocked, keep);
+    else separateManyTeams(plan, blocked, keep);
+  }
   return plan;
 }
