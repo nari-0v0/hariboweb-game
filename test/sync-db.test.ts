@@ -367,6 +367,19 @@ describe('전송이 늦은 탈퇴와 재가입', () => {
     expect(sql.prepare('SELECT SUM(minutes) AS n FROM gq_voice').get()).toEqual({ n: 1 });
   });
 
+  it('아직 재가입 전인 탈퇴자의 늦게 온 통화는 빙고에 남기지 않아요(재가입 뒤 되살아나지 않게)', async () => {
+    const { sql, db } = await setup();
+    await applySync(db, payload('left', 2, { removed: [A] }), zero + 2 * 60_000);
+    await applySync(db, payload('late', 3, {
+      members: [m(B)], room_minutes: [{ at: at(1), room, members: [A, B] }], attendance: [{ id: A, day: '2026-11-17' }],
+    }), zero + 3 * 60_000);
+    expect(sql.prepare('SELECT COUNT(*) AS n FROM bingo_day WHERE user_id = ?').get(A)).toEqual({ n: 0 });
+    expect(sql.prepare('SELECT COUNT(*) AS n FROM bingo_pair').get()).toEqual({ n: 0 });
+    await applySync(db, payload('rejoined', 5, { members: [m(A, at(5)), m(B)] }), zero + 5 * 60_000);
+    expect(sql.prepare('SELECT COUNT(*) AS n FROM bingo_day WHERE user_id = ?').get(A)).toEqual({ n: 0 });
+    expect(sql.prepare('SELECT COUNT(*) AS n FROM gq_attend WHERE user_id = ?').get(A)).toEqual({ n: 0 });
+  });
+
   it('재가입 뒤 정식 초기화가 있었다면 그 초기화 시각을 절대 앞당기지 않아요', async () => {
     const { sql, db } = await setup();
     sql.prepare('UPDATE members SET reset_at = ?').run(at(15));

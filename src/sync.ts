@@ -228,7 +228,10 @@ async function afterReset(db: D1Database, p: SyncPayload, nowMs: number): Promis
     // 반영이 늦었다고 그 사이의 새 활동까지 지우지 않아요. 가입 시각은 다음 재가입 때도 확인해요.
     removed.set(id, cutoff(id, joinedTime(id)));
   }
-  const fresh = (id: string, ms: number) => ms >= (resets.get(id) ?? -Infinity);
+  // 이미 나갔고 이번 묶음에서도 다시 들어오지 않은 사람의 활동은 빙고·시즌 기록에도 남기지 않아요.
+  // (늦게 도착한 탈퇴 전 통화가 재가입 뒤 본인 빙고로 되살아나지 않게)
+  const gone = (id: string) => previous.get(id)?.active === 0 && !rejoined.has(id);
+  const fresh = (id: string, ms: number) => !gone(id) && ms >= (resets.get(id) ?? -Infinity);
   const made = batchTime(p.batch_id)!;
   return { rejoined, removed, payload: {
     ...p,
@@ -237,7 +240,7 @@ async function afterReset(db: D1Database, p: SyncPayload, nowMs: number): Promis
     jelly_earned: p.jelly_earned.filter((x) => fresh(x.id, made)),
     room_minutes: p.room_minutes.map((r) => ({ ...r, members: r.members.filter((id) => fresh(id, Date.parse(r.at))) })).filter((r) => r.members.length >= 2),
     scrims: p.scrims.map((r) => ({ ...r, members: r.members.filter((id) => fresh(id, Date.parse(r.at))) })).filter((r) => r.members.length > 0),
-    attendance: p.attendance.filter((a) => !resets.has(a.id) || a.day >= new Date(resets.get(a.id)! + 9 * 3_600_000).toISOString().slice(0, 10)),
+    attendance: p.attendance.filter((a) => !gone(a.id) && (!resets.has(a.id) || a.day >= new Date(resets.get(a.id)! + 9 * 3_600_000).toISOString().slice(0, 10))),
   } };
 }
 
