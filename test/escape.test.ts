@@ -590,3 +590,21 @@ describe('사건파일 난이도', () => {
     for (const n of named) expect(ideas.has(n), n).toBe(true);
   });
 });
+
+describe('스위치 퍼즐 긴 기록', () => {
+  it('이리저리 많이 눌러 본 뒤 맞춘 판도 정답으로 받아요(예전엔 900자에서 잘려 틀렸다고 나왔어요)', async () => {
+    const { BANK } = await import('../src/escape-bank');
+    const b = BANK.find((x) => x.idea === 'lights-cross')!;
+    // 모든 칸을 두 번씩 여러 바퀴 눌러(제자리) 기록만 길게 만든 뒤 정답 순서를 눌러요.
+    const noise = Array.from({ length: 12 }, () => Array.from({ length: 25 }, (_, i) => `${i}.${i}`).join('.')).join('.');
+    const v = `${noise}.${b.a}`;
+    expect(v.length).toBeGreaterThan(900);
+    expect(checkUi(b.ui!, v)).toBe(true);
+  });
+  it('누른 순서를 바꿔도 같은 판이면 정답이에요(화면은 칸마다 누른 횟수만 보내요)', async () => {
+    const { BANK } = await import('../src/escape-bank');
+    const b = BANK.find((x) => x.idea === 'lights-cross')!;
+    expect(checkUi(b.ui!, b.a!.split('.').reverse().join('.'))).toBe(true);
+    expect(checkUi(b.ui!, '-')).toBe(false);
+  });
+});
