@@ -39,10 +39,11 @@
    초기화 뒤 지급 직전 계정이 비어 있었는지 확인하고, 지급 직후 계정 목록과 잔액을 승인한 명단과 대조해요. 승인 명단 밖의 계정은 잔액이 0이어도 검증이 실패해요. 대조가 끝날 때까지 테스터의 플레이도 멈춰요.
    지급 직후 `SELECT user_id, chips, free_day, rescue_day, won, best_win, all_in_wins, plays, jackpots, naturals FROM gamble_accounts ORDER BY user_id` 결과 전체를 `after.json`으로 저장해요. `SELECT user_id, jelly FROM gamble_jelly_moves WHERE moved_at IS NOT NULL ORDER BY user_id` 결과 전체를 `paid.json`으로 저장해요.
    `approved.json`은 승인된 지급 대상의 양수 금액 목록(`user_id`, `jelly`)이에요. 지급 결과로 승인 목록을 만들면 누락을 찾을 수 없어요.
-   다음 조회 결과 한 행을 배열로 `reset.json`에 저장해요.
+   다음 조회 결과 한 행을 배열로 `reset.json`에 저장해요. 승인 대상이 0건이어도 이관 SQL을 적용해 스냅샷 기록을 남겨야 해요. 스냅샷 조회에 실패하면 잠금을 유지해요.
    ```sql
    SELECT
      (SELECT COUNT(*) FROM gamble_launch_reset WHERE id = 1) AS completed,
+     (SELECT digest FROM gamble_move_snapshot WHERE id = 1) AS snapshot_digest,
      (SELECT COUNT(*) FROM gamble_rounds) AS rounds,
      (SELECT COUNT(*) FROM gamble_season_winners) AS season_winners,
      (SELECT COUNT(*) FROM owned_items WHERE item_id LIKE 'title:gamble-%') AS owned_titles,
