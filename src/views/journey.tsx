@@ -475,13 +475,14 @@ function Play(props: { run: JourneyRun; art: string; name: string; preview?: boo
                 {null}
               </Act>
             )}
-            <label class="jr-auto" hidden data-auto-toggle={preview ? undefined : ''}>
-              <input type="checkbox" />
-              <span>
-                <b>🤖 자동</b> 켜 두면 스킬·갈림길·상점까지 알아서 골라요. 이번 원정이 끝나면 꺼져요
-              </span>
-            </label>
           </div>
+          {/* 자동 켜기는 싸우는 동안에도 늘 같은 자리에 보여요(PC는 오른쪽 맨 아래, 휴대폰은 무대 바로 아래). 슬금님 제안 2026-11-18 */}
+          <label class="jr-auto" hidden data-auto-toggle={preview ? undefined : ''}>
+            <input type="checkbox" />
+            <span>
+              <b>🤖 자동</b> 켜 두면 스킬·갈림길·상점까지 알아서 골라요. 이번 원정이 끝나면 꺼져요
+            </span>
+          </label>
         </div>
         <details class="jr-drawer">
           <summary>⭐ 배운 스킬 {Object.values(s.skills).filter((l) => (l ?? 0) > 0).length}개 · 📜 지난 일</summary>
