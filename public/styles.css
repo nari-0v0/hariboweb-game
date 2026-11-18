@@ -1199,7 +1199,7 @@ main.wide { max-width: 1320px; }
 @media (prefers-reduced-motion: no-preference) {
   .jr-actor { animation: var(--a, none); }
   .jr-hero.jr-actor img, .jr-foe.jr-actor > span:first-child, .jr-foe.jr-actor .jr-shadow { animation: var(--a2, none); }
-  .jr-pop { animation: jr-pop .75s var(--d, 0s) both; }
+  .jr-pop { animation: jr-pop var(--pd, .75s) var(--d, 0s) both; }
 }
 @keyframes jr-lunge-r { 40% { translate: 34px -6px; } }
 @keyframes jr-lunge-l { 40% { translate: -34px -6px; } }

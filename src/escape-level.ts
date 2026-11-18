@@ -5,17 +5,17 @@ import { BANK, type BankItem } from './escape-bank';
 
 const EASY = new Set([
   // 글 수수께끼
-  'tz001', 'tz009', 'tz010', 'tz012', 'tz021', 'tz030', 'tz032', 'tz035', 'tz036', 'tz040', 'tz044', 'tz050', 'tz062', 'tz071',
-  'tz075', 'tz079', 'tz081', 'tz084', 'tz092', 'tz093', 'tz115', 'tz117', 'tz120', 'tz125', 'tz128', 'tz129', 'tz132', 'tz149',
+  'torn-leaf', 'tz009', 'tz010', 'tz012', 'tz021', 'tz030', 'tz032', 'tz035', 'tz036', 'tz040', 'tz044', 'tz050', 'tz062', 'tz071',
+  'tz075', 'tz079', 'tz081', 'tz084', 'tz092', 'knockout', 'tz115', 'tz117', 'tz120', 'tz125', 'tz128', 'tz129', 'tz132', 'tz149',
   'tz154', 'tz157', 'tz162', 'tz167', 'tz176', 'tz181', 'tz182', 'tz186', 'tz188', 'tz190', 'domino', 'shadow', 'same-color', 'pets-sum',
   // 손으로 푸는 것
-  'card-riddle', 'num-triangle', 'num-sudoku4', 'num-magic', 'mark-twins', 'color-map3', 'river-farmer', 'path-maze',
+  'card-riddle', 'num-triangle', 'num-fillomino', 'num-magic', 'mark-twins', 'color-map3', 'river-farmer', 'path-maze',
 ]);
 const HARD = new Set([
   // 글 수수께끼
-  'tz007', 'tz022', 'tz025', 'tz029', 'tz037', 'tz039', 'tz041', 'tz047', 'tz049', 'tz052', 'tz074', 'tz077', 'tz086', 'tz087',
-  'tz099', 'tz100', 'tz102', 'tz111', 'tz113', 'tz119', 'tz123', 'tz133', 'tz142', 'tz153', 'tz155', 'tz161', 'tz163', 'tz164',
-  'tz169', 'tz170', 'tz173', 'tz174', 'tz184', 'tz185', 'tz187', 'tz193', 'tz194', 'code-logic', 'keys-worst', 'cups', 'hats',
+  'tz007', 'tz022', 'tz025', 'tz029', 'tz037', 'tz039', 'tz041', 'tz047', 'tz049', 'tz052', 'chain-pay', 'tz077', 'tz086', 'tz087',
+  'tz099', 'bertrand-card', 'tz102', 'tz111', 'tz113', 'tz119', 'donkey-carrots', 'tz133', 'tz142', 'tz153', 'tz155', 'tz161', 'tz163', 'monkey-jelly',
+  'faro', 'tz170', 'tz173', 'tz174', 'tz184', 'tz185', 'tz187', 'tz193', 'tz194', 'code-logic', 'keys-worst', 'cups', 'hats',
   'poison', 'egg-drop', 'birthday', 'diag-tiles', 'self-count', 'cryptarithm', 'pirates', 'lion-days', 'cheryl', 'boat-stone',
   'ants', 'cards-split', 'lock-box', 'prime-code', 'hiker', 'race-handicap',
   // 손으로 푸는 것
