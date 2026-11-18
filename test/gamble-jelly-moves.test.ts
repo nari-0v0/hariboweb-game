@@ -128,8 +128,15 @@ it('초기화가 중단되면 삭제와 완료 기록을 함께 되돌려요', (
   expect(chips(sql)).toEqual([]);
 });
 
-it('승인 명단 밖의 계정은 활성 상태라도 지급하지 않아요', () => {
+function initializedDb() {
   const sql = freshDb();
+  sql.exec(readFileSync('scripts/gamble-reset.sql', 'utf8'));
+  sql.exec(`INSERT INTO gamble_accounts (user_id, chips, won) VALUES ('${A}', 1000, 500)`);
+  return sql;
+}
+
+it('승인 명단 밖의 계정은 활성 상태라도 지급하지 않아요', () => {
+  const sql = initializedDb();
   const wallets = [{ user_id: A, jelly: 100 }, { user_id: B, jelly: 200 }];
   const stamp = '2026-11-21T00:00:00.000Z';
   sql.exec(buildMoveSql(wallets, stamp, [wallets[0]]));
@@ -140,7 +147,7 @@ it('승인 명단 밖의 계정은 활성 상태라도 지급하지 않아요', 
 });
 
 it('승인 대상이 비활성화되면 아직 지급하지 않은 건 전체를 롤백해요', () => {
-  const sql = freshDb();
+  const sql = initializedDb();
   const wallets = [{ user_id: A, jelly: 100 }, { user_id: B, jelly: 200 }];
   const move = buildMoveSql(wallets, '2026-11-21T00:00:00.000Z', wallets);
   sql.exec(`UPDATE members SET active = 0 WHERE user_id = '${B}'`);
@@ -157,7 +164,7 @@ it('승인 대상이 비활성화되면 아직 지급하지 않은 건 전체를
 });
 
 it('이관 후 잔액이 안전한 정수 범위를 넘으면 다른 계정도 지급하지 않아요', () => {
-  const sql = freshDb();
+  const sql = initializedDb();
   const stamp = '2026-11-21T00:00:00.000Z';
   const wallets = [{ user_id: B, jelly: 200 }, { user_id: A, jelly: 100 }];
   const move = buildMoveSql(wallets, stamp, wallets);
@@ -188,7 +195,7 @@ it('운영 CLI는 완성된 SQL만 새 파일로 게시하고 기존 파일을 �
     writeFileSync(approved, readFileSync(wallets));
     expect(run().status).toEqual(0);
     const generated = readFileSync(output, 'utf8');
-    const sql = freshDb();
+    const sql = initializedDb();
     sql.exec(generated);
     expect(chips(sql)).toEqual([{ user_id: A, chips: 1100, won: 500 }]);
     expect(run().status).toEqual(1);
@@ -197,4 +204,19 @@ it('운영 CLI는 완성된 SQL만 새 파일로 게시하고 기존 파일을 �
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+it('운영 지급문은 초기화가 실제로 완료된 뒤에만 실행돼요', () => {
+  const sql = freshDb();
+  const approved = [{ user_id: A, jelly: 100 }];
+  const move = buildMoveSql(approved, '2026-11-21T00:00:00.000Z', approved);
+  expect(() => sql.exec(move)).toThrow();
+  expect(chips(sql)).toEqual([{ user_id: A, chips: 1000, won: 500 }]);
+  const reset = readFileSync('scripts/gamble-reset.sql', 'utf8');
+  sql.exec(reset.slice(0, reset.indexOf('INSERT INTO gamble_launch_reset')));
+  expect(() => sql.exec(move)).toThrow();
+  expect(sql.prepare('SELECT COUNT(*) AS n FROM gamble_jelly_moves WHERE moved_at IS NOT NULL').get()).toEqual({ n: 0 });
+  sql.exec(reset);
+  sql.exec(move);
+  expect(chips(sql)).toEqual([{ user_id: A, chips: 100, won: 0 }]);
 });
