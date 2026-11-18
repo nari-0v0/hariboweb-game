@@ -1,3 +1,4 @@
+import { ROOM_PEOPLE } from './room-people.gen';
 // 사건파일 방 그림(나리님이 그린 방 56장, public/case/room/<방>.webp) 속 물건 자리.
 // 그림 한 장에 물건이 다 그려져 있고, 사건은 이 자리들만 써요. 위치는 그림 기준 %(가로 x, 세로 y는 가운데, w·h는 크기).
 // tag: door 문 · lock 잠글 수 있는 곳 · clock 시계 · wall 글씨·그림을 붙일 수 있는 곳
@@ -298,13 +299,14 @@ function room(key: RoomKey, rows: Row[]): Room {
     const face = FACES[`${key}/${id}`];
     return { id, label, at, x, y, w, h, ...(tag.length ? { tag } : {}), ...(tool.length ? { tool: [...tool] } : {}), ...(r ? { rid: RIDDLES[r] } : {}), ...(face ? { face } : {}) };
   });
-  // 사람 자리 계산은 무거워서(방 56개를 한꺼번에 하면 워커 시작이 Cloudflare 한도를 넘어요) 처음 쓸 때 한 번만 해요.
+  // 사람 자리 계산은 무거워서(방 하나에 수 ms) 미리 계산해 둔 표(room-people.gen.ts)를 써요.
+  // 표에 없는 새 방만 처음 쓸 때 계산해요. 방을 고치면 test/room-people.test.ts 안내대로 표를 다시 만들어요.
   let people: [number, number][] | undefined;
   return {
     key,
     spots,
     get people() {
-      return (people ??= placePeople(spots));
+      return (people ??= ROOM_PEOPLE[key] ?? placePeople(spots));
     },
   };
 }
@@ -318,7 +320,8 @@ export function personBox(cx: number, cy: number) {
   // 여유를 넉넉히 둬요(퍼즐을 연 화면처럼 방 그림이 조금 달라 보일 때도 가리지 않게).
   return { l: cx - 9.5 * s - 1, r: cx + 9.5 * s + 1, t: cy + 12 - 32 * s - 1, b: cy + 12 };
 }
-function placePeople(spots: Hotspot[]): [number, number][] {
+const NINE = [0.15, 0.5, 0.85] as const;
+export function placePeople(spots: Hotspot[]): [number, number][] {
   const cands: { x: number; y: number; cost: number; b: ReturnType<typeof personBox> }[] = [];
   // 발끝(y+12)이 방 그림 아래로 잘리지 않게 y는 84까지만 써요.
   for (let y = 84; y >= 60; y -= 2)
@@ -327,7 +330,13 @@ function placePeople(spots: Hotspot[]): [number, number][] {
       let cost = (84 - y) * 0.15;
       let full = false;
       for (const h of spots) {
-        const hit = [0.15, 0.5, 0.85].flatMap((a) => [0.15, 0.5, 0.85].map((c) => [h.x - h.w / 2 + h.w * a, h.y - h.h / 2 + h.h * c] as const)).filter(([px, py]) => px > b.l && px < b.r && py > b.t && py < b.b).length;
+        // 아홉 점 중 사람 그림 안에 들어가는 점 수(배열을 만들지 않고 세요: 첫 방문 계산 시간을 줄이려고)
+        let hit = 0;
+        for (const a of NINE)
+          for (const c of NINE) {
+            const px = h.x - h.w / 2 + h.w * a, py = h.y - h.h / 2 + h.h * c;
+            if (px > b.l && px < b.r && py > b.t && py < b.b) hit++;
+          }
         if (hit >= 7) full = true;
         cost += hit + (h.x > b.l && h.x < b.r && h.y > b.t && h.y < b.b ? 5 : 0);
       }
