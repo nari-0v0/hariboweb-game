@@ -121,7 +121,7 @@ export function GuidePage(props: { viewer: Member | null }) {
           <details>
             <summary>📌 디스코드 고정 패널</summary>
             <p>고정 패널에서 주요 기능을 바로 이용할 수 있어요.</p>
-            <p class="guide-steps">내 카드 · 칭찬하기 · 우리 팀 · 팀 순위 · 이번 주 빙고</p>
+            <p class="guide-steps">내 카드 · 칭찬하기 · 우리 팀 · 이번 주 빙고 · 도움말 · 웹페이지 · 원정대 · 사건파일</p>
             <ul>
               <li>버튼을 누르면 나에게만 보이는 화면으로 열려요.</li>
               <li>개인 DM 알림은 없어요.</li>

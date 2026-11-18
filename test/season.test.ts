@@ -271,6 +271,10 @@ describe('동기화로 시즌 모둠', () => {
     expect(sql.prepare('SELECT COUNT(*) AS n FROM season_titles').get()).toEqual({ n: 10 });
     const view = await groupViewFor(db, id(5), NOW);
     expect(view?.titles).toEqual(['11월 3일 시즌 모둠 완주']);
+    // 나갔다 다시 들어온 멤버(reset_at이 칭호보다 뒤)는 예전 칭호를 보지 않아요
+    sql.prepare("UPDATE members SET reset_at = '9999-01-01T00:00:00.000Z' WHERE user_id = ?").run(id(5));
+    expect((await groupViewFor(db, id(5), NOW))?.titles).toEqual([]);
+    sql.prepare('UPDATE members SET reset_at = NULL WHERE user_id = ?').run(id(5));
     expect(view?.quests.every((q) => q.done)).toBe(true);
     expect(view?.ranking).toEqual([{ no: 0, rank: 1, done: 8, total: 8, minutes: 60, size: 10, mine: true }]);
     expect(view?.me).toEqual({ today: 0, season: 0 });
