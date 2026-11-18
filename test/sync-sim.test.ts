@@ -38,6 +38,7 @@ for (const seed of [1, 2, 3]) it(`sync sim seed ${seed}`, async () => {
   const { sql, db } = fakeD1();
   const r = rng(seed);
   const active = new Set<string>();
+  const left = new Set<string>();
   const joinedAt = new Map<string, number>();
   // model: card xp per owner->target, solo xp per user
   const card = new Map<string, number>();
@@ -70,6 +71,11 @@ for (const seed of [1, 2, 3]) it(`sync sim seed ${seed}`, async () => {
     const res = await applySync(db, parsed.value, now);
     expect(res).toBe('applied');
     // model update
+    // 나갔다 다시 들어온 사람: 남아 있던 사람들이 가진 그 사람 카드도 처음부터(나리 2026-11-19)
+    for (const id of present) if (left.has(id)) {
+      left.delete(id);
+      for (const k of [...card.keys()]) if (k.endsWith('>' + id)) card.delete(k);
+    }
     for (const id of present) active.add(id);
     for (const x of pair_xp) {
       card.set(`${x.a}>${x.b}`, (card.get(`${x.a}>${x.b}`) ?? 0) + x.xp);
@@ -79,6 +85,7 @@ for (const seed of [1, 2, 3]) it(`sync sim seed ${seed}`, async () => {
     for (const x of jelly_earned) jelly.set(x.id, (jelly.get(x.id) ?? 0) + x.amount);
     for (const id of removed) {
       active.delete(id);
+      left.add(id);
       for (const k of [...card.keys()]) if (k.startsWith(id + '>')) card.delete(k);
       solo.delete(id); jelly.delete(id);
     }

@@ -529,7 +529,7 @@ export function CardPage(props: { viewer: Member; owner: Member; target: Member;
               <b>{entry.scrims}회</b>
             </div>
           </div>
-          {!target.active && <p class="notice">서버를 떠난 멤버예요. 다시 들어오면 카드가 살아나요.</p>}
+          {!target.active && <p class="notice">서버를 떠난 멤버예요. 다시 들어오면 서로의 카드를 처음부터 다시 모아요.</p>}
         </div>
       </div>
     </Layout>
