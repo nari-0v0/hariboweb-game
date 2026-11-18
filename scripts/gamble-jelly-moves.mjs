@@ -45,10 +45,15 @@ export function buildMoveSql(wallets, now = new Date().toISOString(), approved =
   }
   if (payableIds.size) {
     const ids = [...payableIds].map(id => `'${id}'`).join(', ');
-    lines.push(`UPDATE gamble_jelly_moves SET moved_at = '${now}'
+    // 승인 대상이 비활성화됐으면 NOT NULL 제약으로 지급문 전체를 롤백해요.
+    const membershipGuard = approved === null ? '' : `,
+    jelly = CASE WHEN (
+      SELECT COUNT(*) FROM members WHERE active = 1 AND user_id IN (${ids})
+    ) = ${payableIds.size} THEN jelly ELSE NULL END`;
+    const activeOnly = approved === null ? '\n    AND user_id IN (SELECT user_id FROM members WHERE active = 1)' : '';
+    lines.push(`UPDATE gamble_jelly_moves SET moved_at = '${now}'${membershipGuard}
   WHERE moved_at IS NULL
-    AND user_id IN (${ids})
-    AND user_id IN (SELECT user_id FROM members WHERE active = 1);`);
+    AND user_id IN (${ids})${activeOnly};`);
   }
   if (lines.length === 1) lines.push('SELECT 0 AS credited;');
   return lines.join('\n') + '\n';
