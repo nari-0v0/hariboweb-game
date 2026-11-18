@@ -559,6 +559,8 @@
       g.append(t);
     }
     setV(vals.filter((_, i) => u.given[i] !== -1).map((x) => x || '_').join(''));
+    // 빈칸이 남은 채로 내면 답이 될 수 없어요. 틀린 횟수 대신 안내만 보여 줘요.
+    rule = () => (out.value.includes('_') ? '아직 빈칸이 있어요. 칸을 모두 채운 뒤 내 주세요.' : '');
     return [g];
   };
 
@@ -703,6 +705,7 @@
       els.forEach((b, i) => (b.dataset.c = String(c[u.regions[i]])));
       setV(c.join(''));
     };
+    rule = () => (c.includes(0) ? '아직 색을 칠하지 않은 구역이 있어요. 모두 칠한 뒤 내 주세요.' : '');
     draw();
     return [g, h('p', 'hint', `구역을 누를 때마다 색이 바뀌어요 (${u.colors}가지).`)];
   };
@@ -729,6 +732,7 @@
       els.forEach((b, i) => !holes.has(i) && (b.dataset.c = String(p[i])));
       setV(p.join(''));
     };
+    rule = () => (p.some((x, i) => !holes.has(i) && !x) ? '아직 조각을 정하지 않은 칸이 있어요. 모두 누른 뒤 내 주세요.' : '');
     draw();
     return [g, h('p', 'hint', `칸을 누를 때마다 조각 색이 바뀌어요 (${u.parts}조각).`)];
   };
@@ -780,7 +784,8 @@
     if (broke) {
       e.preventDefault();
       tell(broke, true);
-    } else if (!out.value) {
+    } else if (!out.value || (!moves.length && out.value === fresh)) {
+      // 아무것도 안 건드린 처음 모습 그대로 내면(실수로 누른 것) 틀린 횟수에 넣지 않아요.
       e.preventDefault();
       tell('먼저 문제를 풀어 보세요.', true);
     } else if (out.value.length > UI_MAX) {

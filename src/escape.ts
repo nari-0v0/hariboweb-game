@@ -387,6 +387,13 @@ export function openScenes(c: EscCase, s: EscState): string[] {
 
 export const visible = (c: EscCase, s: EscState, o: EscObject) => o.scene === s.scene && (!o.hidden || s.shown.includes(o.id));
 export const normCode = (v: string) => v.normalize('NFC').replace(/\s/g, '').toUpperCase();
+// 글자로 적는 답(숫자만이 아닌 답, 예: 7.5)은 단위를 붙여 적어도 맞아요(「7.5도」「7.5°」). 숫자 칸은 화면이 단위를 못 적게 막아요.
+function textUnitOk(lk: Extract<Lock, { kind: 'code' }>, v: string): boolean {
+  if (lk.choices || lk.order || lk.grid || lk.ui || /^[0-9]+$/.test(lk.code)) return false;
+  const code = normCode(lk.code);
+  const unit = normCode(lk.ask);
+  return (!!unit && v === code + unit) || v === `${code}°`;
+}
 export const isLocked = (s: EscState, o: EscObject) => !!o.lock && !s.opened.includes(o.id);
 export const escGrade = (s: EscState): EscGrade => {
   const p = s.mistakes + s.hints;
@@ -622,7 +629,9 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
     const n = lk.order?.length ?? 0;
     const shape = lk.grid ? new RegExp(`^[01]{${lk.grid.w * lk.grid.h}}$`) : lk.order ? new RegExp(`^[1-${n}]{${n}}$`) : digits ? /^[0-9]{1,8}$/ : null;
     if (shape ? !shape.test(v) : !v || v.length > (lk.choices ? 40 : 12)) return null;
-    if (v !== normCode(lk.code)) {
+    // 줄 세우기에서 같은 이름을 두 번 고르면 답이 될 수 없어요. 실수로 세지 않고 돌려보내요(화면도 미리 막아요).
+    if (lk.order && new Set(v).size !== v.length) return null;
+    if (v !== normCode(lk.code) && !textUnitOk(lk, v)) {
       s.mistakes += 1;
       s.fx = 'wrong';
       s.msg = lk.grid ? '삐빅! 표시한 칸이 맞지 않아요.' : lk.order ? '삐빅! 순서가 맞지 않아요.' : digits ? '삐빅! 비밀번호가 틀렸어요.' : '삐빅! 암호가 틀렸어요.';

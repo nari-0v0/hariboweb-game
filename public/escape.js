@@ -1,6 +1,23 @@
 // 사건파일 방: 그림을 누르면 톡 하고 돋보기가 떠요. 사건과 상관없는 곳은 짧은 말만 하고,
 // 확대 화면은 손가락·마우스로 끌어서 둘러볼 수 있어요.
 (() => {
+  // 줄 세우기: 같은 이름을 두 번 고르면 답이 될 수 없어요. 내기 전에 알려 주고 틀린 횟수에는 넣지 않아요.
+  document.addEventListener('submit', (e) => {
+    const f = e.target;
+    if (!(f instanceof HTMLFormElement)) return;
+    const sels = [...f.querySelectorAll('.esc-order select')];
+    if (!sels.length) return;
+    sels.forEach((x) => x.setCustomValidity(''));
+    const twice = sels.find((x, i) => x.value && sels.slice(0, i).some((y) => y.value === x.value));
+    if (!twice) return;
+    e.preventDefault();
+    twice.setCustomValidity('같은 이름을 두 번 골랐어요. 자리마다 다른 이름을 골라 주세요.');
+    twice.reportValidity();
+  });
+  document.addEventListener('change', (e) => {
+    const box = e.target instanceof HTMLSelectElement && e.target.closest('.esc-order');
+    if (box) for (const x of box.querySelectorAll('select')) x.setCustomValidity('');
+  });
   const room = document.querySelector('[data-room]');
   if (!room) return;
   const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
