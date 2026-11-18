@@ -23,6 +23,9 @@ function indexRows(rows, fields, name) {
 // before와 after는 해당 시각의 전체 gamble_accounts 잔액이에요.
 export function verifyMoves(expected, before, after) {
   const planned = indexRows(expected, ['jelly'], '승인 지급 명단');
+  for (const [id, row] of planned) {
+    if (row.jelly === 0) throw new Error('승인 지급 명단: 이관액은 양수여야 해요 (' + id + ')');
+  }
   const baseline = indexRows(before, ['chips'], '지급 직전 잔액');
   const actual = indexRows(after, ['chips'], '지급 직후 잔액');
   const users = new Set([...planned.keys(), ...baseline.keys(), ...actual.keys()]);
