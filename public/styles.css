@@ -98,7 +98,7 @@ img { -webkit-user-drag: none; user-select: none; -webkit-touch-callout: none; }
 .menu-scrim { display: none; position: fixed; inset: 0; z-index: 20; background: rgba(42, 32, 48, .25); }
 .menu-panel {
   display: none; position: fixed; z-index: 21; top: calc(70px + var(--nb, 0px)); right: max(16px, calc((100vw - 1088px) / 2));
-  width: min(260px, calc(100vw - 32px)); max-height: calc(100dvh - 90px); overflow-y: auto;
+  width: min(260px, calc(100vw - 32px)); max-height: calc(100dvh - 90px - var(--nb, 0px)); overflow-y: auto;
   flex-direction: column; gap: 2px; padding: 8px; background: var(--paper); border: 4px solid var(--ink);
   box-shadow: 0 8px 0 rgba(42, 32, 48, .15);
 }
@@ -2160,7 +2160,7 @@ main.wide { max-width: 1320px; }
 .bgo-wrap .bgo { margin-top: 0; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 1000px) {
   .bgo-wrap { max-width: 1140px; grid-template-columns: minmax(0, 1fr) minmax(0, 560px); }
-  .bgo-quests { position: sticky; top: 84px; }
+  .bgo-quests { position: sticky; top: calc(84px + var(--nb, 0px)); }
 }
 .bgo-wrap + .bgo-block { max-width: 600px; }
 @media (min-width: 1000px) { .bgo-wrap + .bgo-block { max-width: 1140px; } }
