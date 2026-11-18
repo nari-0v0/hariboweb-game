@@ -35,7 +35,11 @@ export async function checkNote(
 ): Promise<{ note: string | null; filtered: boolean; verdict?: 'ok' | 'bad' | 'none' }> {
   const note = cleanNote(raw);
   if (!note) return { note: null, filtered: false };
-  const verdict = parseNoteVerdict(await askAi(ai, AI_PROMPT, note, 20, '칭찬 한마디')) ?? 'none';
+  const answer = await askAi(ai, AI_PROMPT, note, 20, '칭찬 한마디');
+  const parsed = parseNoteVerdict(answer);
+  // AI가 답은 했는데 형식이 달라 못 읽었으면 원인을 볼 수 있게 답만 남겨요(한마디 내용은 남기지 않아요).
+  if (answer && !parsed) console.error(`칭찬 한마디 AI 답을 못 읽었어요: ${answer.slice(0, 200)}`);
+  const verdict = parsed ?? 'none';
   return verdict === 'bad' ? { note: null, filtered: true, verdict } : { note, filtered: false, verdict };
 }
 
