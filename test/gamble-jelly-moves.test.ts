@@ -152,3 +152,21 @@ it('승인 대상이 비활성화되면 아직 지급하지 않은 건 전체를
     { user_id: B, chips: 200, won: 0 },
   ]);
 });
+
+it('이관 후 잔액이 안전한 정수 범위를 넘으면 다른 계정도 지급하지 않아요', () => {
+  const sql = freshDb();
+  const stamp = '2026-11-21T00:00:00.000Z';
+  const wallets = [{ user_id: B, jelly: 200 }, { user_id: A, jelly: 100 }];
+  const move = buildMoveSql(wallets, stamp, wallets);
+  const maximum = Number.MAX_SAFE_INTEGER;
+  sql.exec(`UPDATE gamble_accounts SET chips = ${maximum - 99} WHERE user_id = '${A}'`);
+  expect(() => sql.exec(move)).toThrow();
+  expect(chips(sql)).toEqual([{ user_id: A, chips: maximum - 99, won: 500 }]);
+  expect(sql.prepare('SELECT COUNT(*) AS n FROM gamble_jelly_moves WHERE moved_at IS NOT NULL').get()).toEqual({ n: 0 });
+  sql.exec(`UPDATE gamble_accounts SET chips = ${maximum - 100} WHERE user_id = '${A}'`);
+  sql.exec(move);
+  expect(chips(sql)).toEqual([
+    { user_id: A, chips: maximum, won: 500 },
+    { user_id: B, chips: 200, won: 0 },
+  ]);
+});
