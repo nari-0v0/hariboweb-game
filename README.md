@@ -48,3 +48,31 @@ npm run dev
 npm run typecheck
 npm test
 ```
+
+## 도감·게임 진행 통계
+
+`GET /api/internal/game-progress`에서 운영 중인 도감 장수·카드 레벨 분포,
+원정대 완주 인원, 사건 해결 인원과 후속 해금 기준별 충족 인원을 JSON으로 확인해요.
+현재 서버 멤버 기준으로 집계하며 응답에는 멤버 이름이나 ID가 없어요.
+원정대의 해금 조건 충족 인원은 도감 기준이고, 실제 입장에는 앞 장 완주가 따로 필요해요.
+
+Cloudflare Worker의 비밀 값에 별도의 무작위 토큰을 `GAME_PROGRESS_TOKEN`이라는
+이름으로 추가해요. 토큰을 설정하지 않으면 이 주소는 401을 반환해요.
+조회 환경에도 같은 토큰을 비밀 값으로 등록한 뒤 요청에
+`Authorization: Bearer <토큰>` 헤더를 보내요. Discord 로그인과 봇 토큰은 이 주소에 사용할 수 없어요.
+
+조회 환경에 `HARIBO_STATS_ORIGIN`(운영 웹 주소)과 `GAME_PROGRESS_TOKEN`이 설정돼 있으면
+Node.js로 확인할 수 있어요.
+
+```sh
+node --input-type=module -e '
+  const url = new URL("/api/internal/game-progress", process.env.HARIBO_STATS_ORIGIN);
+  if (url.protocol !== "https:" || !process.env.GAME_PROGRESS_TOKEN) throw new Error("HTTPS 주소와 통계 토큰을 설정하세요.");
+  const response = await fetch(url, {
+    headers: { Authorization: "Bearer " + process.env.GAME_PROGRESS_TOKEN },
+    redirect: "error",
+  });
+  if (!response.ok) throw new Error("통계 요청 실패 (" + response.status + ")");
+  console.log(JSON.stringify(await response.json(), null, 2));
+'
+```
