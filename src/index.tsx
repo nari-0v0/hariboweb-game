@@ -97,9 +97,6 @@ import { AlertBox, AlertsPage } from './views/alerts';
 import { grantJelly, parseGrant } from './jelly-grant';
 import { activeEscape, actEscapeRun, beginEscape, escapeOpen, escapeRecord, getEscape, quitEscape } from './escape-db';
 
-// 광장은 없앴지만 Cloudflare에 만든 Durable Object 칸(PLAZA)은 지우려면 따로 정리 단계가 필요해서 이름만 남겨 둬요.
-export { PlazaRoom } from './plaza-room';
-
 const SESSION_COOKIE = 'hs';
 const STATE_COOKIE = 'hs_state';
 const SESSION_DAYS = 30;

@@ -1,21 +1,9 @@
-// 테스트에서만 쓰는 Node 기능의 최소 타입(@types/node를 따로 깔지 않으려고)
+// 기존 테스트의 작은 D1 가짜 객체는 값을 unknown[]으로 모아 node:sqlite에 넘겨요.
+// 운영 코드는 src/node/d1.ts에서 undefined와 지원하지 않는 값을 따로 막습니다.
 declare module 'node:sqlite' {
   interface StatementSync {
-    all(...args: unknown[]): unknown[];
-    get(...args: unknown[]): unknown;
-    run(...args: unknown[]): { changes: number | bigint };
-  }
-  export class DatabaseSync {
-    constructor(path: string);
-    exec(sql: string): void;
-    prepare(sql: string): StatementSync;
+    all(...anonymousParameters: unknown[]): Record<string, SQLOutputValue>[];
+    get(...anonymousParameters: unknown[]): Record<string, SQLOutputValue> | undefined;
+    run(...anonymousParameters: unknown[]): StatementResultingChanges;
   }
 }
-declare module 'node:fs' {
-  export function readdirSync(path: string): string[];
-  export function readFileSync(path: string, encoding: 'utf8'): string;
-}
-declare module 'node:path' {
-  export function join(...parts: string[]): string;
-}
-declare const process: { cwd(): string };

@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "hariboweb-game",
-  "main": "src/index.tsx",
+  "main": "src/worker.ts",
   "compatibility_date": "2026-10-01",
   "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": ["/char/*", "/case/*", "/journey/*"] },
   // 워커를 D1 데이터베이스(APAC) 가까이에서 실행해서, 화면 하나에 DB를 여러 번 읽어도 빨라요.
