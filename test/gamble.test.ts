@@ -67,20 +67,20 @@ describe('겜블장 배당', () => {
     SLOTS.forEach((a, i) => SLOTS.forEach((b, j) => SLOTS.forEach((c, k) => {
       weightedPayout += slotPayout([i, j, k]) * a.weight * b.weight * c.weight;
     })));
-    expect(weightedPayout / total ** 3).toBeGreaterThanOrEqual(1.02);
-    expect(weightedPayout / total ** 3).toBeLessThanOrEqual(1.05);
+    // 평균이 100%를 넘지 않아요(계속 돌려도 칩이 불어나지 않게, 2026-11-18)
+    expect(weightedPayout / total ** 3).toBeCloseTo(0.99346, 4);
+    expect(weightedPayout / total ** 3).toBeLessThan(1);
   });
 
   it('룰렛 배수별 확률(100번 중)과 기대값', () => {
     expect(WHEEL).toHaveLength(100);
-    expect([0, 1, 2, 3, 5, 10].map((n) => WHEEL.filter((v) => v === n).length)).toEqual([48, 25, 15, 8, 3, 1]);
+    expect([0, 1, 2, 3, 5, 10].map((n) => WHEEL.filter((v) => v === n).length)).toEqual([49, 25, 15, 8, 2, 1]);
     expect(WHEEL).toHaveLength(100);
-    expect(WHEEL.reduce((a, b) => a + b, 0) / 100).toBeCloseTo(1.04);
+    expect(WHEEL.reduce((a, b) => a + b, 0) / 100).toBeCloseTo(0.99);
     expect(WHEEL[WHEEL.length - 1]).toBe(10);
     const mean = WHEEL.reduce((sum, n) => sum + n, 0) / WHEEL.length;
-    expect(mean).toBeCloseTo(1.04);
-    expect(mean).toBeGreaterThanOrEqual(1.02);
-    expect(mean).toBeLessThanOrEqual(1.05);
+    expect(mean).toBeCloseTo(0.99);
+    expect(mean).toBeLessThan(1);
   });
 
   it('동전 던지기는 맞히면 2배, 틀리면 0배이고 평균 1배(배수는 정수)', async () => {
@@ -108,11 +108,11 @@ describe('겜블장 배당', () => {
   it('룰렛 1배는 본전, 2배는 건 만큼 더 받아요', async () => {
     const { db } = fixture();
     await claimDaily(db, USER, TODAY);
-    roll(48);
+    roll(49);
     const even = await betChips(db, USER, 'roulette', 3, 'even', TODAY);
     expect(even?.multiplier).toBe(1);
     expect((await gambleAccount(db, USER))?.chips).toBe(1000);
-    roll(73);
+    roll(74);
     const more = await betChips(db, USER, 'roulette', 3, 'more', LATER(2));
     expect(more?.multiplier).toBe(2);
     expect(await gambleAccount(db, USER)).toMatchObject({ chips: 1003, won: 3, best_win: 3 });
@@ -229,7 +229,7 @@ describe('칩과 판 기록', () => {
     sql.prepare("INSERT INTO seasons (id, starts_at, ends_at, created_at) VALUES ('season', ?, ?, ?)").run('2026-11-01T00:00:00.000Z', TOMORROW, TODAY);
     await claimDaily(db, USER, TODAY);
     sql.prepare('UPDATE gamble_accounts SET chips = 1 WHERE user_id = ?').run(USER);
-    roll(48);
+    roll(49);
     const r = await betChips(db, USER, 'roulette', 1, 'even', TODAY);
     expect(r?.multiplier).toBe(1);
     expect(await gambleAccount(db, USER)).toMatchObject({ chips: 1, won: 0, all_in_wins: 0 });
