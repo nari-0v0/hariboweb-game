@@ -127,6 +127,7 @@ export const titleItemId = (id: string) => `title:${id}`;
 
 // 칭호 조건에 쓰는 기록
 export type TitleStats = {
+  resetAt?: string | null; // 기록을 읽은 초기화 세대. 저장 전에 바뀌면 옛 조건으로 칭호를 주지 않아요.
   gamble?: Record<GambleMetric, number>;
   bestXp: number;
   ownXp: number; // 내 카드(혼자 쌓은) 경험치

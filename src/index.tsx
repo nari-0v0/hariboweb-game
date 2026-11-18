@@ -720,7 +720,7 @@ members.get('/me/praise', async (c) => {
   const viewer = c.get('viewer');
   const seenThrough = Date.now();
   const box = await praiseBox(c.env.DB, viewer.user_id, 20, true);
-  if (box.unread) await markPraiseSeen(c.env.DB, viewer.user_id, seenThrough).catch((e) => console.error('칭찬함 읽음 표시 실패', e));
+  if (box.unread) await markPraiseSeen(c.env.DB, viewer.user_id, seenThrough, box.items.map((item) => item.id)).catch((e) => console.error('칭찬함 읽음 표시 실패', e));
   return page(c, <PraisePage viewer={viewer} box={box} />);
 });
 
@@ -759,7 +759,7 @@ members.post('/api/me/profile', async (c) => {
   const theme = String(form.theme ?? 'basic');
   if ([...intro].length > 30) return c.text('소개는 30자까지예요', 400);
   if (!canUseTheme(theme, await getOwnedItems(c.env.DB, viewer.user_id))) return c.text('아직 쓸 수 없는 테마예요', 400);
-  await saveProfile(c.env.DB, viewer.user_id, intro, theme);
+  if (!await saveProfile(c.env.DB, viewer.user_id, intro, theme)) return c.text('아직 쓸 수 없는 테마예요', 400);
   return c.redirect('/me?saved=1');
 });
 
@@ -885,7 +885,7 @@ members.post('/api/me/deco', async (c) => {
   if (!item) return done('error');
   const [owned, cards, memberCount] = await Promise.all([getOwnedItems(c.env.DB, viewer.user_id), countOwnedCards(c.env.DB, viewer.user_id), countActiveMembers(c.env.DB)]);
   if (!canUse(item, owned, cards, memberCount)) return done('locked');
-  await setDeco(c.env.DB, viewer.user_id, key);
+  if (!await setDeco(c.env.DB, viewer.user_id, key)) return done('locked');
   return done('equipped');
 });
 
@@ -894,7 +894,7 @@ members.post('/api/me/theme', async (c) => {
   const viewer = c.get('viewer');
   const theme = String((await c.req.parseBody()).theme ?? '');
   if (!canUseTheme(theme, await getOwnedItems(c.env.DB, viewer.user_id))) return c.redirect('/shop/deco?n=locked');
-  await setTheme(c.env.DB, viewer.user_id, theme);
+  if (!await setTheme(c.env.DB, viewer.user_id, theme)) return c.redirect('/shop/deco?n=locked');
   return c.redirect('/shop/deco?n=theme');
 });
 
@@ -941,7 +941,7 @@ members.post('/api/titles/equip', async (c) => {
     if (t.rule.kind === 'shop' || !titleProgress(t, stats).ok) return c.redirect('/titles?n=locked');
     await recordEarnedTitles(c.env.DB, viewer.user_id, stats, owned);
   }
-  await equipTitle(c.env.DB, viewer.user_id, t.id);
+  if (!await equipTitle(c.env.DB, viewer.user_id, t.id)) return c.redirect('/titles?n=locked');
   return c.redirect('/titles?n=equipped');
 });
 

@@ -117,7 +117,8 @@ describe('도감 칭호', () => {
   });
 
   it('고르면 봇 목록에 나오고, 봇이 알리면 빠져요. 같은 칭호를 다시 고르면 다시 붙여 봐요', async () => {
-    const { db } = setup();
+    const { db, sql } = setup();
+    for (const id of ['shop-1', 'shop-2']) sql.prepare("INSERT INTO owned_items VALUES (?, ?, 'x')").run(A, `title:${id}`);
     expect(await listTitleJobs(db)).toEqual([]);
     await equipTitle(db, A, 'shop-1');
     expect(await listTitleJobs(db)).toEqual([{ user: A, id: 'shop-1', title: 'MOOD' }]);
@@ -145,7 +146,8 @@ describe('도감 칭호', () => {
   });
 
   it('목록에서 빠진 칭호를 고른 채면 떼요', async () => {
-    const { db } = setup();
+    const { db, sql } = setup();
+    for (const [user, id] of [[A, 'old-title'], [B, 'old-title'], [A, 'shop-1']]) sql.prepare("INSERT INTO owned_items VALUES (?, ?, 'x')").run(user, `title:${id}`);
     await equipTitle(db, A, 'old-title');
     // 닉네임에 이미 붙은 뒤에 목록에서 빠져도 떼요
     await settleTitle(db, A, 'old-title', null);
@@ -156,4 +158,37 @@ describe('도감 칭호', () => {
     await equipTitle(db, A, 'shop-1');
     expect(await listTitleJobs(db)).toEqual([{ user: A, id: 'shop-1', title: 'MOOD' }]);
   });
+});
+
+it('초기화 전에 읽은 칭호 조건으로 지운 칭호를 다시 지급하지 않아요', async () => {
+  const { db, sql } = setup();
+  sql.prepare("INSERT INTO cards (owner_id, target_id, xp, first_met, updated_at) VALUES (?, ?, ?, 'x', 'x')").run(A, B, xpForLevel(30));
+  const stats = await loadTitleStats(db, A, new Date().toISOString());
+  expect(titleProgress(titleById('lv-30')!, stats).ok).toBe(true);
+  sql.exec(readFileSync('scripts/launch-reset.sql', 'utf8'));
+  const owned = await ownedTitles(db, A);
+  expect(await recordEarnedTitles(db, A, stats, owned)).toEqual([]);
+  expect(await ownedTitles(db, A)).toEqual(new Set());
+  expect(owned).toEqual(new Set());
+});
+
+it('초기화로 소유권이 지워진 칭호를 늦게 끝난 장착 요청이 다시 달지 않아요', async () => {
+  const { db, sql } = setup();
+  sql.prepare("INSERT INTO owned_items (user_id, item_id, acquired_at) VALUES (?, 'title:shop-1', 'x')").run(A);
+  expect((await ownedTitles(db, A)).has('shop-1')).toBe(true); // 요청의 소유권 확인
+  sql.exec(readFileSync('scripts/launch-reset.sql', 'utf8'));
+  await equipTitle(db, A, 'shop-1');
+  expect((await titleState(db, A)).title_id).toBeNull();
+  expect(await listTitleJobs(db)).toEqual([]);
+});
+
+
+it('다른 화면이 먼저 지급한 칭호는 새 획득으로 중복 알리지 않고 소유 목록에는 보여요', async () => {
+  const { db, sql } = setup();
+  sql.prepare("INSERT INTO cards (owner_id, target_id, xp, first_met, updated_at) VALUES (?, ?, ?, 'x', 'x')").run(A, B, xpForLevel(10));
+  const stats = await loadTitleStats(db, A, new Date().toISOString());
+  const oldOwned = await ownedTitles(db, A);
+  await recordEarnedTitles(db, A, stats, new Set());
+  expect(await recordEarnedTitles(db, A, stats, oldOwned)).toEqual([]);
+  expect(oldOwned.has('lv-10')).toBe(true);
 });

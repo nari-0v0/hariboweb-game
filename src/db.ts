@@ -1,3 +1,4 @@
+import { REWARD_COUNT, REWARD_STEP, shopItem, decoItemId } from './shop';
 import { ALERT_KEEP_DAYS } from './alerts';
 import { XP_SCALE, levelFromXp } from './levels';
 import type { Member } from './env';
@@ -76,14 +77,17 @@ export async function getProfile(db: D1Database, id: string): Promise<Profile> {
   return row ?? { user_id: id, solo_xp: 0, intro: '', theme_id: 'basic', character_id: null, deco_id: null, dogam_jelly: 0 };
 }
 
-export async function saveProfile(db: D1Database, id: string, intro: string, theme: string) {
-  await db
+export async function saveProfile(db: D1Database, id: string, intro: string, theme: string): Promise<boolean> {
+  const result = await db
     .prepare(
-      `INSERT INTO profiles (user_id, intro, theme_id, updated_at) VALUES (?1, ?2, ?3, ?4)
+      `INSERT INTO profiles (user_id, intro, theme_id, updated_at)
+       SELECT ?1, ?2, ?3, ?4 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
+         AND (?3 = 'basic' OR EXISTS (SELECT 1 FROM owned_items WHERE user_id = ?1 AND item_id = 'theme:' || ?3))
        ON CONFLICT (user_id) DO UPDATE SET intro = ?2, theme_id = ?3, updated_at = ?4`,
     )
     .bind(id, intro, theme, now())
     .run();
+  return (result.meta.changes ?? 0) > 0;
 }
 
 const DOGAM_SELECT = `SELECT m.user_id, m.display_name, m.joined_at, m.active, m.is_newbie,
@@ -637,24 +641,38 @@ export async function markPurchasesSeen(db: D1Database, userId: string, ids: str
   );
 }
 
-export async function setTheme(db: D1Database, userId: string, theme: string) {
-  await db
+export async function setTheme(db: D1Database, userId: string, theme: string): Promise<boolean> {
+  const result = await db
     .prepare(
-      `INSERT INTO profiles (user_id, theme_id, updated_at) VALUES (?1, ?2, ?3)
+      `INSERT INTO profiles (user_id, theme_id, updated_at)
+       SELECT ?1, ?2, ?3 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
+         AND (?2 = 'basic' OR EXISTS (SELECT 1 FROM owned_items WHERE user_id = ?1 AND item_id = 'theme:' || ?2))
        ON CONFLICT (user_id) DO UPDATE SET theme_id = ?2, updated_at = ?3`,
     )
     .bind(userId, theme, now())
     .run();
+  return (result.meta.changes ?? 0) > 0;
 }
 
-export async function setDeco(db: D1Database, userId: string, decoId: string | null) {
-  await db
+export async function setDeco(db: D1Database, userId: string, decoId: string | null): Promise<boolean> {
+  const item = decoId === null ? null : shopItem(decoItemId(decoId));
+  if (decoId !== null && !item) return false;
+  const rank = item?.rewardRank;
+  // rewardNeed와 같은 식을 저장 문장 안에서 계산해요. 확인 뒤 카드·인원이 바뀌거나 초기화돼도
+  // 지금 조건으로 열린 보상만 달아요(산 캐릭터는 소유권이 있으면 그대로).
+  const others = '(SELECT MAX(0, COUNT(*) - 1) FROM members WHERE active = 1)';
+  const need = rank == null ? null : `MIN(MAX(1, ${others}), MAX(${rank * REWARD_STEP}, CAST((${rank} * ${others} + ${REWARD_COUNT - 1}) / ${REWARD_COUNT} AS INTEGER)))`;
+  const reward = need === null ? '0' : `(SELECT COUNT(*) FROM cards c JOIN members m ON m.user_id = c.target_id AND m.active = 1 WHERE c.owner_id = ?1 AND c.target_id != ?1) >= ${need}`;
+  const result = await db
     .prepare(
-      `INSERT INTO profiles (user_id, deco_id, updated_at) VALUES (?1, ?2, ?3)
+      `INSERT INTO profiles (user_id, deco_id, updated_at)
+       SELECT ?1, ?2, ?3 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
+         AND (?2 IS NULL OR EXISTS (SELECT 1 FROM owned_items WHERE user_id = ?1 AND item_id = 'deco:' || ?2) OR ${reward})
        ON CONFLICT (user_id) DO UPDATE SET deco_id = ?2, updated_at = ?3`,
     )
     .bind(userId, decoId, now())
     .run();
+  return (result.meta.changes ?? 0) > 0;
 }
 
 // 지금 서버에 있는 멤버 수(떠난 멤버 빼고). 판타지 캐릭터 보상 기준에 써요.
