@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buyGenderChange, chooseFirstGender, planCharacterPool } from '../src/db';
-import { poolOf } from '../src/character';
+import { poolOf, pickCharacter } from '../src/character';
 
 function fakeD1() {
   const sql = new DatabaseSync(':memory:');
@@ -142,4 +142,40 @@ describe('처음 성별 고르기와 상점 성별 바꾸기', () => {
     const again = await planCharacterPool(db, A, 'boy');
     expect(again.character).not.toBe(plan.character);
   });
+});
+
+
+it('초기화 후 보관 캐릭터로 성별을 다시 골라도 반대 성별 캐릭터를 잃지 않아요', async () => {
+  const { db, sql, row } = setup(120);
+  await chooseFirstGender(db, A, 'girl');
+  await buyGenderChange(db, A, 'boy', 30);
+  const boy = row().character_id;
+  sql.exec(readFileSync('scripts/launch-reset.sql', 'utf8'));
+  sql.prepare('UPDATE profiles SET dogam_jelly = 60 WHERE user_id = ?').run(A);
+  expect(await chooseFirstGender(db, A, 'girl')).toBe('done');
+  expect(row().character_id).toBe('girl-01-0');
+  const other = Array.from({ length: 1000 }, (_, i) => `2${String(i).padStart(17, '0')}`)
+    .find((id) => pickCharacter(id, new Set(), 'boy') === boy)!;
+  expect(other).toBeTruthy();
+  sql.prepare("INSERT INTO members (user_id, display_name, active, updated_at) VALUES (?, 'other', 1, 'x')").run(other);
+  await chooseFirstGender(db, other, 'boy');
+  expect(await buyGenderChange(db, A, 'boy', 30)).toBe('done');
+  expect(row().character_id).toBe(boy);
+});
+
+it('성별을 고르는 중 서버를 나가도 프로필이나 고른 표시가 다시 생기지 않아요', async () => {
+  const { db, sql } = setup(0);
+  const batch = db.batch.bind(db);
+  let left = false;
+  db.batch = (async (statements: D1PreparedStatement[]) => {
+    if (!left) {
+      left = true;
+      sql.prepare('UPDATE members SET active = 0, gender_chosen_at = NULL WHERE user_id = ?').run(A);
+      sql.prepare('DELETE FROM profiles WHERE user_id = ?').run(A);
+    }
+    return batch(statements);
+  }) as typeof db.batch;
+  expect(await chooseFirstGender(db, A, 'boy')).toBe('already');
+  expect(sql.prepare('SELECT 1 FROM profiles WHERE user_id = ?').get(A)).toBeUndefined();
+  expect(sql.prepare('SELECT gender_chosen_at FROM members WHERE user_id = ?').get(A)).toEqual({ gender_chosen_at: null });
 });

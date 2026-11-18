@@ -96,3 +96,50 @@ describe('나리 전용 도감 젤리 지급', () => {
     expect(long.ok && [...(long.value.reason ?? '')].length).toBe(100);
   });
 });
+
+
+it('같은 밀리초에 같은 지급 번호가 겹쳐도 적용 성공은 한 요청만 돌려줘요', async () => {
+  const { db, jellyOf } = setup(0);
+  const results = await Promise.all([grantJelly(db, grant(), T), grantJelly(db, grant(), T)]);
+  expect(jellyOf()).toBe(10);
+  expect(results.filter((r) => r.result === 'applied')).toHaveLength(1);
+  expect(results.filter((r) => r.result === 'duplicate')).toHaveLength(1);
+});
+
+it.each([10, -10])('대상 확인 직후 전체 초기화되면 옛 젤리 %i개 요청을 다시 반영하지 않아요', async (amount) => {
+  const { db, sql, jellyOf, grants } = setup(5);
+  sql.prepare("UPDATE members SET starter_jelly_at = 'given' WHERE user_id = ?").run(A);
+  const batch = db.batch.bind(db);
+  let reset = false;
+  db.batch = (async (statements: D1PreparedStatement[]) => {
+    if (!reset) {
+      reset = true;
+      sql.exec(readFileSync('scripts/launch-reset.sql', 'utf8'));
+    }
+    return batch(statements);
+  }) as typeof db.batch;
+  expect(await grantJelly(db, grant({ amount }), T)).toEqual({ result: 'no_member', balance: null });
+  expect(jellyOf()).toBe(5);
+  expect(grants()).toEqual([]);
+});
+
+it('대상 확인 직후 탈퇴하면 늦은 지급 기록도 새로 남기지 않아요', async () => {
+  const { db, sql, jellyOf, grants } = setup(5);
+  const batch = db.batch.bind(db);
+  db.batch = (async (statements: D1PreparedStatement[]) => {
+    sql.prepare('UPDATE members SET active = 0, reset_at = ? WHERE user_id = ?').run(new Date(T + 1).toISOString(), A);
+    sql.prepare('DELETE FROM profiles WHERE user_id = ?').run(A);
+    return batch(statements);
+  }) as typeof db.batch;
+  expect(await grantJelly(db, grant(), T)).toEqual({ result: 'no_member', balance: null });
+  expect(jellyOf()).toBeUndefined();
+  expect(grants()).toEqual([]);
+});
+
+
+it('이미 초기화된 현재 멤버에게 새로 지급하는 것은 정상 반영해요', async () => {
+  const { db, sql, jellyOf } = setup(5);
+  sql.prepare('UPDATE members SET reset_at = ? WHERE user_id = ?').run(new Date(T - 1000).toISOString(), A);
+  expect(await grantJelly(db, grant(), T)).toEqual({ result: 'applied', balance: 15 });
+  expect(jellyOf()).toBe(15);
+});

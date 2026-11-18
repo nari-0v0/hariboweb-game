@@ -200,6 +200,25 @@ describe('줄 보상', () => {
     sql.prepare("INSERT OR IGNORE INTO server_quest (season_id, newbies, target, created_at) VALUES ('s1', 0, 1, 'x')").run();
   }
 
+  it('보상 저장 전에 초기화되면 옛 빙고 줄·젤리·경험치·젤리피를 다시 만들지 않아요', async () => {
+    const { sql, db } = fakeD1();
+    fill(sql, A);
+    const batch = db.batch.bind(db);
+    let reset = false;
+    db.batch = (async (statements: D1PreparedStatement[]) => {
+      if (!reset) {
+        reset = true;
+        sql.exec(readFileSync('scripts/launch-reset.sql', 'utf8'));
+      }
+      return batch(statements);
+    }) as typeof db.batch;
+    await grantBingo(db, fallbackWeek(NOW), [A], NOW);
+    expect(reset).toBe(true);
+    expect(profileOf(sql, A)).toEqual({ dogam_jelly: 0, solo_xp: 0 });
+    expect(sql.prepare('SELECT COUNT(*) AS n FROM bingo_lines').get()).toEqual({ n: 0 });
+    expect(sql.prepare('SELECT COUNT(*) AS n FROM jellypi').get()).toEqual({ n: 0 });
+  });
+
   it('줄마다 한 번만, 9칸을 다 채우면 더 줘요', async () => {
     const { sql, db } = fakeD1();
     fill(sql, A);
@@ -362,4 +381,25 @@ describe('임시 주와 진짜 빙고 기간', () => {
     sql.prepare('INSERT INTO bingo_periods (id, starts_at, ends_at) VALUES (?, ?, ?)').run(half!.id, half!.start, half!.end);
     expect(await markFlag(db, A, 'panel', Date.parse(half!.start) + 60_000)).toBe(true);
   });
+});
+
+
+it('전체 초기화 뒤 새 통화에는 초기화 전 빙고 차감 기준을 적용하지 않아요', async () => {
+  const { sql, db } = fakeD1();
+  const current = Date.now();
+  const week = fallbackWeek(current);
+  sql.prepare('INSERT INTO bingo_pair (week, a, b, minutes) VALUES (?, ?, ?, 30)').run(week.id, A, B);
+  sql.prepare('INSERT INTO bingo_pair_reset (week, user_id, other, minutes) VALUES (?, ?, ?, 30)').run(week.id, A, B);
+  sql.exec(readFileSync('scripts/launch-reset.sql', 'utf8'));
+  const reset = Date.parse((sql.prepare('SELECT reset_at FROM members WHERE user_id = ?').get(A) as { reset_at: string }).reset_at);
+  const now = reset + 11 * 60_000;
+  const parsed = parseSync({
+    batch_id: `${new Date(now).toISOString()}-post-launch`,
+    room_minutes: Array.from({ length: 10 }, (_, i) => ({ at: new Date(reset + (i + 1) * 60_000).toISOString(), room: ROOM, members: [A, B] })),
+  });
+  if (!parsed.ok) throw Error(parsed.error);
+  await applySync(db, parsed.value, now);
+  const stats = await loadStats(db, fallbackWeek(now), [A, B]);
+  expect([stats.get(A)!.partners, stats.get(A)!.bestPair]).toEqual([1, 10]);
+  expect([stats.get(B)!.partners, stats.get(B)!.bestPair]).toEqual([1, 10]);
 });

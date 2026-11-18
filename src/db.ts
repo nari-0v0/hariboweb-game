@@ -1,5 +1,6 @@
+import { REWARD_COUNT, REWARD_STEP, shopItem, decoItemId } from './shop';
 import { ALERT_KEEP_DAYS } from './alerts';
-import { XP_SCALE, levelFromXp } from './levels';
+import { MAX_LEVEL, XP_SCALE, levelFromXp, xpForLevel } from './levels';
 import type { Member } from './env';
 import { stripTitle } from './titles';
 import type { LoginProfile } from './discord';
@@ -76,14 +77,17 @@ export async function getProfile(db: D1Database, id: string): Promise<Profile> {
   return row ?? { user_id: id, solo_xp: 0, intro: '', theme_id: 'basic', character_id: null, deco_id: null, dogam_jelly: 0 };
 }
 
-export async function saveProfile(db: D1Database, id: string, intro: string, theme: string) {
-  await db
+export async function saveProfile(db: D1Database, id: string, intro: string, theme: string): Promise<boolean> {
+  const result = await db
     .prepare(
-      `INSERT INTO profiles (user_id, intro, theme_id, updated_at) VALUES (?1, ?2, ?3, ?4)
+      `INSERT INTO profiles (user_id, intro, theme_id, updated_at)
+       SELECT ?1, ?2, ?3, ?4 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
+         AND (?3 = 'basic' OR EXISTS (SELECT 1 FROM owned_items WHERE user_id = ?1 AND item_id = 'theme:' || ?3))
        ON CONFLICT (user_id) DO UPDATE SET intro = ?2, theme_id = ?3, updated_at = ?4`,
     )
     .bind(id, intro, theme, now())
     .run();
+  return (result.meta.changes ?? 0) > 0;
 }
 
 const DOGAM_SELECT = `SELECT m.user_id, m.display_name, m.joined_at, m.active, m.is_newbie,
@@ -272,7 +276,7 @@ export async function chooseFirstGender(
   pool: CharacterPool,
   shown?: string,
 ): Promise<'done' | 'already' | 'changed'> {
-  const member = await db.prepare('SELECT gender_chosen_at FROM members WHERE user_id = ?').bind(userId).first<{ gender_chosen_at: string | null }>();
+  const member = await db.prepare('SELECT gender_chosen_at FROM members WHERE user_id = ? AND active = 1').bind(userId).first<{ gender_chosen_at: string | null }>();
   if (!member || member.gender_chosen_at) return 'already';
   for (let attempt = 1; attempt <= 5; attempt++) {
     const r = await retrySigConflict(() => chooseFirstGenderOnce(db, userId, pool, shown));
@@ -292,7 +296,7 @@ async function chooseFirstGenderOnce(
   const mark = `${now()}#${crypto.randomUUID()}`;
   const claim = db
     .prepare(
-      `UPDATE members SET gender_chosen_at = ?1 WHERE user_id = ?2 AND gender_chosen_at IS NULL
+      `UPDATE members SET gender_chosen_at = ?1 WHERE user_id = ?2 AND active = 1 AND gender_chosen_at IS NULL
          AND (SELECT character_id FROM profiles WHERE user_id = ?2) IS ?3
          AND NOT EXISTS (SELECT 1 FROM character_keep k WHERE k.character_id = ?4 AND k.user_id <> ?2)`,
     )
@@ -308,10 +312,15 @@ async function chooseFirstGenderOnce(
         )
         .bind(userId, plan.character, plan.sig, now(), mark),
     );
+    // 이미 맡겨 둔 캐릭터로 돌아오는 경우만 두 캐릭터를 맞바꿔요.
+    // 처음 무료로 고를 때 새 보관권을 주지는 않아요.
+    if (plan.returning) steps.push(keepStatement(db, userId, plan.before, plan.beforeSig,
+      'EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND gender_chosen_at = ?5)', mark));
   }
   await db.batch(steps);
-  const after = await db.prepare('SELECT gender_chosen_at FROM members WHERE user_id = ?').bind(userId).first<{ gender_chosen_at: string | null }>();
-  if (after?.gender_chosen_at === mark) return 'done';
+  const after = await db.prepare('SELECT gender_chosen_at FROM members WHERE user_id = ? AND active = 1').bind(userId).first<{ gender_chosen_at: string | null }>();
+  if (!after) return 'already';
+  if (after.gender_chosen_at === mark) return 'done';
   if (after?.gender_chosen_at) return 'already';
   // 그 사이 캐릭터가 바뀌었어요(새 캐릭터 배정 등). 다시 계획해요.
   return 'retry';
@@ -597,7 +606,11 @@ export async function listCheers(db: D1Database, limit = 10): Promise<Cheer[]> {
     .map(({ a, b, level }) => ({ a, b, level }));
 }
 export async function markCheer(db: D1Database, a: string, b: string, level: number): Promise<boolean> {
-  const r = await db.prepare('UPDATE cards SET cheer_level = ?3 WHERE owner_id = ?1 AND target_id = ?2 AND cheer_level < ?3').bind(a, b, level).run();
+  if (!Number.isInteger(level) || level < 10 || level > MAX_LEVEL || level % 10 !== 0) return false;
+  // 축하 목록을 읽은 뒤 초기화·재가입으로 새 카드가 생겼으면 옛 응답으로 미래 축하를 건너뛰지 않아요.
+  const r = await db.prepare(`UPDATE cards SET cheer_level = ?3
+    WHERE owner_id = ?1 AND target_id = ?2 AND cheer_level < ?3 AND xp >= ?4`)
+    .bind(a, b, level, xpForLevel(level)).run();
   return (r.meta.changes ?? 0) > 0;
 }
 
@@ -632,24 +645,38 @@ export async function markPurchasesSeen(db: D1Database, userId: string, ids: str
   );
 }
 
-export async function setTheme(db: D1Database, userId: string, theme: string) {
-  await db
+export async function setTheme(db: D1Database, userId: string, theme: string): Promise<boolean> {
+  const result = await db
     .prepare(
-      `INSERT INTO profiles (user_id, theme_id, updated_at) VALUES (?1, ?2, ?3)
+      `INSERT INTO profiles (user_id, theme_id, updated_at)
+       SELECT ?1, ?2, ?3 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
+         AND (?2 = 'basic' OR EXISTS (SELECT 1 FROM owned_items WHERE user_id = ?1 AND item_id = 'theme:' || ?2))
        ON CONFLICT (user_id) DO UPDATE SET theme_id = ?2, updated_at = ?3`,
     )
     .bind(userId, theme, now())
     .run();
+  return (result.meta.changes ?? 0) > 0;
 }
 
-export async function setDeco(db: D1Database, userId: string, decoId: string | null) {
-  await db
+export async function setDeco(db: D1Database, userId: string, decoId: string | null): Promise<boolean> {
+  const item = decoId === null ? null : shopItem(decoItemId(decoId));
+  if (decoId !== null && !item) return false;
+  const rank = item?.rewardRank;
+  // rewardNeed와 같은 식을 저장 문장 안에서 계산해요. 확인 뒤 카드·인원이 바뀌거나 초기화돼도
+  // 지금 조건으로 열린 보상만 달아요(산 캐릭터는 소유권이 있으면 그대로).
+  const others = '(SELECT MAX(0, COUNT(*) - 1) FROM members WHERE active = 1)';
+  const need = rank == null ? null : `MIN(MAX(1, ${others}), MAX(${rank * REWARD_STEP}, CAST((${rank} * ${others} + ${REWARD_COUNT - 1}) / ${REWARD_COUNT} AS INTEGER)))`;
+  const reward = need === null ? '0' : `(SELECT COUNT(*) FROM cards c JOIN members m ON m.user_id = c.target_id AND m.active = 1 WHERE c.owner_id = ?1 AND c.target_id != ?1) >= ${need}`;
+  const result = await db
     .prepare(
-      `INSERT INTO profiles (user_id, deco_id, updated_at) VALUES (?1, ?2, ?3)
+      `INSERT INTO profiles (user_id, deco_id, updated_at)
+       SELECT ?1, ?2, ?3 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
+         AND (?2 IS NULL OR EXISTS (SELECT 1 FROM owned_items WHERE user_id = ?1 AND item_id = 'deco:' || ?2) OR ${reward})
        ON CONFLICT (user_id) DO UPDATE SET deco_id = ?2, updated_at = ?3`,
     )
     .bind(userId, decoId, now())
     .run();
+  return (result.meta.changes ?? 0) > 0;
 }
 
 // 지금 서버에 있는 멤버 수(떠난 멤버 빼고). 판타지 캐릭터 보상 기준에 써요.
@@ -701,6 +728,15 @@ export async function praiseToday(db: D1Database, userId: string, day = kstDay()
 
 export type PraiseResult = 'done' | 'already' | 'limit' | 'self' | 'not_member';
 
+// AI 검사 전에 읽은 회원 세대. 검사 중 초기화·탈퇴가 있었으면 옛 요청을 저장하지 않아요.
+export type PraiseMembers = { sender_reset: string | null; receiver_reset: string | null };
+export async function praiseMembers(db: D1Database, fromId: string, toId: string): Promise<PraiseMembers | null> {
+  return db.prepare(`SELECT f.reset_at AS sender_reset, t.reset_at AS receiver_reset FROM members f
+      JOIN members t ON t.user_id = ?2 AND t.active = 1 WHERE f.user_id = ?1 AND f.active = 1`)
+    .bind(fromId, toId).first<PraiseMembers>();
+}
+
+
 // 칭찬 한 번. 하루 3번, 같은 사람에게 하루 1번. 받은 사람은 하루 3개까지 도감 젤리 1개씩 받아요.
 // 확인과 기록, 젤리 주기를 한 번에(트랜잭션) 해서 동시에 눌러도 한도를 넘지 않아요.
 export async function givePraise(
@@ -709,8 +745,11 @@ export async function givePraise(
   toId: string,
   day = kstDay(),
   note: string | null = null,
+  members?: PraiseMembers | null,
 ): Promise<{ result: PraiseResult; jelly: boolean; left: number }> {
   if (fromId === toId) return { result: 'self', jelly: false, left: (await praiseToday(db, fromId, day)).left };
+  members = members === undefined ? await praiseMembers(db, fromId, toId) : members;
+  if (!members) return { result: 'not_member', jelly: false, left: (await praiseToday(db, fromId, day)).left };
   const mark = `${now()}#${crypto.randomUUID()}`;
   const mine = 'EXISTS (SELECT 1 FROM praises WHERE day = ?1 AND from_id = ?2 AND to_id = ?3 AND created_at = ?4 AND jelly = 1)';
   await db.batch([
@@ -721,11 +760,11 @@ export async function givePraise(
                 (SELECT COUNT(*) FROM praises WHERE day = ?1 AND to_id = ?3 AND jelly = 1) < ?6,
                 ?4, ?7
          WHERE (SELECT COUNT(*) FROM praises WHERE day = ?1 AND from_id = ?2) < ?5
-           AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)
-           AND EXISTS (SELECT 1 FROM members WHERE user_id = ?3 AND active = 1)
+           AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1 AND COALESCE(reset_at, '') = ?8)
+           AND EXISTS (SELECT 1 FROM members WHERE user_id = ?3 AND active = 1 AND COALESCE(reset_at, '') = ?9)
          ON CONFLICT DO NOTHING`,
       )
-      .bind(day, fromId, toId, mark, PRAISE_PER_DAY, PRAISE_JELLY_PER_DAY, note),
+      .bind(day, fromId, toId, mark, PRAISE_PER_DAY, PRAISE_JELLY_PER_DAY, note, members.sender_reset ?? '', members.receiver_reset ?? ''),
     db
       .prepare(
         `INSERT INTO profiles (user_id, dogam_jelly, updated_at) SELECT ?3, 1, ?5 WHERE ${mine}

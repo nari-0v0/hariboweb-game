@@ -11,6 +11,7 @@ export type Env = {
   GAMBLE_TESTERS?: string;
   SESSION_SECRET: string;
   BOT_SYNC_SECRET: string;
+  GAME_PROGRESS_TOKEN?: string;
   PLAZA: DurableObjectNamespace<PlazaRoom>;
   DEV_LOGIN?: string;
   // Workers AI(무료 사용량). 같이 배정되지 않기 사유 검토에만 써요. 없으면 규칙 검사만 해요.

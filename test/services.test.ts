@@ -141,3 +141,23 @@ describe('도감 축하(두 사람 카드 10레벨마다)', () => {
     expect(await listCheers(db)).toEqual([{ a: A, b: B, level: 40 }]);
   });
 });
+
+it('초기화 전 축하의 늦은 완료 응답이 새 카드의 10·20·30레벨 축하를 막지 않아요', async () => {
+  const { db, sql } = setup(0);
+  const B = '100000000000000002';
+  sql.prepare("INSERT INTO members (user_id, display_name, active, updated_at) VALUES (?, 'b', 1, 'x')").run(B);
+  const insert = sql.prepare('INSERT INTO cards (owner_id, target_id, xp, first_met, updated_at) VALUES (?, ?, ?, ?, ?)');
+  insert.run(A, B, 4000, '2026-11-14T00:00:00.000Z', '2026-11-14T00:00:00.000Z');
+  const [old] = await listCheers(db);
+  expect(old).toEqual({ a: A, b: B, level: 30 });
+  sql.exec(readFileSync('scripts/launch-reset.sql', 'utf8'));
+  insert.run(A, B, 1, '2026-11-18T00:00:00.000Z', '2026-11-18T00:00:00.000Z');
+  expect(await markCheer(db, old!.a, old!.b, old!.level)).toBe(false);
+  expect(sql.prepare('SELECT cheer_level FROM cards WHERE owner_id = ? AND target_id = ?').get(A, B)).toEqual({ cheer_level: 0 });
+  for (const [xp, level] of [[365, 10], [1625, 20], [3785, 30]]) {
+    sql.prepare('UPDATE cards SET xp = ? WHERE owner_id = ? AND target_id = ?').run(xp, A, B);
+    expect(await listCheers(db)).toEqual([{ a: A, b: B, level }]);
+    expect(await markCheer(db, A, B, level!)).toBe(true);
+    expect(await listCheers(db)).toEqual([]);
+  }
+});

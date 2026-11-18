@@ -33,6 +33,7 @@ import {
   getBestCard,
   givePraise,
   praiseToday,
+  praiseMembers,
   kstDay,
   giveStarterJelly,
   listPendingRefunds,
@@ -61,6 +62,7 @@ import { BingoPage } from './views/bingo';
 import { KIDNAP_MIN, SERVER_JELLY, TEAM_GOAL_MIN, TEAM_JELLY, bingoExtras, loadServerQuest, loadTeams, matesOf, myTeamState, pairKey, rankTeams, seasonAt } from './team';
 import { loadRankings } from './rankings';
 import { dogamProgress } from './unlock';
+import { gameProgressStats } from './game-progress-stats';
 import { claimedCardSteps, settleCardRewards } from './card-rewards';
 import { RankPage, rankTab } from './views/rank';
 import { BLOCK_MAX_PENDING, BLOCK_MORE, blockCandidates, cancelBlock, decideBlock, flipBlock, listUnpostedBlocks, markBlockPosted, myBlocks, requestBlock } from './assign-block';
@@ -194,6 +196,16 @@ app.post('/auth/logout', (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
   deleteCookie(c, SESSION_COOKIE, { path: '/' });
   return c.redirect('/');
+});
+
+app.get('/api/internal/game-progress', async (c) => {
+  c.header('Cache-Control', 'no-store');
+  const token = c.env.GAME_PROGRESS_TOKEN;
+  const auth = c.req.header('Authorization') ?? '';
+  if (!token || !(await safeEqual(auth, `Bearer ${token}`))) {
+    return c.json({ error: 'unauthorized' }, 401);
+  }
+  return c.json(await gameProgressStats(c.env.DB));
 });
 
 // 봇 전용 API는 로그인 대신 비밀 토큰으로 확인해요.
@@ -356,7 +368,7 @@ app.post('/api/bot/assign-blocks/:id/posted', async (c) => {
   const id = Number(c.req.param('id'));
   let body: { message_id?: unknown };
   try {
-    body = await c.req.json();
+    body = (await c.req.json()) ?? {};
   } catch {
     return c.json({ error: 'bad_json' }, 400);
   }
@@ -369,7 +381,7 @@ app.post('/api/bot/assign-blocks/:id/decide', async (c) => {
   const id = Number(c.req.param('id'));
   let body: { decision?: unknown; by?: unknown };
   try {
-    body = await c.req.json();
+    body = (await c.req.json()) ?? {};
   } catch {
     return c.json({ error: 'bad_json' }, 400);
   }
@@ -393,7 +405,7 @@ app.post('/api/bot/ai-logs/posted', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
   let body: { ids?: unknown };
   try {
-    body = await c.req.json();
+    body = (await c.req.json()) ?? {};
   } catch {
     return c.json({ error: 'bad_json' }, 400);
   }
@@ -465,7 +477,7 @@ app.post('/api/bot/gender', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
   let body: { user_id?: unknown; pool?: unknown; character?: unknown };
   try {
-    body = await c.req.json();
+    body = (await c.req.json()) ?? {};
   } catch {
     return c.json({ error: 'JSON이 아니에요' }, 400);
   }
@@ -493,7 +505,7 @@ app.post('/api/bot/praise', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
   let body: { from?: unknown; to?: unknown; note?: unknown };
   try {
-    body = await c.req.json();
+    body = (await c.req.json()) ?? {};
   } catch {
     return c.json({ error: 'JSON이 아니에요' }, 400);
   }
@@ -502,10 +514,11 @@ app.post('/api/bot/praise', async (c) => {
   // 한마디는 비꼬기·모욕이면 빼고 칭찬만 전해요. 이미 줬거나 한도면 AI에 묻지 않아요.
   // 한도 확인과 저장이 같은 날짜를 쓰게 한 번만 정해요(자정에 걸쳐도 한마디가 사라지지 않게).
   const day = kstDay();
+  const snapshot = await praiseMembers(c.env.DB, body.from, body.to);
   const status = await praiseToday(c.env.DB, body.from, day);
   const asked = cleanNote(body.note) !== '';
-  const check = asked && status.left > 0 && !status.given.includes(body.to) ? await checkNote(c.env.AI, body.note) : { note: null, filtered: false };
-  const result = await givePraise(c.env.DB, body.from, body.to, day, check.note);
+  const check = snapshot && asked && status.left > 0 && !status.given.includes(body.to) ? await checkNote(c.env.AI, body.note) : { note: null, filtered: false };
+  const result = await givePraise(c.env.DB, body.from, body.to, day, check.note, snapshot);
   // AI가 본 한마디는 비공개 로그 채널용으로 남겨요(실패해도 칭찬은 끝났어요)
   if (result.result === 'done' && check.verdict) {
     await logAiCheck(c.env.DB, 'praise', body.from, body.to, cleanNote(body.note), check.verdict, Date.now()).catch((e) => console.error('AI 기록 실패', e));
@@ -720,7 +733,7 @@ members.get('/me/praise', async (c) => {
   const viewer = c.get('viewer');
   const seenThrough = Date.now();
   const box = await praiseBox(c.env.DB, viewer.user_id, 20, true);
-  if (box.unread) await markPraiseSeen(c.env.DB, viewer.user_id, seenThrough).catch((e) => console.error('칭찬함 읽음 표시 실패', e));
+  if (box.unread) await markPraiseSeen(c.env.DB, viewer.user_id, seenThrough, box.items.map((item) => item.id)).catch((e) => console.error('칭찬함 읽음 표시 실패', e));
   return page(c, <PraisePage viewer={viewer} box={box} />);
 });
 
@@ -730,7 +743,7 @@ async function alertsView(c: Context<AppEnv>, asBox: boolean) {
   const now = Date.now();
   const alerts = await listAlerts(c.env.DB, viewer.user_id, now);
   const fresh = new Set(alerts.filter((a) => !a.read_at).map((a) => a.id));
-  if (fresh.size) await markAlertsRead(c.env.DB, viewer.user_id, now);
+  if (fresh.size) await markAlertsRead(c.env.DB, viewer.user_id, now, [...fresh]);
   c.header('Cache-Control', 'no-store');
   if (asBox) return c.html(String(await (<AlertBox alerts={alerts} fresh={fresh} />)));
   return page(c, <AlertsPage viewer={{ ...viewer, unread_alerts: 0 }} alerts={alerts} fresh={fresh} />);
@@ -759,7 +772,7 @@ members.post('/api/me/profile', async (c) => {
   const theme = String(form.theme ?? 'basic');
   if ([...intro].length > 30) return c.text('소개는 30자까지예요', 400);
   if (!canUseTheme(theme, await getOwnedItems(c.env.DB, viewer.user_id))) return c.text('아직 쓸 수 없는 테마예요', 400);
-  await saveProfile(c.env.DB, viewer.user_id, intro, theme);
+  if (!await saveProfile(c.env.DB, viewer.user_id, intro, theme)) return c.text('아직 쓸 수 없는 테마예요', 400);
   return c.redirect('/me?saved=1');
 });
 
@@ -885,7 +898,7 @@ members.post('/api/me/deco', async (c) => {
   if (!item) return done('error');
   const [owned, cards, memberCount] = await Promise.all([getOwnedItems(c.env.DB, viewer.user_id), countOwnedCards(c.env.DB, viewer.user_id), countActiveMembers(c.env.DB)]);
   if (!canUse(item, owned, cards, memberCount)) return done('locked');
-  await setDeco(c.env.DB, viewer.user_id, key);
+  if (!await setDeco(c.env.DB, viewer.user_id, key)) return done('locked');
   return done('equipped');
 });
 
@@ -894,7 +907,7 @@ members.post('/api/me/theme', async (c) => {
   const viewer = c.get('viewer');
   const theme = String((await c.req.parseBody()).theme ?? '');
   if (!canUseTheme(theme, await getOwnedItems(c.env.DB, viewer.user_id))) return c.redirect('/shop/deco?n=locked');
-  await setTheme(c.env.DB, viewer.user_id, theme);
+  if (!await setTheme(c.env.DB, viewer.user_id, theme)) return c.redirect('/shop/deco?n=locked');
   return c.redirect('/shop/deco?n=theme');
 });
 
@@ -941,7 +954,7 @@ members.post('/api/titles/equip', async (c) => {
     if (t.rule.kind === 'shop' || !titleProgress(t, stats).ok) return c.redirect('/titles?n=locked');
     await recordEarnedTitles(c.env.DB, viewer.user_id, stats, owned);
   }
-  await equipTitle(c.env.DB, viewer.user_id, t.id);
+  if (!await equipTitle(c.env.DB, viewer.user_id, t.id)) return c.redirect('/titles?n=locked');
   return c.redirect('/titles?n=equipped');
 });
 

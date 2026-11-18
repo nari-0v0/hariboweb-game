@@ -35,35 +35,38 @@ async function balanceOf(db: D1Database, user: string): Promise<number> {
 
 // 지금 서버에 있는 멤버에게만 줘요. 빼는 경우 0개 밑으로는 내려가지 않아요.
 // 기록 저장·젤리 반영·반영 표시를 한 번에 해서, 같은 번호를 두 번 보내도 한 번만 반영돼요.
+// 대상 확인 뒤 초기화·탈퇴됐으면 기록도 잔액도 옛 요청으로 다시 만들지 않아요.
 export async function grantJelly(db: D1Database, g: JellyGrant, nowMs: number): Promise<GrantResult> {
   const seen = await db.prepare('SELECT applied_at FROM jelly_grants WHERE id = ?').bind(g.id).first<{ applied_at: string | null }>();
   if (seen?.applied_at) return { result: 'duplicate', balance: await balanceOf(db, g.user) };
-  const member = await db.prepare('SELECT 1 AS ok FROM members WHERE user_id = ? AND active = 1').bind(g.user).first();
+  const member = await db.prepare('SELECT reset_at FROM members WHERE user_id = ? AND active = 1').bind(g.user).first<{ reset_at: string | null }>();
   if (!member) return { result: 'no_member', balance: null };
   const t = new Date(nowMs).toISOString();
+  const mark = `${t}#${crypto.randomUUID()}`;
   await db.batch([
     db
-      .prepare('INSERT OR IGNORE INTO jelly_grants (id, user_id, amount, reason, granted_by, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)')
-      .bind(g.id, g.user, g.amount, g.reason, g.by, t),
+      .prepare(`INSERT OR IGNORE INTO jelly_grants (id, user_id, amount, reason, granted_by, created_at)
+        SELECT ?1, ?2, ?3, ?4, ?5, ?6 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1 AND COALESCE(reset_at, '') = ?7)`)
+      .bind(g.id, g.user, g.amount, g.reason, g.by, t, member.reset_at ?? ''),
     db
       .prepare(
         `INSERT INTO profiles (user_id, dogam_jelly, updated_at)
          SELECT ?1, MAX(0, ?2), ?3
          WHERE EXISTS (SELECT 1 FROM jelly_grants WHERE id = ?4 AND user_id = ?1 AND applied_at IS NULL)
-           AND EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
+           AND EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1 AND COALESCE(reset_at, '') = ?5)
          ON CONFLICT (user_id) DO UPDATE SET dogam_jelly = MAX(0, dogam_jelly + ?2), updated_at = ?3`,
       )
-      .bind(g.user, g.amount, t, g.id),
+      .bind(g.user, g.amount, t, g.id, member.reset_at ?? ''),
     db
       .prepare(
         `UPDATE jelly_grants SET applied_at = ?2
-         WHERE id = ?1 AND applied_at IS NULL AND EXISTS (SELECT 1 FROM members WHERE user_id = jelly_grants.user_id AND active = 1)`,
+         WHERE id = ?1 AND applied_at IS NULL AND EXISTS (SELECT 1 FROM members WHERE user_id = jelly_grants.user_id AND active = 1 AND COALESCE(reset_at, '') = ?3)`,
       )
-      .bind(g.id, t),
+      .bind(g.id, mark, member.reset_at ?? ''),
   ]);
   const after = await db.prepare('SELECT applied_at, user_id FROM jelly_grants WHERE id = ?').bind(g.id).first<{ applied_at: string | null; user_id: string }>();
   if (!after?.applied_at) return { result: 'no_member', balance: null };
   // 같은 번호가 다른 사람 앞으로 이미 있으면 그 기록이 이겨요(봇 실수). 이번 요청은 중복으로 봐요.
   if (after.user_id !== g.user) return { result: 'duplicate', balance: null };
-  return { result: after.applied_at === t ? 'applied' : 'duplicate', balance: await balanceOf(db, g.user) };
+  return { result: after.applied_at === mark ? 'applied' : 'duplicate', balance: await balanceOf(db, g.user) };
 }

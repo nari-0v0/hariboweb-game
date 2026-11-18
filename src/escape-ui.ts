@@ -26,8 +26,8 @@ export type Ui =
   | { t: 'stacks'; stacks: string[][]; rule: 'hanoi' | 'color' | 'free' | 'flip'; cap?: number; goal: string[][] | 'sorted'; adj?: boolean; max?: number; names?: string[] }
   // 숫자 칸 채우기: 정답 하나(만들 때 확인)와 비교해요
   | { t: 'numgrid'; w: number; h: number; given: (number | null | -1)[]; max: number; min?: number; marks?: (string | null)[]; ineq?: [Cell, Cell, '<' | '>'][]; cages?: { cells: Cell[]; label: string }[]; answer: string; answers?: string[] }
-  // 칸 고르기: 정답 하나(만들 때 확인)와 비교해요
-  | { t: 'mark'; w: number; h: number; cells: (string | null)[]; text?: (string | null)[]; regions?: number[]; rowClues?: string[]; colClues?: string[]; icon: string; answer: string }
+  // 칸 고르기: 규칙에 맞는 정답 목록(만들 때 확인)과 비교해요
+  | { t: 'mark'; w: number; h: number; cells: (string | null)[]; text?: (string | null)[]; regions?: number[]; rowClues?: string[]; colClues?: string[]; icon: string; answer: string; answers?: string[] }
   // 여러 개 고르기
   | { t: 'multi'; options: string[]; answer: string }
   // 뛰어넘기: 개구리 자리 바꾸기, 페그 솔리테어
@@ -519,7 +519,7 @@ export function checkUi(u: Ui, v: string): boolean {
     case 'mark':
     case 'multi':
       // 답이 여럿인 문제는 answers에 규칙에 맞는 답을 모두 넣어 둬요.
-      return v === u.answer || (u.t === 'numgrid' && !!u.answers?.includes(v));
+      return v === u.answer || ((u.t === 'numgrid' || u.t === 'mark') && !!u.answers?.includes(v));
   }
 }
 

@@ -100,26 +100,25 @@ export type PraiseBoxItem = { id: number; day: string; note: string | null; hidd
 export type PraiseBox = { unread: number; total: number; items: PraiseBoxItem[] };
 
 // 받은 칭찬(최근 것부터). 보낸 사람은 돌려주지 않아요.
-// created_at은 "ISO 시각#무작위"라서 앞 24자(ISO 시각)만 견줘요.
+// 읽음 표시는 칭찬마다 남겨요. 같은 밀리초에 도착한 새 칭찬도 구별해요.
 // allUnread: 웹 칭찬함처럼 열면 다 읽음이 되는 곳에서만 안 읽은 칭찬을 limit보다 많아도 다 가져와요(봇 카드는 최근 limit개 그대로).
 export async function praiseBox(db: D1Database, userId: string, limit = 20, allUnread = false): Promise<PraiseBox> {
-  const seen = await db.prepare('SELECT praise_seen_at FROM profiles WHERE user_id = ?').bind(userId).first<{ praise_seen_at: string | null }>();
-  const since = seen?.praise_seen_at ?? '';
   // 떠났다가 다시 들어온 사람은 다시 들어온 뒤에 받은 칭찬만 보여요
   const fresh = "created_at >= COALESCE((SELECT reset_at FROM members WHERE user_id = ?1), '')";
   // 개수와 목록은 같은 조회에서 정해요. 둘 사이 새 칭찬이 오면, 먼저 센 개수만큼만
   // 가져오다가 기존 한마디가 목록에서 밀려난 채 읽음 처리될 수 있어요.
   const rows = await db
     .prepare(`WITH inbox AS (
-      SELECT rowid AS id, day, note, note_hidden, created_at,
+      SELECT rowid AS id, day, note, note_hidden, created_at, read_at,
         COUNT(*) OVER () AS total,
-        SUM(CASE WHEN substr(created_at, 1, 24) > ?3 THEN 1 ELSE 0 END) OVER () AS unread_count
+        SUM(CASE WHEN read_at IS NULL THEN 1 ELSE 0 END) OVER () AS unread_count
       FROM praises WHERE to_id = ?1 AND ${fresh}
     )
-    SELECT * FROM inbox ORDER BY created_at DESC
-    LIMIT CASE WHEN ?4 THEN MAX(?2, COALESCE((SELECT MAX(unread_count) FROM inbox), 0)) ELSE ?2 END`)
-    .bind(userId, limit, since, allUnread ? 1 : 0)
-    .all<{ id: number; day: string; note: string | null; note_hidden: number; created_at: string; total: number; unread_count: number }>();
+    SELECT * FROM inbox
+    WHERE (?3 AND read_at IS NULL) OR id IN (SELECT id FROM inbox ORDER BY created_at DESC, id DESC LIMIT ?2)
+    ORDER BY created_at DESC, id DESC`)
+    .bind(userId, limit, allUnread ? 1 : 0)
+    .all<{ id: number; day: string; note: string | null; note_hidden: number; created_at: string; read_at: string | null; total: number; unread_count: number }>();
   const counts = rows.results[0];
   return {
     unread: Number(counts?.unread_count ?? 0),
@@ -129,22 +128,28 @@ export async function praiseBox(db: D1Database, userId: string, limit = 20, allU
       day: r.day,
       note: r.note_hidden ? null : r.note,
       hidden: r.note_hidden === 1,
-      unread: r.created_at.slice(0, 24) > since,
+      unread: r.read_at === null,
     })),
   };
 }
 
-// 칭찬함을 봤어요(안 읽은 개수를 0으로)
-export async function markPraiseSeen(db: D1Database, userId: string, nowMs: number): Promise<void> {
+// 이번 칭찬함에 실제로 담은 번호만 읽음으로 표시해요.
+export async function markPraiseSeen(db: D1Database, userId: string, nowMs: number, ids: readonly number[]): Promise<void> {
   const t = new Date(nowMs).toISOString();
   await db
     .prepare(
-      `INSERT INTO profiles (user_id, praise_seen_at, updated_at) VALUES (?1, ?2, ?2)
+      `INSERT INTO profiles (user_id, praise_seen_at, updated_at)
+       SELECT ?1, ?2, ?2 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
        ON CONFLICT (user_id) DO UPDATE SET praise_seen_at = excluded.praise_seen_at
        WHERE profiles.praise_seen_at IS NULL OR profiles.praise_seen_at < excluded.praise_seen_at`,
     )
     .bind(userId, t)
     .run();
+  if (!ids.length) return;
+  await db.prepare(`UPDATE praises SET read_at = ?2 WHERE to_id = ?1 AND read_at IS NULL
+      AND rowid IN (SELECT value FROM json_each(?3)) AND substr(created_at, 1, 24) <= ?2
+      AND EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)`)
+    .bind(userId, t, JSON.stringify(ids)).run();
 }
 
 // 받은 사람만 자기 칭찬의 한마디를 숨길 수 있어요
