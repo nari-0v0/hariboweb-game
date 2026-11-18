@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
+const accountCounters = ["won","best_win","all_in_wins","plays","jackpots","naturals"];
+
 function indexRows(rows, fields, name) {
   if (!Array.isArray(rows)) throw new Error(name + ': 배열이 필요해요');
   const indexed = new Map();
@@ -29,6 +31,14 @@ export function verifyMoves(expected, before, after, paid) {
   const baseline = indexRows(before, ['chips'], '지급 직전 잔액');
   if (baseline.size) throw new Error('지급 직전 잔액: 초기화 뒤 겜블 계정이 0건이어야 해요');
   const actual = indexRows(after, ['chips'], '지급 직후 잔액');
+  const stateMismatches = [];
+  for (const [id, row] of actual) {
+    const flags = ['free_day', 'rescue_day'].filter(field => row[field] !== null);
+    const counters = accountCounters.filter(field => row[field] !== 0);
+    if (flags.length || counters.length) {
+      stateMismatches.push({ user_id: id, fields: [...flags, ...counters] });
+    }
+  }
   const receipts = indexRows(paid, ['jelly'], '지급 완료 장부');
   const ledgerMismatches = [];
   for (const id of new Set([...planned.keys(), ...receipts.keys()])) {
@@ -49,7 +59,7 @@ export function verifyMoves(expected, before, after, paid) {
       mismatches.push({ user_id: id, expected: jelly, actual: current, account_missing: !actual.has(id) });
     }
   }
-  return { expected_accounts: planned.size, expected_total: expectedTotal.toString(), mismatches, ledger_mismatches: ledgerMismatches };
+  return { expected_accounts: planned.size, expected_total: expectedTotal.toString(), mismatches, ledger_mismatches: ledgerMismatches, state_mismatches: stateMismatches };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
@@ -61,7 +71,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const [expected, before, after, paid] = files.map(file => JSON.parse(readFileSync(file, 'utf8')));
     const result = verifyMoves(expected, before, after, paid);
     console.log(JSON.stringify(result, null, 2));
-    if (result.mismatches.length || result.ledger_mismatches.length) process.exitCode = 1;
+    if (result.mismatches.length || result.ledger_mismatches.length || result.state_mismatches.length) process.exitCode = 1;
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;
