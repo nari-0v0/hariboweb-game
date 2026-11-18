@@ -135,3 +135,20 @@ it('승인 명단 밖의 계정은 활성 상태라도 지급하지 않아요', 
   expect(() => buildMoveSql(wallets, stamp, [{ user_id: A, jelly: 99 }])).toThrow();
   expect(() => buildMoveSql(wallets, stamp, [wallets[0], wallets[0]])).toThrow();
 });
+
+it('승인 대상이 비활성화되면 아직 지급하지 않은 건 전체를 롤백해요', () => {
+  const sql = freshDb();
+  const wallets = [{ user_id: A, jelly: 100 }, { user_id: B, jelly: 200 }];
+  const move = buildMoveSql(wallets, '2026-11-21T00:00:00.000Z', wallets);
+  sql.exec(`UPDATE members SET active = 0 WHERE user_id = '${B}'`);
+  expect(() => sql.exec(move)).toThrow();
+  expect(chips(sql)).toEqual([{ user_id: A, chips: 1000, won: 500 }]);
+  expect(sql.prepare('SELECT COUNT(*) AS n FROM gamble_jelly_moves WHERE moved_at IS NOT NULL').get()).toEqual({ n: 0 });
+  sql.exec(`UPDATE members SET active = 1 WHERE user_id = '${B}'`);
+  sql.exec(move);
+  sql.exec(move);
+  expect(chips(sql)).toEqual([
+    { user_id: A, chips: 1100, won: 500 },
+    { user_id: B, chips: 200, won: 0 },
+  ]);
+});
