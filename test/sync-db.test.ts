@@ -305,3 +305,121 @@ describe('도감 카드 장수 보상', () => {
     expect(jellyOf(sql, A)).toBe(1);
   });
 });
+
+describe('전송이 늦은 탈퇴와 재가입', () => {
+  const C = '333333333333333333';
+  const room = '900000000000000001';
+  const oldJoin = '2026-10-01T00:00:00.000Z';
+  const zero = Date.parse('2026-11-17T14:00:00.000Z');
+  const at = (minutes: number) => new Date(zero + minutes * 60_000).toISOString();
+  const season = { start: '2026-11-16T15:00:00.000Z', end: '2026-12-01T15:00:00.000Z' };
+  const m = (id: string, joined_at: string | null = oldJoin) => ({ id, name: id, green: true, games: ['롤'], joined_at });
+  const pair = (xp: number, minutes: number) => ({ a: A, b: B, xp, at: at(minutes) });
+  function payload(tag: string, made: number, extra: Record<string, unknown> = {}) {
+    const parsed = parseSync({ batch_id: `${at(made)}-${tag}`, members: [], season, ...extra });
+    if (!parsed.ok) throw new Error(parsed.error);
+    return parsed.value;
+  }
+  async function setup() {
+    const f = fakeD1();
+    await applySync(f.db, payload('seed', 0, { members: [m(A), m(B), m(C)], full_members: true, pair_xp: [pair(5, 0)] }), zero);
+    return f;
+  }
+  const xp = (sql: DatabaseSync, owner: string, target: string) =>
+    (sql.prepare('SELECT xp FROM cards WHERE owner_id = ? AND target_id = ?').get(owner, target) as { xp: number } | undefined)?.xp ?? 0;
+
+  for (const full of [false, true]) for (const overnight of [false, true]) {
+    it(`${full ? '재가입 뒤 전체 목록과 함께' : '재가입 전 만들어 둔'} 탈퇴가 ${overnight ? '한국 날짜를 넘어' : '늦게'} 반영돼도 새 활동을 한 번만 세요`, async () => {
+      const { sql, db } = await setup();
+      const received = overnight ? 80 : 40;
+      const left = payload('left', full ? 15 : 1, {
+        members: full ? [m(A, at(10)), m(B), m(C)] : [m(B), m(C)],
+        full_members: full, removed: [A], pair_xp: [pair(2, 0.5)],
+      });
+      await applySync(db, left, zero + received * 60_000);
+      expect(xp(sql, A, B)).toBe(0);
+      expect(xp(sql, B, A)).toBe(7);
+      const rejoined = payload('rejoined', received + 10, {
+        members: [m(A, at(10)), m(B), m(C)], pair_xp: [pair(4, 20)],
+        room_minutes: [{ at: at(20), room, members: [A, B] }],
+        scrims: [{ id: 'after-rejoin', game: 'lol', at: at(20), members: [A, B] }],
+        attendance: [{ id: A, day: '2026-11-17' }], solo_xp: [{ id: A, xp: 20 }], jelly_earned: [{ id: A, amount: 1 }],
+      });
+      expect(await applySync(db, rejoined, zero + (received + 10) * 60_000)).toBe('applied');
+      expect(await applySync(db, rejoined, zero + (received + 11) * 60_000)).toBe('duplicate');
+      expect(xp(sql, A, B)).toBe(4);
+      expect(xp(sql, B, A)).toBe(11);
+      expect(sql.prepare('SELECT SUM(minutes) AS n FROM gq_voice').get()).toEqual({ n: 1 });
+      expect(sql.prepare('SELECT COUNT(*) AS n FROM gq_scrim').get()).toEqual({ n: 1 });
+      expect(sql.prepare('SELECT COUNT(*) AS n FROM gq_attend WHERE user_id = ?').get(A)).toEqual({ n: 1 });
+      expect(sql.prepare('SELECT solo_xp, dogam_jelly FROM profiles WHERE user_id = ?').get(A)).toEqual({ solo_xp: 20, dogam_jelly: 1 });
+    });
+  }
+
+  it('재가입 전 활동은 새 묶음에 섞여도 본인에게 돌려주지 않아요', async () => {
+    const { sql, db } = await setup();
+    await applySync(db, payload('left', 1, { removed: [A] }), zero + 40 * 60_000);
+    await applySync(db, payload('rejoined', 50, {
+      members: [m(A, at(10)), m(B)], pair_xp: [pair(999, 0.5), pair(4, 20)],
+      room_minutes: [{ at: at(0.5), room, members: [A, B] }, { at: at(20), room, members: [A, B] }],
+    }), zero + 50 * 60_000);
+    expect(xp(sql, A, B)).toBe(4);
+    expect(sql.prepare('SELECT SUM(minutes) AS n FROM gq_voice').get()).toEqual({ n: 1 });
+  });
+
+  it('재가입 뒤 정식 초기화가 있었다면 그 초기화 시각을 절대 앞당기지 않아요', async () => {
+    const { sql, db } = await setup();
+    sql.prepare('UPDATE members SET reset_at = ?').run(at(15));
+    sql.exec('DELETE FROM cards; DELETE FROM profiles');
+    await applySync(db, payload('left', 1, { removed: [A] }), zero + 40 * 60_000);
+    await applySync(db, payload('rejoined', 50, {
+      members: [m(A, at(10)), m(B)], pair_xp: [pair(999, 12), pair(4, 20)],
+      room_minutes: [{ at: at(12), room, members: [A, B] }, { at: at(20), room, members: [A, B] }],
+    }), zero + 50 * 60_000);
+    expect(xp(sql, A, B)).toBe(4);
+    expect(xp(sql, B, A)).toBe(4);
+    expect(sql.prepare('SELECT reset_at FROM members WHERE user_id = ?').get(A)).toEqual({ reset_at: at(15) });
+    expect(sql.prepare('SELECT SUM(minutes) AS n FROM gq_voice').get()).toEqual({ n: 1 });
+  });
+
+  it('실제 가입 시각이 없는 예전 봇은 이전처럼 탈퇴 확인 시각부터 세요', async () => {
+    const { sql, db } = await setup();
+    await applySync(db, payload('left', 1, { removed: [A] }), zero + 40 * 60_000);
+    await applySync(db, payload('legacy-rejoin', 50, {
+      members: [m(A, null), m(B)], pair_xp: [pair(999, 20), pair(4, 45)],
+    }), zero + 50 * 60_000);
+    expect(xp(sql, A, B)).toBe(4);
+    expect(xp(sql, B, A)).toBe(9);
+  });
+
+  it('탈퇴를 확인한 뒤 웹에 먼저 로그인해도 새 통화를 보존해요', async () => {
+    const { sql, db } = await setup();
+    await applySync(db, payload('left', 1, { removed: [A] }), zero + 40 * 60_000);
+    const { upsertLoginMember } = await import('../src/db');
+    vi.useFakeTimers();
+    vi.setSystemTime(zero + 45 * 60_000);
+    try {
+      await upsertLoginMember(db, { id: A, name: 'a', avatar_url: null, joined_at: at(10) });
+    } finally {
+      vi.useRealTimers();
+    }
+    await applySync(db, payload('rejoined', 50, { members: [m(A, at(10)), m(B)], pair_xp: [pair(4, 20)] }), zero + 50 * 60_000);
+    expect(xp(sql, A, B)).toBe(4);
+    expect(xp(sql, B, A)).toBe(9);
+  });
+  it('두 번 나갔다 돌아와도 직전 가입 전 기록은 버리고 마지막 가입 뒤 활동만 받아요', async () => {
+    const { sql, db } = await setup();
+    await applySync(db, payload('left-first', 1, { removed: [A] }), zero + 40 * 60_000);
+    await applySync(db, payload('join-first', 50, {
+      members: [m(A, at(10)), m(B)], pair_xp: [pair(4, 20)],
+    }), zero + 50 * 60_000);
+    await applySync(db, payload('left-second', 60, { removed: [A] }), zero + 100 * 60_000);
+    await applySync(db, payload('join-second', 110, {
+      members: [m(A, at(70)), m(B)], pair_xp: [pair(999, 65), pair(3, 80)],
+    }), zero + 110 * 60_000);
+    expect(xp(sql, A, B)).toBe(3);
+    expect(xp(sql, B, A)).toBe(12);
+    expect(sql.prepare('SELECT reset_at FROM members WHERE user_id = ?').get(A)).toEqual({ reset_at: at(70) });
+  });
+
+});
