@@ -27,6 +27,7 @@ export function verifyMoves(expected, before, after, paid) {
     if (row.jelly === 0) throw new Error('승인 지급 명단: 이관액은 양수여야 해요 (' + id + ')');
   }
   const baseline = indexRows(before, ['chips'], '지급 직전 잔액');
+  if (baseline.size) throw new Error('지급 직전 잔액: 초기화 뒤 겜블 계정이 0건이어야 해요');
   const actual = indexRows(after, ['chips'], '지급 직후 잔액');
   const receipts = indexRows(paid, ['jelly'], '지급 완료 장부');
   const ledgerMismatches = [];
@@ -37,17 +38,15 @@ export function verifyMoves(expected, before, after, paid) {
       ledgerMismatches.push({ user_id: id, expected: expectedJelly, recorded: recordedJelly });
     }
   }
-  const users = new Set([...planned.keys(), ...baseline.keys(), ...actual.keys()]);
+  const users = new Set([...planned.keys(), ...actual.keys()]);
   const mismatches = [];
   let expectedTotal = 0n;
   for (const id of users) {
     const jelly = planned.get(id)?.jelly ?? 0;
-    const prior = baseline.get(id)?.chips ?? 0;
     const current = actual.get(id)?.chips ?? 0;
-    const delta = current - prior;
     expectedTotal += BigInt(jelly);
-    if (delta !== jelly || (baseline.has(id) && !actual.has(id))) {
-      mismatches.push({ user_id: id, expected: jelly, actual: delta, account_missing: !actual.has(id) });
+    if (current !== jelly || planned.has(id) !== actual.has(id)) {
+      mismatches.push({ user_id: id, expected: jelly, actual: current, account_missing: !actual.has(id) });
     }
   }
   return { expected_accounts: planned.size, expected_total: expectedTotal.toString(), mismatches, ledger_mismatches: ledgerMismatches };
