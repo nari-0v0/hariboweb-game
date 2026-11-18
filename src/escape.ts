@@ -8,6 +8,7 @@ import { ROOMS, ROOM_KEYS, roomByName, type RoomKey } from './case-rooms';
 import { STORY_SEEDS } from './escape-stories';
 import { TALK_CASES } from './escape-talk';
 import { checkUi, UI_MAX, type Ui } from './escape-ui';
+import { jo, ro } from './josa';
 
 // order: 이름을 순서대로 고르는 문제(답은 이름 번호를 이은 숫자), grid: 칸을 골라 표시하는 문제(답은 칸마다 1/0)
 export type Lock =
@@ -515,7 +516,7 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
     if (act.o === s.scene || !openScenes(c, s).includes(act.o)) return null;
     s.scene = act.o;
     s.focus = null;
-    s.msg = `${c.scenes.find((x) => x.id === act.o)!.name}(으)로 왔어요.`;
+    s.msg = `${ro(c.scenes.find((x) => x.id === act.o)!.name)} 왔어요.`;
     s.tone = 'info';
     s.fx = 'move';
     return s;
@@ -558,7 +559,7 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
     if (!k) {
       s.mistakes += 1;
       s.fx = 'wrong';
-      s.msg = `${c.items[act.i]?.name}와(과) ${c.items[act.j]?.name}은(는) 합쳐지지 않아요.`;
+      s.msg = `${jo(c.items[act.i]?.name ?? '그 물건', '과', '와')} ${jo(c.items[act.j]?.name ?? '그 물건', '은', '는')} 합쳐지지 않아요.`;
       s.tone = 'bad';
       return s;
     }
@@ -581,7 +582,7 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
     if (o.goto && (!o.lock || s.seen.includes(o.id))) {
       s.scene = o.goto;
       s.focus = null;
-      s.msg = `${c.scenes.find((x) => x.id === o.goto)!.name}(으)로 왔어요.`;
+      s.msg = `${ro(c.scenes.find((x) => x.id === o.goto)!.name)} 왔어요.`;
       s.tone = 'info';
       s.fx = 'move';
       add(s.seen, o.id);
@@ -600,7 +601,7 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
     if (o.lock!.item !== act.i) {
       s.mistakes += 1;
       s.fx = 'wrong';
-      s.msg = `${c.items[act.i]?.name ?? '그 물건'}(으)로는 열리지 않아요.`;
+      s.msg = `${ro(c.items[act.i]?.name ?? '그 물건')}는 열리지 않아요.`;
       s.tone = 'bad';
       return s;
     }
