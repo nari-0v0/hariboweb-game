@@ -53,7 +53,7 @@ import { applySync, parseSync } from './sync';
 import { levelName, progress, tierFor, tierLabel } from './levels';
 import { cardPalette } from './palette';
 import { CardPage, DogamPage, LandingPage, MePage, MessagePage, PRAISE_PREVIEW, PraisePage } from './views/pages';
-import { ErrorPage, NotFoundPage } from './views/errors';
+import { DbFullPage, ErrorPage, MaintenancePage, NotFoundPage } from './views/errors';
 import { ShopPage } from './views/shop';
 import { GroupPage } from './views/group';
 import { groupViewFor, seasonRanking } from './season';
@@ -88,6 +88,7 @@ import { GAMBLE_LOCKED, gambleTester, isCoinSide } from './gamble';
 import { activeHand, betChips, betTooSoon, claimDaily, expireAllHands, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, moveHand, rescueChips, type Game } from './gamble-db';
 import { prefetchAllowed } from './prefetch';
 import { imageRequestAllowed } from './image-guard';
+import { isDbLimit, maintenanceOn, maintenanceSkips, maintenanceWhen } from './maintenance';
 import { EscapePage } from './views/escape';
 import { JourneyPage } from './views/journey';
 import { NO_COINS, STALE_PICK, activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from './journey-db';
@@ -105,6 +106,20 @@ const STATE_COOKIE = 'hs_state';
 const SESSION_DAYS = 30;
 
 const app = new Hono<AppEnv>();
+
+// 점검(설정 MAINTENANCE)·DB 한도 때 보여 줄 503. 봇은 503을 받으면 나중에 다시 보내요(기록은 봇에 남아 있어요).
+const retryPath = (c: Context<AppEnv>) =>
+  c.req.method === 'GET' && /^\/(?![\/\\])/.test(c.req.path) ? c.req.path + new URL(c.req.url).search : '/me';
+function troubleResponse(c: Context<AppEnv>, kind: 'maintenance' | 'dbfull') {
+  const headers = { 'Cache-Control': 'no-store', 'Retry-After': '600' };
+  if (c.req.path.startsWith('/api/')) return c.text(kind === 'maintenance' ? '점검 중이에요' : 'DB가 가득 찼어요', 503, headers);
+  const node = kind === 'maintenance' ? <MaintenancePage retry={retryPath(c)} when={maintenanceWhen(c.env.MAINTENANCE)} /> : <DbFullPage retry={retryPath(c)} />;
+  return c.html('<!doctype html>' + String(node), 503, headers);
+}
+app.use('*', async (c, next) => {
+  if (maintenanceOn(c.env.MAINTENANCE) && !maintenanceSkips(c.req.path)) return troubleResponse(c, 'maintenance');
+  await next();
+});
 
 // 요청 크기 한도(가져다 놓기만 하고 안 쓰고 있었어요). 봇 동기화 묶음은 크게, 멤버 화면의 폼은 작게.
 const tooLarge = (c: Context<AppEnv>) => c.text('요청이 너무 커요', 413);
@@ -1377,9 +1392,10 @@ app.notFound((c) => page(c, <NotFoundPage viewer={c.get('viewer') ?? null} />, 4
 // 처리하지 못한 오류: 하얀 화면 대신 다시 시도·방장 문의 화면을 보여 줘요
 app.onError((err, c) => {
   console.error('화면 오류', c.req.method, c.req.path, err);
+  // DB 하루 한도에 닿았으면 "DB가 가득 찼어요!"
+  if (isDbLimit(err)) return troubleResponse(c, 'dbfull');
   // 다시 시도하면 같은 화면(주소 뒤 ?… 조건까지)으로 가요
-  const retry = c.req.method === 'GET' && /^\/(?![\/\\])/.test(c.req.path) ? c.req.path + new URL(c.req.url).search : '/me';
-  return c.html('<!doctype html>' + String(<ErrorPage retry={retry} />), 500);
+  return c.html('<!doctype html>' + String(<ErrorPage retry={retryPath(c)} />), 500);
 });
 
 export default app;

@@ -113,6 +113,18 @@ export async function actEscapeRun(db: D1Database, user: string, id: string, rev
   const t = now.toISOString();
   const token = crypto.randomUUID();
   const g = s.done ? escGrade(s) : null;
+  // 아직 진행 중인 판은 진행 내용만 저장해요(색인 칸을 건드리지 않아 DB 쓰기가 3줄 → 1줄).
+  if (!s.done) {
+    const r = await db
+      .prepare(
+        `UPDATE escape_runs SET state = ?4, rev = rev + 1, mutation = ?3, updated_at = ?5
+         WHERE id = ?1 AND user_id = ?2 AND rev = ?6 AND status = 'going'
+           AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)`,
+      )
+      .bind(id, user, token, JSON.stringify(s), t, rev)
+      .run();
+    return (r.meta.changes ?? 0) === 1 ? 'ok' : 'stale';
+  }
   const first = 'NOT EXISTS (SELECT 1 FROM escape_rewards WHERE user_id = ?2 AND case_id = ?9)';
   const stmts = [
     db
