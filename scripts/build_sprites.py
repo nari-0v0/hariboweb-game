@@ -73,7 +73,7 @@ def room_variants() -> None:
 
 def size_map() -> None:
     sizes = {}
-    for d in ("journey/foe", "journey/prop", "case/obj", "case/item"):
+    for d in ("journey/foe", "journey/prop", "journey/raid", "journey/pet", "case/obj", "case/item", "case/prop"):
         for f in sorted((PUBLIC / d).glob("*.webp")):
             sizes[f"/{d}/{f.name}"] = Image.open(f).size
     lines = ["// scripts/build_sprites.py 가 만든 파일이에요. 손으로 고치지 마세요.", "// 그림 경로 → [가로, 세로] 픽셀", "export const SPRITES: Record<string, [number, number]> = {"]
