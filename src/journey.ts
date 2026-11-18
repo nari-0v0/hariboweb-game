@@ -30,12 +30,15 @@ export const SKILL_IDS = Object.keys(SKILLS) as SkillId[];
 
 
 export type Line = { icon: string; text: string; tone?: 'good' | 'bad' };
-// 화면 전투 모션용 기록: 누가(0 = 나, 1 = 적) 얼마나 때렸는지. 처음 몇 번과 마지막 한 번만 남겨요.
+// 화면 전투 모션용 기록: 누가(0 = 나, 1 = 적) 얼마나 때렸는지. 주고받은 공격을 빠짐없이 남겨요.
 export type Hit = [who: 0 | 1, dmg: number, crit?: 1];
 // hp0: 싸우기 전 체력(결과는 모션이 끝난 뒤 보여요). mhp: 몬스터 처음 체력, left: hits 칸마다 그 뒤 남은 몬스터 체력(몬스터 체력 막대용)
 // php: hits 칸마다 그 뒤 남은 내 체력(맞을 때마다 내 체력 막대도 줄어들게, 슬금님 제보 2026-11-18)
 export type BattleFx = { foe: string; won: boolean; spark?: number; hits: Hit[]; hp0?: number; mhp?: number; left?: number[]; php?: number[] };
-export const FX_HITS = 6;
+// 예전엔 처음 6번만 남기고 마지막 칸에 끝난 순간을 덮어써서, 긴 싸움에선 중간 공격이 빠졌어요.
+// 그래서 체력이 '두 대 버틸 만큼' 남아 보이다가 한 대에 0이 되는 것처럼 보였어요(슬금님 제보 2026-11-18).
+// 싸움은 40턴(80번)을 넘지 않으니 이 한도는 안전장치일 뿐이에요.
+export const FX_HITS = 80;
 export type Offer = { id: 'potion' | 'sword' | 'armor' | 'heart' | 'scroll'; price: number };
 export const OFFERS: Record<Offer['id'], { name: string; icon: string; text: string; price: number }> = {
   potion: { name: '회복 물약', icon: '🧪', text: '체력 50 회복', price: 12 },
