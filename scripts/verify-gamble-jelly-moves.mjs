@@ -21,13 +21,22 @@ function indexRows(rows, fields, name) {
 
 // expected에는 승인된 지급 대상의 양수 이관액만 넣어요.
 // before와 after는 해당 시각의 전체 gamble_accounts 잔액이에요.
-export function verifyMoves(expected, before, after) {
+export function verifyMoves(expected, before, after, paid) {
   const planned = indexRows(expected, ['jelly'], '승인 지급 명단');
   for (const [id, row] of planned) {
     if (row.jelly === 0) throw new Error('승인 지급 명단: 이관액은 양수여야 해요 (' + id + ')');
   }
   const baseline = indexRows(before, ['chips'], '지급 직전 잔액');
   const actual = indexRows(after, ['chips'], '지급 직후 잔액');
+  const receipts = indexRows(paid, ['jelly'], '지급 완료 장부');
+  const ledgerMismatches = [];
+  for (const id of new Set([...planned.keys(), ...receipts.keys()])) {
+    const expectedJelly = planned.get(id)?.jelly ?? null;
+    const recordedJelly = receipts.get(id)?.jelly ?? null;
+    if (expectedJelly !== recordedJelly) {
+      ledgerMismatches.push({ user_id: id, expected: expectedJelly, recorded: recordedJelly });
+    }
+  }
   const users = new Set([...planned.keys(), ...baseline.keys(), ...actual.keys()]);
   const mismatches = [];
   let expectedTotal = 0n;
@@ -41,19 +50,19 @@ export function verifyMoves(expected, before, after) {
       mismatches.push({ user_id: id, expected: jelly, actual: delta, account_missing: !actual.has(id) });
     }
   }
-  return { expected_accounts: planned.size, expected_total: expectedTotal.toString(), mismatches };
+  return { expected_accounts: planned.size, expected_total: expectedTotal.toString(), mismatches, ledger_mismatches: ledgerMismatches };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const files = process.argv.slice(2);
-    if (files.length !== 3) {
-      throw new Error('쓰는 법: node scripts/verify-gamble-jelly-moves.mjs approved.json before.json after.json');
+    if (files.length !== 4) {
+      throw new Error('쓰는 법: node scripts/verify-gamble-jelly-moves.mjs approved.json before.json after.json paid.json');
     }
-    const [expected, before, after] = files.map(file => JSON.parse(readFileSync(file, 'utf8')));
-    const result = verifyMoves(expected, before, after);
+    const [expected, before, after, paid] = files.map(file => JSON.parse(readFileSync(file, 'utf8')));
+    const result = verifyMoves(expected, before, after, paid);
     console.log(JSON.stringify(result, null, 2));
-    if (result.mismatches.length) process.exitCode = 1;
+    if (result.mismatches.length || result.ledger_mismatches.length) process.exitCode = 1;
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;
