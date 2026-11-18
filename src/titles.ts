@@ -1,3 +1,4 @@
+import { comma } from './num';
 import { levelFromXp, xpForLevel } from './levels';
 
 // 도감 칭호. 고르면 하리보봇이 디스코드 닉네임 앞에 `「칭호」 `로 붙여요(닉네임·생년과는 따로).
@@ -40,6 +41,10 @@ const SHOP_GROUPS: [string, number, string][] = [
   ["판타지", 80, "마법사 기사 용사 마왕 성기사 궁수 도적 암살자 소환사 연금술사 엘프 요정 천사 악마 뱀파이어 닌자 사무라이 해적 선장 드루이드 사제 마녀 흑마법 음유시인 현자 방랑자 수호자 파수꾼 검성 대마법사 용기사 정령사 네크로"],
   ["직업", 50, "대표 사장 부장 과장 대리 사원 인턴 알바 교수 박사 학생 백수 프로 장인 달인 고수 초보 견습 매니저 감독 코치 주장 막내 반장 회장 총무 이장 경비 기자 작가 화가 가수 DJ 셰프 바리스타 탐정 형사 의사 간호사 선생님"],
   ["특별", 100, "ICON GOAT STAR 24H 365 777 404 1004 99% 100% 0101 1st NO.1 MAX 999 2026 7777 24/7"],
+  ["게임 즐기기", 20, "VALO LoL PUBG OW2 TFT LOA FC 마크 메이플 서든"],
+  ["게임 스타일", 20, "겜잘알 겜알못 원챔 선픽 막픽 리폿 픽밴 버스기사 즐겜러 빡겜러 솔랭러 칼바람 샷콜러 멘탈갑 숨은캐리 팀플러"],
+  ["게임 명장면", 50, "펜타킬 쿼드라 클러치 헤드샷 원탭 치킨각 역전승 퍼블 솔킬 갓픽 노데스 에이스"],
+  ["게임 티어", 50, "언랭 아이언 브론즈 실버 골드 플레 다이아 챌린저 레디언트"],
 ];
 
 // ── 활동으로 얻는 칭호: 단계마다 [조건 값, 이름] ─────────────
@@ -159,7 +164,7 @@ export function titleProgress(t: Title, s: TitleStats): TitleProgress {
         chips: '가진 젤칩', all_in_wins: '올인 승리', jackpots: '슬롯 7️⃣ 세 개', naturals: '첫 두 장으로 21',
       }[r.metric];
       const unit = r.metric === 'chips' ? '개' : '회';
-      return count(s.gamble?.[r.metric] ?? 0, r.count, `${condition} ${r.count.toLocaleString('ko-KR')}${unit}`, unit);
+      return count(s.gamble?.[r.metric] ?? 0, r.count, `${condition} ${comma(r.count)}${unit}`, unit);
     }
     case 'shop':
       return { ok: false, text: `도감 젤리 ${r.price}개로 사요` };

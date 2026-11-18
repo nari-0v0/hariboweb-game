@@ -77,4 +77,20 @@ describe('Worker 문지기 모드', () => {
     expect(assetFetch).toHaveBeenCalledOnce();
     expect(originFetch).not.toHaveBeenCalled();
   });
+  it('점검 중(MAINTENANCE)이면 원본으로 넘기지 않고 Worker가 점검 화면을 보여 줘요', async () => {
+    const originFetch = vi.fn(async () => new Response('origin page'));
+    vi.stubGlobal('fetch', originFetch);
+    const response = await worker.fetch(
+      new Request('https://dogam.example/me'),
+      {
+        ORIGIN_URL: 'http://127.0.0.1:8787',
+        ORIGIN_SECRET: 'door-secret',
+        MAINTENANCE: '1',
+        ASSETS: { fetch: vi.fn() },
+      } as unknown as Env,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(503);
+    expect(originFetch).not.toHaveBeenCalled();
+  });
 });

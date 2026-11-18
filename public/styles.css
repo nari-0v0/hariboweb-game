@@ -861,6 +861,7 @@ main.wide { max-width: 1320px; }
 
 /* 404·오류 화면 */
 .err-page { display: grid; justify-items: center; gap: 6px; }
+.err-page p { word-break: keep-all; }
 .err-code { margin: 0; font-size: clamp(2.6rem, 10vw, 4rem); font-weight: 700; line-height: 1; color: var(--pink); text-shadow: 4px 4px 0 var(--ink); }
 .err-bears { margin: 6px 0 4px; }
 .err-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 8px; }

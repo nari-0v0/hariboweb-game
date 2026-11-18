@@ -1,3 +1,4 @@
+import { byCode, comma } from '../num';
 import { titleName } from '../titles';
 import { nextCardReward } from '../card-rewards';
 import type { Member } from '../env';
@@ -271,7 +272,7 @@ export function MePage(props: { viewer: Member; profile: Profile; items: Set<str
             stats={[
               ['레벨', String(level)],
               ['도감', `${props.owned}/${props.total}`],
-              ['경험치', profile.solo_xp.toLocaleString('ko-KR')],
+              ['경험치', comma(profile.solo_xp)],
             ]}
           />
         </div>
@@ -363,7 +364,7 @@ export function DogamPage(props: {
   const title = mine ? '내 도감' : `${props.owner.display_name}님의 도감`;
   // 도감 번호: 서버에 들어온 순서
   const order = [...props.entries].sort(
-    (a, b) => (a.joined_at ?? '9999').localeCompare(b.joined_at ?? '9999') || a.user_id.localeCompare(b.user_id),
+    (a, b) => byCode(a.joined_at ?? '9999', b.joined_at ?? '9999') || byCode(a.user_id, b.user_id),
   );
   const dexNo = new Map(order.map((e, i) => [e.user_id, String(i + 1).padStart(3, '0')]));
   const filter = (id: string, label: string, n: number, checked = false) => (
@@ -415,7 +416,7 @@ export function DogamPage(props: {
                 stats={[
                   ['레벨', String(progress(self.solo_xp).level)],
                   ['도감', `${props.owned}/${props.total}`],
-                  ['경험치', self.solo_xp.toLocaleString('ko-KR')],
+                  ['경험치', comma(self.solo_xp)],
                 ]}
               />
             </div>

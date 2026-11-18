@@ -59,14 +59,20 @@ export async function touchVisit(db: D1Database, member: Member, nowMs: number) 
 
 // 로그인할 때 디스코드에서 확인한 정보로 멤버를 바로 등록해요. 봇 동기화를 기다리지 않아도 돼요.
 export async function upsertLoginMember(db: D1Database, p: LoginProfile) {
+  const t = now();
+  const joinedMs = Date.parse(p.joined_at ?? '');
+  const joined = Number.isFinite(joinedMs) && joinedMs <= Date.parse(t) ? new Date(joinedMs).toISOString() : null;
   await db
     .prepare(
       `INSERT INTO members (user_id, display_name, avatar_url, joined_at, is_newbie, active, updated_at, last_login_at)
        VALUES (?1, ?2, ?3, ?4, 0, 1, ?5, ?5)
        ON CONFLICT (user_id) DO UPDATE SET display_name = ?2, avatar_url = ?3,
-         joined_at = COALESCE(?4, joined_at), active = 1, updated_at = ?5, last_login_at = ?5`,
+         joined_at = COALESCE(?4, joined_at), active = 1, updated_at = ?5, last_login_at = ?5,
+         reset_at = CASE WHEN members.active = 0
+           THEN MAX(COALESCE(members.reset_at, ''), COALESCE(?6, strftime('%Y-%m-%dT%H:%M:%fZ', members.updated_at), ?5))
+           ELSE members.reset_at END`,
     )
-    .bind(p.id, stripTitle(p.name) || p.name, p.avatar_url, p.joined_at, now())
+    .bind(p.id, stripTitle(p.name) || p.name, p.avatar_url, p.joined_at, t, joined)
     .run();
   await assignCharacters(db, [p.id]);
   await giveStarterJelly(db, [p.id]);

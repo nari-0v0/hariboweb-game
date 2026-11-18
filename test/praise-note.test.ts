@@ -122,7 +122,12 @@ describe('칭찬함', () => {
       { from_id: A, note: null },
       { from_id: B, note: null },
     ]);
-    sql.prepare("UPDATE members SET active = 1 WHERE user_id = ?").run(C);
+    const joined = Date.now() + 2000;
+    const rejoined = parseSync({ batch_id: `${new Date(joined).toISOString()}-rejoined`, members: [
+      { id: C, name: 'C', joined_at: new Date(joined).toISOString() },
+    ] });
+    if (!rejoined.ok) throw new Error(rejoined.error);
+    await applySync(db, rejoined.value, joined);
     expect(await praiseBox(db, C)).toMatchObject({ total: 0, unread: 0, items: [] });
   });
 });

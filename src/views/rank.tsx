@@ -1,3 +1,4 @@
+import { comma } from '../num';
 import type { Member } from '../env';
 import type { Rankings } from '../rankings';
 import { JP_FULL, JP_LINE, JP_SERVER, JP_TEAM } from '../team';
@@ -5,7 +6,7 @@ import { Layout } from './layout';
 import { PodiumBoard } from './podium';
 import { DAYS } from '../journey';
 
-const n = (v: number) => v.toLocaleString('ko-KR');
+const n = (v: number) => comma(v);
 
 export const RANK_TABS = [
   { id: 'dogam', label: '도감', icon: '📖' },
