@@ -220,3 +220,15 @@ it('운영 지급문은 초기화가 실제로 완료된 뒤에만 실행돼요'
   sql.exec(move);
   expect(chips(sql)).toEqual([{ user_id: A, chips: 100, won: 0 }]);
 });
+
+it('승인 명단을 바꾼 재실행은 차단하고 동일 스냅샷은 순서가 바뀌어도 허용해요', () => {
+  const sql = initializedDb();
+  const a = { user_id: A, jelly: 100 };
+  const b = { user_id: B, jelly: 200 };
+  const stamp = '2026-11-21T00:00:00.000Z';
+  sql.exec(buildMoveSql([a, b], stamp, [a]));
+  expect(() => sql.exec(buildMoveSql([a, b], stamp, [a, b]))).toThrow();
+  expect(() => sql.exec(buildMoveSql([a, { ...b, jelly: 0 }], stamp, [a]))).toThrow();
+  sql.exec(buildMoveSql([b, a], '2026-11-21T01:00:00.000Z', [a]));
+  expect(chips(sql)).toEqual([{ user_id: A, chips: 1100, won: 500 }]);
+});
