@@ -18,7 +18,7 @@ export async function getJourney(db: D1Database, user: string, id: string): Prom
   return decode(await db.prepare('SELECT * FROM journey_runs WHERE user_id = ? AND id = ?').bind(user, id).first<JourneyRow>());
 }
 
-export type JourneyRecord = { best: number; clears: number; rewardedToday: number; farmed: Record<number, number>; unlocked: number; top: number; last?: number }; // last = 마지막으로 돈(끝낸) 판의 장. 다음 판도 그 장이 먼저 골라져요 // farmed: 장마다 이미 깬 뒤 다시 돈 판 수(평생) // unlocked = 대장을 깨서 열린 가장 높은 장
+export type JourneyRecord = { best: number; clears: number; rewardedToday: number; startedToday: number; farmed: Record<number, number>; unlocked: number; top: number; last?: number }; // last = 마지막으로 돈(끝낸) 판의 장. 다음 판도 그 장이 먼저 골라져요 // farmed: 장마다 이미 깬 뒤 다시 돈 판 수(평생) // unlocked = 대장을 깨서 열린 가장 높은 장
 export async function journeyRecord(db: D1Database, user: string, day = kstDay()): Promise<JourneyRecord> {
   // 가장 높이 간 레벨·대장 횟수·다시 돈 판 수는 판이 끝날 때 강화 주머니 줄에 모아 둬요(0047).
   // 나머지도 색인으로 몇 줄만 읽어요. 지난 판을 전부 훑으면 무료 DB 읽기 한도를 넘겨요(2026-11-17).
@@ -27,12 +27,21 @@ export async function journeyRecord(db: D1Database, user: string, day = kstDay()
       `SELECT COALESCE((SELECT chapter FROM journey_runs WHERE user_id = ?1 AND status = 'done' AND cleared = 1 ORDER BY chapter DESC LIMIT 1), 0) AS top,
          (SELECT COUNT(*) FROM journey_runs WHERE user_id = ?1 AND status = 'done' AND reward_day = ?2 AND xp > 0) AS today,
          (SELECT chapter FROM journey_runs WHERE user_id = ?1 AND status != 'going' ORDER BY started_at DESC LIMIT 1) AS last,
+         (SELECT COUNT(*) FROM journey_runs WHERE user_id = ?1 AND started_at >= ?3) AS started,
          b.best, b.clears, b.farmed
        FROM (SELECT 1) LEFT JOIN journey_bank b ON b.user_id = ?1`,
     )
-    .bind(user, day)
-    .first<{ best: number | null; clears: number | null; today: number; top: number; last: number | null; farmed: string | null }>();
-  return { best: r?.best ?? 0, clears: r?.clears ?? 0, rewardedToday: r?.today ?? 0, farmed: parseFarmed(r?.farmed), unlocked: Math.min(MAX_CHAPTER, (r?.top ?? 0) + 1), top: r?.top ?? 0, last: r?.last ?? undefined };
+    .bind(user, day, kstDayStart(day))
+    .first<{ best: number | null; clears: number | null; today: number; started: number; top: number; last: number | null; farmed: string | null }>();
+  return { best: r?.best ?? 0, clears: r?.clears ?? 0, rewardedToday: r?.today ?? 0, startedToday: r?.started ?? 0, farmed: parseFarmed(r?.farmed), unlocked: Math.min(MAX_CHAPTER, (r?.top ?? 0) + 1), top: r?.top ?? 0, last: r?.last ?? undefined };
+}
+
+// 한국 시간 그날 0시(ISO). started_at은 ISO라 문자열로 비교해요.
+export const kstDayStart = (day: string) => new Date(`${day}T00:00:00+09:00`).toISOString();
+// 오늘(한국 시간) 떠난 원정 판 수(사람 확인용, 색인 journey_started로 셉니다)
+export async function journeysStartedToday(db: D1Database, user: string, day = kstDay()): Promise<number> {
+  const r = await db.prepare('SELECT COUNT(*) AS n FROM journey_runs WHERE user_id = ? AND started_at >= ?').bind(user, kstDayStart(day)).first<{ n: number }>();
+  return r?.n ?? 0;
 }
 
 // 대장을 깬 가장 높은 장(색인으로 한 줄만 읽어요. MAX를 COALESCE로 감싸면 색인을 끝까지 훑어서 ORDER BY … LIMIT 1로 써요)

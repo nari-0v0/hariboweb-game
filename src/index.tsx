@@ -88,7 +88,8 @@ import { prefetchAllowed } from './prefetch';
 import { imageRequestAllowed } from './image-guard';
 import { EscapePage } from './views/escape';
 import { JourneyPage } from './views/journey';
-import { NO_COINS, STALE_PICK, activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from './journey-db';
+import { NO_COINS, STALE_PICK, activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, journeysStartedToday, quitJourney, upgradeGear } from './journey-db';
+import { humanCode, humanOk, humanWords, needsHuman } from './journey-human';
 import { GEAR, PERKS, cleanKit, type GearId, type PerkId } from './journey';
 import { clearReadAlerts, deleteAlert, listAlerts, markAlertsRead } from './alerts';
 import { AlertBox, AlertsPage } from './views/alerts';
@@ -1092,7 +1093,8 @@ members.get('/expedition/go', async (c) => {
   const rid = c.req.query('r') ?? '';
   const done = JR_ID.test(rid) ? await getJourney(c.env.DB, viewer.user_id, rid) : null;
   const art = characterUrl(profile.character_id, viewer.user_id, profile.deco_id);
-  return page(c, <JourneyPage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} record={record} bank={bank} dogam={dogam} notice={c.req.query('n')} prep={c.req.query('prep')} />);
+  const human = !run && needsHuman(record.startedToday) ? humanWords(await humanCode(c.env.SESSION_SECRET, viewer.user_id, kstDay(), record.startedToday)) : undefined;
+  return page(c, <JourneyPage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} record={record} bank={bank} dogam={dogam} notice={c.req.query('n')} prep={c.req.query('prep')} human={human} />);
 });
 members.post('/api/journey/start', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
@@ -1100,6 +1102,14 @@ members.post('/api/journey/start', async (c) => {
     const body = await c.req.parseBody({ all: true });
     const ch = Number(Array.isArray(body.ch) ? body.ch[0] : (body.ch ?? 1));
     const shown = Number(Array.isArray(body.kl) ? body.kl[0] : body.kl);
+    // 오늘 50판째마다 사람 확인(이미 진행 중인 판이 있으면 그 판으로 돌아가니 묻지 않아요)
+    const user = c.get('viewer').user_id;
+    const day = kstDay();
+    const started = await journeysStartedToday(c.env.DB, user, day);
+    if (needsHuman(started) && !(await activeJourney(c.env.DB, user))) {
+      const answer = Array.isArray(body.human) ? body.human[0] : body.human;
+      if (!humanOk(await humanCode(c.env.SESSION_SECRET, user, day, started), answer)) return c.redirect('/expedition/go?n=human#now', 303);
+    }
     const id = await beginJourney(c.env.DB, c.get('viewer').user_id, Number.isSafeInteger(ch) && ch >= 1 ? ch : 1, new Date(), cleanKit(body.kit), Number.isSafeInteger(shown) ? shown : undefined);
     if (id === NO_COINS) return c.redirect('/expedition/go?n=kitcoins', 303);
     if (id === STALE_PICK) return c.redirect('/expedition/go?n=stalepick', 303);
