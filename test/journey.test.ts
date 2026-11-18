@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DAYS, journeyJelly, KIT_SHIELD_HITS, kitCost, actJourney, autoChoice, decodeJourney, journeyXp, perkMax, gearBonus, gearNeed, hasMats, GEAR_MAX, LOWER_MATS, FIRST_CLEAR_BONUS, startJourney, stat, type JourneyState } from '../src/journey';
+import { DAYS, journeyJelly, KIT_SHIELD_HITS, kitCost, actJourney, autoChoice, decodeJourney, journeyXp, perkMax, gearBonus, gearNeed, hasMats, GEAR_MAX, LOWER_MATS, FIRST_CLEAR_BONUS, FARM_DROP, startJourney, stat, type JourneyState } from '../src/journey';
 import { NO_COINS, STALE_PICK, actJourneyRun, activeJourney, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from '../src/journey-db';
 
 function database() {
@@ -458,7 +458,7 @@ describe('깬 장 다시 돌기 재료', () => {
     const farm = play(true);
     expect(fresh).toBeGreaterThan(200); // 대장은 꼭 1개
     expect(farm).toBeGreaterThan(0);
-    expect(farm).toBeLessThan(fresh * 0.55);
+    expect(farm).toBeLessThan(fresh * (FARM_DROP + 0.15));
   });
 });
 
