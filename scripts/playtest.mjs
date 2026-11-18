@@ -655,7 +655,8 @@ try {
           run.error = "chapter not open";
           break;
         }
-        await pick.check();
+        // 장 카드의 글씨(<b>)가 동그라미 위를 덮어서, 사람이 누르듯 카드(라벨)를 눌러 골라요
+        await pick.check({ force: true });
         await page.locator(".jr-depart").first().click();
         await page.locator("[data-auto-toggle] input").check();
         const started = Date.now();
