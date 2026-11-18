@@ -1,0 +1,40 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hariboweb-game",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-10-01",
+  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": ["/char/*", "/case/*", "/journey/*"] },
+  // 워커를 D1 데이터베이스(APAC) 가까이에서 실행해서, 화면 하나에 DB를 여러 번 읽어도 빨라요.
+  "placement": { "mode": "smart" },
+  // 나리가 Cloudflare 화면에서 넣은 변수(MAINTENANCE 점검 스위치 등)를 배포할 때 지우지 않아요.
+  "keep_vars": true,
+  // 요청마다 걸린 시간을 Cloudflare 로그에서 볼 수 있게 켜요(무료 한도 안, 느린 화면 찾기용).
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "haribo-dogam",
+      "database_id": "607d6192-35d0-435b-90cc-16fdee9abc10",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // 광장(같이 돌아다니는 지도) 실시간 연결. 무료 요금제는 SQLite 방식만 쓸 수 있어요.
+  // Workers AI(무료 사용량): 같이 배정되지 않기 사유 검토
+  "ai": { "binding": "AI" },
+  "durable_objects": {
+    "bindings": [{ "name": "PLAZA", "class_name": "PlazaRoom" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PlazaRoom"] }],
+  "vars": {
+    // 디스코드 개발자 포털의 봇 애플리케이션 ID
+    "DISCORD_CLIENT_ID": "1420027662830669925",
+    // 하리보 서버 ID
+    "GUILD_ID": "1261363193519935550",
+    // 배포된 주소 (예: https://hariboweb-game.<계정>.workers.dev)
+    "PUBLIC_URL": "https://hariboweb-game.haribobot.workers.dev",
+    // 겜블장이 잠겨 있어도 들어가서 시험해 볼 수 있는 사람(디스코드 ID, 쉼표로 구분). 지금은 서버 주인(나리)만.
+    "GAMBLE_TESTERS": "323412514224209921"
+  }
+  // 비밀 값은 `npx wrangler secret put 이름`으로 넣어요:
+  //   DISCORD_CLIENT_SECRET, SESSION_SECRET, BOT_SYNC_SECRET
+}
