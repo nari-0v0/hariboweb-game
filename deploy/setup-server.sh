@@ -63,6 +63,7 @@ BACKUP_PAR_URL=
 ENV
 fi
 chmod 600 "$ENV_FILE"
+grep -q '^BOT_SYNC_SECRET=.' "$ENV_FILE" || echo "!! 봇 .env 에서 DOGAM_SYNC_SECRET 을 못 찾았어요. $ENV_FILE 의 BOT_SYNC_SECRET 을 채워 주세요."
 
 echo "== 3. systemd 서비스 hariboweb"
 sudo tee /etc/systemd/system/hariboweb.service >/dev/null <<UNIT
@@ -101,7 +102,7 @@ $ORIGIN_HOST {
 CADDY
 # Oracle Ubuntu 이미지는 서버 방화벽(iptables)이 22번만 열어 둬요. 80(인증서 발급)·443(HTTPS)을 열어요.
 for P in 80 443; do
-  sudo iptables -C INPUT -p tcp --dport $P -j ACCEPT 2>/dev/null || sudo iptables -I INPUT 5 -p tcp --dport $P -j ACCEPT
+  sudo iptables -C INPUT -p tcp --dport $P -j ACCEPT 2>/dev/null || sudo iptables -I INPUT -p tcp --dport $P -j ACCEPT
 done
 command -v netfilter-persistent >/dev/null && sudo netfilter-persistent save >/dev/null || true
 sudo systemctl reload caddy || sudo systemctl restart caddy

@@ -14,6 +14,9 @@ case "$REQUEST" in
     echo "== 받은: $(git log -1 --format='%h %s')"
     PATH="$NODE:$PATH" npm ci --no-audit --no-fund --silent || { echo "== npm ci 실패"; exit 1; }
     PATH="$NODE:$PATH" npm run build:node --silent || { echo "== 빌드 실패: 재시작 안 함"; exit 1; }
+    if ! systemctl is-active --quiet hariboweb; then
+      echo "== 빌드만 했어요. 웹 서비스는 아직 꺼져 있어요(옮기는 날 켜요)"; exit 0
+    fi
     "$APP_DIR/deploy/backup.sh" || echo "== (배포 전 백업 실패, 계속)"
     sudo -n /usr/bin/systemctl restart hariboweb || exit 1
     sleep 5
