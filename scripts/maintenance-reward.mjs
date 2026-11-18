@@ -8,7 +8,9 @@
 //   - 도감 젤리: jelly_grants 기록에도 남아요(이유 "11/21 점검 보상"). 디스코드 축하 글은 올라가지 않아요.
 //   - 원정대 재료: 1장부터 지금까지 열린 장(재료 기록이 있는 가장 뒤 장)까지 장마다 같은 개수. 안 해 본 사람은 1장 재료.
 //   - 젤칩: 겜블장 계정에 더해요. 매일 받는 1,000개는 따로 그대로 받아요.
-//   - 🔔 알림 하나. 이 알림이 "이미 받음" 표시라서 같은 파일을 두 번 실행해도 한 번만 들어가요.
+//   - 🔔 알림 하나.
+// "이미 받음" 표시는 지워지지 않는 jelly_grants 기록(id maint-2026-11-21:<멤버>)이에요. 알림은 멤버가 지우거나
+// 15일 뒤 저절로 지워지니까 표시로 쓰지 않아요(Codex 리뷰). 그래서 같은 파일을 언제 다시 실행해도 한 번만 들어가요.
 import { pathToFileURL } from 'node:url';
 
 export const REF = 'maint-2026-11-21';
@@ -35,7 +37,7 @@ const fmt = (n) => n.toLocaleString('en-US');
 export function buildRewardSql(hours, now = new Date().toISOString()) {
   const t = tierFor(hours);
   const fresh = `user_id IN (SELECT user_id FROM members WHERE active = 1)
-    AND NOT EXISTS (SELECT 1 FROM alerts a WHERE a.user_id = %T.user_id AND a.ref = '${REF}')`;
+    AND NOT EXISTS (SELECT 1 FROM jelly_grants g WHERE g.id = '${REF}:' || %T.user_id)`;
   const who = (table) => fresh.replaceAll('%T', table);
   const top = `COALESCE((SELECT MAX(CAST(key AS INTEGER)) FROM json_each(journey_bank.mats) WHERE CAST(key AS INTEGER) BETWEEN 1 AND ${MAX_CH}), 1)`;
   const lines = [
@@ -46,8 +48,6 @@ export function buildRewardSql(hours, now = new Date().toISOString()) {
     `INSERT INTO profiles (user_id, dogam_jelly, updated_at)
   SELECT user_id, ${t.jelly}, '${now}' FROM members m WHERE ${who('m')}
   ON CONFLICT (user_id) DO UPDATE SET dogam_jelly = dogam_jelly + excluded.dogam_jelly, updated_at = excluded.updated_at;`,
-    `INSERT OR IGNORE INTO jelly_grants (id, user_id, amount, reason, granted_by, created_at, applied_at)
-  SELECT '${REF}:' || user_id, user_id, ${t.jelly}, '11/21 점검 보상', '${GRANTED_BY}', '${now}', '${now}' FROM members m WHERE ${who('m')};`,
     // 2) 원정대 재료
     `INSERT OR IGNORE INTO journey_bank (user_id, mats, updated_at)
   SELECT user_id, '{}', '${now}' FROM members m WHERE ${who('m')};`,
@@ -60,10 +60,13 @@ export function buildRewardSql(hours, now = new Date().toISOString()) {
     // 3) 젤칩
     `INSERT OR IGNORE INTO gamble_accounts (user_id, chips) SELECT user_id, 0 FROM members m WHERE ${who('m')};`,
     `UPDATE gamble_accounts SET chips = chips + ${t.chips} WHERE ${who('gamble_accounts')};`,
-    // 4) 알림(받음 표시). 반드시 마지막이에요.
+    // 4) 알림
     `INSERT OR IGNORE INTO alerts (user_id, ref, title, body, created_at)
   SELECT user_id, '${REF}', '🎁 11/21 점검 보상', '점검 동안 기다려 줘서 고마워요! 도감 젤리 ${t.jelly}개, 원정대 재료(열린 장마다 ${t.mats}개씩), 젤칩 ${fmt(t.chips)}개를 넣었어요.', '${now}'
   FROM members m WHERE ${who('m')};`,
+    // 5) 지급 기록 = 받음 표시. 반드시 마지막이에요.
+    `INSERT OR IGNORE INTO jelly_grants (id, user_id, amount, reason, granted_by, created_at, applied_at)
+  SELECT '${REF}:' || user_id, user_id, ${t.jelly}, '11/21 점검 보상', '${GRANTED_BY}', '${now}', '${now}' FROM members m WHERE ${who('m')};`,
   );
   return lines.join('\n') + '\n';
 }

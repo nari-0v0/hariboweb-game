@@ -50,6 +50,13 @@ it('지금 멤버에게 젤리·재료·젤칩·알림을 주고, 두 번 실행
   // 떠난 멤버는 받지 않아요
   expect(one(sql, `SELECT COUNT(*) n FROM journey_bank WHERE user_id = '${LEFT}'`)?.n).toBe(0);
   expect(one(sql, `SELECT COUNT(*) n FROM gamble_accounts WHERE user_id = '${LEFT}'`)?.n).toBe(0);
+  // 알림을 지운 뒤 다시 실행해도 또 받지 않아요(받음 표시는 지급 기록)
+  sql.exec(`DELETE FROM alerts`);
+  sql.exec(run);
+  expect(one(sql, `SELECT dogam_jelly FROM profiles WHERE user_id = '${A}'`)?.dogam_jelly).toBe(13);
+  expect(one(sql, `SELECT chips FROM gamble_accounts WHERE user_id = '${A}'`)?.chips).toBe(3000);
+  expect(JSON.parse(String(one(sql, `SELECT mats FROM journey_bank WHERE user_id = '${A}'`)?.mats))).toEqual({ '1': 4, '2': 2, '3': 3 });
+  expect(one(sql, `SELECT COUNT(*) n FROM alerts`)?.n).toBe(0);
 });
 
 it('겜블장 젤리 이전 전에 돌리면 아무것도 주지 않고 멈춰요', () => {

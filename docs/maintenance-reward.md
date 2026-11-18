@@ -22,6 +22,6 @@
 2. 점검 화면을 끄고, 실제로 닫혀 있던 시간을 재요.
 3. `node scripts/maintenance-reward.mjs <시간> > maintenance-reward.sql` (예: 2시간 반이면 `2.5`)
 4. `npx wrangler d1 execute haribo-dogam --remote --file maintenance-reward.sql`
-5. 확인: `SELECT COUNT(*) FROM alerts WHERE ref = 'maint-2026-11-21'` = 지금 멤버 수.
+5. 확인: `SELECT COUNT(*) FROM jelly_grants WHERE id LIKE 'maint-2026-11-21:%'` = 지금 멤버 수.
 
-같은 파일을 다시 실행해도 이미 받은 사람(알림이 있는 사람)은 다시 받지 않아요.
+같은 파일을 다시 실행해도 이미 받은 사람(지급 기록이 있는 사람)은 다시 받지 않아요. 알림을 지워도 마찬가지예요.
