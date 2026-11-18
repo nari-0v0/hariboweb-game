@@ -25,7 +25,9 @@
    ```
    (봇이 예전 저장 방식(LEGACY)일 때 기준이에요. 새 원장(PRIMARY)으로 바뀌었으면 이 표 대신 새 원장을 읽어야 해요.)
    ID는 문자열로, 젤리는 JSON 숫자로 내보내요. 결과를 `wallets.json`(`[{"user_id": "...", "jelly": 123}, ...]`)으로 저장해요.
-3. **SQL 만들기**: `node scripts/gamble-jelly-moves.mjs wallets.json > gamble-jelly-moves.sql`
+3. **지급 명단 승인 및 SQL 만들기**: 컷오버 대상 중 현재 웹 활성 멤버의 양수 지갑 금액을 `approved.json`으로 별도 승인해요. 지갑 파일과 같은 `user_id`, `jelly` 형식이에요.
+   `node scripts/gamble-jelly-moves.mjs wallets.json approved.json > gamble-jelly-moves.sql`
+   승인 명단 밖의 계정은 적재되더라도 지급하지 않아요. 승인 후 비활성화된 계정은 지급을 건너뛰며 개방 전 검증에서 누락으로 잡혀요.
 4. **웹 DB에 넣기**(배포 스레드): 마이그레이션 0042가 먼저 적용돼 있어야 해요. D1 Time Travel 북마크를 먼저 남겨요.
    먼저 겜블장을 처음부터 시작하게 지우고(나리 2026-11-16: 다 초기화), 그다음 젤칩을 넣어요.
    `npx wrangler d1 execute haribo-dogam --remote --file scripts/gamble-reset.sql`
