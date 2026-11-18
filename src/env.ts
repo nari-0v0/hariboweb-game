@@ -18,6 +18,9 @@ export type Env = {
   AI?: Ai;
   // 1이면 시즌 모둠 퀘스트에 내전 퀘스트도 넣어요(내전을 쉬는 동안은 비워 둬요)
   SCRIM_QUESTS?: string;
+  // 비어 있으면 지금처럼 Worker가 앱을 전부 실행하고, 있으면 그림 외 요청을 Node 원본 서버로 넘겨요.
+  ORIGIN_URL?: string;
+  ORIGIN_SECRET?: string;
   // 1이면 모든 화면을 "점검 중이에요"로 바꿔요(Cloudflare 설정 > 변수에서 나리가 켜고 꺼요). 봇 동기화는 503을 받고 나중에 다시 보내요.
   MAINTENANCE?: string;
 };

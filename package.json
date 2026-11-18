@@ -3,19 +3,23 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build:node": "esbuild src/node/server.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/server.mjs --jsx=automatic --jsx-import-source=hono/jsx",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply haribo-dogam --local",
     "db:migrate:remote": "wrangler d1 migrations apply haribo-dogam --remote",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "playtest": "node scripts/playtest.mjs"
+    "playtest": "node scripts/playtest.mjs",
+    "start:node": "node dist/server.mjs"
   },
   "dependencies": {
+    "@hono/node-server": "2.1.9",
     "hono": "4.13.18"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261014.1",
+    "@types/node": "22.20.5",
     "esbuild": "0.28.2",
     "playwright": "1.65.0",
     "typescript": "5.9.3",
