@@ -335,6 +335,20 @@ export async function applySync(
     stmts.push(markLevel.bind(owner));
   }
 
+  // 주간 빙고 기록(통화방 1분, 출석)도 같은 트랜잭션에.
+  // 나간 사람 처리보다 먼저 넣어요: 같은 묶음에 나가기 직전 기록이 있어도 아래에서 함께 지우고,
+  // 짝 통화 기준값(bingo_pair_reset)에도 그 분이 들어가게요.
+  // 빙고 기간 = 생명력 주기(봇이 보내는 season)의 절반. 이번 묶음의 주기를 먼저 적어 둬요.
+  const periods = await loadPeriods(db, nowMs);
+  if (p.season) {
+    for (const half of splitCycle(p.season.start, p.season.end)) {
+      stmts.push(savePeriod(db, half));
+      periods.unshift(half);
+    }
+  }
+  const bingo = bingoStatements(db, p.room_minutes, p.attendance, periods);
+  stmts.push(...bingo.stmts, prunePairDays(db, nowMs));
+
   // 나간 사람: 본인 카드와 도감은 지우고, 다른 사람이 가진 그 사람 카드는 흐리게 남겨요.
   for (const id of p.removed) {
     // 다시 들어오면 캐릭터를 새로 받으니 성별도 다시 골라요
@@ -390,17 +404,6 @@ export async function applySync(
   // 그 밖에 조건을 채운 사람(배포 전, 상대 재가입)은 내 카드·내 도감을 열 때 받아요(모두를 매 묶음 세면 D1 무료 한도를 넘어요).
   for (const owner of new Set(p.pair_xp.flatMap((x) => [x.a, x.b]))) stmts.push(...cardRewardStatements(db, owner, p.batch_id, t));
 
-  // 주간 빙고 기록(통화방 1분, 출석)도 같은 트랜잭션에
-  // 빙고 기간 = 생명력 주기(봇이 보내는 season)의 절반. 이번 묶음의 주기를 먼저 적어 둬요.
-  const periods = await loadPeriods(db, nowMs);
-  if (p.season) {
-    for (const half of splitCycle(p.season.start, p.season.end)) {
-      stmts.push(savePeriod(db, half));
-      periods.unshift(half);
-    }
-  }
-  const bingo = bingoStatements(db, p.room_minutes, p.attendance, periods);
-  stmts.push(...bingo.stmts, prunePairDays(db, nowMs));
 
   try {
     await db.batch(stmts);
