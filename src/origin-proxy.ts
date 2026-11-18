@@ -16,7 +16,10 @@ export async function forwardToOrigin(
   if (!origin) throw new Error('ORIGIN_URL이 비어 있어요');
 
   const incoming = new URL(request.url);
-  const target = new URL(incoming.pathname + incoming.search, origin.endsWith('/') ? origin : `${origin}/`);
+  // 경로가 //다른주소/... 이어도 호스트가 바뀌지 않게, ORIGIN_URL로 주소를 만든 뒤 경로와 검색어만 바꿔 넣어요.
+  const target = new URL(origin);
+  target.pathname = incoming.pathname;
+  target.search = incoming.search;
   const headers = new Headers(request.headers);
   // 실제 Host는 fetch가 ORIGIN_URL에 맞게 만들고, 이용자가 접속한 Host는 별도 머리글로 보존해요.
   headers.delete('Host');

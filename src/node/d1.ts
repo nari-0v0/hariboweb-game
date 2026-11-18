@@ -23,17 +23,6 @@ function meta(changes = 0, lastRowId = 0, rowsRead = 0): D1Meta & Record<string,
   };
 }
 
-function firstKeyword(sql: string): string {
-  return sql
-    .replace(/^\s*(?:(?:--[^\n]*(?:\n|$))|(?:\/\*[\s\S]*?\*\/))\s*/g, '')
-    .match(/^[A-Za-z]+/)?.[0]
-    ?.toUpperCase() ?? '';
-}
-
-function returnsRows(sql: string): boolean {
-  return ['SELECT', 'PRAGMA', 'EXPLAIN', 'WITH'].includes(firstKeyword(sql));
-}
-
 class NodeD1Statement {
   constructor(
     private readonly owner: NodeD1Database,
@@ -45,38 +34,38 @@ class NodeD1Statement {
     return new NodeD1Statement(this.owner, this.query, values.map(bindValue)) as unknown as D1PreparedStatement;
   }
 
+  // D1처럼 한 번 실행해서 반환 행(SELECT, RETURNING)과 실제 바뀐 행 수를 함께 돌려줘요.
+  execute<T>(): D1Result<T> {
+    const db = this.owner.sqlite;
+    const before = Number((db.prepare('SELECT total_changes() AS n').get() as { n: number | bigint }).n);
+    const results = db.prepare(this.query).all(...this.values) as T[];
+    const after = Number((db.prepare('SELECT total_changes() AS n').get() as { n: number | bigint }).n);
+    const changes = after - before;
+    const lastRowId = changes > 0 ? Number((db.prepare('SELECT last_insert_rowid() AS id').get() as { id: number | bigint }).id) : 0;
+    return { success: true, results, meta: meta(changes, lastRowId, results.length) };
+  }
+
   async first<T = Record<string, unknown>>(columnName?: string): Promise<T | null> {
     const row = this.owner.sqlite.prepare(this.query).get(...this.values);
     if (!row) return null;
-    if (columnName !== undefined) return (row[columnName] ?? null) as T | null;
+    if (columnName !== undefined) {
+      // D1처럼 행은 있는데 그 열이 없으면 오류예요(열 이름 실수를 빈 결과로 숨기지 않게).
+      if (!Object.prototype.hasOwnProperty.call(row, columnName)) throw new Error(`D1_ERROR: Column not found: ${columnName}`);
+      return (row[columnName] ?? null) as T | null;
+    }
     return row as T;
   }
 
   async all<T = Record<string, unknown>>(): Promise<D1Result<T>> {
-    const results = this.owner.sqlite.prepare(this.query).all(...this.values) as T[];
-    return { success: true, results, meta: meta(0, 0, results.length) };
+    return this.execute<T>();
   }
 
   async run<T = Record<string, unknown>>(): Promise<D1Result<T>> {
-    const result = this.owner.sqlite.prepare(this.query).run(...this.values);
-    return {
-      success: true,
-      results: [],
-      meta: meta(Number(result.changes), Number(result.lastInsertRowid)),
-    };
+    return this.execute<T>();
   }
 
   executeBatch<T>(): D1Result<T> {
-    if (returnsRows(this.query)) {
-      const results = this.owner.sqlite.prepare(this.query).all(...this.values) as T[];
-      return { success: true, results, meta: meta(0, 0, results.length) };
-    }
-    const result = this.owner.sqlite.prepare(this.query).run(...this.values);
-    return {
-      success: true,
-      results: [],
-      meta: meta(Number(result.changes), Number(result.lastInsertRowid)),
-    };
+    return this.execute<T>();
   }
 
   belongsTo(database: NodeD1Database): boolean {

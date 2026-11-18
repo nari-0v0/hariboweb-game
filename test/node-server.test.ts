@@ -50,6 +50,11 @@ it('Node 서버가 문지기 비밀을 확인하고 앱과 봇 동기화를 처�
     headers: { 'X-Origin-Secret': 'origin-test-secret' },
   });
   expect(traversal.status).toBe(404);
+  // 보호 그림 폴더 이름을 %63har 처럼 바꿔 써도 정적 파일로 바로 주지 않아요(그림 보호 검사를 건너뛰지 못하게).
+  const encoded = await fetch(`${url}/%63har/girl-14-0.png`, {
+    headers: { 'X-Origin-Secret': 'origin-test-secret', 'Sec-Fetch-Dest': 'document', Referer: 'https://evil.example/' },
+  });
+  expect(encoded.status).not.toBe(200);
 
   // 문지기 뒤에서도 실제 주소(PUBLIC_URL) 기준으로 같은 사이트 요청을 알아봐요(내부 주소로 비교하면 모든 POST가 막혀요).
   const sameSite = await fetch(`${url}/auth/logout`, {

@@ -93,4 +93,16 @@ describe('Worker 문지기 모드', () => {
     expect(response.status).toBe(503);
     expect(originFetch).not.toHaveBeenCalled();
   });
+  it('경로가 //다른주소 로 시작해도 ORIGIN_URL 호스트로만 넘겨요', async () => {
+    const fakeFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response('ok'));
+    await forwardToOrigin(
+      new Request('https://dogam.example//attacker.example/collect?x=1'),
+      { ORIGIN_URL: 'http://127.0.0.1:8787', ORIGIN_SECRET: 'door-secret' },
+      fakeFetch,
+    );
+    const target = new URL(String(fakeFetch.mock.calls[0]![0]));
+    expect(target.host).toBe('127.0.0.1:8787');
+    expect(target.pathname).toBe('//attacker.example/collect');
+    expect(target.search).toBe('?x=1');
+  });
 });

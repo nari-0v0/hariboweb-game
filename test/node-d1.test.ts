@@ -68,4 +68,23 @@ describe('Node D1 호환 껍데기', () => {
     expect(await db.prepare('SELECT COUNT(*) AS count FROM d1_migrations').first()).toEqual({ count: 48 });
     db.close();
   });
+  it('run·all·batch가 반환 행과 실제 바뀐 행 수를 함께 돌려주고, 없는 열은 오류예요', async () => {
+    const { db } = database();
+    db.execRaw('CREATE TABLE t (id INTEGER PRIMARY KEY AUTOINCREMENT, v INTEGER)');
+    db.execRaw('INSERT INTO t (v) VALUES (1), (2), (3)');
+    const updated = await db.prepare('UPDATE t SET v = v + 1').all();
+    expect(updated.meta.changes).toBe(3);
+    expect(updated.meta.changed_db).toBe(true);
+    const selected = await db.prepare('SELECT 42 AS value').run();
+    expect(selected.results).toEqual([{ value: 42 }]);
+    expect(selected.meta.changes).toBe(0);
+    const returning = await db.prepare('INSERT INTO t (v) VALUES (?) RETURNING id').bind(9).run();
+    expect(returning.results).toEqual([{ id: 4 }]);
+    expect(returning.meta.last_row_id).toBe(4);
+    const [withInsert] = await db.batch([db.prepare('WITH x(n) AS (SELECT 7) INSERT INTO t (v) SELECT n FROM x')]);
+    expect(withInsert!.meta.changes).toBe(1);
+    await expect(db.prepare('SELECT 42 AS value').first('missing')).rejects.toThrow('Column not found');
+    expect(await db.prepare('SELECT NULL AS value').first('value')).toBeNull();
+    db.close();
+  });
 });

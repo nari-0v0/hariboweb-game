@@ -142,7 +142,14 @@ export async function createNodeRuntime(options: NodeRuntimeOptions = {}): Promi
         return new Response('Forbidden', { status: 403 });
       }
       // 문지기 모드에서는 CSS·JS·글꼴 같은 일반 공개 파일도 Node 원본으로 와요.
-      if (!workerHandlesPath(new URL(request.url).pathname) && (request.method === 'GET' || request.method === 'HEAD')) {
+      // 보호 그림 폴더는 %63har 처럼 글자를 바꿔 써도 알아보도록 풀어 쓴 경로로 판단해요(그림 보호 검사를 건너뛰지 못하게).
+      let plainPath = new URL(request.url).pathname;
+      try {
+        plainPath = decodeURIComponent(plainPath);
+      } catch {
+        // 잘못된 %표기는 아래 파일 조회에서도 404가 돼요.
+      }
+      if (!workerHandlesPath(plainPath) && (request.method === 'GET' || request.method === 'HEAD')) {
         const asset = await env.ASSETS.fetch(request);
         if (asset.status !== 404) return asset;
       }
