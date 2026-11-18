@@ -123,15 +123,18 @@ describe('겜블장 배당', () => {
     expect(cardScore([0, 13, 9, 8])).toBe(21);
     expect(cardScore([0, 9, 8])).toBe(20);
     const hand = { player: [8, 7], dealer: [13, 4], deck: [11, 26] };
-    // 17점끼리 비기면 딜러가 이겨요(2026-11-19 나리 "좀 낮춰")
-    expect(playHand(hand, 'stand')).toBe(0);
+    // 무승부는 언제나 1배(17점끼리도)
+    expect(playHand(hand, 'stand')).toBe(1);
     expect(hand.dealer).toEqual([13, 4, 26]);
-    // 18점 이상 무승부는 그대로 1배
     expect(playHand({ player: [8, 8], dealer: [9, 7], deck: [] }, 'stand')).toBe(1);
     expect(hand.deck).toEqual([11]);
     expect(playHand({ player: [11, 12], dealer: [4, 5], deck: [8] }, 'hit')).toBe(0);
     expect(playHand({ player: [11, 12], dealer: [9, 5], deck: [8] }, 'stand')).toBe(2);
+    // 첫 두 장 21: A와 그림 카드(J·Q·K)면 3배, A와 10이면 2배(2026-11-19 나리 "좀 낮춰")
     expect(openingPayout({ player: [0, 12], dealer: [4, 5], deck: [] })).toBe(3);
+    expect(openingPayout({ player: [23, 13], dealer: [4, 5], deck: [] })).toBe(3);
+    expect(openingPayout({ player: [9, 0], dealer: [4, 5], deck: [] })).toBe(2);
+    expect(openingPayout({ player: [9, 13], dealer: [13, 25], deck: [] })).toBe(1);
     expect(openingPayout({ player: [0, 12], dealer: [13, 25], deck: [] })).toBe(1);
     expect(openingPayout({ player: [4, 5], dealer: [13, 25], deck: [] })).toBe(0);
   });
