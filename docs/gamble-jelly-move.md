@@ -32,11 +32,11 @@
 4. **웹 DB에 넣기**(배포 스레드): 마이그레이션 0042가 먼저 적용돼 있어야 해요. D1 Time Travel 북마크를 먼저 남겨요.
    먼저 겜블장을 처음부터 시작하게 지우고(나리 2026-11-16: 다 초기화), 그다음 젤칩을 넣어요.
    `npx wrangler d1 execute haribo-dogam --remote --file scripts/gamble-reset.sql`
-   `SELECT completed_at FROM gamble_launch_reset WHERE id = 1`로 초기화 완료를 확인해요. 완료 행이 없으면 신규 지급은 차단돼요. 지급 명령 전에 `SELECT user_id, chips FROM gamble_accounts ORDER BY user_id` 결과 전체를 `before.json`으로 저장해요. 재시도할 때도 이 최초 기준 파일을 보존해요.
+   `SELECT completed_at FROM gamble_launch_reset WHERE id = 1`로 초기화 완료를 확인해요. 완료 행이 없으면 신규 지급은 차단돼요. 지급 명령 전에 `SELECT user_id, chips FROM gamble_accounts ORDER BY user_id` 결과 전체를 `before.json`으로 저장해요. 결과가 빈 배열인지 확인한 뒤 지급해요. 계정이 한 건이라도 있으면 지급을 멈춰요. 재시도할 때도 이 최초 기준 파일을 보존해요.
    `npx wrangler d1 execute haribo-dogam --remote --file gamble-jelly-moves.sql`
    (초기화와 완료 표시를 한 문장으로 처리해요. 지급이 0건이어도 다시 실행하면 지우지 않아요.)
 5. **확인**: `SELECT COUNT(*), SUM(jelly) FROM gamble_jelly_moves WHERE moved_at IS NOT NULL`
-   승인한 스냅샷의 ID와 예상 지급액을 실제 `gamble_accounts.chips` 증분과 계정별로 대조해요. 대조가 끝날 때까지 테스터의 플레이도 멈춰요.
+   초기화 뒤 지급 직전 계정이 비어 있었는지 확인하고, 지급 직후 계정 목록과 잔액을 승인한 명단과 대조해요. 승인 명단 밖의 계정은 잔액이 0이어도 검증이 실패해요. 대조가 끝날 때까지 테스터의 플레이도 멈춰요.
    지급 직후 같은 잔액 조회 결과를 `after.json`으로 저장해요. `SELECT user_id, jelly FROM gamble_jelly_moves WHERE moved_at IS NOT NULL ORDER BY user_id` 결과 전체를 `paid.json`으로 저장해요.
    `approved.json`은 승인된 지급 대상의 양수 금액 목록(`user_id`, `jelly`)이에요. 지급 결과로 승인 목록을 만들면 누락을 찾을 수 없어요.
    `node scripts/verify-gamble-jelly-moves.mjs approved.json before.json after.json paid.json`에서 오류가 나거나 차이가 있으면 잠금을 유지해요.
