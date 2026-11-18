@@ -96,6 +96,7 @@ import { clearReadAlerts, deleteAlert, listAlerts, markAlertsRead } from './aler
 import { AlertBox, AlertsPage } from './views/alerts';
 import { grantJelly, parseGrant } from './jelly-grant';
 import { activeEscape, actEscapeRun, beginEscape, escapeOpen, escapeRecord, getEscape, quitEscape } from './escape-db';
+import { UI_MAX } from './escape-ui';
 
 // 광장은 없앴지만 Cloudflare에 만든 Durable Object 칸(PLAZA)은 지우려면 따로 정리 단계가 필요해서 이름만 남겨 둬요.
 export { PlazaRoom } from './plaza-room';
@@ -1267,7 +1268,7 @@ members.post('/api/escape/act', async (c) => {
   const act =
     a === 'tap' || a === 'go' ? { a, o: str('o') } as const
     : a === 'use' ? { a, o: str('o'), i: str('i') } as const
-    : a === 'code' ? { a, o: str('o'), v: escCodeValue(body, String(body.v ?? '').slice(0, 900)) } as const
+    : a === 'code' ? { a, o: str('o'), v: escCodeValue(body, String(body.v ?? '').slice(0, UI_MAX + 1)) } as const
     : a === 'answer' ? { a, n: Number(body.n), ...(body.m0 !== undefined ? { m: [0, 1, 2].map((k) => body[`m${k}`]).filter((v) => v !== undefined).map(Number) } : {}) } as const
     : a === 'combine' ? { a, i: str('i'), j: str('j') } as const
     : a === 'hint' ? { a } as const

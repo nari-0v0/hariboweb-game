@@ -703,7 +703,7 @@ export function EscapePage(props: {
 }) {
   const { run, result } = props;
   return (
-    <Layout title="하리보 사건파일" viewer={props.viewer} active="cases" scripts={run ? ['/escape.js?v=loupe-tap-1', '/escape-ui.js?v=6'] : undefined}>
+    <Layout title="하리보 사건파일" viewer={props.viewer} active="cases" scripts={run ? ['/escape.js?v=loupe-tap-1', '/escape-ui.js?v=7'] : undefined}>
       {props.url && <i hidden data-replace-url={props.url} />}
       <Popup lines={props.notice && Object.hasOwn(NOTICES, props.notice) ? NOTICES[props.notice] ?? [] : []} />
       <div class="stack esc" data-fresh>

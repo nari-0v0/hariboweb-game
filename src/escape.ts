@@ -7,7 +7,7 @@ import { buildCase } from './escape-gen';
 import { ROOMS, ROOM_KEYS, roomByName, type RoomKey } from './case-rooms';
 import { STORY_SEEDS } from './escape-stories';
 import { TALK_CASES } from './escape-talk';
-import { checkUi, type Ui } from './escape-ui';
+import { checkUi, UI_MAX, type Ui } from './escape-ui';
 
 // order: 이름을 순서대로 고르는 문제(답은 이름 번호를 이은 숫자), grid: 칸을 골라 표시하는 문제(답은 칸마다 1/0)
 export type Lock =
@@ -604,7 +604,7 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
     const digits = /^[0-9]+$/.test(o.lock!.code);
     const lk = o.lock!;
     if (lk.ui) {
-      if (!act.v || act.v.length > 900) return null;
+      if (!act.v || act.v.length > UI_MAX) return null;
       if (!checkUi(lk.ui, act.v.trim())) {
         s.mistakes += 1;
         s.fx = 'wrong';

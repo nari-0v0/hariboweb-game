@@ -262,7 +262,15 @@
           if (nx >= 0 && ny >= 0 && nx < u.w && ny < u.h) s[ny * u.w + nx] = (s[ny * u.w + nx] + 1) % mod;
         }
         moves.push(String(c));
-        setV(moves.join('.'));
+        // 스위치는 누른 순서와 상관없고, 같은 칸을 (색 수)번 누르면 제자리예요.
+        // 그래서 칸마다 「누른 횟수 % 색 수」만 보내요. 이리저리 많이 눌러 봐도 답이 길어져 잘리지 않아요.
+        // 횟수 제한(max)이 있는 문제는 실제로 누른 기록을 그대로 보내요.
+        if (u.max) setV(moves.join('.'));
+        else {
+          const n = new Array(u.w * u.h).fill(0);
+          for (const m of moves) n[m] = (n[m] + 1) % mod;
+          setV(n.flatMap((k, i) => Array(k).fill(i)).join('.') || '-');
+        }
         draw();
         count(u.max);
       }, 'esc-ui-cell btn-cell');
@@ -745,10 +753,15 @@
       delete f.dataset.busy;
     }
   });
+  // 서버(src/escape-ui.ts 의 UI_MAX)와 같은 값이에요. 이보다 긴 기록은 서버가 받지 않아요.
+  const UI_MAX = 4000;
   form.addEventListener('submit', (e) => {
     if (!out.value) {
       e.preventDefault();
       tell('먼저 문제를 풀어 보세요.', true);
+    } else if (out.value.length > UI_MAX) {
+      e.preventDefault();
+      tell('움직인 기록이 너무 길어요. 「처음부터」를 누르고 다시 풀어 주세요.', true);
     }
   });
 })();

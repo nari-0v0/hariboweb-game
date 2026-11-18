@@ -499,8 +499,12 @@ function canon(pts: [number, number][]): string {
   return forms.sort()[0]!;
 }
 
+// 조작 퍼즐 답(움직임 기록)의 최대 길이. 이리저리 많이 눌러 본 기록도 잘리지 않게 넉넉히 둬요.
+// public/escape-ui.js 의 UI_MAX 와 같아야 해요.
+export const UI_MAX = 4000;
+
 export function checkUi(u: Ui, v: string): boolean {
-  if (v.length > 900) return false;
+  if (v.length > UI_MAX) return false;
   switch (u.t) {
     case 'slide': return slide(u, v);
     case 'pour': return pour(u, v);
