@@ -1,3 +1,4 @@
+import { LinearRouter } from 'hono/router/linear-router';
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
@@ -105,7 +106,7 @@ const SESSION_COOKIE = 'hs';
 const STATE_COOKIE = 'hs_state';
 const SESSION_DAYS = 30;
 
-const app = new Hono<AppEnv>();
+const app = new Hono<AppEnv>({ router: new LinearRouter() });
 
 // 점검(설정 MAINTENANCE)·DB 한도 때 보여 줄 503. 봇은 503을 받으면 나중에 다시 보내요(기록은 봇에 남아 있어요).
 const retryPath = (c: Context<AppEnv>) =>
@@ -656,7 +657,7 @@ app.get('/api/bot/teams', async (c) => {
 // 여기부터는 로그인한 하리보 멤버만
 const isPrefetch = (c: Context<AppEnv>) => /prefetch|prerender/i.test(c.req.header('Sec-Purpose') ?? c.req.header('Purpose') ?? '');
 
-const members = new Hono<AppEnv>();
+const members = new Hono<AppEnv>({ router: new LinearRouter() });
 
 members.use('*', bodyLimit({ maxSize: 64 * 1024, onError: tooLarge }));
 

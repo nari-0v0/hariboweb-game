@@ -1,3 +1,4 @@
+import { comma } from './num';
 import { levelFromXp, xpForLevel } from './levels';
 
 // 도감 칭호. 고르면 하리보봇이 디스코드 닉네임 앞에 `「칭호」 `로 붙여요(닉네임·생년과는 따로).
@@ -159,7 +160,7 @@ export function titleProgress(t: Title, s: TitleStats): TitleProgress {
         chips: '가진 젤칩', all_in_wins: '올인 승리', jackpots: '슬롯 7️⃣ 세 개', naturals: '첫 두 장으로 21',
       }[r.metric];
       const unit = r.metric === 'chips' ? '개' : '회';
-      return count(s.gamble?.[r.metric] ?? 0, r.count, `${condition} ${r.count.toLocaleString('ko-KR')}${unit}`, unit);
+      return count(s.gamble?.[r.metric] ?? 0, r.count, `${condition} ${comma(r.count)}${unit}`, unit);
     }
     case 'shop':
       return { ok: false, text: `도감 젤리 ${r.price}개로 사요` };

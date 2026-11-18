@@ -1,3 +1,4 @@
+import { byCode } from './num';
 import { askAi } from './ai';
 
 // 같이 배정되지 않기: 멤버가 "다시 같은 팀에 배정되고 싶지 않은 사람"과 사유를 적으면,
@@ -317,7 +318,7 @@ function separateManyTeams(plan: Map<string, number>, blocked: Set<string>, keep
     if (chosen.size === ids.length) return teams.every((no) => keep(ids.filter((id) => chosen.get(id) === no)));
     // 이미 이웃이 배정된 팀이 많을수록 선택지가 적어요. 같은 경우 제외 상대가 많은 사람 먼저.
     const saturation = (id: string) => new Set([...neighbors.get(id)!].flatMap((other) => chosen.has(other) ? [chosen.get(other)!] : [])).size;
-    const id = ids.filter((id) => !chosen.has(id)).sort((a, b) => saturation(b) - saturation(a) || neighbors.get(b)!.size - neighbors.get(a)!.size || a.localeCompare(b))[0]!;
+    const id = ids.filter((id) => !chosen.has(id)).sort((a, b) => saturation(b) - saturation(a) || neighbors.get(b)!.size - neighbors.get(a)!.size || byCode(a, b))[0]!;
     const occupied = new Set([...neighbors.get(id)!].flatMap((other) => chosen.has(other) ? [chosen.get(other)!] : []));
     const options = teams.filter((no) => free.get(no)! > 0 && !occupied.has(no))
       .sort((a, b) => Number(b === plan.get(id)) - Number(a === plan.get(id)) || free.get(b)! - free.get(a)! || a - b);
