@@ -1,12 +1,13 @@
 // 디스코드 봇 겜블장 지갑 젤리 → 웹 젤칩 1:1 옮기기 SQL 만들기 (2026-11-21, 나리 결정).
 //
-// 쓰는 법: node scripts/gamble-jelly-moves.mjs wallets.json approved.json > gamble-jelly-moves.sql
+// 쓰는 법: node scripts/gamble-jelly-moves.mjs wallets.json approved.json gamble-jelly-moves.sql
 //   wallets.json = [{"user_id": "디스코드 숫자 ID", "jelly": 지갑 젤리}, ...]
 //   (봇 DB gamble_records의 acct 기록에서 지갑 "jelly"만 읽어요. 예금·적금·주식·알바는 넣지 않아요.)
 // 만든 SQL은 wrangler d1 execute haribo-dogam --remote --file 로 한 번 실행해요.
 // 두 번 실행해도 젤칩은 한 번만 들어가요(migrations/0042_gamble_jelly_moves.sql).
 // 지금 웹 도감에 있는 멤버만 받아요. 서버를 떠난 사람 몫은 넣지 않고 표에만 남아요.
-import { readFileSync } from 'node:fs';
+import { linkSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export function buildMoveSql(wallets, now = new Date().toISOString(), approved = null) {
@@ -65,11 +66,22 @@ export function buildMoveSql(wallets, now = new Date().toISOString(), approved =
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const files = process.argv.slice(2);
-  if (files.length !== 2) {
-    console.error('쓰는 법: node scripts/gamble-jelly-moves.mjs wallets.json approved.json > out.sql');
+  if (files.length !== 3) {
+    console.error('쓰는 법: node scripts/gamble-jelly-moves.mjs wallets.json approved.json out.sql');
     process.exit(1);
   }
-  const [wallets, approved] = files.map(file => JSON.parse(readFileSync(file, 'utf8')));
+  const [walletsFile, approvedFile, outputFile] = files;
+  const wallets = JSON.parse(readFileSync(walletsFile, 'utf8'));
+  const approved = JSON.parse(readFileSync(approvedFile, 'utf8'));
   if (!Array.isArray(approved)) throw new Error('승인 명단은 배열이어야 해요');
-  process.stdout.write(buildMoveSql(wallets, new Date().toISOString(), approved));
+  const sql = buildMoveSql(wallets, new Date().toISOString(), approved);
+  const temporaryDirectory = mkdtempSync(join(dirname(outputFile), '.gamble-moves-'));
+  try {
+    const temporaryFile = join(temporaryDirectory, 'output.sql');
+    writeFileSync(temporaryFile, sql, { mode: 0o600 });
+    // 완성된 파일만 게시하고, 같은 이름의 기존 파일은 보존해요.
+    linkSync(temporaryFile, outputFile);
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
 }
