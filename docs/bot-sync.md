@@ -93,7 +93,7 @@ Content-Type: application/json
 도감 젤리로 바뀌기 전(2026-11-01)에 겜블 젤리로 이미 산 것은 겜블 젤리를 돌려줘요. 산 물건은 그대로 가져요.
 
 - `GET /api/bot/refunds` → `{"refunds":[{"id":"<결제번호>","user":"<디스코드 ID>","item":"theme:mint","price":30}]}` (한 번에 50개까지)
-- 봇이 겜블 지갑에 젤리를 넣은 뒤 `POST /api/bot/refunds/<결제번호>` → `{"ok":true,"changed":true}`. 두 번 불러도 괜찮아요.
+- 봇이 겜블 지갑에 젤리를 넣은 뒤 `POST /api/bot/refunds/<결제번호>` → `{"ok":true,"changed":true}`. 두 번 불러도 괜찮아요(두 번째는 `changed:false`). 없는 번호는 `404 {"ok":false,"error":"not_found"}`, 형식이 틀리면 `400`.
 - 봇은 거래번호 `dogam-web-refund:<결제번호>`로 한 번만 넣고, 목록이 비면 멈춰요. 알림(DM·채팅·관리자 로그)은 보내지 않아요.
 
 ### 디스코드 물건 (벌점·경고 지우기, 닉네임 변경권)
@@ -103,11 +103,11 @@ Content-Type: application/json
 - `GET /api/bot/services` → `{"services":[{"id":"<결제번호>","user":"<디스코드 ID>","kind":"penalty"|"warning"}]}` (한 번에 20개까지)
   - `penalty`: 벌점 1점 빼기, `warning`: 경고 1점 빼기 (봇의 벌점·경고 저장소에서 빼요. 겜블 계정과 상관없어요)
   - `nickname`은 이제 오지 않아요. 도감 닉네임 변경권은 웹에 남고, 쓸 때 아래 `/api/bot/nicks`로 와요(겜블 변경권과 따로)
-- 봇이 적용한 뒤 `POST /api/bot/services/<결제번호>` `{"ok":true}` → 끝남. 지울 게 없으면 `{"ok":false,"reason":"no_penalty"|"no_warning"}` → 웹이 도감 젤리를 돌려줘요.
+- 봇이 적용한 뒤 `POST /api/bot/services/<결제번호>` `{"ok":true}` → 끝남. 지울 게 없으면 `{"ok":false,"reason":"no_penalty"|"no_warning"}` → 웹이 도감 젤리를 돌려줘요. 이미 처리한 번호는 `200 changed:false`, 없는 번호는 `404 not_found`예요.
 
 ### 도감 닉네임 변경권
 - `GET /api/bot/nicks` → `{"nicks":[{"id":"<신청번호>","user":"<디스코드 ID>","front":"<새 닉네임 앞부분>"}]}` (20개까지)
-- 봇은 서버 닉네임 규칙으로 앞부분만 바꾸고(칭호·생년 그대로) `POST /api/bot/nicks/<신청번호>` `{"ok":true}`.
+- 봇은 서버 닉네임 규칙으로 앞부분만 바꾸고(칭호·생년 그대로) `POST /api/bot/nicks/<신청번호>` `{"ok":true}`. 없는 신청번호는 `404 not_found`예요.
   못 바꾸면 `{"ok":false,"reason":"invalid"|"banned"|"forbidden"|"left"}` → 변경권은 그대로 남아요.
 - 두 번 불러도 한 번만 처리돼요. 봇은 거래번호 `dogam-svc:<결제번호>`로 같은 결제를 두 번 적용하지 않아요. 잠깐 못 하는 경우(겜블 점검 등)는 결과를 보내지 않고 다음에 다시 해요.
 - 값: 벌점 200, 경고 400(살 때마다 1.5배, 올림), 닉네임 변경권 5. 웹 `src/shop.ts`의 `SERVICES`.
@@ -118,7 +118,7 @@ Content-Type: application/json
 
 멤버가 웹 `/titles`에서 칭호를 고르면 하리보봇이 디스코드 닉네임 앞에 `「칭호」 `로 붙여요. 칭호는 4글자까지이고 띄어쓰기·대괄호가 없어요(웹 `src/titles.ts`).
 
-- `GET /api/bot/titles` → `{"titles":[{"user":"<디스코드 ID>","id":"ace","title":"ACE"}]}` (바꿀 멤버만, 한 번에 50명까지). 칭호를 뗄 때는 `{"user":"…","id":"","title":null}`.
+- `GET /api/bot/titles` → `{"titles":[{"user":"<디스코드 ID>","id":"ace","title":"ACE"}]}` (바꿀 멤버만, 한 번에 50명까지). 칭호를 뗄 때는 `{"user":"…","id":"","title":null}`. 목록 조회는 읽기만 해요(목록에서 빠진 칭호를 고른 사람도 고른 값은 그대로 두고 떼기 작업만 보내요).
 - 봇이 닉네임 앞 칭호만 바꾼 뒤 `POST /api/bot/titles/<디스코드 ID>` `{"id":"ace","ok":true}`. 못 붙이면 `{"id":"ace","ok":false,"reason":"too_long"|"forbidden"|"left"}`.
   - `too_long`: 칭호를 붙이면 32자를 넘어요(예전 칭호만 떼요). `forbidden`: 봇보다 높은 역할이에요. `left`: 서버에 없어요.
   - 그 사이 멤버가 다른 칭호를 골랐으면 다음 목록에 다시 나와요. 잠깐 실패(디스코드 오류)는 결과를 보내지 않고 다음에 다시 해요.
@@ -272,6 +272,6 @@ Authorization: Bearer {BOT_SYNC_SECRET}
 두 사람을 멘션하는 축하 글이 축하 채널에 올라가요(도감에서 유일하게 채널에 올라가는 글이에요).
 
 - `GET /api/bot/cheers` → `{"cheers":[{"a":"<ID>","b":"<ID>","level":30,"name":"절친"}]}` (두 사람 카드가 10레벨마다, 10개까지, 둘 다 지금 멤버일 때만)
-- 봇이 /설정의 "도감 축하 알림 채널"에 올린 뒤 `POST /api/bot/cheers` `{"a":"<ID>","b":"<ID>","level":30}` → 같은 축하는 다시 안 와요.
+- 봇이 /설정의 "도감 축하 알림 채널"에 올린 뒤 `POST /api/bot/cheers` `{"a":"<ID>","b":"<ID>","level":30}` → 같은 축하는 다시 안 와요. 목록과 같은 순서(`a` < `b`)와 10의 배수 레벨만 받아요(아니면 400).
   현재 카드가 그 레벨에 도달했을 때만 완료 표시를 저장해요. 목록을 읽은 뒤 초기화·재가입으로 새 카드가 생겨 아직 그 레벨이 아니면 `changed: false`예요.
   채널을 안 골랐으면 봇은 가져가지 않아요(밀린 축하는 채널을 고른 뒤 올라가요).
