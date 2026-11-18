@@ -34,6 +34,9 @@
   const setV = (v) => (out.value = v);
   const count = (max) => tell(`움직인 횟수 ${moves.length}${max ? ` / 최대 ${max}` : ''}`, max && moves.length > max);
 
+  // 문제 규칙(예: 한 자리에 한 명)을 어긴 채로 내면 오답 대신 이 안내를 보여 줘요. 틀린 횟수에 들어가지 않아요.
+  let rule = () => '';
+
   const W = {};
 
   // ── 블록 밀기 ──
@@ -357,6 +360,20 @@
       lab.append(h('span', '', `${it.name} (${it.w})`), sel);
       list.append(lab);
     });
+    const n = (c) => `${c}${u.distinct ? '명' : '개'}`;
+    // 문제에 적힌 규칙만 알려 줘요. 답이나 힌트는 주지 않아요.
+    rule = () => {
+      const used = at.filter(Boolean).length;
+      if (u.distinct) {
+        const twice = u.arms.findIndex((_, k) => at.filter((x) => x === k + 1).length > 1);
+        if (twice >= 0) return `한 자리에는 한 명만 앉을 수 있어요. ${u.arms[twice] < 0 ? '왼쪽' : '오른쪽'} ${Math.abs(u.arms[twice])}칸에 두 명 이상 있어요.`;
+      }
+      const put = u.distinct ? '앉혀' : '올려';
+      if (u.useAll && used !== u.items.length) return `모두 ${put}야 해요. 아직 ${n(u.items.length - used)} 남았어요.`;
+      if (u.count && used !== u.count) return `딱 ${n(u.count)}만 ${put}야 해요. 지금 ${n(used)} ${put} 있어요.`;
+      if (u.maxUse && used > u.maxUse) return `${n(u.maxUse)}까지만 ${put}요. 지금 ${n(used)} ${put} 있어요.`;
+      return '';
+    };
     const draw = () => {
       let m = u.left ? u.left.w * u.left.at : 0;
       slots.forEach((sl) => (sl.textContent = ''));
@@ -367,6 +384,8 @@
       });
       bar.style.rotate = `${Math.max(-12, Math.min(12, m / 4))}deg`;
       setV(at.join(''));
+      const broke = rule();
+      if (broke.startsWith('한 자리')) return tell(broke, true);
       tell(m === 0 && at.some(Boolean) ? '수평이에요!' : m > 0 ? '오른쪽으로 기울었어요.' : m < 0 ? '왼쪽으로 기울었어요.' : '물건을 올려 보세요.');
     };
     draw();
@@ -717,6 +736,7 @@
   let fresh = '';
   const make = () => {
     moves = [];
+    rule = () => '';
     tell('');
     setV('');
     const parts = (W[u.t] || (() => [h('p', '', '이 문제는 아직 화면이 없어요.')]))();
@@ -756,7 +776,11 @@
   // 서버(src/escape-ui.ts 의 UI_MAX)와 같은 값이에요. 이보다 긴 기록은 서버가 받지 않아요.
   const UI_MAX = 4000;
   form.addEventListener('submit', (e) => {
-    if (!out.value) {
+    const broke = out.value ? rule() : '';
+    if (broke) {
+      e.preventDefault();
+      tell(broke, true);
+    } else if (!out.value) {
       e.preventDefault();
       tell('먼저 문제를 풀어 보세요.', true);
     } else if (out.value.length > UI_MAX) {
