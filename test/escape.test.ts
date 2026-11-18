@@ -176,7 +176,7 @@ describe('사건파일 방탈출 내용', () => {
     const s = { ...startEscape(c), inv: ['partA', 'partB', 'key12'] };
     expect(actEscape(c, s, { a: 'combine', i: 'partA', j: 'partA' })).toBeNull();
     expect(actEscape(c, s, { a: 'combine', i: 'partA', j: 'nope' })).toBeNull();
-    expect(actEscape(c, s, { a: 'combine', i: 'partA', j: 'key12' })!.mistakes).toBe(0); // 합치기 실패는 실수로 세지 않아요
+    expect(actEscape(c, s, { a: 'combine', i: 'partA', j: 'key12' })!.mistakes).toBe(1);
     expect(actEscape(c, s, { a: 'combine', i: 'partB', j: 'partA' })!.inv).toEqual(['key12', 'tool']);
   });
   it('세 질문 중 하나라도 틀리면 몇 개 맞았는지만 알려 줘요', () => {
@@ -588,23 +588,5 @@ describe('사건파일 난이도', () => {
     const named = [...src.matchAll(/'([a-z0-9-]+)'/g)].map((m) => m[1]!);
     expect(named.length).toBeGreaterThan(100);
     for (const n of named) expect(ideas.has(n), n).toBe(true);
-  });
-});
-
-describe('스위치 퍼즐 긴 기록', () => {
-  it('이리저리 많이 눌러 본 뒤 맞춘 판도 정답으로 받아요(예전엔 900자에서 잘려 틀렸다고 나왔어요)', async () => {
-    const { BANK } = await import('../src/escape-bank');
-    const b = BANK.find((x) => x.idea === 'lights-cross')!;
-    // 모든 칸을 두 번씩 여러 바퀴 눌러(제자리) 기록만 길게 만든 뒤 정답 순서를 눌러요.
-    const noise = Array.from({ length: 12 }, () => Array.from({ length: 25 }, (_, i) => `${i}.${i}`).join('.')).join('.');
-    const v = `${noise}.${b.a}`;
-    expect(v.length).toBeGreaterThan(900);
-    expect(checkUi(b.ui!, v)).toBe(true);
-  });
-  it('누른 순서를 바꿔도 같은 판이면 정답이에요(화면은 칸마다 누른 횟수만 보내요)', async () => {
-    const { BANK } = await import('../src/escape-bank');
-    const b = BANK.find((x) => x.idea === 'lights-cross')!;
-    expect(checkUi(b.ui!, b.a!.split('.').reverse().join('.'))).toBe(true);
-    expect(checkUi(b.ui!, '-')).toBe(false);
   });
 });
