@@ -24,6 +24,11 @@
     say.classList.toggle('bad', !!bad);
   };
   const xy = (w, c) => [c % w, Math.floor(c / w)];
+  // 조사: 받침이 있으면 a, 없으면 b (손전등이 / 수레가)
+  const jo = (w, a, b) => {
+    const c = w.charCodeAt(w.length - 1) - 0xac00;
+    return w + (c >= 0 && c <= 11171 ? (c % 28 ? a : b) : b);
+  };
   const board = (w, hh, cls = '') => {
     const g = h('div', `esc-ui-board ${cls}`);
     g.style.setProperty('--w', w);
@@ -217,7 +222,7 @@
       const it = item(id);
       const c = btn(`${it.emoji} ${it.name}${it.w ? ` ${it.w}kg` : ''}${it.time ? ` ${it.time}분` : ''}`, () => {
         if (where === 'boat') boat = boat.filter((x) => x !== id);
-        else if ((where === 'R') !== (side === 1)) return tell(`${u.boat || '배'}가 반대편에 있어요.`, true);
+        else if ((where === 'R') !== (side === 1)) return tell(`${jo(u.boat || '배', '이', '가')} 반대편에 있어요.`, true);
         else if (boat.length >= u.cap) return tell(`한 번에 ${u.cap}명까지만 탈 수 있어요.`, true);
         else boat.push(id);
         draw();
@@ -226,7 +231,7 @@
     };
     const cross = btn(`⛵ 건너기`, () => {
       if (!boat.length) return tell('아무도 안 탔어요.', true);
-      if (u.rowers && !boat.some((x) => u.rowers.includes(x))) return tell(`${u.boat || '배'}를 움직일 수 있는 사람이 타야 해요.`, true);
+      if (u.rowers && !boat.some((x) => u.rowers.includes(x))) return tell(`${jo(u.boat || '배', '을', '를')} 움직일 수 있는 사람이 타야 해요.`, true);
       if (u.maxW && boat.reduce((a, x) => a + (item(x).w || 0), 0) > u.maxW) return tell(`너무 무거워요. ${u.maxW}kg까지예요.`, true);
       time += Math.max(...boat.map((x) => item(x).time || 0));
       for (const x of boat) side === 0 ? right.add(x) : right.delete(x);
