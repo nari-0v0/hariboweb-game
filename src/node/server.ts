@@ -131,6 +131,7 @@ export async function createNodeRuntime(options: NodeRuntimeOptions = {}): Promi
     PLAZA: undefined as unknown as Env['PLAZA'],
   };
   const originSecret = variables.ORIGIN_SECRET;
+  const publicOrigin = variables.PUBLIC_URL ? new URL(variables.PUBLIC_URL).origin : '';
 
   return {
     database,
@@ -143,6 +144,12 @@ export async function createNodeRuntime(options: NodeRuntimeOptions = {}): Promi
       if (!workerHandlesPath(new URL(request.url).pathname) && (request.method === 'GET' || request.method === 'HEAD')) {
         const asset = await env.ASSETS.fetch(request);
         if (asset.status !== 404) return asset;
+      }
+      // 문지기 뒤에서는 Node가 받은 주소가 http://127.0.0.1:8787 같은 내부 주소예요.
+      // 다른 사이트 POST 막기(sameOrigin)와 쿠키 Secure 판단이 실제 주소를 보도록 PUBLIC_URL 주소로 바꿔 넘겨요.
+      if (publicOrigin) {
+        const incoming = new URL(request.url);
+        if (incoming.origin !== publicOrigin) request = new Request(publicOrigin + incoming.pathname + incoming.search, request);
       }
       const executionCtx = {
         waitUntil(promise: Promise<unknown>) {
