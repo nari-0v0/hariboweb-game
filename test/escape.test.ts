@@ -171,13 +171,39 @@ describe('사건파일 방탈출 내용', () => {
     expect(actEscape(c, s, { a: 'code', o: o.id, v: '01' })!.mistakes).toBe(s.mistakes + 1);
     expect(actEscape(c, s, { a: 'code', o: o.id, v: lk.code })!.opened).toContain(o.id);
   });
-  it('합치기: 맞는 짝은 도구가 되고, 안 맞는 짝은 실수예요', () => {
+  it('합치기: 맞는 짝은 도구가 되고, 안 맞는 짝은 실수가 아니에요', () => {
     const c = ESCAPE_CASES.find((x) => x.combos)!;
     const s = { ...startEscape(c), inv: ['partA', 'partB', 'key12'] };
     expect(actEscape(c, s, { a: 'combine', i: 'partA', j: 'partA' })).toBeNull();
     expect(actEscape(c, s, { a: 'combine', i: 'partA', j: 'nope' })).toBeNull();
-    expect(actEscape(c, s, { a: 'combine', i: 'partA', j: 'key12' })!.mistakes).toBe(1);
+    const bad = actEscape(c, s, { a: 'combine', i: 'partA', j: 'key12' })!;
+    expect(bad.mistakes).toBe(0);
+    expect(bad.tone).toBe('bad');
+    expect(bad.inv).toEqual(['partA', 'partB', 'key12']);
+    expect(escGrade(bad)).toBe('S');
+    // 여러 번 틀려도 실수와 등급은 그대로예요
+    let many = s;
+    for (let k = 0; k < 5; k++) many = actEscape(c, many, { a: 'combine', i: 'partA', j: 'key12' })!;
+    expect(many.mistakes).toBe(0);
     expect(actEscape(c, s, { a: 'combine', i: 'partB', j: 'partA' })!.inv).toEqual(['key12', 'tool']);
+  });
+  it('잠긴 곳에 맞지 않는 물건을 대 봐도 실수가 아니에요', () => {
+    let checked = 0;
+    for (const c of ESCAPE_CASES) {
+      const o = c.objects.find((x) => x.lock?.kind === 'item');
+      const lk = o?.lock as { item: string } | undefined;
+      const other = Object.keys(c.items).find((i) => i !== lk?.item);
+      if (!o || !lk || !other) continue;
+      const s = { ...startEscape(c), scene: o.scene, shown: o.hidden ? [o.id] : [], inv: [other, lk.item] };
+      const bad = actEscape(c, s, { a: 'use', o: o.id, i: other })!;
+      expect(bad.mistakes, c.id).toBe(0);
+      expect(bad.tone).toBe('bad');
+      expect(bad.opened).not.toContain(o.id);
+      expect(bad.inv).toEqual([other, lk.item]);
+      expect(actEscape(c, bad, { a: 'use', o: o.id, i: lk.item })!.opened).toContain(o.id);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(10);
   });
   it('세 질문 중 하나라도 틀리면 몇 개 맞았는지만 알려 줘요', () => {
     const c = ESCAPE_CASES.find((x) => x.solution)!;
@@ -203,7 +229,7 @@ describe('사건파일 방탈출 내용', () => {
 
 describe('사건파일 방탈출 규칙', () => {
   const c = escCase('jellyjar')!;
-  it('잠긴 곳은 눌러도 안 열리고, 틀린 비밀번호·물건은 실수로 세요', () => {
+  it('잠긴 곳은 눌러도 안 열리고, 틀린 비밀번호는 실수로 세요', () => {
     let s = startEscape(c);
     s = actEscape(c, s, { a: 'tap', o: 'fridge' })!;
     expect(s.opened).not.toContain('fridge');
