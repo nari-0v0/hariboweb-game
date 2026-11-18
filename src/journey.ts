@@ -160,7 +160,7 @@ export const gearText = (id: GearId, lv: number) => `${GEAR[id].stat} +${gearBon
 export const DROP = { foe: 0.03, event: 0.05, elite: 0.15 };
 export const FIRST_CLEAR_BONUS = 2;
 // 이미 깬 장을 다시 돌면 재료는 하루 제한 없이 모이지만, 나올 확률은 이만큼으로 줄어요(대장 포함, 나리 2026-11-13).
-export const FARM_DROP = 0.4;
+export const FARM_DROP = 0.6; // 2026-11-18 나리: 0.4 → 0.6 (슬금·감자님 "재료가 안 나온다" 제보, 한 판 평균 약 0.6개 → 0.9개)
 // 열린 장이 늘수록 훈련 한도가 늘어요(열린 장 하나마다 처음 한도의 절반씩). 열린 장 = 앞 장을 깼고 도감 조건도 채운 장.
 export const perkMax = (id: PerkId, unlocked: number) => PERKS[id].max + Math.floor(PERKS[id].max * 0.3) * (Math.max(1, unlocked) - 1);
 
