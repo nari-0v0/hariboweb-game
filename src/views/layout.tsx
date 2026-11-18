@@ -1,6 +1,7 @@
 import { GAMBLE_LOCKED } from '../gamble';
 import { OWNER_CONTACT_URL } from '../contact';
 import { PREFETCH_RULES } from '../prefetch';
+import { NOTICE_BAR } from '../maintenance';
 import type { Child } from 'hono/jsx';
 import type { Member } from '../env';
 
@@ -32,14 +33,20 @@ export function Layout(props: {
         <link rel="preload" href="/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin="" />
         {props.preloadImages?.map((href) => <link rel="preload" href={href} as="image" fetchpriority="high" />)}
         <link rel="icon" type="image/png" href="/char/deco/explorer.png" />
-        <link rel="stylesheet" href="/styles.css?v=fight-all-hits-1" />
+        <link rel="stylesheet" href="/styles.css?v=notice-bar-1" />
         <script src="/app.js?v=jr-auto-off-2" defer></script>
         {props.scripts?.map((script) => typeof script === 'string'
           ? <script src={script} defer></script>
           : <script src={script.src} type={script.type}></script>)}
         {props.viewer && <script type="speculationrules" dangerouslySetInnerHTML={{ __html: PREFETCH_RULES }} />}
       </head>
-      <body>
+      <body class={NOTICE_BAR ? 'has-notice' : undefined}>
+        {/* 메뉴 위에 고정되는 공지 띠. 끄려면 maintenance.ts의 NOTICE_BAR를 ''로 */}
+        {NOTICE_BAR && (
+          <div class="notice-bar" role="status">
+            <span aria-hidden="true">📢</span> {NOTICE_BAR}
+          </div>
+        )}
         <div class="sky" aria-hidden="true">
           <i class="cloud c1" />
           <i class="cloud c2" />

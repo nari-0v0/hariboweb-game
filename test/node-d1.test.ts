@@ -61,11 +61,11 @@ describe('Node D1 호환 껍데기', () => {
   it('빈 SQLite에 모든 마이그레이션을 번호 순서대로 한 번만 적용해요', async () => {
     const { db } = database();
     const first = await applyMigrations(db, join(process.cwd(), 'migrations'));
-    expect(first).toHaveLength(48);
+    expect(first).toHaveLength(49);
     expect(first[0]).toBe('0001_init.sql');
-    expect(first.at(-1)).toBe('0048_praise_read.sql');
+    expect(first.at(-1)).toBe('0049_notice_maintenance_1121.sql');
     expect(await applyMigrations(db, join(process.cwd(), 'migrations'))).toEqual([]);
-    expect(await db.prepare('SELECT COUNT(*) AS count FROM d1_migrations').first()).toEqual({ count: 48 });
+    expect(await db.prepare('SELECT COUNT(*) AS count FROM d1_migrations').first()).toEqual({ count: 49 });
     db.close();
   });
   it('run·all·batch가 반환 행과 실제 바뀐 행 수를 함께 돌려주고, 없는 열은 오류예요', async () => {
