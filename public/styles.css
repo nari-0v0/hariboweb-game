@@ -67,7 +67,7 @@ img { -webkit-user-drag: none; user-select: none; -webkit-touch-callout: none; }
 
 /* 위쪽 메뉴 */
 .topbar {
-  position: sticky; top: 10px; z-index: 10; max-width: 1088px; width: calc(100% - 32px); margin: 10px auto 24px;
+  position: sticky; top: calc(10px + var(--nb, 0px)); z-index: 10; max-width: 1088px; width: calc(100% - 32px); margin: 10px auto 24px;
   display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
   padding: 8px 10px 8px 14px; background: var(--paper); border: 4px solid var(--ink);
   box-shadow: inset 0 -5px 0 rgba(42, 32, 48, .08);
@@ -97,8 +97,8 @@ img { -webkit-user-drag: none; user-select: none; -webkit-touch-callout: none; }
 .menu-toggle { position: fixed; opacity: 0; pointer-events: none; }
 .menu-scrim { display: none; position: fixed; inset: 0; z-index: 20; background: rgba(42, 32, 48, .25); }
 .menu-panel {
-  display: none; position: fixed; z-index: 21; top: 70px; right: max(16px, calc((100vw - 1088px) / 2));
-  width: min(260px, calc(100vw - 32px)); max-height: calc(100dvh - 90px); overflow-y: auto;
+  display: none; position: fixed; z-index: 21; top: calc(70px + var(--nb, 0px)); right: max(16px, calc((100vw - 1088px) / 2));
+  width: min(260px, calc(100vw - 32px)); max-height: calc(100dvh - 90px - var(--nb, 0px)); overflow-y: auto;
   flex-direction: column; gap: 2px; padding: 8px; background: var(--paper); border: 4px solid var(--ink);
   box-shadow: 0 8px 0 rgba(42, 32, 48, .15);
 }
@@ -191,7 +191,7 @@ img { -webkit-user-drag: none; user-select: none; -webkit-touch-callout: none; }
 /* 카드 + 옆 판 */
 .split { display: grid; gap: 32px; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); align-items: start; }
 .side { display: grid; gap: 18px; }
-.stage-wrap { position: sticky; top: 96px; }
+.stage-wrap { position: sticky; top: calc(96px + var(--nb, 0px)); }
 @media (max-width: 760px) {
   .split { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   .stage-wrap { position: relative; top: 0; max-width: 320px; width: 100%; margin: 0 auto; }
@@ -874,11 +874,11 @@ main.wide { max-width: 1320px; }
 .exp-howto ol { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
 
 /* 원정대: 바로 앞 선택의 결과를 크게 */
-.exp-run, .exp-result { scroll-margin-top: 84px; }
-#skins { scroll-margin-top: 84px; }
+.exp-run, .exp-result { scroll-margin-top: calc(84px + var(--nb, 0px)); }
+#skins { scroll-margin-top: calc(84px + var(--nb, 0px)); }
 /* 원정대·사건파일: #now 로 넘어올 때 게임 칸이 위 메뉴 밑에 숨지 않게, 제목까지 보이는 자리에서 멈춰요 */
-.jr #now, .esc #now { scroll-margin-top: 140px; }
-@media (max-width: 600px) { .jr #now, .esc #now { scroll-margin-top: 132px; } }
+.jr #now, .esc #now { scroll-margin-top: calc(140px + var(--nb, 0px)); }
+@media (max-width: 600px) { .jr #now, .esc #now { scroll-margin-top: calc(132px + var(--nb, 0px)); } }
 .exp-outcome { margin: 12px 0 14px; padding: 12px 14px; border: 4px solid var(--ink); background: #fff; clip-path: var(--notch); }
 .exp-outcome.win { background: #e6fbf2; }
 .exp-outcome.lose { background: #ffe9ef; }
@@ -2160,7 +2160,7 @@ main.wide { max-width: 1320px; }
 .bgo-wrap .bgo { margin-top: 0; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 1000px) {
   .bgo-wrap { max-width: 1140px; grid-template-columns: minmax(0, 1fr) minmax(0, 560px); }
-  .bgo-quests { position: sticky; top: 84px; }
+  .bgo-quests { position: sticky; top: calc(84px + var(--nb, 0px)); }
 }
 .bgo-wrap + .bgo-block { max-width: 600px; }
 @media (min-width: 1000px) { .bgo-wrap + .bgo-block { max-width: 1140px; } }
@@ -2320,7 +2320,7 @@ main.wide { max-width: 1320px; }
 /* 팝업은 종에서 말풍선처럼 나와요(꼬리가 종을 가리켜요). 위치·꼬리 자리는 app.js가 종에 맞춰요. */
 .alert-pop {
   --tail: 24px;
-  position: fixed; z-index: 22; top: 70px; right: max(16px, calc((100vw - 1088px) / 2));
+  position: fixed; z-index: 22; top: calc(70px + var(--nb, 0px)); right: max(16px, calc((100vw - 1088px) / 2));
   width: min(360px, calc(100vw - 32px));
   background: #cfe9ff; border: 4px solid var(--ink); box-shadow: 0 8px 0 rgba(42, 32, 48, .15);
   transform-origin: calc(100% - var(--tail)) -12px; animation: al-pop .16s ease-out;
@@ -2329,7 +2329,7 @@ main.wide { max-width: 1320px; }
 .alert-pop::before, .alert-pop::after { content: ''; position: absolute; width: 0; height: 0; border-style: solid; border-color: transparent; border-top: 0; }
 .alert-pop::before { top: -20px; right: calc(var(--tail) - 16px); border-width: 0 16px 16px; border-bottom-color: var(--ink); }
 .alert-pop::after { top: -11px; right: calc(var(--tail) - 11px); border-width: 0 11px 11px; border-bottom-color: #cfe9ff; }
-.alert-pop .al-box { max-height: calc(100dvh - 110px); overflow-y: auto; }
+.alert-pop .al-box { max-height: calc(100dvh - 110px - var(--nb, 0px)); overflow-y: auto; }
 @keyframes al-pop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .alert-pop { animation: none; } }
 .al-box { padding: 10px 12px; }
@@ -2353,3 +2353,13 @@ main.wide { max-width: 1320px; }
   .topbar .menu-word { display: none; }
   .topbar .menu-btn { min-width: 48px; }
 }
+
+/* 메뉴 위 고정 공지 띠(나리 2026-11-18). 띠가 있으면 위 메뉴·팝업을 띠 높이(--nb)만큼 내려요. */
+.has-notice { --nb: 34px; }
+.notice-bar {
+  position: sticky; top: 0; z-index: 12; box-sizing: border-box; height: 34px; padding: 0 12px;
+  line-height: 30px; text-align: center;
+  background: var(--yellow); border-bottom: 4px solid var(--ink); color: var(--ink);
+  font-size: .86rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+@media (max-width: 380px) { .notice-bar { font-size: .76rem; padding: 0 8px; } }
