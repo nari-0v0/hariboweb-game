@@ -13,7 +13,8 @@
     e.preventDefault();
     twice.setCustomValidity('같은 이름을 두 번 골랐어요. 자리마다 다른 이름을 골라 주세요.');
     twice.reportValidity();
-  });
+    // 캡처 단계라서 공통 로딩 가림막(app.js의 제출 리스너)보다 먼저 막아요. 가림막이 뜬 채로 남지 않아요.
+  }, true);
   document.addEventListener('change', (e) => {
     const box = e.target instanceof HTMLSelectElement && e.target.closest('.esc-order');
     if (box) for (const x of box.querySelectorAll('select')) x.setCustomValidity('');
