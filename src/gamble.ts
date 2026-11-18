@@ -87,6 +87,8 @@ export function openingPayout(hand: Hand): number | null {
   return dealer ? 0 : null;
 }
 
+export const TIE_LOSE_SCORE = 17;
+
 export function playHand(hand: Hand, move: CardMove): number | null {
   if (move === 'hit') {
     hand.player.push(hand.deck.pop()!);
@@ -96,5 +98,8 @@ export function playHand(hand: Hand, move: CardMove): number | null {
   const player = cardScore(hand.player);
   const dealer = cardScore(hand.dealer);
   if (dealer > 21 || player > dealer) return 2;
-  return player === dealer ? 1 : 0;
+  // 2026-11-19 나리 "좀 낮춰": 17점끼리 비기면 딜러가 이겨요(그 밖의 무승부는 1배 그대로).
+  // 평균이 약 100.3% → 약 98.6%가 돼요(배수는 그대로 정수). 다른 게임처럼 100%보다 조금 낮게.
+  if (player === dealer) return player === TIE_LOSE_SCORE ? 0 : 1;
+  return 0;
 }

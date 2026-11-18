@@ -123,8 +123,11 @@ describe('겜블장 배당', () => {
     expect(cardScore([0, 13, 9, 8])).toBe(21);
     expect(cardScore([0, 9, 8])).toBe(20);
     const hand = { player: [8, 7], dealer: [13, 4], deck: [11, 26] };
-    expect(playHand(hand, 'stand')).toBe(1);
+    // 17점끼리 비기면 딜러가 이겨요(2026-11-19 나리 "좀 낮춰")
+    expect(playHand(hand, 'stand')).toBe(0);
     expect(hand.dealer).toEqual([13, 4, 26]);
+    // 18점 이상 무승부는 그대로 1배
+    expect(playHand({ player: [8, 8], dealer: [9, 7], deck: [] }, 'stand')).toBe(1);
     expect(hand.deck).toEqual([11]);
     expect(playHand({ player: [11, 12], dealer: [4, 5], deck: [8] }, 'hit')).toBe(0);
     expect(playHand({ player: [11, 12], dealer: [9, 5], deck: [8] }, 'stand')).toBe(2);
