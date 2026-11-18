@@ -281,7 +281,7 @@ export async function applySync(
     const exists = await db.prepare('SELECT 1 FROM seasons WHERE id = ?').bind(p.season.id).first();
     if (!exists) {
       if (memberStmts.length) await db.batch([...rejoinStmts, ...memberStmts]);
-      await ensureSeason(db, p.season, nowMs, { scrim: opts.scrimQuests, groupQuests: opts.groupQuests });
+      await ensureSeason(db, p.season, nowMs, { scrim: opts.scrimQuests, groupQuests: opts.groupQuests, exclude: p.removed });
     }
   }
 
@@ -351,6 +351,12 @@ export async function applySync(
       stmts.push(savePeriod(db, half));
       periods.unshift(half);
     }
+    // 주기가 바뀌는 날 새벽(한국 0~6시) 출석은 그날 정오가 든 "다음 주기" 앞 절반 몫이에요. 봇은 6시가 지나야 새 주기를
+    // 보내서, 전에는 이 출석이 임시 주(w…)로 들어가 새 빙고판에서 빠졌어요. 같은 길이로 이어진다고 보고 그 기간 id로
+    // 적어 둬요(기간 자체는 저장하지 않아요. 봇이 새 주기를 보내면 같은 id라 그대로 이어지고, 시작 전 기간은 보상 확인도 안 해요).
+    const span = Date.parse(p.season.end) - Date.parse(p.season.start);
+    const next = splitCycle(p.season.end, new Date(Date.parse(p.season.end) + span).toISOString())[0];
+    if (next) periods.push(next);
   }
   const bingo = bingoStatements(db, p.room_minutes, p.attendance, periods);
   stmts.push(...bingo.stmts, prunePairDays(db, nowMs));

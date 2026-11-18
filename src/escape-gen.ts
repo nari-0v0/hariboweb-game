@@ -1,9 +1,10 @@
 // 하리보 사건파일: 이야기 씨앗(escape-stories.ts)으로 방 3개짜리 방탈출 사건을 만들어요.
 // 수수께끼는 은행(escape-bank.ts) 235개를 사건 47개에 다섯 개씩 나눠요. 아이디어가 하나도 겹치지 않고,
-// 손으로 움직여 푸는 장치(물 붓기, 강 건너기, 불 끄기 …)와 글 수수께끼가 사건마다 섞여요.
+// 손으로 움직여 푸는 장치(물 붓기, 강 건너기, 스위치 누르기 …)와 글 수수께끼가 사건마다 섞여요.
 // 마지막엔 용의자 특징표와 증거 세 개로 범인·방법·동기를 맞혀요.
 // 같은 씨앗이면 늘 같은 사건이 나와요(무작위는 사건 id로 정해져요).
 import { rng } from './rng';
+import { jo, ro } from './josa';
 import type { EscAction, EscCase, EscObject, Lock } from './escape';
 import { BANK, type BankItem } from './escape-bank';
 import { ROOMS, ROOM_KEYS, roomByName, type Hotspot, type RoomKey } from './case-rooms';
@@ -114,7 +115,7 @@ function person(ctx: Ctx, t: Teaser, no: number, taken: readonly string[]): Buil
   const lock: Lock = t.choices ? { kind: 'code', code: t.a, ask: '답 고르기', choices: t.choices } : { kind: 'code', code: t.a, ask: t.ask };
   const who: Spot = {
     id: ctx.id('who'), name, emoji: '🙂', face,
-    look: `「${role} ${name}이에요. 제 수수께끼를 풀면 아는 걸 알려 줄게요.」\n${t.q}`, ref: no,
+    look: `「${role} ${jo(name, '이에요', '예요')}. 제 수수께끼를 풀면 아는 걸 알려 줄게요.」\n${t.q}`, ref: no,
     lock, openText: `「정답이에요! 약속대로 도와줄게요.」 ${ctx.reward.got ?? ctx.reward.text}`, again: `「제가 아는 건 다 말했어요.」`,
     take: ctx.reward.take, clue: ctx.reward.clue,
   };
@@ -229,7 +230,7 @@ function gadget(ctx: Ctx, p: BankItem, no: number): Built {
 // 한 사건 안에서는 같은 조작이 두 번 나오지 않아요.
 export const FMT_NAME: Record<string, string> = {
   lock: '자물쇠 수수께끼', person: '말 거는 사람', torn: '찢어진 쪽지', far: '다른 방 쪽지', clock: '멈춘 시계', card: '물건 찾기 카드', order: '줄 세우기',
-  slide: '밀어서 옮기기', pour: '물 붓기', river: '강 건너기', lights: '불 끄기', match: '성냥개비 옮기기', balance: '저울 맞추기', path: '길 그리기',
+  slide: '밀어서 옮기기', pour: '물 붓기', river: '강 건너기', lights: '스위치 누르기', match: '성냥개비 옮기기', balance: '저울 맞추기', path: '길 그리기',
   rotate: '타일 돌리기', stacks: '쌓기 옮기기', numgrid: '숫자 칸 채우기', mark: '칸 표시하기', multi: '모두 고르기', jump: '말 뛰어넘기',
   dials: '다이얼 맞추기', color: '색칠하기', divide: '땅 나누기',
 };
@@ -438,7 +439,7 @@ export function buildCase(seed: StorySeed, level = 3, no = 0, vr = 0): EscCase {
   };
 
   // 방 1: 용의자 파일, 장치 A(→ 방 2 열쇠), 수수께끼(→ 조각 A), 방 2로 가는 문
-  const door12: Spot = { id: 'door12', at: doorAt(0), name: `${seed.rooms[1]} 문`, emoji: '🚪', look: `${seed.rooms[1]}(으)로 가는 문이 잠겨 있어요.`, lock: { kind: 'item', item: 'key12' }, openText: '문이 열렸어요! 한 번 더 누르면 들어가요.', goto: 'r2' };
+  const door12: Spot = { id: 'door12', at: doorAt(0), name: `${seed.rooms[1]} 문`, emoji: '🚪', look: `${ro(seed.rooms[1]!)} 가는 문이 잠겨 있어요.`, lock: { kind: 'item', item: 'key12' }, openText: '문이 열렸어요! 한 번 더 누르면 들어가요.', goto: 'r2' };
   const got = (w: string) => `${w}${josa(w, '을', '를')} 손에 넣었어요!`;
   const A = make(0, 0, { take: ['key12'], text: `안에서 ${items.key12.name}를 찾았어요!`, got: got(items.key12.name) });
   const R1 = make(1, 0, { take: ['partA'], text: `${combo.a[0]}${josa(combo.a[0], '을', '를')} 찾았어요!`, got: got(combo.a[0]) });
@@ -454,8 +455,8 @@ export function buildCase(seed: StorySeed, level = 3, no = 0, vr = 0): EscCase {
   steps.push({ a: 'use', o: 'door12', i: 'key12' }, { a: 'tap', o: 'door12' });
 
   // 방 2: 장치 B(→ 증거 1 + 조각 B), 장치 C(= 방 3 문 비밀번호)
-  const back21: Spot = { id: 'door21', name: `${seed.rooms[0]}(으)로`, emoji: '🚪', look: `${seed.rooms[0]}(으)로 돌아가요.`, goto: 'r1' };
-  const door23Base: Spot = { id: 'door23', at: doorAt(1), name: `${seed.rooms[2]} 문`, emoji: '🚪', look: `${seed.rooms[2]}(으)로 가는 문에 비밀번호 자물쇠가 달려 있어요.`, openText: '문이 열렸어요! 한 번 더 누르면 들어가요.', goto: 'r3' };
+  const back21: Spot = { id: 'door21', name: ro(seed.rooms[0]!), emoji: '🚪', look: `${ro(seed.rooms[0]!)} 돌아가요.`, goto: 'r1' };
+  const door23Base: Spot = { id: 'door23', at: doorAt(1), name: `${seed.rooms[2]} 문`, emoji: '🚪', look: `${ro(seed.rooms[2]!)} 가는 문에 비밀번호 자물쇠가 달려 있어요.`, openText: '문이 열렸어요! 한 번 더 누르면 들어가요.', goto: 'r3' };
   const B = make(2, 1, { take: ['partB'], clue: 'ev1', text: `${combo.b[0]}${josa(combo.b[0], '이', '가')} 들어 있고, 바닥에 이상한 흔적이 있어요. (수첩에 적었어요)`, got: `${combo.b[0]}${josa(combo.b[0], '을', '를')} 손에 넣고, 범인이 남긴 흔적 이야기도 들었어요. (수첩에 적었어요)` });
   add(1, B);
   steps.push(...B.steps);
@@ -467,7 +468,7 @@ export function buildCase(seed: StorySeed, level = 3, no = 0, vr = 0): EscCase {
   steps.push(...C.steps, { a: 'tap', o: 'door23' });
 
   // 방 3: 도구 쓰는 곳(→ 증거 2 + 방법), 장치 D(→ 증거 3 + 동기)
-  const back32: Spot = { id: 'door32', name: `${seed.rooms[1]}(으)로`, emoji: '🚪', look: `${seed.rooms[1]}(으)로 돌아가요.`, goto: 'r2' };
+  const back32: Spot = { id: 'door32', name: ro(seed.rooms[1]!), emoji: '🚪', look: `${ro(seed.rooms[1]!)} 돌아가요.`, goto: 'r2' };
   const tl = toolSpot.label;
   const tool: Spot = { id: 'toolspot', at: toolSpot.id, name: tl, emoji: '🔎', look: combo.look(tl), lock: { kind: 'item', item: 'tool' }, openText: `${combo.use(tl)} 증거가 나왔어요! (수첩에 적었어요)`, again: '더 찾을 건 없어요.', clue: ['ev2', 'method'] };
   hints.push({ until: 'toolspot', text: `가방 속 ${combo.a[0]}${josa(combo.a[0], '과', '와')} ${combo.b[0]}${josa(combo.b[0], '을', '를')} 「합치기」로 합쳐서 ${combo.out[0]}${josa(combo.out[0], '을', '를')} 만들고, ${seed.rooms[2]}의 ${tl}에 써 보세요.` });

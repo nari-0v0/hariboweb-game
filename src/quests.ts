@@ -298,7 +298,7 @@ for (const w of DAY_WINDOWS.slice(0, 7))
 for (const [who, cnt, diff] of [[6, 1, 'normal'], [8, 1, 'hard'], [0, 1, 'hard'], [5, 3, 'normal'], [7, 3, 'hard']] as [number, number, QuestDiff][])
   add({
     id: `sameday:${who || 'all'}:${cnt}`, name: `${who ? `${who}인` : '전원'} 집합`, cat: '모두', diff,
-    text: (n) => `같은 날 ${who ? `모둠원 ${who}명 이상` : '모둠원 모두'}이 모둠원과 통화한 날 ${n}번`,
+    text: (n) => `같은 날 ${who ? `모둠원 ${who}명 이상이` : '모둠원 모두가'} 모둠원과 통화한 날 ${n}번`,
     target: fixed(cnt),
     value: (c) => {
       const byDay = new Map<string, Set<string>>();
@@ -427,7 +427,7 @@ for (const [n, diff] of [[3, 'easy'], [5, 'easy'], [7, 'normal'], [10, 'hard'], 
 for (const [who, cnt, diff] of [[6, 1, 'easy'], [8, 1, 'normal'], [8, 3, 'hard'], [0, 1, 'hard']] as [number, number, QuestDiff][])
   add({
     id: `attend:sameday:${who || 'all'}:${cnt}`, name: `${who ? `${who}인` : '전원'} 출석 날`, cat: '출석', diff,
-    text: (n) => `${who ? `모둠원 ${who}명 이상` : '모둠원 모두'}이 같은 날 출석한 날 ${n}번`, target: fixed(cnt),
+    text: (n) => `${who ? `모둠원 ${who}명 이상이` : '모둠원 모두가'} 같은 날 출석한 날 ${n}번`, target: fixed(cnt),
     value: (c) => {
       const byDay = new Map<string, Set<string>>();
       for (const a of c.attend) (byDay.get(a.day) ?? byDay.set(a.day, new Set()).get(a.day)!).add(a.user);

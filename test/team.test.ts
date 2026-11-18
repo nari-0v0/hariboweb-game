@@ -175,10 +175,10 @@ describe('동기화로 팀·서버 퀘스트', () => {
     const alerts = sql.prepare('SELECT user_id, ref, title, body FROM alerts ORDER BY user_id').all() as { user_id: string; ref: string; title: string; body: string }[];
     expect(alerts.map((a) => a.user_id)).toEqual([A, B, C, D]);
     expect(alerts[0]).toMatchObject({ ref: 'season:2026-11-03', title: '지난 시즌 퀘스트 결과 (11.3~11.16)' });
-    expect(alerts[0]!.body).toBe('🤝 팀 퀘스트 달성! 팀도 완료해서 도감 젤리 3개와 젤리피 3를 받았어요.');
+    expect(alerts[0]!.body).toBe('🤝 팀 퀘스트 달성! 팀도 완료했어요. 보상: 도감 젤리 3개 + 젤리피 3');
     expect(alerts[2]!.body.split('\n')).toEqual([
-      '🤝 팀 퀘스트 달성! 팀도 완료해서 도감 젤리 3개와 젤리피 3를 받았어요.',
-      '🟢 납치 대소동: 서버 목표 달성! 참여해서 도감 젤리 5개와 젤리피 2를 받았어요.',
+      '🤝 팀 퀘스트 달성! 팀도 완료했어요. 보상: 도감 젤리 3개 + 젤리피 3',
+      '🟢 납치 대소동: 서버 목표 달성! 참여 보상: 도감 젤리 5개 + 젤리피 2',
     ]);
   });
 

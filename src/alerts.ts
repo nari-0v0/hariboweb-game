@@ -72,7 +72,7 @@ export function seasonResultAlerts(
     for (const m of team.members) {
       if (m.left) continue;
       const mine = reached.has(m.id);
-      if (team.complete && mine) add(m.id, `🤝 팀 퀘스트 달성! 팀도 완료해서 도감 젤리 ${reward.teamJelly}개와 젤리피 ${reward.teamJp}를 받았어요.`);
+      if (team.complete && mine) add(m.id, `🤝 팀 퀘스트 달성! 팀도 완료했어요. 보상: 도감 젤리 ${reward.teamJelly}개 + 젤리피 ${reward.teamJp}`);
       else if (team.complete) add(m.id, '🤝 팀 퀘스트: 팀은 완료했지만 내 목표를 채우지 못해서 보상은 없어요.');
       else if (mine) add(m.id, '🤝 팀 퀘스트: 내 목표는 달성했지만 팀이 완료하지 못해서 보상은 없어요.');
       else add(m.id, '🤝 팀 퀘스트: 이번에는 달성하지 못했어요.');
@@ -83,7 +83,7 @@ export function seasonResultAlerts(
       add(
         u,
         server.met
-          ? `🟢 납치 대소동: 서버 목표 달성! 참여해서 도감 젤리 ${reward.serverJelly}개와 젤리피 ${reward.serverJp}를 받았어요.`
+          ? `🟢 납치 대소동: 서버 목표 달성! 참여 보상: 도감 젤리 ${reward.serverJelly}개 + 젤리피 ${reward.serverJp}`
           : '🟢 납치 대소동: 참여했지만 서버 목표를 채우지 못해서 보상은 없어요.',
       );
   return lines;
