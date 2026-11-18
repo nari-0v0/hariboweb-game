@@ -8,6 +8,7 @@ import { ROOMS, ROOM_KEYS, roomByName, type RoomKey } from './case-rooms';
 import { STORY_SEEDS } from './escape-stories';
 import { TALK_CASES } from './escape-talk';
 import { checkUi, UI_MAX, type Ui } from './escape-ui';
+import { jo, ro } from './josa';
 
 // order: 이름을 순서대로 고르는 문제(답은 이름 번호를 이은 숫자), grid: 칸을 골라 표시하는 문제(답은 칸마다 1/0)
 export type Lock =
@@ -387,6 +388,13 @@ export function openScenes(c: EscCase, s: EscState): string[] {
 
 export const visible = (c: EscCase, s: EscState, o: EscObject) => o.scene === s.scene && (!o.hidden || s.shown.includes(o.id));
 export const normCode = (v: string) => v.normalize('NFC').replace(/\s/g, '').toUpperCase();
+// 글자로 적는 답(숫자만이 아닌 답, 예: 7.5)은 단위를 붙여 적어도 맞아요(「7.5도」「7.5°」). 숫자 칸은 화면이 단위를 못 적게 막아요.
+function textUnitOk(lk: Extract<Lock, { kind: 'code' }>, v: string): boolean {
+  if (lk.choices || lk.order || lk.grid || lk.ui || /^[0-9]+$/.test(lk.code)) return false;
+  const code = normCode(lk.code);
+  const unit = normCode(lk.ask);
+  return (!!unit && v === code + unit) || v === `${code}°`;
+}
 export const isLocked = (s: EscState, o: EscObject) => !!o.lock && !s.opened.includes(o.id);
 export const escGrade = (s: EscState): EscGrade => {
   const p = s.mistakes + s.hints;
@@ -508,7 +516,7 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
     if (act.o === s.scene || !openScenes(c, s).includes(act.o)) return null;
     s.scene = act.o;
     s.focus = null;
-    s.msg = `${c.scenes.find((x) => x.id === act.o)!.name}(으)로 왔어요.`;
+    s.msg = `${ro(c.scenes.find((x) => x.id === act.o)!.name)} 왔어요.`;
     s.tone = 'info';
     s.fx = 'move';
     return s;
@@ -548,10 +556,10 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
     if (act.i === act.j || !s.inv.includes(act.i) || !s.inv.includes(act.j)) return null;
     const k = (c.combos ?? []).find((x) => (x.a === act.i && x.b === act.j) || (x.a === act.j && x.b === act.i));
     s.focus = null;
+    // 합치기는 이것저것 맞춰 보는 게 당연해서 실수로 세지 않아요(등급도 그대로).
     if (!k) {
-      s.mistakes += 1;
       s.fx = 'wrong';
-      s.msg = `${c.items[act.i]?.name}와(과) ${c.items[act.j]?.name}은(는) 합쳐지지 않아요.`;
+      s.msg = `${jo(c.items[act.i]?.name ?? '그 물건', '과', '와')} ${jo(c.items[act.j]?.name ?? '그 물건', '은', '는')} 합쳐지지 않아요.`;
       s.tone = 'bad';
       return s;
     }
@@ -574,7 +582,7 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
     if (o.goto && (!o.lock || s.seen.includes(o.id))) {
       s.scene = o.goto;
       s.focus = null;
-      s.msg = `${c.scenes.find((x) => x.id === o.goto)!.name}(으)로 왔어요.`;
+      s.msg = `${ro(c.scenes.find((x) => x.id === o.goto)!.name)} 왔어요.`;
       s.tone = 'info';
       s.fx = 'move';
       add(s.seen, o.id);
@@ -590,10 +598,10 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
   if (!isLocked(s, o)) return null;
   if (act.a === 'use') {
     if (o.lock!.kind !== 'item' || !s.inv.includes(act.i)) return null;
+    // 맞지 않는 물건을 대 보는 것도 실수로 세지 않아요. 실수는 비밀번호·장치·마지막 답만 세요.
     if (o.lock!.item !== act.i) {
-      s.mistakes += 1;
       s.fx = 'wrong';
-      s.msg = `${c.items[act.i]?.name ?? '그 물건'}(으)로는 열리지 않아요.`;
+      s.msg = `${ro(c.items[act.i]?.name ?? '그 물건')}는 열리지 않아요.`;
       s.tone = 'bad';
       return s;
     }
@@ -622,7 +630,9 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
     const n = lk.order?.length ?? 0;
     const shape = lk.grid ? new RegExp(`^[01]{${lk.grid.w * lk.grid.h}}$`) : lk.order ? new RegExp(`^[1-${n}]{${n}}$`) : digits ? /^[0-9]{1,8}$/ : null;
     if (shape ? !shape.test(v) : !v || v.length > (lk.choices ? 40 : 12)) return null;
-    if (v !== normCode(lk.code)) {
+    // 줄 세우기에서 같은 이름을 두 번 고르면 답이 될 수 없어요. 실수로 세지 않고 돌려보내요(화면도 미리 막아요).
+    if (lk.order && new Set(v).size !== v.length) return null;
+    if (v !== normCode(lk.code) && !textUnitOk(lk, v)) {
       s.mistakes += 1;
       s.fx = 'wrong';
       s.msg = lk.grid ? '삐빅! 표시한 칸이 맞지 않아요.' : lk.order ? '삐빅! 순서가 맞지 않아요.' : digits ? '삐빅! 비밀번호가 틀렸어요.' : '삐빅! 암호가 틀렸어요.';

@@ -31,6 +31,7 @@ await build({
 });
 const {
   ESCAPE_CASES,
+  escCase,
   startEscape,
   actEscape,
   canAnswer,
@@ -93,6 +94,11 @@ function solution(c) {
   return steps;
 }
 let ownedServer;
+async function localSql(command) {
+  const { execFileSync } = await import("node:child_process");
+  const root = resolve("work/playtest-server");
+  execFileSync(process.execPath, [resolve("node_modules/wrangler/bin/wrangler.js"), "d1", "execute", "haribo-dogam", "--local", "--command", command], { env: { ...process.env, XDG_CONFIG_HOME: root }, stdio: "ignore" });
+}
 const userId = String(900000000000000000n + BigInt(Date.now()));
 let browser;
 try {
@@ -463,6 +469,8 @@ try {
     );
   }
   try {
+    // PLAYTEST_LOCAL_SEED=1: 이미 떠 있는 로컬 서버(다른 로봇이 띄운 것)에서도 이 로봇 계정의 잠금을 풀어요.
+    if (!ownedServer && process.env.PLAYTEST_LOCAL_SEED) ownedServer = { sql: localSql, borrowed: true };
     if (ownedServer) {
       // Robot-only unlock: give the test account 60 high-level dogam cards on its own local D1,
       // so every case and expedition chapter opens. External runs keep real locks.
@@ -496,10 +504,19 @@ try {
       await ownedServer.sql(
         `UPDATE profiles SET dogam_jelly = 1000000 WHERE user_id = '${userId}';`,
       );
-    for (const c of only("cases") ? ESCAPE_CASES : []) {
-      const result = { id: c.id, title: c.title, completed: false, steps: 0 };
+    // PLAYTEST_VARIANTS=N: 만든 사건은 다시 푸는 판(범인·단서·자리를 새로 섞은 판) 1~N도 실제 화면으로 풀어요.
+    // 판 번호 = 그 사건을 시작한 횟수라서, 처음 판을 끝낸 뒤 다시 시작하면 다음 판이 나와요.
+    const VARIANTS = Number(process.env.PLAYTEST_VARIANTS || 0);
+    // PLAYTEST_CASES=c06,c10: 그 사건만. PLAYTEST_SHARD=k/n: 사건 번호를 n으로 나눈 나머지가 k인 사건만 풀어요(여러 로봇을 한 서버에 나눠 돌릴 때).
+    const [shardK, shardN] = (process.env.PLAYTEST_SHARD || "0/1").split("/").map(Number);
+    const pickCases = process.env.PLAYTEST_CASES?.split(",");
+    const plays = ESCAPE_CASES.filter((c, i) => i % shardN === shardK && (!pickCases || pickCases.includes(c.id))).flatMap((c) => Array.from({ length: c.solution ? VARIANTS + 1 : 1 }, (_, vr) => (vr ? escCase(c.id, vr) : c)));
+    const lockedIds = new Set();
+    for (const c of only("cases") ? plays : []) {
+      if (lockedIds.has(c.id)) continue;
+      const result = { id: c.vr ? `${c.id}#${c.vr}` : c.id, title: c.title, completed: false, steps: 0 };
       report.cases.push(result);
-      where = c.id;
+      where = result.id;
       try {
         await page.goto(new URL("/cases/room?list=1", base).href);
         const start = page.locator(
@@ -508,6 +525,7 @@ try {
         // A fresh test account only sees the first cases; locked ones show their unlock rule, not a start form.
         if (!(await start.count())) {
           result.locked = true;
+          lockedIds.add(c.id);
           console.log(`LOCKED ${c.id}`);
           continue;
         }
@@ -628,7 +646,7 @@ try {
         result.completed = true;
         await inspect(`${c.id}-result`, true);
         console.log(
-          `DONE ${report.cases.filter((c) => c.completed).length}/${ESCAPE_CASES.length} ${c.id}`,
+          `DONE ${report.cases.filter((c) => c.completed).length}/${plays.length} ${result.id}`,
         );
       } catch (e) {
         result.error = e.message;
@@ -637,7 +655,10 @@ try {
           path: `${dir}/${c.id}-failure.png`,
           fullPage: true,
         });
-        console.log("FAIL", c.id, e.message.slice(0, 180));
+        console.log("FAIL", result.id, e.message.slice(0, 180));
+        // 실패한 판은 덮어 둬요. 다음 판 번호가 하나씩 늘어나야 다시 푸는 판 순서가 맞아요.
+        await page.goto(new URL("/cases/room", base).href).catch(() => {});
+        await page.locator('form[action="/api/escape/quit"] button').first().click({ timeout: 3000 }).catch(() => {});
       }
       await writeFile(`${dir}/results.json`, JSON.stringify(report, null, 2));
     }
@@ -655,7 +676,8 @@ try {
           run.error = "chapter not open";
           break;
         }
-        await pick.check();
+        // 장 카드의 글씨(<b>)가 동그라미 위를 덮어서, 사람이 누르듯 카드(라벨)를 눌러 골라요
+        await pick.check({ force: true });
         await page.locator(".jr-depart").first().click();
         await page.locator("[data-auto-toggle] input").check();
         const started = Date.now();
@@ -908,7 +930,7 @@ try {
     console.error(e);
   } finally {
     await browser.close();
-    if (ownedServer) {
+    if (ownedServer?.stop) {
       await ownedServer.stop();
       report.server.stopped = true;
     }
@@ -934,5 +956,5 @@ try {
   }
 } finally {
   await browser?.close();
-  await ownedServer?.stop();
+  await ownedServer?.stop?.();
 }

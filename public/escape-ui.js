@@ -24,6 +24,11 @@
     say.classList.toggle('bad', !!bad);
   };
   const xy = (w, c) => [c % w, Math.floor(c / w)];
+  // 조사: 받침이 있으면 a, 없으면 b (손전등이 / 수레가)
+  const jo = (w, a, b) => {
+    const c = w.charCodeAt(w.length - 1) - 0xac00;
+    return w + (c >= 0 && c <= 11171 ? (c % 28 ? a : b) : b);
+  };
   const board = (w, hh, cls = '') => {
     const g = h('div', `esc-ui-board ${cls}`);
     g.style.setProperty('--w', w);
@@ -217,7 +222,7 @@
       const it = item(id);
       const c = btn(`${it.emoji} ${it.name}${it.w ? ` ${it.w}kg` : ''}${it.time ? ` ${it.time}분` : ''}`, () => {
         if (where === 'boat') boat = boat.filter((x) => x !== id);
-        else if ((where === 'R') !== (side === 1)) return tell(`${u.boat || '배'}가 반대편에 있어요.`, true);
+        else if ((where === 'R') !== (side === 1)) return tell(`${jo(u.boat || '배', '이', '가')} 반대편에 있어요.`, true);
         else if (boat.length >= u.cap) return tell(`한 번에 ${u.cap}명까지만 탈 수 있어요.`, true);
         else boat.push(id);
         draw();
@@ -226,7 +231,7 @@
     };
     const cross = btn(`⛵ 건너기`, () => {
       if (!boat.length) return tell('아무도 안 탔어요.', true);
-      if (u.rowers && !boat.some((x) => u.rowers.includes(x))) return tell(`${u.boat || '배'}를 움직일 수 있는 사람이 타야 해요.`, true);
+      if (u.rowers && !boat.some((x) => u.rowers.includes(x))) return tell(`${jo(u.boat || '배', '을', '를')} 움직일 수 있는 사람이 타야 해요.`, true);
       if (u.maxW && boat.reduce((a, x) => a + (item(x).w || 0), 0) > u.maxW) return tell(`너무 무거워요. ${u.maxW}kg까지예요.`, true);
       time += Math.max(...boat.map((x) => item(x).time || 0));
       for (const x of boat) side === 0 ? right.add(x) : right.delete(x);
@@ -559,6 +564,8 @@
       g.append(t);
     }
     setV(vals.filter((_, i) => u.given[i] !== -1).map((x) => x || '_').join(''));
+    // 빈칸이 남은 채로 내면 답이 될 수 없어요. 틀린 횟수 대신 안내만 보여 줘요.
+    rule = () => (out.value.includes('_') ? '아직 빈칸이 있어요. 칸을 모두 채운 뒤 내 주세요.' : '');
     return [g];
   };
 
@@ -703,6 +710,7 @@
       els.forEach((b, i) => (b.dataset.c = String(c[u.regions[i]])));
       setV(c.join(''));
     };
+    rule = () => (c.includes(0) ? '아직 색을 칠하지 않은 구역이 있어요. 모두 칠한 뒤 내 주세요.' : '');
     draw();
     return [g, h('p', 'hint', `구역을 누를 때마다 색이 바뀌어요 (${u.colors}가지).`)];
   };
@@ -729,6 +737,7 @@
       els.forEach((b, i) => !holes.has(i) && (b.dataset.c = String(p[i])));
       setV(p.join(''));
     };
+    rule = () => (p.some((x, i) => !holes.has(i) && !x) ? '아직 조각을 정하지 않은 칸이 있어요. 모두 누른 뒤 내 주세요.' : '');
     draw();
     return [g, h('p', 'hint', `칸을 누를 때마다 조각 색이 바뀌어요 (${u.parts}조각).`)];
   };
@@ -780,7 +789,8 @@
     if (broke) {
       e.preventDefault();
       tell(broke, true);
-    } else if (!out.value) {
+    } else if (!out.value || (!moves.length && out.value === fresh)) {
+      // 아무것도 안 건드린 처음 모습 그대로 내면(실수로 누른 것) 틀린 횟수에 넣지 않아요.
       e.preventDefault();
       tell('먼저 문제를 풀어 보세요.', true);
     } else if (out.value.length > UI_MAX) {

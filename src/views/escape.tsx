@@ -703,7 +703,7 @@ export function EscapePage(props: {
 }) {
   const { run, result } = props;
   return (
-    <Layout title="하리보 사건파일" viewer={props.viewer} active="cases" scripts={run ? ['/escape.js?v=loupe-tap-1', '/escape-ui.js?v=8'] : undefined}>
+    <Layout title="하리보 사건파일" viewer={props.viewer} active="cases" scripts={run ? ['/escape.js?v=order-dup-2', '/escape-ui.js?v=10'] : undefined}>
       {props.url && <i hidden data-replace-url={props.url} />}
       <Popup lines={props.notice && Object.hasOwn(NOTICES, props.notice) ? NOTICES[props.notice] ?? [] : []} />
       <div class="stack esc" data-fresh>
@@ -716,7 +716,7 @@ export function EscapePage(props: {
             <summary aria-label="하는 법">?</summary>
             <div>
               <p>방 안 물건을 눌러 살피고, 열쇠와 비밀번호·수수께끼로 잠긴 곳을 열어 단서를 모아요. 단서가 모이면 진실을 맞혀요.</p>
-              <p>방 곳곳 빈 자리를 눌러 보면 숨은 힌트 동전이 있어요. 실수와 동전 없이 본 힌트가 적을수록 등급이 높아요.</p>
+              <p>방 곳곳 빈 자리를 눌러 보면 숨은 힌트 동전이 있어요. 실수(틀린 비밀번호·장치 답·범인 답)와 동전 없이 본 힌트가 적을수록 등급이 높아요. 물건 합치기나 물건 대 보기는 틀려도 실수가 아니에요.</p>
               <p>사건마다 처음 해결하면 내 카드 경험치 {ESC_XP}, S·A 등급이면 도감 젤리 1개도 받아요.</p>
               <p>한 번 열었던 사건을 다시 열면 수수께끼는 같지만 범인·단서·물건 숨은 자리·시계 시각이 새로 바뀌어요. 맨 앞 입문 사건 3개와 대화로 푸는 사건은 그대로예요.</p>
             </div>
@@ -736,7 +736,7 @@ export function EscapePage(props: {
                 <span class="hint">다른 사건을 열면 하던 사건은 덮여요(다음에 열면 처음부터 해요. 입문·대화 사건이 아니면 범인·단서·자리가 바뀐 판이에요).</span>
               </p>
             )}
-            <p class="hint">별이 많을수록 수수께끼가 어려워요(★ → ★★ → ★★★). 맨 앞 입문 사건 3개는 짧고, 나머지는 방 3개, 수수께끼 5개, 물건 합치기, 범인·방법·동기까지 맞혀야 해요.</p>
+            <p class="hint">별이 많을수록 수수께끼가 어려워요(★ → ★★ → ★★★). 맨 앞 입문 사건 3개는 짧고, 나머지는 방 3개, 수수께끼 5개, 물건 합치기, 범인·방법·동기까지 맞혀야 해요(대화로 푸는 사건은 물건 대신 사람에게 말을 걸어요).</p>
             <div class="esc-cases">
               {ESCAPE_CASES.map((c, i) => {
                 const best = props.best.get(c.id);

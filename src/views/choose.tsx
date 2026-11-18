@@ -80,8 +80,9 @@ export function ChoosePage(props: {
             ))}
           </div>
           <div class="choose-actions">
+            {/* 다음 화면에서 한 번 더 확인하니 여기서는 "확정"이 아니라 "다음"이에요 */}
             <button class="btn btn-primary" type="submit">
-              확정
+              다음
             </button>
           </div>
         </form>

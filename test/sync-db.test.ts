@@ -461,3 +461,20 @@ describe('전송이 늦은 탈퇴와 재가입', () => {
   });
 
 });
+
+describe('주기가 바뀌는 날 새벽 출석', () => {
+  it('한국 0~6시 출석은 아직 안 온 다음 주기 앞 절반으로 들어가서, 새 빙고판에 그대로 보여요', async () => {
+    const { sql, db } = fakeD1();
+    const old = { start: '2026-11-13T21:00:00Z', end: '2026-11-27T21:00:00Z' };
+    const dawn = Date.parse('2026-11-27T18:30:00Z'); // 한국 11/28 03:30, 새 주기는 06:00부터
+    const p = batch(`${new Date(dawn).toISOString()}-dawn`, 0, { season: old, attendance: [{ id: A, day: '2026-11-28' }] });
+    expect(await applySync(db, p, dawn)).toBe('applied');
+    expect(sql.prepare('SELECT week, attended FROM bingo_day WHERE user_id = ?').all(A)).toEqual([{ week: '2026-11-28', attended: 1 }]);
+    // 다음 주기 기간은 봇이 보낼 때 저장해요(미리 저장하지 않아요)
+    expect(sql.prepare("SELECT COUNT(*) AS n FROM bingo_periods WHERE id = '2026-11-28'").get()).toEqual({ n: 0 });
+    const morning = Date.parse('2026-11-27T22:00:00Z');
+    const q = batch(`${new Date(morning).toISOString()}-morning`, 0, { season: { start: old.end, end: '2026-12-11T21:00:00Z' } });
+    expect(await applySync(db, q, morning)).toBe('applied');
+    expect(sql.prepare("SELECT starts_at FROM bingo_periods WHERE id = '2026-11-28'").get()).toEqual({ starts_at: '2026-11-27T21:00:00.000Z' });
+  });
+});
