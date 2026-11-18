@@ -1,5 +1,5 @@
 import { ALERT_KEEP_DAYS } from './alerts';
-import { XP_SCALE, levelFromXp } from './levels';
+import { MAX_LEVEL, XP_SCALE, levelFromXp, xpForLevel } from './levels';
 import type { Member } from './env';
 import { stripTitle } from './titles';
 import type { LoginProfile } from './discord';
@@ -597,7 +597,11 @@ export async function listCheers(db: D1Database, limit = 10): Promise<Cheer[]> {
     .map(({ a, b, level }) => ({ a, b, level }));
 }
 export async function markCheer(db: D1Database, a: string, b: string, level: number): Promise<boolean> {
-  const r = await db.prepare('UPDATE cards SET cheer_level = ?3 WHERE owner_id = ?1 AND target_id = ?2 AND cheer_level < ?3').bind(a, b, level).run();
+  if (!Number.isInteger(level) || level < 10 || level > MAX_LEVEL || level % 10 !== 0) return false;
+  // 축하 목록을 읽은 뒤 초기화·재가입으로 새 카드가 생겼으면 옛 응답으로 미래 축하를 건너뛰지 않아요.
+  const r = await db.prepare(`UPDATE cards SET cheer_level = ?3
+    WHERE owner_id = ?1 AND target_id = ?2 AND cheer_level < ?3 AND xp >= ?4`)
+    .bind(a, b, level, xpForLevel(level)).run();
   return (r.meta.changes ?? 0) > 0;
 }
 
