@@ -12,11 +12,11 @@ import { askAi } from './ai';
 export const BLOCK_MAX_PENDING = 3;
 export const BLOCK_REASON_MAX = 500;
 
-export const BLOCK_QUESTION = '다시 같은 판에 배정된다고 생각하면, 뭐가 제일 마음에 걸려요?';
+export const BLOCK_QUESTION = '다시 같은 팀에 배정된다고 생각하면, 뭐가 제일 마음에 걸려요?';
 export const BLOCK_HELP = '불편했던 순간이나 다시 겪고 싶지 않은 일을 말할 수 있는 만큼 적어 주세요.';
 // 나리가 정한 안내 문구(한 줄씩 끊어서 보여 줘요)
 export const BLOCK_NOTICE = [
-  'AI가 적어 준 사유를 검토해 같은 판에 배정할지 판단해요.',
+  '적어 준 사유를 AI가 검토해 같은 팀에 배정할지 판단해요.',
   '너무 단순한 사유는 다시 추천될 수 있어요!',
   '상대에게는 아무 알림도 가지 않아요.',
 ];
