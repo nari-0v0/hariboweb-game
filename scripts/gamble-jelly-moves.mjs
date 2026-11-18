@@ -6,6 +6,7 @@
 // 만든 SQL은 wrangler d1 execute haribo-dogam --remote --file 로 한 번 실행해요.
 // 두 번 실행해도 젤칩은 한 번만 들어가요(migrations/0042_gamble_jelly_moves.sql).
 // 지금 웹 도감에 있는 멤버만 받아요. 서버를 떠난 사람 몫은 넣지 않고 표에만 남아요.
+import { createHash } from 'node:crypto';
 import { linkSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -13,7 +14,7 @@ import { pathToFileURL } from 'node:url';
 export function buildMoveSql(wallets, now = new Date().toISOString(), approved = null) {
   if (new Date(now).toISOString() !== now) throw new Error('잘못된 UTC 시각');
   if (!Array.isArray(wallets)) throw new Error('지갑 목록은 배열이어야 해요');
-  const seen = new Set();
+  const sourceBalances = new Map();
   const rows = [];
   const positiveBalances = new Map();
   for (const w of wallets) {
@@ -21,8 +22,8 @@ export function buildMoveSql(wallets, now = new Date().toISOString(), approved =
     const jelly = w?.jelly;
     if (typeof id !== 'string' || !/^\d{15,20}$/.test(id)) throw new Error(`이상한 디스코드 ID: ${id}`);
     if (!Number.isSafeInteger(jelly) || jelly < 0) throw new Error(`이상한 젤리 값: ${id}=${w?.jelly}`);
-    if (seen.has(id)) throw new Error(`같은 사람이 두 번 있어요: ${id}`);
-    seen.add(id);
+    if (sourceBalances.has(id)) throw new Error(`같은 사람이 두 번 있어요: ${id}`);
+    sourceBalances.set(id, jelly);
     if (jelly > 0) {
       rows.push(`('${id}', ${jelly}, '${now}')`);
       positiveBalances.set(id, jelly);
@@ -38,6 +39,22 @@ export function buildMoveSql(wallets, now = new Date().toISOString(), approved =
     payableIds.add(id);
   }
   const lines = [`-- 겜블장 지갑 젤리 → 젤칩 1:1, ${rows.length}명, 만든 때 ${now}`];
+  let snapshot;
+  if (approved !== null) {
+    const source = [...sourceBalances].sort(([a], [b]) => a.localeCompare(b));
+    const manifest = [...payableIds].sort().map(id => [id, sourceBalances.get(id)]);
+    snapshot = createHash('sha256').update(JSON.stringify([source, manifest])).digest('hex');
+    lines.push(`CREATE TABLE IF NOT EXISTS gamble_move_snapshot (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  digest TEXT NOT NULL
+);`);
+    // 최초 스냅샷을 고정해요. 다른 원장이나 명단을 가져오면 적재 전에 실패해요.
+    lines.push(`INSERT INTO gamble_move_snapshot (id, digest)
+VALUES (1, CASE WHEN EXISTS (SELECT 1 FROM gamble_launch_reset WHERE id = 1)
+  THEN '${snapshot}' ELSE NULL END)
+ON CONFLICT (id) DO UPDATE SET digest = NULL
+WHERE gamble_move_snapshot.digest <> excluded.digest;`);
+  }
   if (rows.length) {
     // 이미 적재된 금액이 다르면 NOT NULL 제약으로 이 INSERT 전체를 중단해요.
     lines.push(`INSERT INTO gamble_jelly_moves (user_id, jelly, loaded_at) VALUES\n  ${rows.join(',\n  ')}
@@ -48,6 +65,7 @@ export function buildMoveSql(wallets, now = new Date().toISOString(), approved =
     const ids = [...payableIds].map(id => `'${id}'`).join(', ');
     const membershipCheck = approved === null ? '' : `
       AND EXISTS (SELECT 1 FROM gamble_launch_reset WHERE id = 1)
+      AND EXISTS (SELECT 1 FROM gamble_move_snapshot WHERE id = 1 AND digest = '${snapshot}')
       AND (SELECT COUNT(*) FROM members WHERE active = 1 AND user_id IN (${ids})) = ${payableIds.size}`;
     const activeOnly = approved === null ? '\n    AND user_id IN (SELECT user_id FROM members WHERE active = 1)' : '';
     // 금액 또는 승인 상태가 맞지 않으면 NOT NULL 제약으로 지급문 전체를 롤백해요.
