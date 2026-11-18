@@ -217,7 +217,7 @@ function TeamPanel(props: { extras: BingoExtras; view: BingoView; me: string }) 
     <section class={`panel bgo-team bgo-wide${t.complete ? ' met' : ''}`}>
       <h2>👫 팀 퀘스트 · {t.no + 1}팀</h2>
       <div class="bgo-mates">
-        <b>우리 팀원 {mates.length}명{t.bonus ? '' : ' · ✓ 달성'}</b>
+        <b>우리 팀원 {mates.length}명{t.bonus ? '' : ' (✓ = 내 목표 달성한 팀원)'}</b>
         <ul aria-label="우리 팀원">
           {mates.map((m) => (
             <li class={`${done.has(m.id) ? 'done' : ''}${m.id === props.me ? ' me' : ''}`.trim() || undefined}>
