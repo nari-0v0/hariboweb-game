@@ -556,8 +556,8 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
     if (act.i === act.j || !s.inv.includes(act.i) || !s.inv.includes(act.j)) return null;
     const k = (c.combos ?? []).find((x) => (x.a === act.i && x.b === act.j) || (x.a === act.j && x.b === act.i));
     s.focus = null;
+    // 합치기는 이것저것 맞춰 보는 게 당연해서 실수로 세지 않아요(등급도 그대로).
     if (!k) {
-      s.mistakes += 1;
       s.fx = 'wrong';
       s.msg = `${jo(c.items[act.i]?.name ?? '그 물건', '과', '와')} ${jo(c.items[act.j]?.name ?? '그 물건', '은', '는')} 합쳐지지 않아요.`;
       s.tone = 'bad';
@@ -598,8 +598,8 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
   if (!isLocked(s, o)) return null;
   if (act.a === 'use') {
     if (o.lock!.kind !== 'item' || !s.inv.includes(act.i)) return null;
+    // 맞지 않는 물건을 대 보는 것도 실수로 세지 않아요. 실수는 비밀번호·장치·마지막 답만 세요.
     if (o.lock!.item !== act.i) {
-      s.mistakes += 1;
       s.fx = 'wrong';
       s.msg = `${ro(c.items[act.i]?.name ?? '그 물건')}는 열리지 않아요.`;
       s.tone = 'bad';
