@@ -357,7 +357,7 @@ app.post('/api/bot/assign-blocks/:id/posted', async (c) => {
   const id = Number(c.req.param('id'));
   let body: { message_id?: unknown };
   try {
-    body = await c.req.json();
+    body = (await c.req.json()) ?? {};
   } catch {
     return c.json({ error: 'bad_json' }, 400);
   }
@@ -370,7 +370,7 @@ app.post('/api/bot/assign-blocks/:id/decide', async (c) => {
   const id = Number(c.req.param('id'));
   let body: { decision?: unknown; by?: unknown };
   try {
-    body = await c.req.json();
+    body = (await c.req.json()) ?? {};
   } catch {
     return c.json({ error: 'bad_json' }, 400);
   }
@@ -394,7 +394,7 @@ app.post('/api/bot/ai-logs/posted', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
   let body: { ids?: unknown };
   try {
-    body = await c.req.json();
+    body = (await c.req.json()) ?? {};
   } catch {
     return c.json({ error: 'bad_json' }, 400);
   }
@@ -466,7 +466,7 @@ app.post('/api/bot/gender', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
   let body: { user_id?: unknown; pool?: unknown; character?: unknown };
   try {
-    body = await c.req.json();
+    body = (await c.req.json()) ?? {};
   } catch {
     return c.json({ error: 'JSON이 아니에요' }, 400);
   }
@@ -494,7 +494,7 @@ app.post('/api/bot/praise', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
   let body: { from?: unknown; to?: unknown; note?: unknown };
   try {
-    body = await c.req.json();
+    body = (await c.req.json()) ?? {};
   } catch {
     return c.json({ error: 'JSON이 아니에요' }, 400);
   }
