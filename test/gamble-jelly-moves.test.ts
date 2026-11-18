@@ -124,3 +124,14 @@ it('초기화가 중단되면 삭제와 완료 기록을 함께 되돌려요', (
   sql.exec(reset);
   expect(chips(sql)).toEqual([]);
 });
+
+it('승인 명단 밖의 계정은 활성 상태라도 지급하지 않아요', () => {
+  const sql = freshDb();
+  const wallets = [{ user_id: A, jelly: 100 }, { user_id: B, jelly: 200 }];
+  const stamp = '2026-11-21T00:00:00.000Z';
+  sql.exec(buildMoveSql(wallets, stamp, [wallets[0]]));
+  expect(chips(sql)).toEqual([{ user_id: A, chips: 1100, won: 500 }]);
+  expect(sql.prepare('SELECT moved_at FROM gamble_jelly_moves WHERE user_id = ?').get(B)).toEqual({ moved_at: null });
+  expect(() => buildMoveSql(wallets, stamp, [{ user_id: A, jelly: 99 }])).toThrow();
+  expect(() => buildMoveSql(wallets, stamp, [wallets[0], wallets[0]])).toThrow();
+});
