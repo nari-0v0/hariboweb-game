@@ -382,26 +382,28 @@ export async function applySync(
         .bind(id),
     );
     // 시즌 팀 퀘스트·서버 퀘스트도 같은 방식이에요. 같은 시즌에 다시 들어오면 나가기 전 통화는 본인 판정에 세지 않아요.
-    // (남은 팀원·초록하리보 쪽 기록은 그대로예요)
-    stmts.push(db.prepare('DELETE FROM season_pair_reset WHERE user_id = ?').bind(id));
+    // (남은 팀원·초록하리보 쪽 기록은 그대로예요) 이미 끝난 시즌은 건드리지 않아요: 끝난 뒤 정산 전에 나가도
+    // 그 시즌 팀 달성이 바뀌어 남은 팀원이 보상을 못 받는 일이 없게요.
+    const ongoing = 'season_id IN (SELECT id FROM seasons WHERE ends_at > ?2)';
+    stmts.push(db.prepare(`DELETE FROM season_pair_reset WHERE user_id = ?1 AND ${ongoing}`).bind(id, t));
     stmts.push(
       db
         .prepare(
           `INSERT INTO season_pair_reset (season_id, kind, user_id, other, minutes)
            SELECT season_id, 'team', ?1, CASE WHEN a = ?1 THEN b ELSE a END, SUM(minutes) FROM gq_pair
-           WHERE a = ?1 OR b = ?1 GROUP BY season_id, CASE WHEN a = ?1 THEN b ELSE a END`,
+           WHERE (a = ?1 OR b = ?1) AND ${ongoing} GROUP BY season_id, CASE WHEN a = ?1 THEN b ELSE a END`,
         )
-        .bind(id),
+        .bind(id, t),
     );
     stmts.push(
       db
         .prepare(
           `INSERT INTO season_pair_reset (season_id, kind, user_id, other, minutes)
-           SELECT season_id, 'kidnap', ?1, newbie_id, minutes FROM kidnap_min WHERE user_id = ?1
+           SELECT season_id, 'kidnap', ?1, newbie_id, minutes FROM kidnap_min WHERE user_id = ?1 AND ${ongoing}
            UNION ALL
-           SELECT season_id, 'kidnapped', ?1, user_id, minutes FROM kidnap_min WHERE newbie_id = ?1`,
+           SELECT season_id, 'kidnapped', ?1, user_id, minutes FROM kidnap_min WHERE newbie_id = ?1 AND ${ongoing}`,
         )
-        .bind(id),
+        .bind(id, t),
     );
     stmts.push(db.prepare('DELETE FROM bingo_day WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM bingo_flag WHERE user_id = ?').bind(id));

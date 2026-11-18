@@ -228,6 +228,20 @@ describe('동기화로 팀·서버 퀘스트', () => {
     expect((await bingoExtras(db, C, START)).server?.participants).toEqual([B, C, D]);
   });
 
+  it('시즌이 끝난 뒤 정산 전에 달성자가 나가도 그 시즌 팀 달성은 그대로예요', async () => {
+    const { sql, db } = await setup();
+    await applySync(db, payload({ room_minutes: [...minutes(30, [A, B, C])] }), NOW + 3_600_000);
+    expect((await teamStatesFor(db, '2026-11-03', [B])).get(B)).toBe('done');
+    const left = Date.parse(END) + 5 * 60_000;
+    const removed = payload({ removed: [A] });
+    removed.batch_id = new Date(left).toISOString() + '-left';
+    await applySync(db, removed, left);
+    expect((sql.prepare('SELECT COUNT(*) AS n FROM season_pair_reset').get() as { n: number }).n).toBe(0);
+    const bBefore = jelly(sql, B);
+    await settleEnded(db, Date.parse(END) + 31 * 60_000);
+    expect(jelly(sql, B) - bBefore).toBe(3);
+  });
+
   it('초기화 전에 한 통화는 팀 달성·납치 진행으로 되살아나지 않아요', async () => {
     const { sql, db } = await setup();
     const reset = NOW + 2 * 3_600_000;
