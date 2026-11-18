@@ -192,21 +192,56 @@ export function isStaleBatch(batchId: string, nowMs: number): boolean {
 
 // 초기화·탈퇴 전에 만든 활동을 늦게 받더라도 개인 기록이 되살아나지 않게 해요.
 // 시각이 없는 혼자 경험치·젤리는 묶음을 만든 시각, 출석은 한국 날짜까지만 구분할 수 있어요.
-async function afterReset(db: D1Database, p: SyncPayload): Promise<SyncPayload> {
-  const { results } = await db.prepare('SELECT user_id, reset_at FROM members WHERE reset_at IS NOT NULL')
-    .all<{ user_id: string; reset_at: string }>();
-  const resets = new Map(results.map((r) => [r.user_id, Date.parse(r.reset_at)]));
-  const fresh = (id: string, ms: number) => ms >= (resets.get(id) ?? -Infinity);
+type ResetPlan = {
+  payload: SyncPayload;
+  rejoined: Map<string, string>;
+  removed: Map<string, string | null>;
+};
+
+async function afterReset(db: D1Database, p: SyncPayload, nowMs: number): Promise<ResetPlan> {
+  const { results } = await db.prepare('SELECT user_id, reset_at, active, updated_at FROM members WHERE reset_at IS NOT NULL OR active = 0')
+    .all<{ user_id: string; reset_at: string | null; active: number; updated_at: string }>();
+  const previous = new Map(results.map((r) => [r.user_id, r]));
+  const resets = new Map(results.filter((r) => r.reset_at !== null).map((r) => [r.user_id, Date.parse(r.reset_at!)]));
+  const members = new Map(p.members.map((m) => [m.id, m]));
+  const removedIds = new Set(p.removed);
+  const rejoined = new Map<string, string>();
+  const removed = new Map<string, string | null>();
+  const joinedTime = (id: string) => {
+    const ms = Date.parse(members.get(id)?.joined_at ?? '');
+    return Number.isFinite(ms) && ms <= nowMs ? ms : null;
+  };
+  const cutoff = (id: string, joined: number | null) => {
+    const ms = Math.max(resets.get(id) ?? -Infinity, joined ?? -Infinity);
+    return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+  };
+  for (const m of p.members) {
+    const old = previous.get(m.id);
+    if (old?.active !== 0 || removedIds.has(m.id)) continue;
+    // 실제 재가입 시각으로 새 활동을 구분하되, 정식 초기화 등 기존 기준은 앞당기지 않아요.
+    const receipt = Date.parse(old.updated_at);
+    const at = cutoff(m.id, joinedTime(m.id) ?? (Number.isFinite(receipt) ? receipt : nowMs))!;
+    rejoined.set(m.id, at);
+    resets.set(m.id, Date.parse(at));
+  }
+  for (const id of removedIds) {
+    // 반영이 늦었다고 그 사이의 새 활동까지 지우지 않아요. 가입 시각은 다음 재가입 때도 확인해요.
+    removed.set(id, cutoff(id, joinedTime(id)));
+  }
+  // 이미 나갔고 이번 묶음에서도 다시 들어오지 않은 사람의 활동은 빙고·시즌 기록에도 남기지 않아요.
+  // (늦게 도착한 탈퇴 전 통화가 재가입 뒤 본인 빙고로 되살아나지 않게)
+  const gone = (id: string) => previous.get(id)?.active === 0 && !rejoined.has(id);
+  const fresh = (id: string, ms: number) => !gone(id) && ms >= (resets.get(id) ?? -Infinity);
   const made = batchTime(p.batch_id)!;
-  return {
+  return { rejoined, removed, payload: {
     ...p,
     pair_xp: p.pair_xp.filter((x) => fresh(x.a, Date.parse(x.at)) && fresh(x.b, Date.parse(x.at))),
     solo_xp: p.solo_xp.filter((x) => fresh(x.id, made)),
     jelly_earned: p.jelly_earned.filter((x) => fresh(x.id, made)),
     room_minutes: p.room_minutes.map((r) => ({ ...r, members: r.members.filter((id) => fresh(id, Date.parse(r.at))) })).filter((r) => r.members.length >= 2),
     scrims: p.scrims.map((r) => ({ ...r, members: r.members.filter((id) => fresh(id, Date.parse(r.at))) })).filter((r) => r.members.length > 0),
-    attendance: p.attendance.filter((a) => !resets.has(a.id) || a.day >= new Date(resets.get(a.id)! + 9 * 3_600_000).toISOString().slice(0, 10)),
-  };
+    attendance: p.attendance.filter((a) => !gone(a.id) && (!resets.has(a.id) || a.day >= new Date(resets.get(a.id)! + 9 * 3_600_000).toISOString().slice(0, 10))),
+  } };
 }
 
 // groupQuests: 예전 모둠 퀘스트 8개를 새 시즌에도 만들기(테스트용, 기본은 안 만들어요)
@@ -222,16 +257,18 @@ export async function applySync(
   if (isStaleBatch(p.batch_id, nowMs)) return 'stale';
   const seen = await db.prepare('SELECT 1 FROM sync_batches WHERE batch_id = ?').bind(p.batch_id).first();
   if (seen) return 'duplicate';
-  p = await afterReset(db, p);
+  const reset = await afterReset(db, p, nowMs);
+  p = reset.payload;
 
   const upsertMember = db.prepare(
-    `INSERT INTO members (user_id, display_name, avatar_url, joined_at, is_newbie, active, updated_at, games, green)
-     VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, COALESCE(?7, '[]'), ?8)
+    `INSERT INTO members (user_id, display_name, avatar_url, joined_at, is_newbie, active, updated_at, games, green, reset_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, COALESCE(?7, '[]'), ?8, ?9)
      ON CONFLICT (user_id) DO UPDATE SET display_name = ?2, avatar_url = ?3,
-       joined_at = COALESCE(?4, joined_at), is_newbie = ?5, active = 1, updated_at = ?6, games = COALESCE(?7, games), green = COALESCE(?8, green)`,
+       joined_at = COALESCE(?4, joined_at), is_newbie = ?5, active = 1, updated_at = ?6, games = COALESCE(?7, games), green = COALESCE(?8, green),
+       reset_at = CASE WHEN ?9 IS NULL THEN members.reset_at ELSE MAX(COALESCE(members.reset_at, ''), ?9) END`,
   );
   const memberStmts = p.members.map((m) =>
-    upsertMember.bind(m.id, m.name, m.avatar_url, m.joined_at, m.is_newbie ? 1 : 0, t, m.games ? JSON.stringify(m.games) : null, m.green === undefined ? null : m.green ? 1 : 0),
+    upsertMember.bind(m.id, m.name, m.avatar_url, m.joined_at, m.is_newbie ? 1 : 0, t, m.games ? JSON.stringify(m.games) : null, m.green === undefined ? null : m.green ? 1 : 0, reset.rejoined.get(m.id) ?? null),
   );
 
   // 시즌 모둠: 서버 멤버 전부가 담긴 묶음이면 멤버(게임 역할)를 먼저 적고, 처음 보는 시즌이면 모둠을 만들어요.
@@ -301,7 +338,7 @@ export async function applySync(
   // 나간 사람: 본인 카드와 도감은 지우고, 다른 사람이 가진 그 사람 카드는 흐리게 남겨요.
   for (const id of p.removed) {
     // 다시 들어오면 캐릭터를 새로 받으니 성별도 다시 골라요
-    stmts.push(db.prepare('UPDATE members SET active = 0, gender_chosen_at = NULL, reset_at = ?1, updated_at = ?1 WHERE user_id = ?2').bind(t, id));
+    stmts.push(db.prepare("UPDATE members SET active = 0, gender_chosen_at = NULL, reset_at = CASE WHEN ?1 IS NULL THEN reset_at ELSE MAX(COALESCE(reset_at, ''), ?1) END, updated_at = ?2 WHERE user_id = ?3").bind(reset.removed.get(id) ?? null, t, id));
     stmts.push(db.prepare('DELETE FROM profiles WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM character_keep WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM cards WHERE owner_id = ?').bind(id));
