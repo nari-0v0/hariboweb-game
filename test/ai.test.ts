@@ -26,6 +26,11 @@ describe('askAi', () => {
     log.mockRestore();
   });
 
+  it('답을 객체로 주면 글로 바꿔서 판단할 수 있게 해요', async () => {
+    const ai = { run: vi.fn(async () => ({ response: { verdict: 'bad' } })) } as unknown as Ai;
+    expect(await askAi(ai, 's', 'u', 20, 'x')).toBe('{"verdict":"bad"}');
+  });
+
   it('오류가 Error가 아니어도 글로 바꿔요', () => {
     expect(aiErrorText({ code: 3036 })).toBe('{"code":3036}');
   });
