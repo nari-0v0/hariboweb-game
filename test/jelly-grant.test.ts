@@ -96,3 +96,12 @@ describe('나리 전용 도감 젤리 지급', () => {
     expect(long.ok && [...(long.value.reason ?? '')].length).toBe(100);
   });
 });
+
+
+it('같은 밀리초에 같은 지급 번호가 겹쳐도 적용 성공은 한 요청만 돌려줘요', async () => {
+  const { db, jellyOf } = setup(0);
+  const results = await Promise.all([grantJelly(db, grant(), T), grantJelly(db, grant(), T)]);
+  expect(jellyOf()).toBe(10);
+  expect(results.filter((r) => r.result === 'applied')).toHaveLength(1);
+  expect(results.filter((r) => r.result === 'duplicate')).toHaveLength(1);
+});

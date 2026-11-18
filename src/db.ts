@@ -272,7 +272,7 @@ export async function chooseFirstGender(
   pool: CharacterPool,
   shown?: string,
 ): Promise<'done' | 'already' | 'changed'> {
-  const member = await db.prepare('SELECT gender_chosen_at FROM members WHERE user_id = ?').bind(userId).first<{ gender_chosen_at: string | null }>();
+  const member = await db.prepare('SELECT gender_chosen_at FROM members WHERE user_id = ? AND active = 1').bind(userId).first<{ gender_chosen_at: string | null }>();
   if (!member || member.gender_chosen_at) return 'already';
   for (let attempt = 1; attempt <= 5; attempt++) {
     const r = await retrySigConflict(() => chooseFirstGenderOnce(db, userId, pool, shown));
@@ -292,7 +292,7 @@ async function chooseFirstGenderOnce(
   const mark = `${now()}#${crypto.randomUUID()}`;
   const claim = db
     .prepare(
-      `UPDATE members SET gender_chosen_at = ?1 WHERE user_id = ?2 AND gender_chosen_at IS NULL
+      `UPDATE members SET gender_chosen_at = ?1 WHERE user_id = ?2 AND active = 1 AND gender_chosen_at IS NULL
          AND (SELECT character_id FROM profiles WHERE user_id = ?2) IS ?3
          AND NOT EXISTS (SELECT 1 FROM character_keep k WHERE k.character_id = ?4 AND k.user_id <> ?2)`,
     )
@@ -308,10 +308,15 @@ async function chooseFirstGenderOnce(
         )
         .bind(userId, plan.character, plan.sig, now(), mark),
     );
+    // 이미 맡겨 둔 캐릭터로 돌아오는 경우만 두 캐릭터를 맞바꿔요.
+    // 처음 무료로 고를 때 새 보관권을 주지는 않아요.
+    if (plan.returning) steps.push(keepStatement(db, userId, plan.before, plan.beforeSig,
+      'EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND gender_chosen_at = ?5)', mark));
   }
   await db.batch(steps);
-  const after = await db.prepare('SELECT gender_chosen_at FROM members WHERE user_id = ?').bind(userId).first<{ gender_chosen_at: string | null }>();
-  if (after?.gender_chosen_at === mark) return 'done';
+  const after = await db.prepare('SELECT gender_chosen_at FROM members WHERE user_id = ? AND active = 1').bind(userId).first<{ gender_chosen_at: string | null }>();
+  if (!after) return 'already';
+  if (after.gender_chosen_at === mark) return 'done';
   if (after?.gender_chosen_at) return 'already';
   // 그 사이 캐릭터가 바뀌었어요(새 캐릭터 배정 등). 다시 계획해요.
   return 'retry';
