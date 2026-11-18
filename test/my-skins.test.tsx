@@ -59,7 +59,7 @@ describe('내 카드에서 캐릭터 바꾸기', () => {
     return app.request('/api/me/deco', { method: 'POST', headers: { Cookie: `hs=${cookie}` }, body: new URLSearchParams(form) }, ENV);
   }
   beforeEach(() => {
-    vi.mocked(setDeco).mockReset().mockResolvedValue(undefined);
+    vi.mocked(setDeco).mockReset().mockResolvedValue(true);
     vi.mocked(getOwnedItems).mockResolvedValue(new Set(['deco:maid']));
     vi.mocked(countOwnedCards).mockResolvedValue(0);
     vi.mocked(countActiveMembers).mockResolvedValue(100);

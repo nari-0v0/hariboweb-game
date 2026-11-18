@@ -6,7 +6,7 @@ type N = { n: number };
 
 // 칭호 조건에 쓰는 내 기록을 한 번에 읽어요
 export async function loadTitleStats(db: D1Database, userId: string, nowIso: string): Promise<TitleStats> {
-  const [cards, seasons, clears, bingo, got, gave, own, gamble] = await db.batch([
+  const [cards, seasons, clears, bingo, got, gave, own, gamble, member] = await db.batch([
     db.prepare('SELECT xp, voice_seconds FROM cards WHERE owner_id = ?').bind(userId),
     // 끝난 시즌마다 내가 끝까지 있던 모둠의 퀘스트 수와 깬 수
     db
@@ -32,11 +32,13 @@ export async function loadTitleStats(db: D1Database, userId: string, nowIso: str
     db.prepare("SELECT COUNT(*) AS n FROM praises WHERE from_id = ?1 AND created_at >= COALESCE((SELECT reset_at FROM members WHERE user_id = ?1), '')").bind(userId),
     db.prepare('SELECT solo_xp AS n FROM profiles WHERE user_id = ?').bind(userId),
     db.prepare('SELECT chips, all_in_wins, jackpots, naturals FROM gamble_accounts WHERE user_id = ?').bind(userId),
+    db.prepare('SELECT reset_at FROM members WHERE user_id = ?').bind(userId),
   ]);
   const cardRows = cards!.results as { xp: number; voice_seconds: number }[];
   const xps = cardRows.map((r) => Number(r.xp));
   const n = (r: D1Result | undefined) => Number((r?.results[0] as N | undefined)?.n ?? 0);
   return {
+    resetAt: (member?.results[0] as { reset_at: string | null } | undefined)?.reset_at ?? null,
     gamble: gamble?.results[0] as TitleStats['gamble'],
     bestXp: xps.reduce((a, b) => Math.max(a, b), 0),
     ownXp: n(own),
@@ -65,19 +67,22 @@ export async function recordEarnedTitles(db: D1Database, userId: string, stats: 
   const fresh = TITLES.filter((t) => t.rule.kind !== 'shop' && !owned.has(t.id) && titleProgress(t, stats).ok).map((t) => t.id);
   if (!fresh.length) return [];
   const t = new Date().toISOString();
-  await db.batch(
+  const results = await db.batch(
     fresh.map((id) =>
       db
         .prepare(
           `INSERT INTO owned_items (user_id, item_id, acquired_at)
-           SELECT ?1, ?2, ?3 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
+           SELECT ?1, ?2, ?3 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1
+             AND COALESCE(reset_at, '') = ?4)
            ON CONFLICT DO NOTHING`,
         )
-        .bind(userId, titleItemId(id), t),
+        .bind(userId, titleItemId(id), t, stats.resetAt ?? ''),
     ),
   );
-  for (const id of fresh) owned.add(id);
-  return fresh;
+  // 다른 화면이 먼저 적은 칭호도 가진 것으로 보여요. 새 획득 알림은 직접 적은 것만이에요.
+  const actual = await ownedTitles(db, userId);
+  for (const id of fresh) if (actual.has(id)) owned.add(id);
+  return fresh.filter((id, i) => (results[i]?.meta.changes ?? 0) > 0 && actual.has(id));
 }
 
 export type TitleState = { title_id: string | null; title_applied: string | null; title_note: string | null };
@@ -92,16 +97,19 @@ export async function titleState(db: D1Database, userId: string): Promise<TitleS
 
 // 칭호 고르기(null이면 떼기). 같은 걸 다시 고르면(다시 붙이기·다시 떼기) 봇이 한 번 더 해 봐요.
 // 그때는 붙인 상태를 '?'(모름)로 둬서 봇 목록에 다시 나오게 해요.
-export async function equipTitle(db: D1Database, userId: string, titleId: string | null): Promise<void> {
-  await db
+export async function equipTitle(db: D1Database, userId: string, titleId: string | null): Promise<boolean> {
+  const result = await db
     .prepare(
-      `INSERT INTO profiles (user_id, title_id, updated_at) VALUES (?1, ?2, ?3)
+      `INSERT INTO profiles (user_id, title_id, updated_at)
+       SELECT ?1, ?2, ?3 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
+         AND (?2 IS NULL OR EXISTS (SELECT 1 FROM owned_items WHERE user_id = ?1 AND item_id = 'title:' || ?2))
        ON CONFLICT (user_id) DO UPDATE SET
          title_applied = CASE WHEN COALESCE(title_id, '') = COALESCE(?2, '') THEN '?' ELSE title_applied END,
          title_id = ?2, title_note = NULL, updated_at = ?3`,
     )
     .bind(userId, titleId, new Date().toISOString())
     .run();
+  return (result.meta.changes ?? 0) > 0;
 }
 
 // 상점 칭호를 도감 젤리로 사요(젤리 빼기와 칭호 주기를 한 번에)

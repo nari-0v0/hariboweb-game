@@ -89,7 +89,7 @@ describe('칭찬함', () => {
     // 봇 카드는 최근 limit개만, 웹 칭찬함(allUnread)은 안 읽은 건 다 보여 줘요
     expect((await praiseBox(db, C, 1)).items).toHaveLength(1);
     expect((await praiseBox(db, C, 1, true)).items).toHaveLength(2);
-    await markPraiseSeen(db, C, Date.now() + 1000);
+    await markPraiseSeen(db, C, Date.now() + 1000, (await praiseBox(db, C, 20, true)).items.map((item) => item.id));
     expect((await praiseBox(db, C)).unread).toBe(0);
   });
 
@@ -106,8 +106,8 @@ describe('칭찬함', () => {
     const { db } = fakeD1();
     const before = Date.now() - 1000;
     await givePraise(db, A, C, '2026-11-12', '최고!');
-    await markPraiseSeen(db, C, Date.now() + 1000);
-    await markPraiseSeen(db, C, before);
+    await markPraiseSeen(db, C, Date.now() + 1000, (await praiseBox(db, C, 20, true)).items.map((item) => item.id));
+    await markPraiseSeen(db, C, before, (await praiseBox(db, C, 20, true)).items.map((item) => item.id));
     expect((await praiseBox(db, C)).unread).toBe(0);
   });
 
@@ -326,4 +326,36 @@ describe('디스코드에서 처음 여자·남자 고르기', () => {
     expect((sql.prepare('SELECT character_id FROM profiles WHERE user_id = ?').get(A) as { character_id: string }).character_id).toMatch(/^boy-/);
     expect((await call(env, '/api/bot/gender', { user_id: '999999999999999999', pool: 'boy' })).status).toBe(404);
   });
+});
+
+it('목록 조회 직후 같은 밀리초에 받은 칭찬도 보지 않은 채 읽음 처리하지 않아요', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(NOW));
+  try {
+    const { db } = fakeD1();
+    await givePraise(db, A, C, '2026-11-12', '먼저 받은 칭찬');
+    const shown = await praiseBox(db, C, 20, true);
+    await givePraise(db, B, C, '2026-11-12', '같은 밀리초의 새 칭찬');
+    await markPraiseSeen(db, C, NOW, shown.items.map((item) => item.id));
+    const after = await praiseBox(db, C, 20, true);
+    expect(after.unread).toBe(1);
+    expect(after.items.find((item) => item.note === '같은 밀리초의 새 칭찬')?.unread).toBe(true);
+    expect(after.items.find((item) => item.note === '먼저 받은 칭찬')?.unread).toBe(false);
+  } finally { vi.useRealTimers(); }
+});
+
+
+it('건별 읽음 표시 마이그레이션은 기존에 본 칭찬을 다시 새것으로 만들지 않아요', () => {
+  const sql = new DatabaseSync(':memory:');
+  const files = readdirSync('migrations').filter((f) => f.endsWith('.sql')).sort();
+  for (const file of files.filter((f) => f < '0048')) sql.exec(readFileSync(`migrations/${file}`, 'utf8'));
+  sql.prepare("INSERT INTO members (user_id, display_name, updated_at) VALUES (?, 'a', 'x')").run(C);
+  sql.prepare("INSERT INTO profiles (user_id, praise_seen_at, updated_at) VALUES (?, '2026-11-12T03:00:00.000Z', 'x')").run(C);
+  const insert = sql.prepare('INSERT INTO praises (day, from_id, to_id, created_at) VALUES (?, ?, ?, ?)');
+  insert.run('2026-11-11', A, C, '2026-11-11T03:00:00.000Z#seen');
+  insert.run('2026-11-12', A, C, '2026-11-12T03:00:00.001Z#new');
+  sql.exec(readFileSync('migrations/0048_praise_read.sql', 'utf8'));
+  expect(sql.prepare('SELECT read_at FROM praises ORDER BY created_at').all()).toEqual([
+    { read_at: '2026-11-12T03:00:00.000Z' }, { read_at: null },
+  ]);
 });
