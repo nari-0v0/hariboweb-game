@@ -417,7 +417,10 @@ export async function applySync(
     stmts.push(db.prepare('DELETE FROM purchases WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM nick_jobs WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM alerts WHERE user_id = ?').bind(id));
-    stmts.push(db.prepare('DELETE FROM jelly_grants WHERE user_id = ?').bind(id));
+    // 젤리 지급 기록은 사유·개수를 지우고 번호만 남겨요. 봇이 응답을 못 받아 같은 번호로 다시 보내도
+    // 다시 들어온 사람에게 예전 젤리가 또 들어가지 않게요(아직 반영 안 된 기록은 지워요).
+    stmts.push(db.prepare('DELETE FROM jelly_grants WHERE user_id = ? AND applied_at IS NULL').bind(id));
+    stmts.push(db.prepare('UPDATE jelly_grants SET amount = 0, reason = NULL WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM card_count_rewards WHERE user_id = ?').bind(id));
   }
 
