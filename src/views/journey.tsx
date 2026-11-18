@@ -213,6 +213,7 @@ function Choice(props: { run: JourneyRun }) {
 // ── 무대: 배경 + 내 캐릭터 + 상대(적이나 길에서 만난 것) ──
 const STEP = 0.5; // 주고받는 한 번에 걸리는 시간(초)
 const START = 0.35;
+const FIGHT_MAX = 6; // 긴 싸움도 모든 공격을 보여 주되, 모션이 이 초를 넘지 않게 한 번의 시간을 줄여요
 const EVENT_PROP: Record<string, string> = {
   spring: 'spring',
   coin: 'fairy',
@@ -278,7 +279,7 @@ function propFor(s: JourneyState): string | null {
 export function fightPlan(fx: BattleFx) {
   const hero: string[] = [];
   const foe: string[] = [];
-  const pops: { on: 0 | 1; at: number; text: string; cls: string }[] = [];
+  const pops: { on: 0 | 1; at: number; text: string; cls: string; len?: number }[] = [];
   // 몬스터 체력 막대: 언제 몇 %까지 줄어드는지
   const max = fx.mhp ?? 0;
   const pct = (v: number) => Math.max(0, Math.min(100, Math.round((v / Math.max(1, max)) * 100)));
@@ -292,15 +293,20 @@ export function fightPlan(fx: BattleFx) {
     shown = pct(v);
     drops.push({ at, pct: shown });
   };
+  const step = Math.min(STEP, FIGHT_MAX / Math.max(1, fx.hits.length + (fx.spark ? 1 : 0)));
+  const k = step / STEP;
+  const lunge = `${(0.34 * k).toFixed(2)}s`;
+  const shake = `${(0.3 * k).toFixed(2)}s`;
+  const popLen = k < 1 ? +Math.max(0.3, 0.75 * k * 2).toFixed(2) : undefined; // 같은 쪽 숫자끼리 겹치지 않게(두 칸마다 한 번 떠요)
   let t = START;
   if (fx.spark) {
-    foe.push(`jr-zap .4s ${t}s`);
-    pops.push({ on: 1, at: t, text: `⚡${fx.spark}`, cls: 'zap' });
+    foe.push(`jr-zap ${(0.4 * k).toFixed(2)}s ${t.toFixed(2)}s`);
+    pops.push({ on: 1, at: t, text: `⚡${fx.spark}`, cls: 'zap', len: popLen });
     drop(t, max - fx.spark);
-    t += STEP;
+    t += step;
   }
   for (const [i, [who, dmg, crit]] of fx.hits.entries()) {
-    const hit = (t + 0.14).toFixed(2);
+    const hit = (t + 0.14 * k).toFixed(2);
     drop(+hit, fx.left?.[i]);
     const hp = fx.php?.[i];
     if (hp !== undefined && hp !== heroNow) {
@@ -308,20 +314,21 @@ export function fightPlan(fx: BattleFx) {
       heroHp.push({ at: +hit, now: hp });
     }
     if (who === 0) {
-      hero.push(`jr-lunge-r .34s ${t.toFixed(2)}s`);
-      foe.push(`jr-hit .3s ${hit}s`);
+      hero.push(`jr-lunge-r ${lunge} ${t.toFixed(2)}s`);
+      foe.push(`jr-hit ${shake} ${hit}s`);
       pops.push({
         on: 1,
         at: +hit,
         text: crit ? `${dmg}!` : `${dmg}`,
         cls: crit ? 'crit' : '',
+        len: popLen,
       });
     } else {
-      foe.push(`jr-lunge-l .34s ${t.toFixed(2)}s`);
-      hero.push(`jr-hit .3s ${hit}s`);
-      pops.push({ on: 0, at: +hit, text: `-${dmg}`, cls: 'ouch' });
+      foe.push(`jr-lunge-l ${lunge} ${t.toFixed(2)}s`);
+      hero.push(`jr-hit ${shake} ${hit}s`);
+      pops.push({ on: 0, at: +hit, text: `-${dmg}`, cls: 'ouch', len: popLen });
     }
-    t += STEP;
+    t += step;
   }
   const end = t.toFixed(2);
   if (fx.won) hero.push(`jr-cheer .5s ${end}s 2`);
@@ -339,11 +346,11 @@ export function fightPlan(fx: BattleFx) {
   };
 }
 
-function Pops(props: { list: { at: number; text: string; cls: string }[] }) {
+function Pops(props: { list: { at: number; text: string; cls: string; len?: number }[] }) {
   return (
     <>
       {props.list.map((p) => (
-        <b class={`jr-pop ${p.cls}`} style={`--d:${p.at}s`} aria-hidden="true">
+        <b class={`jr-pop ${p.cls}`} style={`--d:${p.at}s${p.len ? `;--pd:${p.len}s` : ''}`} aria-hidden="true">
           {p.text}
         </b>
       ))}

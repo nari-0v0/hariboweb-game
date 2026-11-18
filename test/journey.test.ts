@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DAYS, journeyJelly, KIT_SHIELD_HITS, kitCost, actJourney, autoChoice, decodeJourney, journeyXp, perkMax, gearBonus, gearNeed, hasMats, GEAR_MAX, LOWER_MATS, FIRST_CLEAR_BONUS, FARM_DROP, startJourney, stat, type JourneyState } from '../src/journey';
+import { DAYS, journeyJelly, KIT_SHIELD_HITS, kitCost, actJourney, autoChoice, decodeJourney, journeyXp, perkMax, gearBonus, gearNeed, hasMats, GEAR_MAX, LOWER_MATS, FIRST_CLEAR_BONUS, FARM_DROP, FX_HITS, startJourney, stat, type JourneyState } from '../src/journey';
 import { NO_COINS, STALE_PICK, actJourneyRun, activeJourney, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from '../src/journey-db';
 
 function database() {
@@ -247,6 +247,25 @@ describe('원정대 저장과 보상', () => {
 });
 
 describe('journey battle motion', () => {
+  it('keeps every hit of a long boss fight and fits the motion in time', async () => {
+    const { fightPlan } = await import('../src/views/journey');
+    // 체력이 많고 몬스터도 단단한 긴 싸움(예전엔 6칸으로 잘렸어요)
+    const tough = { ...startJourney('long-fight'), day: 19, ch: 4, hp: 400, maxHp: 400, def: 0 } as JourneyState;
+    const fx = actJourney(tough, { a: 'next' })!.fx!;
+    expect(fx.hits.length).toBeGreaterThan(6);
+    let hp = fx.hp0!;
+    for (const [i, [who, dmg]] of fx.hits.entries()) {
+      if (who === 1 && fx.php![i]! < hp) expect(fx.php![i]).toBe(Math.max(0, hp - dmg));
+      hp = fx.php![i]!;
+    }
+    const plan = fightPlan(fx);
+    expect(plan.pops.length).toBe(fx.hits.length + (fx.spark ? 1 : 0));
+    expect(plan.ms).toBeLessThanOrEqual(8000);
+    // 아주 긴 싸움(80칸)도 모션은 몇 초 안에 끝나요
+    const long = { foe: fx.foe, won: false, hits: Array.from({ length: 80 }, (_, i) => [(i % 2) as 0 | 1, 1] as [0 | 1, number]), hp0: 40, mhp: 999 };
+    expect(fightPlan(long).ms).toBeLessThanOrEqual(8000);
+  });
+
   it('records the fight for the stage and forgets it on the next action', async () => {
     const { fightPlan } = await import('../src/views/journey');
     const { FOES } = await import('../src/journey-art');
@@ -258,7 +277,19 @@ describe('journey battle motion', () => {
         seen++;
         expect(FOES[next.fx.foe]).toBeTruthy();
         expect(next.fx.hits.length).toBeGreaterThan(0);
-        expect(next.fx.hits.length).toBeLessThanOrEqual(6);
+        expect(next.fx.hits.length).toBeLessThanOrEqual(FX_HITS);
+        // 모든 공격이 빠짐없이 남아요: 적이 때린 칸은 바로 앞 칸 체력에서 그 피해만큼만 줄어요(물약은 늘 수 있음).
+        // 예전엔 긴 싸움 중간이 빠져서 '두 대 버틸 체력'에서 한 대에 죽는 것처럼 보였어요(슬금님 제보 2026-11-18)
+        let hpNow = next.fx.hp0!;
+        let foeNow = next.fx.mhp! - (next.fx.spark ?? 0);
+        for (const [i, [who, dmg]] of next.fx.hits.entries()) {
+          if (who === 1) {
+            // 물약을 마신 칸만 더 높을 수 있어요
+            if (next.fx.php![i]! <= Math.max(0, hpNow - dmg)) expect(next.fx.php![i]).toBe(Math.max(0, hpNow - dmg));
+          } else expect(next.fx.left![i]).toBe(Math.max(0, foeNow - dmg));
+          hpNow = next.fx.php![i]!;
+          foeNow = next.fx.left![i]!;
+        }
         const last = next.fx.hits[next.fx.hits.length - 1]!;
         expect(last[0]).toBe(next.fx.won ? 0 : 1);
         const plan = fightPlan(next.fx);
