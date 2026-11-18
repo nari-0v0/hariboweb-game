@@ -1,0 +1,50 @@
+name: server-ops
+
+# 나리 또는 Claude가 Actions 탭에서 눌러서 봇 서버(Oracle)에 올린 웹을 다룹니다.
+# 서버 쪽 1회 설정: deploy/setup-server.sh (방법은 docs/server-setup.md)
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "deploy = 최신 코드 받고 빌드 후 재시작 / status = 상태 / logs = 최근 로그 / backup = 지금 백업"
+        type: choice
+        options: [status, deploy, logs, backup]
+        default: status
+
+permissions:
+  contents: read
+
+concurrency:
+  group: server-ops
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Run on server
+        env:
+          SSH_HOST: ${{ secrets.WEB_SSH_HOST }}
+          SSH_USER: ${{ secrets.WEB_SSH_USER }}
+          SSH_KEY: ${{ secrets.WEB_SSH_KEY }}
+          SSH_HOST_KEY: ${{ secrets.WEB_SSH_HOST_KEY }}
+          ACTION: ${{ inputs.action }}
+        run: |
+          set -euo pipefail
+          for name in SSH_HOST SSH_USER SSH_KEY SSH_HOST_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "GitHub 비밀값 WEB_${name} 가 비어 있어요. docs/server-setup.md 를 보고 넣어 주세요."
+              exit 1
+            fi
+          done
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/web_ops
+          chmod 600 ~/.ssh/web_ops
+          printf '%s %s\n' "$SSH_HOST" "$SSH_HOST_KEY" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/web_ops -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=20 -o ServerAliveInterval=15 \
+            "$SSH_USER@$SSH_HOST" "$ACTION"
+      - name: Remove key
+        if: always()
+        run: rm -f ~/.ssh/web_ops
