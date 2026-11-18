@@ -524,11 +524,11 @@ describe('사건파일 장치 검증(코덱스 검토 반영)', () => {
           expect(s).not.toContain('"answers"');
         }
   });
-  it('답이 둘인 세모 문제는 둘 다 맞고, 왕 길 문제는 대각선 4번 미만이면 틀려요', async () => {
+  it('답이 여럿인 숫자 칸 문제는 모두 맞고, 왕 길 문제는 대각선 4번 미만이면 틀려요', async () => {
     const { BANK } = await import('../src/escape-bank');
-    const tri = BANK.find((b) => b.idea === 'num-triangle')!;
-    expect(checkUi(tri.ui!, '531426')).toBe(true);
-    expect(checkUi(tri.ui!, '432516')).toBe(true);
+    const nc = BANK.find((b) => b.idea === 'num-noconsec')!;
+    expect(checkUi(nc.ui!, '35718246')).toBe(true);
+    expect(checkUi(nc.ui!, '64281753')).toBe(true);
     const king = BANK.find((b) => b.idea === 'path-kingcross')!;
     expect(checkUi(king.ui!, '0.1.2.3.6.7.11.10.9.5.4.8.12.13.14.15')).toBe(false);
     expect(checkUi(king.ui!, king.a!)).toBe(true);
