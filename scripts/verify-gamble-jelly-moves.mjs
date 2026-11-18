@@ -3,6 +3,8 @@ import { pathToFileURL } from 'node:url';
 
 const accountCounters = ["won","best_win","all_in_wins","plays","jackpots","naturals"];
 
+const resetCounters = ["rounds","season_winners","owned_titles","equipped_titles"];
+
 function indexRows(rows, fields, name) {
   if (!Array.isArray(rows)) throw new Error(name + ': 배열이 필요해요');
   const indexed = new Map();
@@ -23,7 +25,12 @@ function indexRows(rows, fields, name) {
 
 // expected에는 승인된 지급 대상의 양수 이관액만 넣어요.
 // before와 after는 해당 시각의 전체 gamble_accounts 잔액이에요.
-export function verifyMoves(expected, before, after, paid) {
+export function verifyMoves(expected, before, after, paid, reset) {
+  if (!Array.isArray(reset) || reset.length !== 1 || reset[0] === null || typeof reset[0] !== 'object') {
+    throw new Error('초기화 검증: 조회 결과 한 행이 필요해요');
+  }
+  const resetMismatches = resetCounters.filter(field => reset[0][field] !== 0);
+  if (reset[0].completed !== 1) resetMismatches.push('completed');
   const planned = indexRows(expected, ['jelly'], '승인 지급 명단');
   for (const [id, row] of planned) {
     if (row.jelly === 0) throw new Error('승인 지급 명단: 이관액은 양수여야 해요 (' + id + ')');
@@ -59,19 +66,19 @@ export function verifyMoves(expected, before, after, paid) {
       mismatches.push({ user_id: id, expected: jelly, actual: current, account_missing: !actual.has(id) });
     }
   }
-  return { expected_accounts: planned.size, expected_total: expectedTotal.toString(), mismatches, ledger_mismatches: ledgerMismatches, state_mismatches: stateMismatches };
+  return { expected_accounts: planned.size, expected_total: expectedTotal.toString(), mismatches, ledger_mismatches: ledgerMismatches, state_mismatches: stateMismatches, reset_mismatches: resetMismatches };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const files = process.argv.slice(2);
-    if (files.length !== 4) {
-      throw new Error('쓰는 법: node scripts/verify-gamble-jelly-moves.mjs approved.json before.json after.json paid.json');
+    if (files.length !== 5) {
+      throw new Error('쓰는 법: node scripts/verify-gamble-jelly-moves.mjs approved.json before.json after.json paid.json reset.json');
     }
-    const [expected, before, after, paid] = files.map(file => JSON.parse(readFileSync(file, 'utf8')));
-    const result = verifyMoves(expected, before, after, paid);
+    const [expected, before, after, paid, reset] = files.map(file => JSON.parse(readFileSync(file, 'utf8')));
+    const result = verifyMoves(expected, before, after, paid, reset);
     console.log(JSON.stringify(result, null, 2));
-    if (result.mismatches.length || result.ledger_mismatches.length || result.state_mismatches.length) process.exitCode = 1;
+    if (result.mismatches.length || result.ledger_mismatches.length || result.state_mismatches.length || result.reset_mismatches.length) process.exitCode = 1;
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;
