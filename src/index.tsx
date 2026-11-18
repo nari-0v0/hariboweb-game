@@ -61,6 +61,7 @@ import { BingoPage } from './views/bingo';
 import { KIDNAP_MIN, SERVER_JELLY, TEAM_GOAL_MIN, TEAM_JELLY, bingoExtras, loadServerQuest, loadTeams, matesOf, myTeamState, pairKey, rankTeams, seasonAt } from './team';
 import { loadRankings } from './rankings';
 import { dogamProgress } from './unlock';
+import { gameProgressStats } from './game-progress-stats';
 import { claimedCardSteps, settleCardRewards } from './card-rewards';
 import { RankPage, rankTab } from './views/rank';
 import { BLOCK_MAX_PENDING, BLOCK_MORE, blockCandidates, cancelBlock, decideBlock, flipBlock, listUnpostedBlocks, markBlockPosted, myBlocks, requestBlock } from './assign-block';
@@ -194,6 +195,16 @@ app.post('/auth/logout', (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
   deleteCookie(c, SESSION_COOKIE, { path: '/' });
   return c.redirect('/');
+});
+
+app.get('/api/internal/game-progress', async (c) => {
+  c.header('Cache-Control', 'no-store');
+  const token = c.env.GAME_PROGRESS_TOKEN;
+  const auth = c.req.header('Authorization') ?? '';
+  if (!token || !(await safeEqual(auth, `Bearer ${token}`))) {
+    return c.json({ error: 'unauthorized' }, 401);
+  }
+  return c.json(await gameProgressStats(c.env.DB));
 });
 
 // 봇 전용 API는 로그인 대신 비밀 토큰으로 확인해요.
