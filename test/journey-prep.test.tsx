@@ -31,6 +31,12 @@ async function render(prep?: string) {
 }
 
 describe('원정 준비소 탭', () => {
+  it('아직 기록이 없으면 가장 높이를 Lv.0 대신 "아직 없음"으로 보여요', async () => {
+    const html = await render();
+    expect(html).toContain('가장 높이 아직 없음');
+    expect(html).not.toContain('가장 높이 Lv.0');
+  });
+
   it('모르는 탭 값은 탭을 안 연 것으로 봐요', () => {
     expect(prepTab('gear')).toBe('gear');
     expect(prepTab('nope')).toBeNull();

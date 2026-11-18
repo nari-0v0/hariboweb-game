@@ -903,7 +903,7 @@ export function JourneyPage(props: {
                 <span class="jr-shadow" />
               </div>
               <div class="jr-lobby-stats">
-                <span>🏔️ 가장 높이 Lv.{record.best}</span>
+                <span>🏔️ 가장 높이 {record.best > 0 ? `Lv.${record.best}` : '아직 없음'}</span>
                 <span>🏆 대장 {record.clears}번</span>
                 <span>
                   📍 {record.unlocked}장 {home.name}
