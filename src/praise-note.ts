@@ -35,7 +35,11 @@ export async function checkNote(
 ): Promise<{ note: string | null; filtered: boolean; verdict?: 'ok' | 'bad' | 'none' }> {
   const note = cleanNote(raw);
   if (!note) return { note: null, filtered: false };
-  const verdict = parseNoteVerdict(await askAi(ai, AI_PROMPT, note, 20, '칭찬 한마디')) ?? 'none';
+  const answer = await askAi(ai, AI_PROMPT, note, 20, '칭찬 한마디');
+  const parsed = parseNoteVerdict(answer);
+  // 답은 왔는데 판단을 못 읽으면 답 앞부분을 남겨요(왜 'none'인지 로그에서 보려고)
+  if (answer && !parsed) console.error(`칭찬 한마디 AI 답을 못 읽었어요: ${answer.slice(0, 120)}`);
+  const verdict = parsed ?? 'none';
   return verdict === 'bad' ? { note: null, filtered: true, verdict } : { note, filtered: false, verdict };
 }
 

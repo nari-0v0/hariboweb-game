@@ -49,7 +49,9 @@ const AI_PROMPT = `너는 디스코드 게임 모임의 팀 배정 도우미야.
 // AI가 없거나(로컬·바인딩 없음) 실패하거나 무료 사용량이 끝나면 null: 기다리지 않고 규칙 검사만으로 넘겨요.
 export async function reviewReason(ai: Ai | undefined, reason: string): Promise<AiVerdict | null> {
   const text = await askAi(ai, AI_PROMPT, reason.slice(0, BLOCK_REASON_MAX), 120, '배정 제외');
-  return text ? parseVerdict(text) : null;
+  const verdict = text ? parseVerdict(text) : null;
+  if (text && !verdict) console.error(`배정 제외 AI 답을 못 읽었어요: ${text.slice(0, 120)}`);
+  return verdict;
 }
 
 export function parseVerdict(text: string): AiVerdict | null {
