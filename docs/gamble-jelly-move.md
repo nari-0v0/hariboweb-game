@@ -37,9 +37,9 @@
    (초기화와 완료 표시를 한 문장으로 처리해요. 지급이 0건이어도 다시 실행하면 지우지 않아요.)
 5. **확인**: `SELECT COUNT(*), SUM(jelly) FROM gamble_jelly_moves WHERE moved_at IS NOT NULL`
    초기화 뒤 지급 직전 계정이 비어 있었는지 확인하고, 지급 직후 계정 목록과 잔액을 승인한 명단과 대조해요. 승인 명단 밖의 계정은 잔액이 0이어도 검증이 실패해요. 대조가 끝날 때까지 테스터의 플레이도 멈춰요.
-   지급 직후 같은 잔액 조회 결과를 `after.json`으로 저장해요. `SELECT user_id, jelly FROM gamble_jelly_moves WHERE moved_at IS NOT NULL ORDER BY user_id` 결과 전체를 `paid.json`으로 저장해요.
+   지급 직후 `SELECT user_id, chips, free_day, rescue_day, won, best_win, all_in_wins, plays, jackpots, naturals FROM gamble_accounts ORDER BY user_id` 결과 전체를 `after.json`으로 저장해요. `SELECT user_id, jelly FROM gamble_jelly_moves WHERE moved_at IS NOT NULL ORDER BY user_id` 결과 전체를 `paid.json`으로 저장해요.
    `approved.json`은 승인된 지급 대상의 양수 금액 목록(`user_id`, `jelly`)이에요. 지급 결과로 승인 목록을 만들면 누락을 찾을 수 없어요.
-   `node scripts/verify-gamble-jelly-moves.mjs approved.json before.json after.json paid.json`에서 오류가 나거나 차이가 있으면 잠금을 유지해요.
+   `node scripts/verify-gamble-jelly-moves.mjs approved.json before.json after.json paid.json`에서 오류가 나거나 차이가 있으면 잠금을 유지해요. 지급·구제 날짜는 NULL이고 게임 통계는 모두 0이어야 해요.
    웹에 없어서 못 받은 사람은 `WHERE moved_at IS NULL`로 보고해요.
 6. **웹 겜블장 열기**: 숫자가 맞으면 `GAMBLE_LOCKED`를 `false`로 바꾸는 한 줄 PR → 배포.
 
