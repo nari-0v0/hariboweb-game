@@ -1,3 +1,4 @@
+import { comma } from '../num';
 import type { Member } from '../env';
 import { GAMBLE_ART, SLOT_ART } from '../gamble-art';
 import { CHERRY_PAIR, COIN_PAYOUT, ROULETTE, SLOTS, payback, rankOf, type CoinFlip, type CoinSide } from '../gamble';
@@ -23,7 +24,7 @@ const NOTICES: Record<string, string> = {
   'rescue-day-changed': '날짜가 바뀌었어요. 지금 잔액을 확인한 뒤 다시 시도해 주세요.',
   'no-rescue': '오늘 이미 다시 시작했거나, 아직 젤칩이나 진행 중인 카드 21이 있어요.',
 };
-const chips = (n: number) => n.toLocaleString('ko-KR');
+const chips = (n: number) => comma(n);
 
 function Art({ name }: { name: string }) {
   const art = GAMBLE_ART[name]!;

@@ -217,6 +217,19 @@ export async function actJourneyRun(db: D1Database, user: string, id: string, re
   const token = crypto.randomUUID();
   const day = kstDay(now);
   const room = `(SELECT COUNT(*) FROM journey_runs WHERE user_id = ?2 AND reward_day = ?7 AND xp > 0) < ${DAILY_REWARD_JOURNEYS}`;
+  // 아직 진행 중인 판은 진행 내용만 저장해요. 상태·보상 칸(색인에 들어 있는 칸)을 건드리지 않아서
+  // DB 쓰기가 한 번에 4줄 → 1줄로 줄어요(무료 한도 하루 10만 줄).
+  if (!s.done) {
+    const r = await db
+      .prepare(
+        `UPDATE journey_runs SET state = ?4, rev = rev + 1, mutation = ?3, updated_at = ?5, day = ?6
+         WHERE id = ?1 AND user_id = ?2 AND rev = ?7 AND status = 'going'
+           AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)`,
+      )
+      .bind(id, user, token, JSON.stringify(s), t, s.day, rev)
+      .run();
+    return (r.meta.changes ?? 0) === 1 ? 'ok' : 'stale';
+  }
   const stmts = [
     db
       .prepare(

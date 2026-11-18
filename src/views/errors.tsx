@@ -35,15 +35,17 @@ export function NotFoundPage(props: { viewer?: Member | null }) {
   );
 }
 
-// 서버 오류(500). DB가 문제일 수도 있어서 로그인 정보 없이 그려요.
-export function ErrorPage(props: { retry: string }) {
+// 화면 가운데 큰 글씨 + 곰돌이 + 버튼 두 개(다시 시도, 방장 문의). 로그인·DB 없이 그려요.
+function TroublePage(props: { title: string; code: string; lines: string[]; retry: string }) {
   return (
-    <Layout title="잠깐 문제가 생겼어요">
+    <Layout title={props.title}>
       <section class="panel message err-page">
-        <p class="err-code">앗!</p>
+        <p class="err-code">{props.code}</p>
         <LostBears />
-        <h1>잠깐 문제가 생겼어요</h1>
-        <p class="muted">조금 뒤에 다시 시도해 주세요. 계속 안 되면 방장에게 알려 주세요.</p>
+        <h1>{props.title}</h1>
+        {props.lines.map((l) => (
+          <p class="muted">{l}</p>
+        ))}
         <div class="err-actions">
           <a class="btn btn-primary" href={props.retry}>
             다시 시도
@@ -54,5 +56,34 @@ export function ErrorPage(props: { retry: string }) {
         </div>
       </section>
     </Layout>
+  );
+}
+
+// 서버 오류(500)
+export function ErrorPage(props: { retry: string }) {
+  return <TroublePage code="앗!" title="오류가 생겼어요!" lines={['방장에게 도움을 요청하세요!']} retry={props.retry} />;
+}
+
+// DB 한도에 닿았을 때(503). 하루 한도는 매일 아침 9시(한국 시간)에 다시 채워지고, 저장 용량은 기다려도 안 풀려요.
+export function DbFullPage(props: { retry: string; daily: boolean }) {
+  return (
+    <TroublePage
+      code="DB"
+      title="DB가 가득 찼어요!"
+      lines={['방장에게 도움을 요청하세요!', ...(props.daily ? ['하루 쓸 수 있는 양을 다 써서, 보통 아침 9시에 다시 열려요.'] : [])]}
+      retry={props.retry}
+    />
+  );
+}
+
+// 점검 중(503). when = 나리가 적은 점검 시간(없으면 시간 없이)
+export function MaintenancePage(props: { retry: string; when: string }) {
+  return (
+    <TroublePage
+      code="점검"
+      title="점검 중이에요!"
+      lines={[...(props.when ? [`${props.when} 점검할 예정이에요!`] : []), '조금 더 오래 걸릴 수 있으니 조금만 기다려 주세요.']}
+      retry={props.retry}
+    />
   );
 }

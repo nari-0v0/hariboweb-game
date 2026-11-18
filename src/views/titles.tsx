@@ -1,3 +1,5 @@
+import { esc } from './esc';
+import { raw } from 'hono/html';
 import type { Profile } from '../db';
 import type { Member } from '../env';
 import type { TitleState } from '../title-db';
@@ -32,65 +34,41 @@ function applyText(s: TitleState): { text: string; retry?: boolean } | null {
   return { text: '디스코드 닉네임 앞에 붙어 있어요.' };
 }
 
-function TitleRow(props: { t: Title; stats: TitleStats; owned: boolean; using: boolean }) {
-  const { t, stats, owned, using } = props;
+// 칭호가 500개 가까이라 JSX로 하나씩 그리면 무료 요금제 계산 한도(요청당 10ms)를 넘겨요.
+// 그래서 칭호 칸은 같은 모양의 HTML 글을 바로 이어 붙여요(이름 등 글자는 꼭 esc로 바꿔요).
+const formHtml = (action: 'equip' | 'buy', id: string, label: string, buy: boolean) =>
+  `<form method="post" action="/api/titles/${action}"><input type="hidden" name="title" value="${esc(id)}"/>` +
+  `<button class="btn btn-small${buy ? ' btn-buy' : ''}" type="submit">${label}</button></form>`;
+
+function titleRowHtml(t: Title, stats: TitleStats, owned: boolean, using: boolean): string {
   const prog = titleProgress(t, stats);
   const open = owned || (t.rule.kind !== 'shop' && prog.ok);
+  const end = using
+    ? '<span class="tag on">사용 중</span>'
+    : open
+      ? formHtml('equip', t.id, '쓰기', false)
+      : t.rule.kind === 'shop'
+        ? formHtml('buy', t.id, `🍬 ${esc(t.rule.price)}`, true)
+        : '<span class="tag reward">잠김</span>';
   return (
-    <div class={`title-item${using ? ' using' : open ? ' open' : ' locked'}`}>
-      <span class="title-chip">{t.name}</span>
-      <div class="title-info">
-        <span class="hint">{prog.text}</span>
-        {!open && prog.now && <span class="hint now">지금 {prog.now}</span>}
-      </div>
-      {using ? (
-        <span class="tag on">사용 중</span>
-      ) : open ? (
-        <form method="post" action="/api/titles/equip">
-          <input type="hidden" name="title" value={t.id} />
-          <button class="btn btn-small" type="submit">
-            쓰기
-          </button>
-        </form>
-      ) : t.rule.kind === 'shop' ? (
-        <form method="post" action="/api/titles/buy">
-          <input type="hidden" name="title" value={t.id} />
-          <button class="btn btn-small btn-buy" type="submit">
-            🍬 {t.rule.price}
-          </button>
-        </form>
-      ) : (
-        <span class="tag reward">잠김</span>
-      )}
-    </div>
+    `<div class="title-item${using ? ' using' : open ? ' open' : ' locked'}"><span class="title-chip">${esc(t.name)}</span>` +
+    `<div class="title-info"><span class="hint">${esc(prog.text)}</span>${!open && prog.now ? `<span class="hint now">지금 ${esc(prog.now)}</span>` : ''}</div>` +
+    end +
+    '</div>'
   );
 }
 
 // 상점 칭호는 이름표와 버튼만 작게 보여요(500개 가까이라)
+function shopChipHtml(t: Title, owned: boolean, using: boolean): string {
+  const end = using
+    ? '<span class="tag on">사용 중</span>'
+    : owned
+      ? formHtml('equip', t.id, '쓰기', false)
+      : formHtml('buy', t.id, `🍬 ${t.rule.kind === 'shop' ? esc(t.rule.price) : ''}`, true);
+  return `<div class="title-cell${using ? ' using' : owned ? ' open' : ''}"><span class="title-chip">${esc(t.name)}</span>${end}</div>`;
+}
 function ShopChip(props: { t: Title; owned: boolean; using: boolean }) {
-  const { t, owned, using } = props;
-  return (
-    <div class={`title-cell${using ? ' using' : owned ? ' open' : ''}`}>
-      <span class="title-chip">{t.name}</span>
-      {using ? (
-        <span class="tag on">사용 중</span>
-      ) : owned ? (
-        <form method="post" action="/api/titles/equip">
-          <input type="hidden" name="title" value={t.id} />
-          <button class="btn btn-small" type="submit">
-            쓰기
-          </button>
-        </form>
-      ) : (
-        <form method="post" action="/api/titles/buy">
-          <input type="hidden" name="title" value={t.id} />
-          <button class="btn btn-small btn-buy" type="submit">
-            🍬 {t.rule.kind === 'shop' ? t.rule.price : ''}
-          </button>
-        </form>
-      )}
-    </div>
-  );
+  return raw(shopChipHtml(props.t, props.owned, props.using));
 }
 
 export function TitlesPage(props: {
@@ -214,17 +192,9 @@ export function TitlesPage(props: {
                   </span>
                 </summary>
                 {shop !== null ? (
-                  <div class="title-grid">
-                    {list.map((t) => (
-                      <ShopChip t={t} owned={owned.has(t.id)} using={state.title_id === t.id} />
-                    ))}
-                  </div>
+                  <div class="title-grid">{raw(list.map((t) => shopChipHtml(t, owned.has(t.id), state.title_id === t.id)).join(''))}</div>
                 ) : (
-                  <div class="title-list">
-                    {list.map((t) => (
-                      <TitleRow t={t} stats={stats} owned={owned.has(t.id)} using={state.title_id === t.id} />
-                    ))}
-                  </div>
+                  <div class="title-list">{raw(list.map((t) => titleRowHtml(t, stats, owned.has(t.id), state.title_id === t.id)).join(''))}</div>
                 )}
               </details>
             );
