@@ -638,7 +638,7 @@ app.get('/api/bot/team/:id', async (c) => {
           bonus: t.bonus,
           me: myTeamState(t, id),
           need: t.need,
-          my_mates: matesOf(id, t.members.map((m) => m.id), new Map(t.pairs.map((p) => [pairKey(p.a, p.b), p.minutes]))),
+          my_mates: matesOf(id, t.members.map((m) => m.id), new Map(t.pairs.map((p) => [pairKey(p.a, p.b), p.minutes])), t.resets),
         }
       : null,
     server: x.server ? { target: x.server.target, kidnapped: x.server.kidnapped.length, met: x.server.met, joined: x.server.participants.includes(id) } : null,
