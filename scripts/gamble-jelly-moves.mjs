@@ -47,6 +47,7 @@ export function buildMoveSql(wallets, now = new Date().toISOString(), approved =
   if (payableIds.size) {
     const ids = [...payableIds].map(id => `'${id}'`).join(', ');
     const membershipCheck = approved === null ? '' : `
+      AND EXISTS (SELECT 1 FROM gamble_launch_reset WHERE id = 1)
       AND (SELECT COUNT(*) FROM members WHERE active = 1 AND user_id IN (${ids})) = ${payableIds.size}`;
     const activeOnly = approved === null ? '\n    AND user_id IN (SELECT user_id FROM members WHERE active = 1)' : '';
     // 금액 또는 승인 상태가 맞지 않으면 NOT NULL 제약으로 지급문 전체를 롤백해요.
