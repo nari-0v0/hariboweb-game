@@ -507,9 +507,10 @@ try {
     // PLAYTEST_VARIANTS=N: 만든 사건은 다시 푸는 판(범인·단서·자리를 새로 섞은 판) 1~N도 실제 화면으로 풀어요.
     // 판 번호 = 그 사건을 시작한 횟수라서, 처음 판을 끝낸 뒤 다시 시작하면 다음 판이 나와요.
     const VARIANTS = Number(process.env.PLAYTEST_VARIANTS || 0);
-    // PLAYTEST_SHARD=k/n: 사건 번호를 n으로 나눈 나머지가 k인 사건만 풀어요(여러 로봇을 한 서버에 나눠 돌릴 때).
+    // PLAYTEST_CASES=c06,c10: 그 사건만. PLAYTEST_SHARD=k/n: 사건 번호를 n으로 나눈 나머지가 k인 사건만 풀어요(여러 로봇을 한 서버에 나눠 돌릴 때).
     const [shardK, shardN] = (process.env.PLAYTEST_SHARD || "0/1").split("/").map(Number);
-    const plays = ESCAPE_CASES.filter((_, i) => i % shardN === shardK).flatMap((c) => Array.from({ length: c.solution ? VARIANTS + 1 : 1 }, (_, vr) => (vr ? escCase(c.id, vr) : c)));
+    const pickCases = process.env.PLAYTEST_CASES?.split(",");
+    const plays = ESCAPE_CASES.filter((c, i) => i % shardN === shardK && (!pickCases || pickCases.includes(c.id))).flatMap((c) => Array.from({ length: c.solution ? VARIANTS + 1 : 1 }, (_, vr) => (vr ? escCase(c.id, vr) : c)));
     const lockedIds = new Set();
     for (const c of only("cases") ? plays : []) {
       if (lockedIds.has(c.id)) continue;
