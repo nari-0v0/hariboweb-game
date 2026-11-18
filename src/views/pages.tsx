@@ -297,7 +297,7 @@ export function MePage(props: { viewer: Member; profile: Profile; items: Set<str
             {props.saved && <p class="notice ok">저장했어요!</p>}
             <div class="pool-pick">
               <span class="pool-label">내 캐릭터</span>
-              <span class="btn pool on">{poolOf(profile.character_id) === 'boy' ? '남자' : '여자'}</span>
+              <span class="chip">{poolOf(profile.character_id) === 'boy' ? '남자' : '여자'}</span>
               <small class="hint">
                 성별은 <a href="/shop#gender">젤리 상점 매점</a>의 "성별 바꾸기"로 바꿀 수 있어요.
               </small>
