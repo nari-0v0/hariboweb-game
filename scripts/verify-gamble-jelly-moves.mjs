@@ -31,6 +31,9 @@ export function verifyMoves(expected, before, after, paid, reset) {
   }
   const resetMismatches = resetCounters.filter(field => reset[0][field] !== 0);
   if (reset[0].completed !== 1) resetMismatches.push('completed');
+  if (typeof reset[0].snapshot_digest !== 'string' || !/^[a-f0-9]{64}$/.test(reset[0].snapshot_digest)) {
+    resetMismatches.push('snapshot_digest');
+  }
   const planned = indexRows(expected, ['jelly'], '승인 지급 명단');
   for (const [id, row] of planned) {
     if (row.jelly === 0) throw new Error('승인 지급 명단: 이관액은 양수여야 해요 (' + id + ')');
