@@ -116,6 +116,15 @@ function troubleResponse(c: Context<AppEnv>, kind: 'maintenance' | DbLimit) {
   const node = kind === 'maintenance' ? <MaintenancePage retry={retryPath(c)} when={maintenanceWhen(c.env.MAINTENANCE)} /> : <DbFullPage retry={retryPath(c)} daily={kind === 'daily'} />;
   return c.html('<!doctype html>' + String(node), 503, headers);
 }
+// 문지기 모드에서 원본 서버가 응답하지 않을 때 워커가 보여 줄 화면: 나리가 정한 '그 외' 오류 화면(오류가 생겼어요!).
+// 봇은 글자 503을 받고 나중에 다시 보내요.
+export function originDownResponse(request: Request): Response {
+  const url = new URL(request.url);
+  const headers = { 'Cache-Control': 'no-store', 'Retry-After': '60', 'Content-Type': 'text/html; charset=utf-8' };
+  if (url.pathname.startsWith('/api/bot/')) return new Response('서버가 잠깐 멈췄어요', { status: 503, headers: { ...headers, 'Content-Type': 'text/plain; charset=utf-8' } });
+  const retry = request.method === 'GET' && /^\/(?![\/\\])/.test(url.pathname) ? url.pathname + url.search : '/me';
+  return new Response('<!doctype html>' + String(<ErrorPage retry={retry} />), { status: 503, headers });
+}
 app.use('*', async (c, next) => {
   if (maintenanceOn(c.env.MAINTENANCE) && !maintenanceSkips(c.req.path)) return troubleResponse(c, 'maintenance');
   await next();
@@ -638,7 +647,7 @@ app.get('/api/bot/team/:id', async (c) => {
           bonus: t.bonus,
           me: myTeamState(t, id),
           need: t.need,
-          my_mates: matesOf(id, t.members.map((m) => m.id), new Map(t.pairs.map((p) => [pairKey(p.a, p.b), p.minutes]))),
+          my_mates: matesOf(id, t.members.map((m) => m.id), new Map(t.pairs.map((p) => [pairKey(p.a, p.b), p.minutes])), t.resets),
         }
       : null,
     server: x.server ? { target: x.server.target, kidnapped: x.server.kidnapped.length, met: x.server.met, joined: x.server.participants.includes(id) } : null,

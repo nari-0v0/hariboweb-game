@@ -105,4 +105,21 @@ describe('Worker 문지기 모드', () => {
     expect(target.pathname).toBe('//attacker.example/collect');
     expect(target.search).toBe('?x=1');
   });
+  it('원본 서버가 꺼져 있거나 502를 주면 오류 화면(봇에는 글자 503)을 보여 줘요', async () => {
+    const env = { ORIGIN_URL: 'http://127.0.0.1:8787', ORIGIN_SECRET: 'door-secret', ASSETS: { fetch: vi.fn() } } as unknown as Env;
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('connect ECONNREFUSED'); }));
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const page = await worker.fetch(new Request('https://dogam.example/me'), env, {} as ExecutionContext);
+    expect(page.status).toBe(503);
+    expect(await page.text()).toContain('오류가 생겼어요!');
+    const bot = await worker.fetch(new Request('https://dogam.example/api/bot/sync', { method: 'POST', body: '{}' }), env, {} as ExecutionContext);
+    expect(bot.status).toBe(503);
+    expect(bot.headers.get('Content-Type')).toContain('text/plain');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('bad gateway', { status: 502 })));
+    expect(await (await worker.fetch(new Request('https://dogam.example/me'), env, {} as ExecutionContext)).text()).toContain('오류가 생겼어요!');
+    // 앱이 보낸 점검 503(Retry-After 있음)은 그대로
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('점검', { status: 503, headers: { 'Retry-After': '600' } })));
+    expect(await (await worker.fetch(new Request('https://dogam.example/me'), env, {} as ExecutionContext)).text()).toBe('점검');
+    log.mockRestore();
+  });
 });

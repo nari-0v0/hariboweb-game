@@ -95,7 +95,7 @@ export function GuidePage(props: { viewer: Member | null }) {
             <ul>
               <li>열쇠, 비밀번호, 수수께끼 해결</li>
               <li>최초 해결 시 카드 경험치 획득</li>
-              <li>S·A 등급 최초 달성 시 젤리 지급</li>
+              <li>처음 해결한 판이 S·A 등급이면 젤리도 지급(다시 풀면 보상 없음)</li>
               <li>다시 열면 수수께끼는 같고 범인·단서·물건 자리·시계 시각이 바뀌어요(입문 사건 3개·대화 사건은 그대로)</li>
             </ul>
             <h3>🔓 콘텐츠 해금</h3>
@@ -121,7 +121,7 @@ export function GuidePage(props: { viewer: Member | null }) {
           <details>
             <summary>📌 디스코드 고정 패널</summary>
             <p>고정 패널에서 주요 기능을 바로 이용할 수 있어요.</p>
-            <p class="guide-steps">내 카드 · 칭찬하기 · 우리 팀 · 팀 순위 · 이번 주 빙고</p>
+            <p class="guide-steps">내 카드 · 칭찬하기 · 우리 팀 · 이번 주 빙고 · 도움말 · 웹페이지 · 원정대 · 사건파일</p>
             <ul>
               <li>버튼을 누르면 나에게만 보이는 화면으로 열려요.</li>
               <li>개인 DM 알림은 없어요.</li>

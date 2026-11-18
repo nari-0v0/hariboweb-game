@@ -202,6 +202,46 @@ describe('동기화로 팀·서버 퀘스트', () => {
     expect(jelly(sql, D) - dBefore).toBe(3 + 5);
   });
 
+  it('같은 시즌에 나갔다 다시 들어오면 나가기 전 통화는 본인 팀 달성·납치 참여에 세지 않아요', async () => {
+    const { db } = await setup();
+    await applySync(db, payload({ room_minutes: minutes(30, [B, C, D]) }), NOW + 3_600_000);
+    expect((await teamStatesFor(db, '2026-11-03', [B, C])).get(C)).toBe('done');
+    const t1 = NOW + 2 * 3_600_000;
+    const removed = payload({ removed: [C] });
+    removed.batch_id = new Date(t1).toISOString() + '-left';
+    await applySync(db, removed, t1);
+    const back = payload({ members: [member(C)] });
+    back.batch_id = new Date(t1 + 60_000).toISOString() + '-back';
+    await applySync(db, back, t1 + 60_000);
+    // 다시 들어온 C는 처음부터, 함께 있던 B·D 쪽 기록은 그대로예요
+    const states = await teamStatesFor(db, '2026-11-03', [B, C]);
+    expect(states.get(C)).not.toBe('done');
+    expect(states.get(B)).toBe('done');
+    const server = (await bingoExtras(db, C, START)).server;
+    expect(server).toMatchObject({ kidnapped: [D], met: true });
+    expect(server?.participants).toEqual([B, D]);
+    // 다시 들어온 뒤 30분을 함께하면 다시 세요
+    const again = payload({ members: [member(B), member(C), member(D, true)], room_minutes: minutes(30, [B, C, D], t1 + 120_000) });
+    again.batch_id = new Date(t1 + 3_600_000).toISOString() + '-again';
+    await applySync(db, again, t1 + 3_600_000);
+    expect((await teamStatesFor(db, '2026-11-03', [C])).get(C)).toBe('done');
+    expect((await bingoExtras(db, C, START)).server?.participants).toEqual([B, C, D]);
+  });
+
+  it('시즌이 끝난 뒤 정산 전에 달성자가 나가도 그 시즌 팀 달성은 그대로예요', async () => {
+    const { sql, db } = await setup();
+    await applySync(db, payload({ room_minutes: [...minutes(30, [A, B, C])] }), NOW + 3_600_000);
+    expect((await teamStatesFor(db, '2026-11-03', [B])).get(B)).toBe('done');
+    const left = Date.parse(END) + 5 * 60_000;
+    const removed = payload({ removed: [A] });
+    removed.batch_id = new Date(left).toISOString() + '-left';
+    await applySync(db, removed, left);
+    expect((sql.prepare('SELECT COUNT(*) AS n FROM season_pair_reset').get() as { n: number }).n).toBe(0);
+    const bBefore = jelly(sql, B);
+    await settleEnded(db, Date.parse(END) + 31 * 60_000);
+    expect(jelly(sql, B) - bBefore).toBe(3);
+  });
+
   it('초기화 전에 한 통화는 팀 달성·납치 진행으로 되살아나지 않아요', async () => {
     const { sql, db } = await setup();
     const reset = NOW + 2 * 3_600_000;

@@ -829,7 +829,10 @@ export async function groupViewFor(db: D1Database, userId: string, nowMs: number
   const g = loaded?.groups.find((x) => x.no === row.group_no);
   if (!loaded || !g) return null;
   const { results: titles } = await db
-    .prepare('SELECT title FROM season_titles WHERE user_id = ? ORDER BY season_id DESC LIMIT 20')
+    // 다시 들어온 멤버는 나간 뒤 받은 칭호만 보여요(칭호 화면의 집계와 같은 기준)
+    .prepare(
+      "SELECT title FROM season_titles WHERE user_id = ?1 AND created_at >= COALESCE((SELECT reset_at FROM members WHERE user_id = ?1), '') ORDER BY season_id DESC LIMIT 20",
+    )
     .bind(userId)
     .all<{ title: string }>();
   return {
