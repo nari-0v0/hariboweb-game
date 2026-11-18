@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # GitHub Actions "server-ops" 가 서버에 접속하면 이 파일만 실행돼요(authorized_keys 의 command= 로 묶임).
-# deploy(최신 코드 받고 빌드 후 재시작) / status / logs / backup
+# deploy(최신 코드 받고 빌드 후 재시작) / start(옮기는 날 처음 켜기) / status / logs / backup
 set -uo pipefail
 APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 NODE=/opt/node22/bin
@@ -29,7 +29,10 @@ case "$REQUEST" in
     cd "$APP_DIR" && echo "== 코드: $(git log -1 --format='%h %s')"
     systemctl status hariboweb --no-pager 2>&1 | head -12
     ls -lh "$HOME/hariboweb-data" "$HOME/hariboweb-data/backups" 2>/dev/null | tail -12 ;;
+  start)
+    sudo -n /usr/bin/systemctl enable --now hariboweb || exit 1
+    sleep 5; systemctl status hariboweb --no-pager 2>&1 | head -8; logs 20 ;;
   logs) logs 300 ;;
   backup) "$APP_DIR/deploy/backup.sh" ;;
-  *) echo "허용되지 않은 명령이에요 (deploy, status, logs, backup)"; exit 2 ;;
+  *) echo "허용되지 않은 명령이에요 (deploy, start, status, logs, backup)"; exit 2 ;;
 esac

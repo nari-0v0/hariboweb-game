@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "deploy = 최신 코드 받고 빌드 후 재시작 / status = 상태 / logs = 최근 로그 / backup = 지금 백업"
+        description: "deploy = 최신 코드 받고 빌드 후 재시작 / start = 옮기는 날 웹 처음 켜기 / status = 상태 / logs = 최근 로그 / backup = 지금 백업"
         type: choice
-        options: [status, deploy, logs, backup]
+        options: [status, deploy, start, logs, backup]
         default: status
 
 permissions:

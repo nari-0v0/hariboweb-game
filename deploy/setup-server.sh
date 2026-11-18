@@ -41,7 +41,8 @@ PUBLIC_IP="$(curl -fsS https://api.ipify.org)"
 ORIGIN_HOST="$(echo "$PUBLIC_IP" | tr . -).sslip.io"
 if [ ! -f "$ENV_FILE" ]; then
   # 봇 .env 에 이미 있는 동기화 비밀값은 그대로 가져와요(웹 BOT_SYNC_SECRET = 봇 DOGAM_SYNC_SECRET)
-  SYNC="$(grep -E '^DOGAM_SYNC_SECRET=' "$HOME/bot3/.env" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"'"'" || true)"
+  # 봇과 똑같이 읽도록 봇의 python-dotenv 로 읽어요(따옴표·주석 처리 차이 방지)
+  SYNC="$("$HOME/bot3/venv/bin/python" -c 'import sys; from dotenv import dotenv_values; sys.stdout.write(dotenv_values(sys.argv[1]).get("DOGAM_SYNC_SECRET") or "")' "$HOME/bot3/.env" 2>/dev/null || true)"
   umask 077
   cat > "$ENV_FILE" <<ENV
 # 도감 웹 비밀값. 이 파일은 나만 읽을 수 있어요. 저장소에 올리지 마세요.
@@ -85,16 +86,24 @@ MemoryMax=1G
 WantedBy=multi-user.target
 UNIT
 sudo systemctl daemon-reload
-sudo systemctl enable hariboweb >/dev/null
+# enable 은 하지 않아요: 옮기는 날 전에 서버가 재부팅돼도 웹이 저절로 켜지지 않게(옮기는 날 server-ops "start" 로 켜요)
 
 echo "== 4. Caddy (HTTPS) + 포트 80/443"
+CADDY_FRESH=0
 if ! command -v caddy >/dev/null; then
+  CADDY_FRESH=1
   sudo apt-get install -y debian-keyring debian-archive-keyring apt-transport-https curl gnupg
   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null
   sudo apt-get update && sudo apt-get install -y caddy
 fi
+CADDY_MARK="# hariboweb (deploy/setup-server.sh)"
+# 방금 설치한 Caddy(기본 환영 페이지)이거나 이 스크립트가 쓴 설정일 때만 바꿔요
+if [ "$CADDY_FRESH" = 0 ] && [ -s /etc/caddy/Caddyfile ] && ! sudo grep -qF "$CADDY_MARK" /etc/caddy/Caddyfile; then
+  echo "!! /etc/caddy/Caddyfile 에 다른 설정이 있어요. 덮어쓰지 않고 멈출게요. Claude 에게 알려 주세요."; exit 1
+fi
 sudo tee /etc/caddy/Caddyfile >/dev/null <<CADDY
+$CADDY_MARK
 $ORIGIN_HOST {
   encode gzip
   reverse_proxy 127.0.0.1:8787
@@ -104,22 +113,26 @@ CADDY
 for P in 80 443; do
   sudo iptables -C INPUT -p tcp --dport $P -j ACCEPT 2>/dev/null || sudo iptables -I INPUT -p tcp --dport $P -j ACCEPT
 done
-command -v netfilter-persistent >/dev/null && sudo netfilter-persistent save >/dev/null || true
+# 재부팅 뒤에도 열린 포트가 유지되게 저장해요
+command -v netfilter-persistent >/dev/null || sudo DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent
+sudo netfilter-persistent save >/dev/null
 sudo systemctl reload caddy || sudo systemctl restart caddy
 
 echo "== 5. 매일 백업 (새벽 4시)"
 chmod +x "$APP_DIR/deploy/backup.sh" "$OPS"
-( crontab -l 2>/dev/null | grep -v 'hariboweb/deploy/backup.sh' ; echo "0 4 * * * $APP_DIR/deploy/backup.sh >> $DATA_DIR/backups/backup.log 2>&1" ) | crontab -
+( { crontab -l 2>/dev/null || true; } | { grep -vF "$APP_DIR/deploy/backup.sh" || true; } ; echo "0 4 * * * $APP_DIR/deploy/backup.sh >> $DATA_DIR/backups/backup.log 2>&1" ) | crontab -
 
 echo "== 6. GitHub Actions 전용 열쇠"
 mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
 [ -f "$KEY" ] || ssh-keygen -q -t ed25519 -N "" -C "github-actions-hariboweb-ops" -f "$KEY"
 PUB="$(cat "$KEY.pub")"
 touch "$HOME/.ssh/authorized_keys" && chmod 600 "$HOME/.ssh/authorized_keys"
+# 마지막 줄에 줄바꿈이 없으면 붙여서, 새 키가 기존 키 뒤에 이어 붙지 않게 해요
+[ -s "$HOME/.ssh/authorized_keys" ] && [ -n "$(tail -c1 "$HOME/.ssh/authorized_keys")" ] && echo >> "$HOME/.ssh/authorized_keys"
 grep -qF "$PUB" "$HOME/.ssh/authorized_keys" || printf 'command="%s",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty %s\n' "$OPS" "$PUB" >> "$HOME/.ssh/authorized_keys"
 SUDOERS=/etc/sudoers.d/hariboweb-ops
 TMP="$(mktemp)"
-printf '%s ALL=(root) NOPASSWD: /usr/bin/systemctl restart hariboweb, /usr/bin/systemctl stop hariboweb, /usr/bin/systemctl start hariboweb, /usr/bin/journalctl -u hariboweb *\n' "$ME" > "$TMP"
+printf '%s ALL=(root) NOPASSWD: /usr/bin/systemctl restart hariboweb, /usr/bin/systemctl stop hariboweb, /usr/bin/systemctl start hariboweb, /usr/bin/systemctl enable --now hariboweb, /usr/bin/journalctl -u hariboweb -n 20 --no-pager -o short-iso, /usr/bin/journalctl -u hariboweb -n 100 --no-pager -o short-iso, /usr/bin/journalctl -u hariboweb -n 300 --no-pager -o short-iso\n' "$ME" > "$TMP"
 sudo visudo -cf "$TMP" >/dev/null && sudo install -m 440 -o root -g root "$TMP" "$SUDOERS"; rm -f "$TMP"
 
 echo

@@ -20,10 +20,10 @@ cd ~ && git clone https://github.com/nari-0v0/hariboweb-game.git hariboweb 2>/de
 
 1. Node 22를 `/opt/node22`에 따로 설치 (봇과 기존 Node 20은 건드리지 않음)
 2. 웹 빌드, 비밀값 파일 `~/.config/hariboweb.env` 만들기 (봇의 동기화 비밀값은 봇 `.env`에서 복사)
-3. `hariboweb` 서비스 등록 (아직 켜지 않음, 메모리 1GB 상한)
+3. `hariboweb` 서비스 등록 (아직 켜지 않고, 재부팅해도 저절로 켜지지 않음. 메모리 1GB 상한)
 4. Caddy로 HTTPS 주소(`<서버IP>.sslip.io`) 준비, 포트 80/443 열기
 5. 매일 새벽 4시 DB 백업 (서버 안 7일치 + 설정하면 Oracle 저장소로도)
-6. GitHub Actions 전용 열쇠 (배포·상태·로그·백업 4가지만 가능)
+6. GitHub Actions 전용 열쇠 (배포·켜기·상태·로그·백업만 가능)
 
 끝나면 화면에 할 일이 출력됩니다.
 
@@ -49,7 +49,7 @@ hariboweb-game 저장소 > Settings > Secrets and variables > Actions 에
 
 ## 5. 옮기는 날 (나리 OK 후 Claude가 안내)
 
-`docs/node-server.md`의 순서대로: 점검 켜기 → D1 내보내기 → 서버로 가져오기 → 서비스 켜기 → 워커에 `ORIGIN_URL`/`ORIGIN_SECRET` 넣기 → 점검 끄기.
+`docs/node-server.md`의 순서대로: 점검 켜기 → D1 내보내기 → 서버로 가져오기 → 서비스 켜기(server-ops `start`) → 워커에 `ORIGIN_URL`/`ORIGIN_SECRET` 넣기 → 점검 끄기.
 새 `SESSION_SECRET`을 쓰므로 멤버는 한 번 다시 로그인합니다.
 되돌리기: 워커에서 `ORIGIN_URL`만 지우면 바로 예전(Cloudflare D1)으로 돌아가요. 단 옮긴 뒤 쌓인 기록은 서버 DB에만 있어요.
 
