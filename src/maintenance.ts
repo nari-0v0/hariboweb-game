@@ -15,10 +15,17 @@ export const maintenanceWhen = (v: string | undefined) => {
 // 그림 파일은 점검 중에도 그대로 줘요(점검 화면이 쓰는 그림도 있어요).
 export const maintenanceSkips = (path: string) => /^\/(char|case|journey)\//.test(path);
 
-// D1 사용량 한도에 닿아서 난 오류인지(하루 읽기·쓰기 한도, 용량 한도).
-export function isDbLimit(err: unknown): boolean {
-  if (!(err instanceof Error)) return false;
-  const text = `${err.message}\n${err.stack ?? ''}`;
-  const fromD1 = /D1_|cloudflare-internal:d1-api/.test(text);
-  return fromD1 && /exceed|limit|quota|maximum/i.test(err.message);
+// D1 한도에 닿아서 난 오류인지, 어떤 한도인지.
+// - 'daily': 무료 하루 읽기·쓰기 한도(한국 시간 아침 9시에 다시 채워져요)
+// - 'storage': 저장 용량 한도(기다려도 안 풀려요. 방장이 정리해야 해요)
+// 시간 초과·재시작·과부하 같은 잠깐 생기는 오류는 한도가 아니에요(일반 오류 화면).
+export type DbLimit = 'daily' | 'storage';
+export function dbLimitKind(err: unknown): DbLimit | null {
+  if (!(err instanceof Error)) return null;
+  const fromD1 = /D1_|cloudflare-internal:d1-api/.test(`${err.message}\n${err.stack ?? ''}`);
+  const m = err.message;
+  if (!fromD1 || /timeout|timed out|reset|overload|network|internal error|try again/i.test(m)) return null;
+  if (/maximum (DB|database) size|storage (limit|quota)|account storage/i.test(m)) return 'storage';
+  if (/daily|rows? (read|written)|exceed|quota|limit/i.test(m)) return 'daily';
+  return null;
 }

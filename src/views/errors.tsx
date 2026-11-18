@@ -64,13 +64,13 @@ export function ErrorPage(props: { retry: string }) {
   return <TroublePage code="앗!" title="오류가 생겼어요!" lines={['방장에게 도움을 요청하세요!']} retry={props.retry} />;
 }
 
-// DB 하루 사용량 한도에 닿았을 때(503). 한도는 매일 아침 9시(한국 시간)에 다시 채워져요.
-export function DbFullPage(props: { retry: string }) {
+// DB 한도에 닿았을 때(503). 하루 한도는 매일 아침 9시(한국 시간)에 다시 채워지고, 저장 용량은 기다려도 안 풀려요.
+export function DbFullPage(props: { retry: string; daily: boolean }) {
   return (
     <TroublePage
       code="DB"
       title="DB가 가득 찼어요!"
-      lines={['방장에게 도움을 요청하세요!', '하루 쓸 수 있는 양을 다 써서, 보통 아침 9시에 다시 열려요.']}
+      lines={['방장에게 도움을 요청하세요!', ...(props.daily ? ['하루 쓸 수 있는 양을 다 써서, 보통 아침 9시에 다시 열려요.'] : [])]}
       retry={props.retry}
     />
   );

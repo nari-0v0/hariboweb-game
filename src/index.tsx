@@ -89,7 +89,7 @@ import { GAMBLE_LOCKED, gambleTester, isCoinSide } from './gamble';
 import { activeHand, betChips, betTooSoon, claimDaily, expireAllHands, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, moveHand, rescueChips, type Game } from './gamble-db';
 import { prefetchAllowed } from './prefetch';
 import { imageRequestAllowed } from './image-guard';
-import { isDbLimit, maintenanceOn, maintenanceSkips, maintenanceWhen } from './maintenance';
+import { dbLimitKind, maintenanceOn, maintenanceSkips, maintenanceWhen, type DbLimit } from './maintenance';
 import { EscapePage } from './views/escape';
 import { JourneyPage } from './views/journey';
 import { NO_COINS, STALE_PICK, activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from './journey-db';
@@ -111,10 +111,11 @@ const app = new Hono<AppEnv>({ router: new LinearRouter() });
 // 점검(설정 MAINTENANCE)·DB 한도 때 보여 줄 503. 봇은 503을 받으면 나중에 다시 보내요(기록은 봇에 남아 있어요).
 const retryPath = (c: Context<AppEnv>) =>
   c.req.method === 'GET' && /^\/(?![\/\\])/.test(c.req.path) ? c.req.path + new URL(c.req.url).search : '/me';
-function troubleResponse(c: Context<AppEnv>, kind: 'maintenance' | 'dbfull') {
+function troubleResponse(c: Context<AppEnv>, kind: 'maintenance' | DbLimit) {
   const headers = { 'Cache-Control': 'no-store', 'Retry-After': '600' };
-  if (c.req.path.startsWith('/api/')) return c.text(kind === 'maintenance' ? '점검 중이에요' : 'DB가 가득 찼어요', 503, headers);
-  const node = kind === 'maintenance' ? <MaintenancePage retry={retryPath(c)} when={maintenanceWhen(c.env.MAINTENANCE)} /> : <DbFullPage retry={retryPath(c)} />;
+  // 봇(기계)만 글자로 받아요. 멤버가 누른 폼(/api/titles/buy 등)은 화면으로 보여 줘요.
+  if (c.req.path.startsWith('/api/bot/')) return c.text(kind === 'maintenance' ? '점검 중이에요' : 'DB가 가득 찼어요', 503, headers);
+  const node = kind === 'maintenance' ? <MaintenancePage retry={retryPath(c)} when={maintenanceWhen(c.env.MAINTENANCE)} /> : <DbFullPage retry={retryPath(c)} daily={kind === 'daily'} />;
   return c.html('<!doctype html>' + String(node), 503, headers);
 }
 app.use('*', async (c, next) => {
@@ -1392,9 +1393,11 @@ app.notFound((c) => page(c, <NotFoundPage viewer={c.get('viewer') ?? null} />, 4
 
 // 처리하지 못한 오류: 하얀 화면 대신 다시 시도·방장 문의 화면을 보여 줘요
 app.onError((err, c) => {
-  console.error('화면 오류', c.req.method, c.req.path, err);
-  // DB 하루 한도에 닿았으면 "DB가 가득 찼어요!"
-  if (isDbLimit(err)) return troubleResponse(c, 'dbfull');
+  // 오류 글(message)도 따로 남겨요(D1 한도 오류 글을 로그에서 확인하려고)
+  console.error('화면 오류', c.req.method, c.req.path, err instanceof Error ? err.message : String(err), err);
+  // DB 한도에 닿았으면 "DB가 가득 찼어요!"
+  const limit = dbLimitKind(err);
+  if (limit) return troubleResponse(c, limit);
   // 다시 시도하면 같은 화면(주소 뒤 ?… 조건까지)으로 가요
   return c.html('<!doctype html>' + String(<ErrorPage retry={retryPath(c)} />), 500);
 });

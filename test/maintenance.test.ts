@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import app from '../src/index';
 import type { Env } from '../src/env';
 import { signSession } from '../src/crypto';
-import { isDbLimit, maintenanceOn, maintenanceWhen } from '../src/maintenance';
+import { dbLimitKind, maintenanceOn, maintenanceWhen } from '../src/maintenance';
 
 vi.mock('../src/plaza-room', () => ({ PlazaRoom: class {} }));
 
@@ -52,6 +52,22 @@ describe('문제 생겼을 때 화면', () => {
     const html = await res.text();
     expect(html).toContain('DB가 가득 찼어요!');
     expect(html).toContain('방장에게 도움을 요청하세요!');
+    expect(html).toContain('아침 9시');
+  });
+
+  it('저장 용량이 차면 아침 9시 안내는 빼요', async () => {
+    const res = await asMember('/', { DB: dbThrowing('D1_ERROR: Exceeded maximum DB size.'), SESSION_SECRET: 's' } as unknown as Env);
+    expect(res.status).toBe(503);
+    const html = await res.text();
+    expect(html).toContain('DB가 가득 찼어요!');
+    expect(html).not.toContain('아침 9시');
+  });
+
+  it('멤버가 누른 폼(/api/…)도 점검 화면으로 보여요(봇 API만 글자)', async () => {
+    const env = { MAINTENANCE: '1', DB: dbThrowing(LIMIT), SESSION_SECRET: 's' } as unknown as Env;
+    const res = await app.request('/api/titles/buy', { method: 'POST', body: new URLSearchParams({ title: 'x' }) }, env);
+    expect(res.status).toBe(503);
+    expect(await res.text()).toContain('점검 중이에요!');
   });
 
   it('그 밖의 오류는 "오류가 생겼어요!"', async () => {
@@ -63,10 +79,13 @@ describe('문제 생겼을 때 화면', () => {
   });
 
   it('판단 규칙', () => {
-    expect(isDbLimit(new Error(LIMIT))).toBe(true);
-    expect(isDbLimit(new Error('D1_ERROR: no such column: x'))).toBe(false);
-    expect(isDbLimit(new Error('Exceeded something, not D1'))).toBe(false);
-    expect(isDbLimit(LIMIT)).toBe(false);
+    expect(dbLimitKind(new Error(LIMIT))).toBe('daily');
+    expect(dbLimitKind(new Error('D1_ERROR: Exceeded maximum DB size.'))).toBe('storage');
+    expect(dbLimitKind(new Error('D1_ERROR: D1 DB storage operation exceeded timeout which caused object to be reset.'))).toBe(null);
+    expect(dbLimitKind(new Error('D1_ERROR: D1 DB is overloaded. Too many requests queued.'))).toBe(null);
+    expect(dbLimitKind(new Error('D1_ERROR: no such column: x'))).toBe(null);
+    expect(dbLimitKind(new Error('Exceeded something, not D1'))).toBe(null);
+    expect(dbLimitKind(LIMIT)).toBe(null);
     expect(maintenanceOn('1')).toBe(true);
     expect(maintenanceOn('OFF')).toBe(false);
     expect(maintenanceWhen('1')).toBe('');
