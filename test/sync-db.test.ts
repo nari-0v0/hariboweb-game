@@ -347,8 +347,9 @@ describe('전송이 늦은 탈퇴와 재가입', () => {
       });
       expect(await applySync(db, rejoined, zero + (received + 10) * 60_000)).toBe('applied');
       expect(await applySync(db, rejoined, zero + (received + 11) * 60_000)).toBe('duplicate');
+      // 다시 들어오면 양쪽 카드 모두 처음부터(나리 2026-11-19)
       expect(xp(sql, A, B)).toBe(4);
-      expect(xp(sql, B, A)).toBe(11);
+      expect(xp(sql, B, A)).toBe(4);
       expect(sql.prepare('SELECT SUM(minutes) AS n FROM gq_voice').get()).toEqual({ n: 1 });
       expect(sql.prepare('SELECT COUNT(*) AS n FROM gq_scrim').get()).toEqual({ n: 1 });
       expect(sql.prepare('SELECT COUNT(*) AS n FROM gq_attend WHERE user_id = ?').get(A)).toEqual({ n: 1 });
@@ -402,7 +403,7 @@ describe('전송이 늦은 탈퇴와 재가입', () => {
       members: [m(A, null), m(B)], pair_xp: [pair(999, 20), pair(4, 45)],
     }), zero + 50 * 60_000);
     expect(xp(sql, A, B)).toBe(4);
-    expect(xp(sql, B, A)).toBe(9);
+    expect(xp(sql, B, A)).toBe(4);
   });
 
   it('탈퇴를 확인한 뒤 웹에 먼저 로그인해도 새 통화를 보존해요', async () => {
@@ -418,8 +419,32 @@ describe('전송이 늦은 탈퇴와 재가입', () => {
     }
     await applySync(db, payload('rejoined', 50, { members: [m(A, at(10)), m(B)], pair_xp: [pair(4, 20)] }), zero + 50 * 60_000);
     expect(xp(sql, A, B)).toBe(4);
-    expect(xp(sql, B, A)).toBe(9);
+    expect(xp(sql, B, A)).toBe(4);
   });
+  it('새 시즌을 만드는 묶음으로 다시 들어왔는데 본 저장이 실패해도 재시도 뒤 남은 사람 카드가 지워져 있어요', async () => {
+    const { sql, db } = await setup();
+    await applySync(db, payload('left', 1, { removed: [A] }), zero + 40 * 60_000);
+    expect(xp(sql, B, A)).toBe(5);
+    const next = { start: '2026-11-17T15:00:00.000Z', end: '2026-12-15T15:00:00.000Z' }; // 다음 시즌(아직 없음)
+    const rejoined = payload('rejoin-season', 65, { members: [m(A, at(10)), m(B), m(C)], full_members: true, season: next, pair_xp: [pair(4, 20)] });
+    // 시즌을 만들기 전에 멤버를 먼저 적는 저장은 성공하고, 그 뒤 본 저장이 한 번 실패한다고 해요
+    const realBatch = db.batch.bind(db);
+    let calls = 0;
+    const flaky = Object.create(db) as typeof db;
+    flaky.batch = (async (stmts: Parameters<typeof db.batch>[0]) => {
+      calls += 1;
+      if (stmts.some((x: any) => String(x?.sql ?? x?.query ?? '').includes('sync_batches'))) throw new Error('boom');
+      return realBatch(stmts);
+    }) as typeof db.batch;
+    await expect(applySync(flaky, rejoined, zero + 70 * 60_000)).rejects.toThrow('boom');
+    expect(calls).toBeGreaterThan(1);
+    expect(sql.prepare('SELECT active FROM members WHERE user_id = ?').get(A)).toEqual({ active: 1 });
+    expect(xp(sql, B, A)).toBe(0);
+    expect(await applySync(db, rejoined, zero + 71 * 60_000)).toBe('applied');
+    expect(xp(sql, A, B)).toBe(4);
+    expect(xp(sql, B, A)).toBe(4);
+  });
+
   it('두 번 나갔다 돌아와도 직전 가입 전 기록은 버리고 마지막 가입 뒤 활동만 받아요', async () => {
     const { sql, db } = await setup();
     await applySync(db, payload('left-first', 1, { removed: [A] }), zero + 40 * 60_000);
@@ -431,7 +456,7 @@ describe('전송이 늦은 탈퇴와 재가입', () => {
       members: [m(A, at(70)), m(B)], pair_xp: [pair(999, 65), pair(3, 80)],
     }), zero + 110 * 60_000);
     expect(xp(sql, A, B)).toBe(3);
-    expect(xp(sql, B, A)).toBe(12);
+    expect(xp(sql, B, A)).toBe(3);
     expect(sql.prepare('SELECT reset_at FROM members WHERE user_id = ?').get(A)).toEqual({ reset_at: at(70) });
   });
 
