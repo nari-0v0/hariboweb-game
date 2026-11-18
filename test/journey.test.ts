@@ -263,7 +263,13 @@ describe('journey battle motion', () => {
     expect(plan.ms).toBeLessThanOrEqual(8000);
     // 아주 긴 싸움(80칸)도 모션은 몇 초 안에 끝나요
     const long = { foe: fx.foe, won: false, hits: Array.from({ length: 80 }, (_, i) => [(i % 2) as 0 | 1, 1] as [0 | 1, number]), hp0: 40, mhp: 999 };
-    expect(fightPlan(long).ms).toBeLessThanOrEqual(8000);
+    const lp = fightPlan(long);
+    expect(lp.ms).toBeLessThanOrEqual(8000);
+    // 같은 쪽 숫자는 다음 숫자가 뜨기 전에 사라져요(겹치지 않게)
+    for (const side of [0, 1] as const) {
+      const on = lp.pops.filter((p) => p.on === side);
+      for (let i = 1; i < on.length; i++) expect(on[i - 1]!.at + (on[i - 1]!.len ?? 0.75)).toBeLessThanOrEqual(on[i]!.at + 1e-9);
+    }
   });
 
   it('records the fight for the stage and forgets it on the next action', async () => {

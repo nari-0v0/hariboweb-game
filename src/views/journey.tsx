@@ -297,7 +297,7 @@ export function fightPlan(fx: BattleFx) {
   const k = step / STEP;
   const lunge = `${(0.34 * k).toFixed(2)}s`;
   const shake = `${(0.3 * k).toFixed(2)}s`;
-  const popLen = k < 1 ? +Math.max(0.3, 0.75 * k * 2).toFixed(2) : undefined; // 같은 쪽 숫자끼리 겹치지 않게(두 칸마다 한 번 떠요)
+  const popLen = k < 1 ? Math.floor(step * 1.8 * 100) / 100 : undefined; // 같은 쪽 숫자는 두 칸마다 떠요: 다음 숫자가 뜨기 전에 사라지게
   let t = START;
   if (fx.spark) {
     foe.push(`jr-zap ${(0.4 * k).toFixed(2)}s ${t.toFixed(2)}s`);
