@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { grantJelly, parseGrant } from '../src/jelly-grant';
+import { applySync, parseSync } from '../src/sync';
 
 function fakeD1() {
   const sql = new DatabaseSync(':memory:');
@@ -142,4 +143,21 @@ it('이미 초기화된 현재 멤버에게 새로 지급하는 것은 정상 �
   sql.prepare('UPDATE members SET reset_at = ? WHERE user_id = ?').run(new Date(T - 1000).toISOString(), A);
   expect(await grantJelly(db, grant(), T)).toEqual({ result: 'applied', balance: 15 });
   expect(jellyOf()).toBe(15);
+});
+
+it('나갔다 다시 들어온 뒤 봇이 같은 지급 번호를 다시 보내도 예전 젤리를 또 주지 않아요', async () => {
+  const { db, jellyOf, grants } = setup(0);
+  expect(await grantJelly(db, grant(), T)).toEqual({ result: 'applied', balance: 10 });
+  for (const [k, raw] of [
+    ['left', { removed: [A] }],
+    ['back', { members: [{ id: A, name: 'a' }] }],
+  ] as const) {
+    const p = parseSync({ batch_id: `${new Date(T + 60_000).toISOString()}-${k}`, ...raw });
+    if (!p.ok) throw new Error(p.error);
+    await applySync(db, p.value, T + (k === 'left' ? 60_000 : 120_000));
+  }
+  expect(await grantJelly(db, grant(), T + 180_000)).toMatchObject({ result: 'duplicate' });
+  expect(jellyOf() ?? 0).toBe(0);
+  // 사유·개수는 지워지고 번호만 남아요
+  expect(grants()).toEqual([{ id: 'g1', amount: 0, reason: null, granted_by: NARI, applied: 1 }]);
 });
