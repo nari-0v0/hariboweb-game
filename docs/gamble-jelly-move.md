@@ -32,7 +32,7 @@
 4. **웹 DB에 넣기**(배포 스레드): 마이그레이션 0042가 먼저 적용돼 있어야 해요. D1 Time Travel 북마크를 먼저 남겨요.
    먼저 겜블장을 처음부터 시작하게 지우고(나리 2026-11-16: 다 초기화), 그다음 젤칩을 넣어요.
    `npx wrangler d1 execute haribo-dogam --remote --file scripts/gamble-reset.sql`
-   초기화 성공을 확인하고, 지급 명령 전에 `SELECT user_id, chips FROM gamble_accounts ORDER BY user_id` 결과 전체를 `before.json`으로 저장해요. 재시도할 때도 이 최초 기준 파일을 보존해요.
+   `SELECT completed_at FROM gamble_launch_reset WHERE id = 1`로 초기화 완료를 확인해요. 완료 행이 없으면 신규 지급은 차단돼요. 지급 명령 전에 `SELECT user_id, chips FROM gamble_accounts ORDER BY user_id` 결과 전체를 `before.json`으로 저장해요. 재시도할 때도 이 최초 기준 파일을 보존해요.
    `npx wrangler d1 execute haribo-dogam --remote --file gamble-jelly-moves.sql`
    (초기화와 완료 표시를 한 문장으로 처리해요. 지급이 0건이어도 다시 실행하면 지우지 않아요.)
 5. **확인**: `SELECT COUNT(*), SUM(jelly) FROM gamble_jelly_moves WHERE moved_at IS NOT NULL`
