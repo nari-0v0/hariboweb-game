@@ -136,7 +136,9 @@ it('시뮬: 시즌을 넘기며 팀·서버 퀘스트 분과 시즌 끝 보상�
       const body = { batch_id: `${new Date(now).toISOString()}-s${seed}b${++batchNo}`, members, removed, room_minutes: rooms, season, full_members: true };
 
       // ── 모델: 이번 묶음이 바꿀 시즌 팀 ──
-      const t = now;
+      // 가끔 봇이 묶음을 만들고 늦게 보내요(웹 시각 = 받은 때). 다음 묶음은 받은 뒤에 만들어요.
+      const deliver = r() < 0.15 ? now + Math.floor(r() * 60) * MIN : now;
+      const t = deliver;
       for (const s of seasons.values()) if (s.end > t) for (const u of removed) if (s.group.has(u)) s.left.add(u);
       const targets = [...seasons.values()].filter((s) => s.id === kstDayId(cur.start) || rooms.some((x) => Date.parse(x.at) >= s.start && Date.parse(x.at) < s.end));
       const leftNow = new Map<string, Set<string>>();
@@ -154,6 +156,7 @@ it('시뮬: 시즌을 넘기며 팀·서버 퀘스트 분과 시즌 끝 보상�
         leftNow.set(s.id, ln);
       }
 
+      vi.setSystemTime(deliver);
       const res = await app.request('/api/bot/sync', { method: 'POST', headers: { Authorization: 'Bearer bot', 'Content-Type': 'application/json' }, body: JSON.stringify(body) }, env);
       expect(res.status, await res.clone().text()).toBe(200);
       expect(((await res.json()) as { result: string }).result).toBe('applied');
@@ -197,6 +200,7 @@ it('시뮬: 시즌을 넘기며 팀·서버 퀘스트 분과 시즌 끝 보상�
         }
       }
       prev = now;
+      now = deliver;
 
       // ── 확인: 분 기록 ──
       for (const s of seasons.values()) {
