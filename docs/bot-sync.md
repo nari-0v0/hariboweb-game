@@ -166,7 +166,7 @@ Content-Type: application/json
   - `partners`: 웹에 쌓인 `room_minutes`로 본 오늘(한국 날짜) 같이 통화한 사람. 봇은 오늘 기록을 메모리에만 들고 있어서 재시작하면 비니까, 봇 기록과 이 목록을 합쳐서 칭찬할 사람을 보여 줘요. 웹은 하루치 짝만 3일 동안 남겨요.
 - `POST /api/bot/praise` `{"from":"ID","to":"ID","note":"한마디(선택, 100자)"}` → `{"result":"done","jelly":true,"left":2,"note":"sent"}`
   - `note`(응답): `sent`(한마디도 전함), `filtered`(비꼬기·욕이라 한마디는 빼고 칭찬만 전함), `none`(한마디 없음 또는 칭찬이 안 됨). 한마디는 Workers AI(무료 사용량)로 검사하고, AI가 없거나 한도가 끝나면 욕설 단어 검사만 해요.
-  - `result`: `done`, `already`(오늘 이미 그 사람에게 줌), `limit`(오늘 3번 다 씀), `self`, `not_member`
+  - `result`: `done`, `already`(오늘 이미 그 사람에게 줌), `limit`(오늘 3번 다 씀), `self`, `not_member`(지금 멤버가 아니거나, 한마디 검사 중 초기화·탈퇴로 회원 상태가 바뀜)
   - 오늘 같이 통화했거나 내전을 뛴 사람인지는 봇이 확인하고 보내요(봇 기록 + 위 `partners`).
   - 하루(한국 날짜) 3번, 같은 사람에게는 하루 1번. 받은 사람은 하루 3개까지 칭찬 1번에 도감 젤리 1개를 받아요(`jelly`).
   - 알림(DM·채팅)은 보내지 않아요.
@@ -220,7 +220,7 @@ Content-Type: application/json
 - `POST /api/bot/assign-blocks/:id/posted` `{ "message_id": "디스코드 메시지 ID" }` → `{ "ok": true, "changed": true|false }` (처음 한 번만 적혀요. 같은 메시지 ID로 다시 보내면 `changed: true`, 다른 ID면 `false`)
 - `POST /api/bot/assign-blocks/:id/decide` `{ "decision": "approve"|"reject", "by": "누른 사람 디스코드 ID" }` → `{ "applied": true|false, "status": "approved|rejected|pending", "decided_at": "ISO|null" }`
   - 대기 중이거나 AI가 거른 요청일 때만 적용돼요. 두 번 눌러도 처음 결정만 남아요(`applied: false`면 이미 처리된 것).
-  - `"decision": "flip"`(2026-11-16): 이미 승인·반려한 요청을 반대로 뒤집어요(나리가 잘못 눌렀을 때). 아직 결정 안 한 요청이면 `applied: false`.
+  - `"decision": "flip"`(2026-11-16): 이미 승인·반려한 요청을 반대로 뒤집어요(나리가 잘못 눌렀을 때). 아직 결정 안 한 요청이면 `applied: false`. 반려를 승인으로 바꿀 때도 최대 3명 제한과 같은 상대 중복 검사를 지켜요. 이미 새 요청을 넣어 제한에 걸리면 반려 상태를 유지하고 `applied: false`예요.
   - 누가 누를 수 있는지(나리만)는 봇이 확인해요.
   - 없는 요청이면 `404`예요. 신청한 사람이 웹에서 [풀기]를 눌렀거나, 둘 중 한 명이 서버를 떠나 지워진 경우예요. 봇은 메시지를 "지워졌어요"로 닫아요.
 - 한 사람이 제외할 수 있는 사람은 최대 3명(검토 중 + 승인)이에요. 멤버는 `/bingo`에서 [풀기]로 언제든 바로 지울 수 있어요(승인 없이, 다음 팀 짜기부터 적용).

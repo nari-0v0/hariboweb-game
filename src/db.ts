@@ -724,6 +724,15 @@ export async function praiseToday(db: D1Database, userId: string, day = kstDay()
 
 export type PraiseResult = 'done' | 'already' | 'limit' | 'self' | 'not_member';
 
+// AI 검사 전에 읽은 회원 세대. 검사 중 초기화·탈퇴가 있었으면 옛 요청을 저장하지 않아요.
+export type PraiseMembers = { sender_reset: string | null; receiver_reset: string | null };
+export async function praiseMembers(db: D1Database, fromId: string, toId: string): Promise<PraiseMembers | null> {
+  return db.prepare(`SELECT f.reset_at AS sender_reset, t.reset_at AS receiver_reset FROM members f
+      JOIN members t ON t.user_id = ?2 AND t.active = 1 WHERE f.user_id = ?1 AND f.active = 1`)
+    .bind(fromId, toId).first<PraiseMembers>();
+}
+
+
 // 칭찬 한 번. 하루 3번, 같은 사람에게 하루 1번. 받은 사람은 하루 3개까지 도감 젤리 1개씩 받아요.
 // 확인과 기록, 젤리 주기를 한 번에(트랜잭션) 해서 동시에 눌러도 한도를 넘지 않아요.
 export async function givePraise(
@@ -732,8 +741,11 @@ export async function givePraise(
   toId: string,
   day = kstDay(),
   note: string | null = null,
+  members?: PraiseMembers | null,
 ): Promise<{ result: PraiseResult; jelly: boolean; left: number }> {
   if (fromId === toId) return { result: 'self', jelly: false, left: (await praiseToday(db, fromId, day)).left };
+  members = members === undefined ? await praiseMembers(db, fromId, toId) : members;
+  if (!members) return { result: 'not_member', jelly: false, left: (await praiseToday(db, fromId, day)).left };
   const mark = `${now()}#${crypto.randomUUID()}`;
   const mine = 'EXISTS (SELECT 1 FROM praises WHERE day = ?1 AND from_id = ?2 AND to_id = ?3 AND created_at = ?4 AND jelly = 1)';
   await db.batch([
@@ -744,11 +756,11 @@ export async function givePraise(
                 (SELECT COUNT(*) FROM praises WHERE day = ?1 AND to_id = ?3 AND jelly = 1) < ?6,
                 ?4, ?7
          WHERE (SELECT COUNT(*) FROM praises WHERE day = ?1 AND from_id = ?2) < ?5
-           AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)
-           AND EXISTS (SELECT 1 FROM members WHERE user_id = ?3 AND active = 1)
+           AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1 AND COALESCE(reset_at, '') = ?8)
+           AND EXISTS (SELECT 1 FROM members WHERE user_id = ?3 AND active = 1 AND COALESCE(reset_at, '') = ?9)
          ON CONFLICT DO NOTHING`,
       )
-      .bind(day, fromId, toId, mark, PRAISE_PER_DAY, PRAISE_JELLY_PER_DAY, note),
+      .bind(day, fromId, toId, mark, PRAISE_PER_DAY, PRAISE_JELLY_PER_DAY, note, members.sender_reset ?? '', members.receiver_reset ?? ''),
     db
       .prepare(
         `INSERT INTO profiles (user_id, dogam_jelly, updated_at) SELECT ?3, 1, ?5 WHERE ${mine}

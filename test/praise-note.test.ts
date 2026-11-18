@@ -359,3 +359,18 @@ it('건별 읽음 표시 마이그레이션은 기존에 본 칭찬을 다시 �
     { read_at: '2026-11-12T03:00:00.000Z' }, { read_at: null },
   ]);
 });
+
+it('AI 검사 중 초기화되면 초기화 전 칭찬·젤리를 다시 지급하지 않아요', async () => {
+  const { db, sql } = fakeD1();
+  const ai = { run: async () => {
+    sql.exec(readFileSync('scripts/launch-reset.sql', 'utf8'));
+    return { response: '{"verdict":"ok"}' };
+  } } as unknown as Ai;
+  const response = await app.request('/api/bot/praise', {
+    method: 'POST', headers: { Authorization: 'Bearer s', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: A, to: C, note: '초기화 전 칭찬' }),
+  }, { DB: db, BOT_SYNC_SECRET: 's', AI: ai } as Env);
+  expect(await response.json()).toMatchObject({ result: 'not_member', jelly: false, note: 'none' });
+  expect(await praiseBox(db, C)).toMatchObject({ unread: 0, total: 0 });
+  expect(sql.prepare('SELECT dogam_jelly FROM profiles WHERE user_id = ?').get(C)).toBeUndefined();
+});

@@ -33,6 +33,7 @@ import {
   getBestCard,
   givePraise,
   praiseToday,
+  praiseMembers,
   kstDay,
   giveStarterJelly,
   listPendingRefunds,
@@ -502,10 +503,11 @@ app.post('/api/bot/praise', async (c) => {
   // 한마디는 비꼬기·모욕이면 빼고 칭찬만 전해요. 이미 줬거나 한도면 AI에 묻지 않아요.
   // 한도 확인과 저장이 같은 날짜를 쓰게 한 번만 정해요(자정에 걸쳐도 한마디가 사라지지 않게).
   const day = kstDay();
+  const snapshot = await praiseMembers(c.env.DB, body.from, body.to);
   const status = await praiseToday(c.env.DB, body.from, day);
   const asked = cleanNote(body.note) !== '';
-  const check = asked && status.left > 0 && !status.given.includes(body.to) ? await checkNote(c.env.AI, body.note) : { note: null, filtered: false };
-  const result = await givePraise(c.env.DB, body.from, body.to, day, check.note);
+  const check = snapshot && asked && status.left > 0 && !status.given.includes(body.to) ? await checkNote(c.env.AI, body.note) : { note: null, filtered: false };
+  const result = await givePraise(c.env.DB, body.from, body.to, day, check.note, snapshot);
   // AI가 본 한마디는 비공개 로그 채널용으로 남겨요(실패해도 칭찬은 끝났어요)
   if (result.result === 'done' && check.verdict) {
     await logAiCheck(c.env.DB, 'praise', body.from, body.to, cleanNote(body.note), check.verdict, Date.now()).catch((e) => console.error('AI 기록 실패', e));
