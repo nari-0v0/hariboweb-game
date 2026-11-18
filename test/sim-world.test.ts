@@ -196,6 +196,8 @@ it('시뮬: 동기화·탈퇴·재가입·칭찬·내 카드 열기를 섞어도
         const u = pick(out);
         m.present.add(u);
         m.everJoined.add(u);
+        // 다시 들어오면 남은 사람이 가진 그 사람 카드도 0부터(#260, 나리 2026-11-19)
+        for (const key of [...m.xp.keys()]) if (key.endsWith(`|${u}`)) m.xp.delete(key);
         m.joinedAt.set(u, now - 60_000);
         await sync({});
         log.push(`${step} join ${u.slice(-1)}`);

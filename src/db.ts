@@ -62,18 +62,23 @@ export async function upsertLoginMember(db: D1Database, p: LoginProfile) {
   const t = now();
   const joinedMs = Date.parse(p.joined_at ?? '');
   const joined = Number.isFinite(joinedMs) && joinedMs <= Date.parse(t) ? new Date(joinedMs).toISOString() : null;
-  await db
-    .prepare(
-      `INSERT INTO members (user_id, display_name, avatar_url, joined_at, is_newbie, active, updated_at, last_login_at)
-       VALUES (?1, ?2, ?3, ?4, 0, 1, ?5, ?5)
-       ON CONFLICT (user_id) DO UPDATE SET display_name = ?2, avatar_url = ?3,
-         joined_at = COALESCE(?4, joined_at), active = 1, updated_at = ?5, last_login_at = ?5,
-         reset_at = CASE WHEN members.active = 0
-           THEN MAX(COALESCE(members.reset_at, ''), COALESCE(?6, strftime('%Y-%m-%dT%H:%M:%fZ', members.updated_at), ?5))
-           ELSE members.reset_at END`,
-    )
-    .bind(p.id, stripTitle(p.name) || p.name, p.avatar_url, p.joined_at, t, joined)
-    .run();
+  await db.batch([
+    // 나갔다 다시 들어와 먼저 로그인한 경우: 남아 있던 사람들이 가진 이 사람 카드도 처음부터예요(동기화 쪽과 같아요).
+    db
+      .prepare('DELETE FROM cards WHERE target_id = ?1 AND EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 0)')
+      .bind(p.id),
+    db
+      .prepare(
+        `INSERT INTO members (user_id, display_name, avatar_url, joined_at, is_newbie, active, updated_at, last_login_at)
+         VALUES (?1, ?2, ?3, ?4, 0, 1, ?5, ?5)
+         ON CONFLICT (user_id) DO UPDATE SET display_name = ?2, avatar_url = ?3,
+           joined_at = COALESCE(?4, joined_at), active = 1, updated_at = ?5, last_login_at = ?5,
+           reset_at = CASE WHEN members.active = 0
+             THEN MAX(COALESCE(members.reset_at, ''), COALESCE(?6, strftime('%Y-%m-%dT%H:%M:%fZ', members.updated_at), ?5))
+             ELSE members.reset_at END`,
+      )
+      .bind(p.id, stripTitle(p.name) || p.name, p.avatar_url, p.joined_at, t, joined),
+  ]);
   await assignCharacters(db, [p.id]);
   await giveStarterJelly(db, [p.id]);
 }

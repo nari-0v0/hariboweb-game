@@ -267,6 +267,10 @@ export async function applySync(
        joined_at = COALESCE(?4, joined_at), is_newbie = ?5, active = 1, updated_at = ?6, games = COALESCE(?7, games), green = COALESCE(?8, green),
        reset_at = CASE WHEN ?9 IS NULL THEN members.reset_at ELSE MAX(COALESCE(members.reset_at, ''), ?9) END`,
   );
+  // 다시 들어온 사람과의 카드는 양쪽 모두 처음부터예요(나리 2026-11-19 "0쪽으로 맞춰줘").
+  // 다시 들어온 사람 쪽 카드는 나갈 때 지웠으니, 남아 있던 사람들이 가진 그 사람 카드("떠난 멤버")도 지워요.
+  // 멤버를 다시 활성으로 적는 것과 항상 같은 트랜잭션에 넣어요(활성만 먼저 저장되면 다음 묶음에서 재가입으로 안 보여서 영영 안 지워져요).
+  const rejoinStmts = [...reset.rejoined.keys()].map((id) => db.prepare('DELETE FROM cards WHERE target_id = ?').bind(id));
   const memberStmts = p.members.map((m) =>
     upsertMember.bind(m.id, m.name, m.avatar_url, m.joined_at, m.is_newbie ? 1 : 0, t, m.games ? JSON.stringify(m.games) : null, m.green === undefined ? null : m.green ? 1 : 0, reset.rejoined.get(m.id) ?? null),
   );
@@ -276,7 +280,7 @@ export async function applySync(
   if (p.season && p.full_members && Date.parse(p.season.start) <= nowMs && nowMs < Date.parse(p.season.end)) {
     const exists = await db.prepare('SELECT 1 FROM seasons WHERE id = ?').bind(p.season.id).first();
     if (!exists) {
-      if (memberStmts.length) await db.batch(memberStmts);
+      if (memberStmts.length) await db.batch([...rejoinStmts, ...memberStmts]);
       await ensureSeason(db, p.season, nowMs, { scrim: opts.scrimQuests, groupQuests: opts.groupQuests, exclude: p.removed });
     }
   }
@@ -286,6 +290,8 @@ export async function applySync(
     db.prepare('DELETE FROM sync_batches WHERE applied_at < ?').bind(new Date(nowMs - SYNC_BATCH_KEEP_DAYS * DAY_MS).toISOString()),
     // 15일 지난 알림(🔔)은 저절로 지워요
     purgeAlerts(db, nowMs),
+    // 이번 묶음의 함께한 경험치는 아래에서 새 카드로 쌓여요(지우기가 먼저).
+    ...rejoinStmts,
     ...memberStmts,
   ];
   // 시즌 모둠 기록(통화방 1분, 내전, 출석)도 같은 트랜잭션에. 묶음이 한 번만 반영되니까 두 번 세지 않아요.
