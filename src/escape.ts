@@ -549,7 +549,7 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
     const k = (c.combos ?? []).find((x) => (x.a === act.i && x.b === act.j) || (x.a === act.j && x.b === act.i));
     s.focus = null;
     if (!k) {
-      s.mistakes += 1;
+      // 합치기는 시험해 보는 동작이라 실수로 세지 않아요(등급·젤리에 영향 없음).
       s.fx = 'wrong';
       s.msg = `${c.items[act.i]?.name}와(과) ${c.items[act.j]?.name}은(는) 합쳐지지 않아요.`;
       s.tone = 'bad';

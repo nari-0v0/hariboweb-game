@@ -176,7 +176,7 @@ describe('사건파일 방탈출 내용', () => {
     const s = { ...startEscape(c), inv: ['partA', 'partB', 'key12'] };
     expect(actEscape(c, s, { a: 'combine', i: 'partA', j: 'partA' })).toBeNull();
     expect(actEscape(c, s, { a: 'combine', i: 'partA', j: 'nope' })).toBeNull();
-    expect(actEscape(c, s, { a: 'combine', i: 'partA', j: 'key12' })!.mistakes).toBe(1);
+    expect(actEscape(c, s, { a: 'combine', i: 'partA', j: 'key12' })!.mistakes).toBe(0); // 합치기 실패는 실수로 세지 않아요
     expect(actEscape(c, s, { a: 'combine', i: 'partB', j: 'partA' })!.inv).toEqual(['key12', 'tool']);
   });
   it('세 질문 중 하나라도 틀리면 몇 개 맞았는지만 알려 줘요', () => {
