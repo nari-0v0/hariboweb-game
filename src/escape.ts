@@ -360,7 +360,12 @@ export type EscState = {
   seenHints?: number[]; // 이미 본 힌트(c.hints 번호). 계속 보여 주고, 다시 봐도 동전·감점 없어요
   fx?: EscFx; // 방금 행동의 화면 움직임(다음 행동 때 지워져요)
   vr?: number; // 다시 푸는 판 번호(EscCase.vr과 같아요)
+  re?: 1; // 재수사 판(힌트 없음, 답을 RE_LIVES번 틀리면 실패)
+  failed?: 1; // 재수사에 실패해서 끝난 판
 };
+// 재수사(나리 2026-11-19): 해결한 사건을 힌트 없이 다시. 답을 3번 틀리면 실패예요.
+// 실수로 세는 건 답을 낸 경우뿐이에요(비밀번호·암호, 장치 '확인', 범인 고르기). 합치기·물건 대 보기는 세지 않아요.
+export const RE_LIVES = 3;
 // open = 잠긴 것을 열었어요, right/wrong = 수수께끼 정답·오답, gain = 물건·단서를 얻었어요, move = 다른 방, coin = 힌트 동전
 export type EscFx = 'open' | 'right' | 'wrong' | 'gain' | 'move' | 'coin';
 export type EscAction =
@@ -375,7 +380,8 @@ export type EscAction =
   | { a: 'go'; o: string }; // 열린 방으로 바로 가기(o = 방 id)
 export type EscGrade = 'S' | 'A' | 'B' | 'C';
 
-export function startEscape(c: EscCase): EscState {
+export function startEscape(c: EscCase, re = false): EscState {
+  if (re) return { ...startEscape(c), re: 1, msg: `🔁 재수사! 힌트 없이, 답을 ${RE_LIVES}번 틀리면 실패예요. ${c.intro}` };
   return { v: 1, scene: c.scenes[0]!.id, inv: [], opened: [], seen: [], shown: [], clues: [], mistakes: 0, hints: 0, focus: null, msg: c.intro, tone: 'info', done: false, ...(c.vr ? { vr: c.vr } : {}) };
 }
 
@@ -479,7 +485,19 @@ function gain(s: EscState, o: EscObject) {
 }
 
 // 상태 전이(순수 함수). 할 수 없는 입력이면 null이고 원래 상태는 그대로예요.
+// 재수사 판은 힌트를 볼 수 없고, 답을 RE_LIVES번 틀리면 그 자리에서 실패로 끝나요.
 export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState | null {
+  if (old.re && (act.a === 'hint' || act.a === 'hint2')) return null;
+  const s = actEscapeBase(c, old, act);
+  if (s?.re && !s.done && s.mistakes >= RE_LIVES) {
+    s.done = true;
+    s.failed = 1;
+    s.msg = `답을 ${RE_LIVES}번 틀려서 이번 재수사는 실패했어요. 다음엔 더 꼼꼼히 살펴봐요!`;
+    s.tone = 'bad';
+  }
+  return s;
+}
+function actEscapeBase(c: EscCase, old: EscState, act: EscAction): EscState | null {
   if (old.done) return null;
   const s: EscState = structuredClone(old);
   delete s.fx;

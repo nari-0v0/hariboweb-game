@@ -33,7 +33,7 @@ export function Layout(props: {
         <link rel="preload" href="/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin="" />
         {props.preloadImages?.map((href) => <link rel="preload" href={href} as="image" fetchpriority="high" />)}
         <link rel="icon" type="image/png" href="/char/deco/explorer.png" />
-        <link rel="stylesheet" href="/styles.css?v=ux-1119" />
+        <link rel="stylesheet" href="/styles.css?v=tower-1119" />
         <script src="/app.js?v=jr-auto-off-2" defer></script>
         {props.scripts?.map((script) => typeof script === 'string'
           ? <script src={script} defer></script>

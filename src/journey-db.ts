@@ -1,6 +1,7 @@
 import { kstDay } from './db';
 import { MAX_CHAPTER } from './journey-chapters';
 import { dogamProgress, journeyOpenTo } from './unlock';
+import { isPetId, parsePets, type PetBag, type PetId } from './pets';
 import { DAILY_REWARD_JOURNEYS, FIRST_CLEAR_BONUS, GEAR_MAX, NO_GEAR, gearNeed, hasMats, type Gear, type GearId, NO_PERKS, PERKS, perkMax, actJourney, bankRate, decodeJourney, journeyJelly, journeyXp, perkCost, startJourney, kitCost, type KitId, type JourneyAction, type JourneyState, type PerkId, type Perks } from './journey';
 
 export type JourneyRow = { id: string; user_id: string; state: string; rev: number; status: string; day: number; cleared: number; xp: number; jelly: number; reward_day: string | null };
@@ -43,7 +44,7 @@ export async function journeyTop(db: D1Database, user: string): Promise<number> 
     .first<{ top: number }>();
   return r?.top ?? 0;
 }
-const unlockedFrom = (top: number) => Math.min(MAX_CHAPTER, top + 1);
+export const unlockedFrom = (top: number) => Math.min(MAX_CHAPTER, top + 1);
 
 // 장마다 이미 깬 뒤 다시 돈 판 수(날짜와 상관없이 전부). journey_bank.farmed = {"장": 판 수}
 function parseFarmed(raw: string | null | undefined): Record<number, number> {
@@ -59,13 +60,14 @@ function parseFarmed(raw: string | null | undefined): Record<number, number> {
 }
 
 // 강화 주머니(모은 동전 + 훈련 단계 + 장비 단계 + 장마다 모은 재료)
-export type JourneyBank = Perks & Gear & { coins: number; mats: Record<number, number> };
+// pets = 가진 펫과 레벨, pet = 데려가는 펫, tower = 끝없는 탑에서 깬 가장 높은 층(0051)
+export type JourneyBank = Perks & Gear & { coins: number; mats: Record<number, number>; pets: PetBag; pet: PetId | null; tower: number; towerAt: string | null; towerLast: string | null };
 export async function journeyBank(db: D1Database, user: string): Promise<JourneyBank> {
   const r = await db
-    .prepare('SELECT coins, atk, hp, def, weapon, armor, charm, mats FROM journey_bank WHERE user_id = ?')
+    .prepare('SELECT coins, atk, hp, def, weapon, armor, charm, mats, pets, pet, tower, tower_at, tower_last FROM journey_bank WHERE user_id = ?')
     .bind(user)
-    .first<Perks & Gear & { coins: number; mats: string }>();
-  if (!r) return { coins: 0, ...NO_PERKS, ...NO_GEAR, mats: {} };
+    .first<Perks & Gear & { coins: number; mats: string; pets: string; pet: string | null; tower: number; tower_at: string | null; tower_last: string | null }>();
+  if (!r) return { coins: 0, ...NO_PERKS, ...NO_GEAR, mats: {}, pets: {}, pet: null, tower: 0, towerAt: null, towerLast: null };
   let mats: Record<number, number> = {};
   try {
     const raw = JSON.parse(r.mats || '{}') as Record<string, unknown>;
@@ -73,9 +75,13 @@ export async function journeyBank(db: D1Database, user: string): Promise<Journey
   } catch {
     mats = {};
   }
-  return { ...r, mats };
+  const pets = parsePets(r.pets);
+  const pet = isPetId(r.pet) && pets[r.pet] ? r.pet : null;
+  return { coins: r.coins, atk: r.atk, hp: r.hp, def: r.def, weapon: r.weapon, armor: r.armor, charm: r.charm, mats, pets, pet, tower: r.tower ?? 0, towerAt: r.tower_at ?? null, towerLast: r.tower_last ?? null };
 }
-const matPath = (ch: number) => `$."${ch}"`;
+// 데려가는 펫과 그 레벨(없으면 null)
+export const bankPet = (bank: JourneyBank) => (bank.pet && bank.pets[bank.pet] ? { id: bank.pet, lv: bank.pets[bank.pet]! } : null);
+export const matPath = (ch: number) => `$."${ch}"`;
 
 // 장비 한 단계. +N에는 N장 재료, 앞 장 재료(장마다 LOWER_MATS개), 젤코인이 들어요. 모자라거나 끝까지 올렸거나 다른 화면에서 먼저 했으면 false.
 // seen = 화면에 보이던 단계(오래된 화면에서 누르면 다음 단계 값을 내지 않게).
@@ -141,7 +147,7 @@ export async function beginJourney(db: D1Database, user: string, chapter = 1, no
   const bank = await journeyBank(db, user);
   const cost = kitCost(kit, level);
   if (cost > bank.coins) return NO_COINS;
-  const state = startJourney(id, bank, ch, bank, kit);
+  const state = startJourney(id, bank, ch, bank, kit, bankPet(bank));
   // 이미 깬 장(재료가 덜 나와요). 마지막 장을 깨도 unlocked는 더 올라가지 않아요.
   state.farm = ch < unlocked || (ch === MAX_CHAPTER && !!await db
     .prepare("SELECT 1 FROM journey_runs WHERE user_id = ? AND chapter = ? AND status = 'done' AND cleared = 1 LIMIT 1")

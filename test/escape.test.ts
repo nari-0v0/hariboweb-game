@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ESCAPE_CASES, escCase, actEscape, canAnswer, openScenes, escGrade, isLocked, startEscape, visible, type EscAction, type EscCase, type EscState } from '../src/escape';
-import { actEscapeRun, activeEscape, beginEscape, escapeRecord, getEscape, quitEscape } from '../src/escape-db';
+import { actEscapeRun, activeEscape, beginEscape, escapeRecord, getEscape, quitEscape, reRecord } from '../src/escape-db';
 import { checkUi } from '../src/escape-ui';
 
 function database() {
@@ -632,5 +632,56 @@ describe('스위치 퍼즐 긴 기록', () => {
     const b = BANK.find((x) => x.idea === 'lights-cross')!;
     expect(checkUi(b.ui!, b.a!.split('.').reverse().join('.'))).toBe(true);
     expect(checkUi(b.ui!, '-')).toBe(false);
+  });
+});
+
+describe('재수사', () => {
+  const c = escCase('jellyjar')!;
+  it('힌트를 볼 수 없고, 답을 3번 틀리면 실패로 끝나요(합치기·물건 대 보기는 세지 않아요)', () => {
+    const { steps } = solve(c);
+    let s = startEscape(c, true);
+    expect(s.re).toBe(1);
+    expect(actEscape(c, s, { a: 'hint' })).toBeNull();
+    for (const a of steps.slice(0, -1)) s = actEscape(c, s, a)!;
+    const wrong = c.question.correct === 0 ? 1 : 0;
+    s = actEscape(c, s, { a: 'answer', n: wrong })!;
+    s = actEscape(c, s, { a: 'answer', n: wrong })!;
+    expect(s.done).toBe(false);
+    s = actEscape(c, s, { a: 'answer', n: wrong })!;
+    expect(s.done).toBe(true);
+    expect(s.failed).toBe(1);
+    expect(actEscape(c, s, { a: 'answer', n: c.question.correct })).toBeNull();
+  });
+  it('해결한 사건만 재수사할 수 있고, 보상·등급 없이 시간과 무결점 도장만 남아요', async () => {
+    const { db, sql } = database();
+    expect(await beginEscape(db, 'me', c.id, new Date(), undefined, true)).toBeNull(); // 아직 못 푼 사건
+    const { steps } = solve(c);
+    const first = (await beginEscape(db, 'me', c.id))!;
+    for (const [i, a] of steps.entries()) await actEscapeRun(db, 'me', first, i, a);
+    const before = sql.prepare("SELECT solo_xp, dogam_jelly FROM profiles WHERE user_id = 'me'").get();
+    const t0 = new Date('2026-11-19T00:00:00Z');
+    const re = (await beginEscape(db, 'me', c.id, t0, undefined, true))!;
+    expect((await activeEscape(db, 'me'))!.state.re).toBe(1);
+    for (const [i, a] of steps.entries()) expect(await actEscapeRun(db, 'me', re, i, a, new Date(t0.getTime() + 95_000))).toBe('ok');
+    const row = (await getEscape(db, 'me', re))!.row;
+    expect([row.status, row.grade, row.xp, row.jelly]).toEqual(['done', null, 0, 0]);
+    expect(sql.prepare("SELECT solo_xp, dogam_jelly FROM profiles WHERE user_id = 'me'").get()).toEqual(before);
+    expect(await reRecord(db, 'me')).toEqual(new Map([[c.id, { clears: 1, best: 95, flawless: true }]]));
+    expect((await escapeRecord(db, 'me')).get(c.id)).toBe('S');
+  });
+  it('재수사에 실패하면 그만둔 판으로 남고 기록은 그대로예요', async () => {
+    const { db } = database();
+    const { steps } = solve(c);
+    const first = (await beginEscape(db, 'me', c.id))!;
+    for (const [i, a] of steps.entries()) await actEscapeRun(db, 'me', first, i, a);
+    const re = (await beginEscape(db, 'me', c.id, new Date(), undefined, true))!;
+    const wrong = c.question.correct === 0 ? 1 : 0;
+    const acts: EscAction[] = [...steps.slice(0, -1), { a: 'answer', n: wrong }, { a: 'answer', n: wrong }, { a: 'answer', n: wrong }];
+    for (const [i, a] of acts.entries()) expect(await actEscapeRun(db, 'me', re, i, a)).toBe('ok');
+    const run = (await getEscape(db, 'me', re))!;
+    expect(run.row.status).toBe('quit');
+    expect(run.state.failed).toBe(1);
+    expect((await reRecord(db, 'me')).size).toBe(0);
+    expect(await activeEscape(db, 'me')).toBeNull();
   });
 });

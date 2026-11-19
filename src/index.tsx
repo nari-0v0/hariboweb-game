@@ -92,12 +92,16 @@ import { imageRequestAllowed } from './image-guard';
 import { dbLimitKind, maintenanceOn, maintenanceSkips, maintenanceWhen, type DbLimit } from './maintenance';
 import { EscapePage } from './views/escape';
 import { JourneyPage } from './views/journey';
-import { NO_COINS, STALE_PICK, activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from './journey-db';
+import { NO_COINS, STALE_PICK, activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, journeyTop, quitJourney, upgradeGear } from './journey-db';
+import { buyPet, equipPet, levelPet, parseTowerLast, towerAttempt, towerRanking } from './tower-db';
+import { cleanBoosts } from './tower';
+import { isPetId } from './pets';
+import { TowerPage } from './views/tower';
 import { GEAR, PERKS, cleanKit, type GearId, type PerkId } from './journey';
 import { clearReadAlerts, deleteAlert, listAlerts, markAlertsRead } from './alerts';
 import { AlertBox, AlertsPage } from './views/alerts';
 import { grantJelly, parseGrant } from './jelly-grant';
-import { activeEscape, actEscapeRun, beginEscape, escapeOpen, escapeRecord, getEscape, quitEscape } from './escape-db';
+import { activeEscape, actEscapeRun, beginEscape, escapeOpen, escapeRecord, getEscape, quitEscape, reRecord, type EscRun } from './escape-db';
 import { UI_MAX } from './escape-ui';
 
 const SESSION_COOKIE = 'hs';
@@ -1242,16 +1246,65 @@ members.post('/api/journey/quit', async (c) => {
   return c.redirect(ok ? '/expedition/go?n=quit' : '/expedition/go?n=stale', 303);
 });
 
+// 펫(원정 준비소 🐾 칸): 사기·키우기·데려가기·두고 가기
+members.post('/api/journey/pet', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const body = await c.req.parseBody();
+  const a = String(body.a ?? ''), k = String(body.k ?? '');
+  if (!isPetId(k) || !['buy', 'up', 'take', 'leave'].includes(a)) return c.redirect('/expedition/go?prep=pet&n=bad#perks', 303);
+  try {
+    const user = c.get('viewer').user_id;
+    if (a === 'buy') return c.redirect(`/expedition/go?prep=pet&n=${(await buyPet(c.env.DB, user, k)) ? 'petbuy' : 'nopet'}#perks`, 303);
+    if (a === 'up') {
+      const seen = seenLevel(body.lv);
+      const ok = await levelPet(c.env.DB, user, k, seen);
+      const why = ok ? 'petup' : seen !== undefined && (await journeyBank(c.env.DB, user)).pets[k] !== seen ? 'stale' : 'nopetup';
+      return c.redirect(`/expedition/go?prep=pet&n=${why}#perks`, 303);
+    }
+    await equipPet(c.env.DB, user, a === 'take' ? k : null);
+    return c.redirect('/expedition/go?prep=pet#perks', 303);
+  } catch (e) {
+    console.error('펫 실패', e);
+    return c.redirect('/expedition/go?n=error#perks', 303);
+  }
+});
+
+// 끝없는 탑(원정대 3장을 깨면 열려요): 층마다 한 번 싸워요. 자동으로 오르지 않아요.
+members.get('/expedition/tower', async (c) => {
+  const viewer = c.get('viewer');
+  c.header('Cache-Control', 'no-store');
+  const [bank, top, profile, ranking] = await Promise.all([journeyBank(c.env.DB, viewer.user_id), journeyTop(c.env.DB, viewer.user_id), getProfile(c.env.DB, viewer.user_id), towerRanking(c.env.DB)]);
+  const art = characterUrl(profile.character_id, viewer.user_id, profile.deco_id);
+  // 방금 한 도전 결과는 r=1로 돌아왔을 때 한 번만 보여 줘요
+  const last = c.req.query('r') === '1' ? parseTowerLast(bank.towerLast) : null;
+  return page(c, <TowerPage viewer={viewer} art={art} bank={bank} top={top} ranking={ranking} last={last} notice={c.req.query('n')} />);
+});
+members.post('/api/tower/fight', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const body = await c.req.parseBody({ all: true });
+  const floor = Number(Array.isArray(body.floor) ? body.floor[0] : body.floor);
+  if (!Number.isSafeInteger(floor) || floor < 1) return c.redirect('/expedition/tower?n=bad#now', 303);
+  try {
+    const r = await towerAttempt(c.env.DB, c.get('viewer').user_id, floor, cleanBoosts(body.boost));
+    return c.redirect(r === 'ok' ? '/expedition/tower?r=1#now' : `/expedition/tower?n=${r}#now`, 303);
+  } catch (e) {
+    console.error('탑 도전 실패', e);
+    return c.redirect('/expedition/tower?n=error#now', 303);
+  }
+});
+
 // 하리보 사건파일 (방탈출판): 물건을 눌러 찾고 퍼즐을 풀어요.
 const ESC_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+// 결과를 보여 줄 판: 해결한 판, 그리고 답을 3번 틀려 끝난 재수사 판
+const escEnded = (r: EscRun) => r.row.status === 'done' || (r.row.status === 'quit' && !!r.state.failed);
 members.get('/cases/room', async (c) => {
   const viewer = c.get('viewer');
   c.header('Cache-Control', 'no-store');
-  const [run, best, profile, dogam] = await Promise.all([activeEscape(c.env.DB, viewer.user_id), escapeRecord(c.env.DB, viewer.user_id), getProfile(c.env.DB, viewer.user_id), dogamProgress(c.env.DB, viewer.user_id)]);
+  const [run, best, profile, dogam, re] = await Promise.all([activeEscape(c.env.DB, viewer.user_id), escapeRecord(c.env.DB, viewer.user_id), getProfile(c.env.DB, viewer.user_id), dogamProgress(c.env.DB, viewer.user_id), reRecord(c.env.DB, viewer.user_id)]);
   const art = characterUrl(profile.character_id, viewer.user_id, profile.deco_id);
   const rid = c.req.query('r') ?? '';
   const done = ESC_ID.test(rid) ? await getEscape(c.env.DB, viewer.user_id, rid) : null;
-  return page(c, <EscapePage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} best={best} dogam={dogam} notice={c.req.query('n')} list={c.req.query('list') === '1'} />);
+  return page(c, <EscapePage viewer={viewer} art={art} run={run} result={done && escEnded(done) ? done : null} best={best} re={re} dogam={dogam} notice={c.req.query('n')} list={c.req.query('list') === '1'} />);
 });
 members.post('/api/escape/start', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
@@ -1267,7 +1320,7 @@ members.post('/api/escape/start', async (c) => {
     if (replacing && (!ESC_ID.test(oldId) || !Number.isSafeInteger(rev) || rev < 0)) {
       return c.redirect('/cases/room?n=stale#now', 303);
     }
-    const id = await beginEscape(c.env.DB, user, want, new Date(), replacing ? { id: oldId, rev } : undefined);
+    const id = await beginEscape(c.env.DB, user, want, new Date(), replacing ? { id: oldId, rev } : undefined, body.re === '1');
     return c.redirect(id ? '/cases/room#now' : replacing ? '/cases/room?n=stale#now' : '/cases/room?n=bad', 303);
   } catch (e) {
     console.error('사건 시작 실패', e);
@@ -1304,12 +1357,12 @@ members.post('/api/escape/act', async (c) => {
     const r = await actEscapeRun(c.env.DB, user, id, rev, act);
     if (r !== 'ok') return c.redirect(`/cases/room?n=${r}#now`, 303);
     // 다시 불러오기(리다이렉트) 없이 바로 화면을 그려 보내요. 한 번 왕복이 줄어서 빨라요.
-    const [after, best, profile, dogam] = await Promise.all([getEscape(c.env.DB, user, id), escapeRecord(c.env.DB, user), getProfile(c.env.DB, user), dogamProgress(c.env.DB, user)]);
-    const done = after?.row.status === 'done';
+    const [after, best, profile, dogam, re] = await Promise.all([getEscape(c.env.DB, user, id), escapeRecord(c.env.DB, user), getProfile(c.env.DB, user), dogamProgress(c.env.DB, user), reRecord(c.env.DB, user)]);
+    const done = !!after && escEnded(after);
     c.header('Cache-Control', 'no-store');
     const viewer = c.get('viewer');
     const art = characterUrl(profile.character_id, user, profile.deco_id);
-    return page(c, <EscapePage viewer={viewer} art={art} run={done ? null : after} result={done ? after : null} best={best} dogam={dogam} url={done ? `/cases/room?r=${id}#now` : '/cases/room#now'} />);
+    return page(c, <EscapePage viewer={viewer} art={art} run={done ? null : after} result={done ? after : null} best={best} re={re} dogam={dogam} url={done ? `/cases/room?r=${id}#now` : '/cases/room#now'} />);
   } catch (e) {
     console.error('사건 진행 실패', e);
     return c.redirect('/cases/room?n=error#now', 303);

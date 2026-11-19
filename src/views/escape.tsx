@@ -1,6 +1,6 @@
 import type { Member } from '../env';
-import type { EscRun } from '../escape-db';
-import { ESCAPE_CASES, ESC_XP, escapeUnlockIndex, bigHint, canAnswer, coinSpots, coinsLeft, escGrade, hintIndex, isLocked, openScenes, puzzleNo, visible, type EscGrade, type EscObject } from '../escape';
+import type { EscRun, ReRecord } from '../escape-db';
+import { ESCAPE_CASES, ESC_XP, escapeUnlockIndex, bigHint, canAnswer, coinSpots, coinsLeft, escGrade, hintIndex, RE_LIVES, isLocked, openScenes, puzzleNo, visible, type EscGrade, type EscObject } from '../escape';
 import { casePics, itemPic } from '../case-art';
 import { ROOMS, roomSrc, roomSrcSet, type Hotspot, type RoomKey } from '../case-rooms';
 import { ROOM_BLUR } from '../room-blur.gen';
@@ -258,12 +258,12 @@ function Focus(props: { run: EscRun; art: string; name: string }) {
                 <p class="esc-hint-line">💡 {run.def.hints[k]!.text}</p>
               ))}
             {(s.bigHints ?? []).includes(o.id) && bigHint(o) && <p class="esc-hint-line">💡💡 {bigHint(o)}</p>}
-            {bigHint(o) && !(s.bigHints ?? []).includes(o.id) && run.def.hints.some((h, k) => h.until === o.id && (s.seenHints ?? []).includes(k)) && (
+            {!s.re && bigHint(o) && !(s.bigHints ?? []).includes(o.id) && run.def.hints.some((h, k) => h.until === o.id && (s.seenHints ?? []).includes(k)) && (
               <Act run={run} a="hint2" o={o.id} cls="btn btn-small esc-hint-btn">
                 {coinsLeft(s) > 0 ? '💡💡 더 쉬운 힌트 (동전 1개)' : '💡💡 더 쉬운 힌트 (등급 감점)'}
               </Act>
             )}
-            {run.def.hints.some((h, k) => h.until === o.id && !(s.seenHints ?? []).includes(k)) && (
+            {!s.re && run.def.hints.some((h, k) => h.until === o.id && !(s.seenHints ?? []).includes(k)) && (
               <Act run={run} a="hint" cls="btn btn-small esc-hint-btn">
                 {coinsLeft(s) > 0 ? '💡 이 문제 힌트 (동전 1개)' : '💡 이 문제 힌트 (등급 감점)'}
               </Act>
@@ -431,9 +431,15 @@ function Play(props: { run: EscRun; art: string; name: string }) {
               <span class="esc-chip" title="힌트 동전">
                 🪙 {left}
               </span>
-              <span class="esc-chip" title="실수">
-                ❌ {s.mistakes}
-              </span>
+              {s.re ? (
+                <span class="esc-chip esc-re" title="재수사: 답을 틀릴 수 있는 남은 기회">
+                  🔁 ❤️ {Math.max(0, RE_LIVES - s.mistakes)}
+                </span>
+              ) : (
+                <span class="esc-chip" title="실수">
+                  ❌ {s.mistakes}
+                </span>
+              )}
             </header>
             <div class="esc-frame">
               <div class={`esc-room esc-pic-room${s.fx === 'move' ? ' fx-move' : ''}`} data-room>
@@ -549,9 +555,9 @@ function Play(props: { run: EscRun; art: string; name: string }) {
               <a class="btn btn-small" href="/cases/room?list=1">
                 📁 사건 목록
               </a>
-              <Act run={run} a="hint" cls="btn btn-small">
+              {!s.re && <Act run={run} a="hint" cls="btn btn-small">
                 {(s.seenHints ?? []).includes(hintIndex(def, s)) ? '💡 힌트 다시 보기 (무료)' : left > 0 ? '💡 힌트 (동전 1개)' : '💡 힌트 (등급 감점)'}
-              </Act>
+              </Act>}
               <a class="btn btn-small" href="#notes">
                 📒 수첩 {s.clues.length}/{allClues.length}
               </a>
@@ -658,8 +664,43 @@ function Play(props: { run: EscRun; art: string; name: string }) {
   );
 }
 
-function Result(props: { run: EscRun; going: boolean }) {
+const mmss = (secs: number) => `${Math.floor(secs / 60)}분 ${String(secs % 60).padStart(2, '0')}초`;
+// 재수사 결과: 등급 대신 걸린 시간과 무결점 도장
+function ReResult(props: { run: EscRun; going: boolean; record?: ReRecord }) {
   const { run } = props;
+  const s = run.state;
+  const won = !s.failed;
+  const ended = Date.parse(run.row.ended_at ?? '');
+  const started = Date.parse(run.row.started_at ?? '');
+  const secs = Number.isFinite(ended) && Number.isFinite(started) ? Math.max(0, Math.round((ended - started) / 1000)) : null;
+  return (
+    <section class="jr-game esc-game esc-result" id="now">
+      <span class="eyebrow">🔁 재수사 {won ? '성공' : '실패'}</span>
+      <h2>
+        {run.def.emoji} {run.def.title}
+      </h2>
+      <div class="esc-grade">
+        <span class={`esc-grade-badge ${won ? (s.mistakes === 0 ? 'g-S' : 'g-A') : 'g-C'} fx-stamp`}>{won ? (s.mistakes === 0 ? '💮' : '✔') : '✖'}</span>
+        <div>
+          <b>{won ? (s.mistakes === 0 ? '무결점 해결! 도장을 받았어요' : '힌트 없이 해결했어요') : `답을 ${RE_LIVES}번 틀렸어요`}</b>
+          <p class="hint">
+            {secs !== null && won ? `걸린 시간 ${mmss(secs)} · ` : ''}틀린 답 {s.mistakes}번
+            {props.record?.best != null ? ` · 가장 빠른 기록 ${mmss(props.record.best)}` : ''}
+          </p>
+        </div>
+      </div>
+      <p class="esc-ending">{s.msg}</p>
+      <p class="hint">재수사는 보상 없이 기록만 남아요. 등급 기록도 그대로예요.</p>
+      <a class="btn btn-primary" href={props.going ? '/cases/room' : '#case-list'}>
+        {props.going ? '진행 중인 사건 이어 하기' : '다른 사건 고르기'}
+      </a>
+    </section>
+  );
+}
+
+function Result(props: { run: EscRun; going: boolean; record?: ReRecord }) {
+  const { run } = props;
+  if (run.state.re) return <ReResult {...props} />;
   const g = (run.row.grade as EscGrade | null) ?? escGrade(run.state);
   return (
     <section class="jr-game esc-game esc-result" id="now">
@@ -697,6 +738,7 @@ export function EscapePage(props: {
   list?: boolean; // 하던 사건이 있어도 사건 목록 보기
   result: EscRun | null;
   best: Map<string, EscGrade>;
+  re?: Map<string, ReRecord>; // 재수사 기록
   dogam: DogamProgress;
   notice?: string;
   url?: string;
@@ -718,11 +760,12 @@ export function EscapePage(props: {
               <p>방 안 물건을 눌러 살피고, 열쇠와 비밀번호·수수께끼로 잠긴 곳을 열어 단서를 모아요. 단서가 모이면 진실을 맞혀요.</p>
               <p>방 곳곳 빈 자리를 눌러 보면 숨은 힌트 동전이 있어요. 실수(틀린 비밀번호·장치 답·범인 답)와 동전 없이 본 힌트가 적을수록 등급이 높아요. 물건 합치기나 물건 대 보기는 틀려도 실수가 아니에요.</p>
               <p>사건마다 처음 해결하면 내 카드 경험치 {ESC_XP}, S·A 등급이면 도감 젤리 1개도 받아요.</p>
+              <p>해결한 사건은 🔁 재수사로 다시 풀 수 있어요. 힌트 없이, 답을 3번 틀리면 실패예요. 보상은 없고 가장 빠른 시간과 무결점 도장(💮, 한 번도 안 틀림)이 남아요.</p>
               <p>한 번 열었던 사건을 다시 열면 수수께끼는 같지만 범인·단서·물건 숨은 자리·시계 시각이 새로 바뀌어요. 맨 앞 입문 사건 3개와 대화로 푸는 사건은 그대로예요.</p>
             </div>
           </details>
         </div>
-        {result ? <Result run={result} going={!!run} /> : run && !props.list ? <Play run={run} art={props.art} name={props.viewer.display_name} /> : null}
+        {result ? <Result run={result} going={!!run} record={props.re?.get(result.def.id)} /> : run && !props.list ? <Play run={run} art={props.art} name={props.viewer.display_name} /> : null}
         {(!run || props.list) && (
           <section class="jr-game esc-game esc-shelf" id="case-list">
             <h2 class="jr-pick-title">어떤 사건 파일을 열까요?</h2>
@@ -755,7 +798,9 @@ export function EscapePage(props: {
                     </div>
                   );
                 }
+                const re = props.re?.get(c.id);
                 return (
+                  <div class="esc-file-wrap">
                   <form method="post" action="/api/escape/start" class={`esc-file${best ? ' done' : ''}`}>
                     <input type="hidden" name="case" value={c.id} />
                     {run && <>
@@ -773,6 +818,21 @@ export function EscapePage(props: {
                       {best ? <span class={`esc-file-stamp g-${best}`}>{best}</span> : <span class="esc-file-new">미해결</span>}
                     </button>
                   </form>
+                  {best && (
+                    <form method="post" action="/api/escape/start" class="esc-re-form">
+                      <input type="hidden" name="case" value={c.id} />
+                      <input type="hidden" name="re" value="1" />
+                      {run && <>
+                        <input type="hidden" name="switch" value="1" />
+                        <input type="hidden" name="run" value={run.row.id} />
+                        <input type="hidden" name="rev" value={run.row.rev} />
+                      </>}
+                      <button type="submit" class="btn btn-small esc-re-btn" title={`힌트 없이, 답을 ${RE_LIVES}번 틀리면 실패`}>
+                        🔁 재수사{re?.flawless ? ' 💮' : ''}{re?.best != null ? ` · ${mmss(re.best)}` : ''}
+                      </button>
+                    </form>
+                  )}
+                  </div>
                 );
               })}
             </div>

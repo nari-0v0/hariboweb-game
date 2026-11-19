@@ -2183,9 +2183,10 @@ main.wide { max-width: 1320px; }
 .jp-slot-weapon { grid-area: weapon; }
 .jp-slot-armor { grid-area: armor; }
 .jp-slot-charm { grid-area: charm; }
-.jp-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.jp-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .jp-tabs-m { display: none; }
-.jp-hero .jp-stats, .jp-hero .jp-tabs { align-self: stretch; grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.jp-hero .jp-stats { align-self: stretch; grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.jp-hero .jp-tabs { align-self: stretch; grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .jp-hero .jp-tabs { grid-template-columns: 1fr; }
 .jp-hero .jp-tab { flex-direction: row; justify-content: flex-start; gap: 8px; padding: 4px 10px; border-width: 2px; box-shadow: inset 0 -4px 0 var(--ink); }
 .jp-hero .jp-tab:active, .jp-hero .jp-tab.on { translate: none; box-shadow: inset 0 -1px 0 var(--ink); }
@@ -2362,3 +2363,48 @@ main.wide { max-width: 1320px; }
   font-size: .86rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 @media (max-width: 380px) { .notice-bar { font-size: .76rem; padding: 0 8px; } }
+
+/* 펫(원정 준비소 🐾 칸, 2026-11-19) */
+.jp-pets { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+@media (max-width: 560px) { .jp-pets { grid-template-columns: 1fr 1fr; } .jp-pet { padding: 8px 4px; } }
+.jp-pet { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border: 3px solid var(--ink); background: #fff; text-align: center; box-shadow: 0 4px 0 var(--ink); min-width: 0; }
+.jp-pet.on { background: #fff6c9; }
+.jp-pet.locked { background: #f4f4f4; }
+.jp-pet.locked .jp-pet-pic img { filter: grayscale(1) brightness(.4); }
+.jp-pet-pic { position: relative; display: grid; place-items: center; width: 80px; height: 80px; border: 3px solid var(--ink); background: radial-gradient(circle, #fff 0 40%, #e3f4ff 41% 100%); }
+.jp-pet-pic img { width: 72px; height: 72px; object-fit: contain; }
+.jp-pet-name { font-size: .9rem; }
+.jp-pet-form { margin: 0; width: 100%; }
+.jp-pet-form .btn { width: 100%; }
+.jp-pet-form + .jp-pet-form, .jp-item-need + .jp-pet-form { margin-top: auto; }
+/* 원정·탑에 데려간 펫: 내 캐릭터 발 옆 */
+.jr-hero img.jr-pet, .jr-game .jr-hero img.jr-pet { position: absolute; left: -10px; bottom: 2px; width: 40px; height: 40px; z-index: 2; object-fit: contain; rotate: none; translate: none; filter: none; animation: none; }
+
+/* 끝없는 탑 */
+.tw-link { display: flex; align-items: center; gap: 12px; color: var(--ink); text-decoration: none; }
+.tw-link img { width: 64px; height: 64px; object-fit: cover; border: 3px solid var(--ink); }
+.tw-link span { display: grid; gap: 2px; min-width: 0; }
+.tw-link small { color: var(--ink-soft); }
+.tw-link:hover { background: #fff6c9; }
+.tw-link.locked { opacity: .7; }
+.tw-form { display: grid; gap: 8px; margin: 0; }
+.tw-next { display: grid; gap: 2px; margin: 0; }
+.tw-next { color: #fff; }
+.tw-next small { color: #d7e3f0; overflow-wrap: anywhere; }
+.tw-boosts { display: grid; gap: 6px; margin: 0; padding: 6px 8px; border: 2px solid var(--ink); background: #fff; color: var(--ink); min-width: 0; }
+.tw-boosts legend { float: left; width: 100%; padding: 0; font-weight: 700; font-size: .85rem; color: var(--ink); }
+.tw-boost span, .tw-boost b { color: var(--ink); }
+.tw-boost { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: .85rem; cursor: pointer; }
+.tw-boost b { white-space: nowrap; }
+.tw-rank ol { margin: 0; padding-left: 1.6em; display: grid; gap: 4px; }
+.tw-rank li { display: flex; justify-content: space-between; gap: 8px; }
+.tw-rank li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tw-rank li.me { font-weight: 700; color: #2c7a55; }
+.tw-help ul { margin: 6px 0 0; padding-left: 1.2em; display: grid; gap: 4px; font-size: .88rem; }
+
+/* 재수사(2026-11-19): 해결한 사건 아래 작은 버튼 */
+.esc-file-wrap { display: grid; grid-template-rows: 1fr auto; gap: 4px; min-width: 0; }
+.esc-re-form { margin: 0; }
+.esc-re-btn { width: 100%; font-size: .78rem; padding-left: 4px; padding-right: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.esc-chip.esc-re { background: #ffe0e8; }
+.jp-tab b { word-break: keep-all; text-align: center; }
