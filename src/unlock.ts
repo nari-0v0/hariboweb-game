@@ -20,7 +20,33 @@ export const JOURNEY_NEEDS: Need[] = [
   { cards: 35, lv: 10, lvCards: 5 },
   { cards: 45, lv: 15, lvCards: 5 },
   { cards: 55, lv: 20, lvCards: 5 },
+  // 10~15장(2026-11-19): 처음엔 빡빡하게. 12월 초 기록을 보고 여기 숫자만 바꿔요.
+  { cards: 60, lv: 20, lvCards: 8 },
+  { cards: 62, lv: 25, lvCards: 8 },
+  { cards: 64, lv: 25, lvCards: 10 },
+  { cards: 66, lv: 30, lvCards: 10 },
+  { cards: 68, lv: 30, lvCards: 12 },
+  { cards: 70, lv: 35, lvCards: 12 },
 ];
+
+// 원정대 장이 열리는 날(한국 시간 0시). 이 날 전에는 도감 조건을 채워도 잠겨 있어요. 날짜만 바꾸면 돼요.
+export const JOURNEY_RELEASE: Record<number, string> = {
+  10: '2027-01-04',
+  11: '2027-03-01',
+  12: '2027-05-03',
+  13: '2027-07-05',
+  14: '2027-09-06',
+  15: '2027-11-01',
+};
+export const journeyReleased = (ch: number, now: Date = new Date()) => {
+  const day = JOURNEY_RELEASE[ch];
+  return !day || now.getTime() >= Date.parse(`${day}T00:00:00+09:00`);
+};
+// "1월 4일에 열려요"
+export const releaseText = (ch: number) => {
+  const day = JOURNEY_RELEASE[ch];
+  return day ? `${Number(day.slice(5, 7))}월 ${Number(day.slice(8, 10))}일에 열려요` : '';
+};
 
 // 사건파일: 목록 순서대로 5개씩 묶어요.
 export const ESCAPE_STEPS: Need[] = [
@@ -58,10 +84,10 @@ export function needText(need: Need, p?: DogamProgress): string {
 // 칸이 좁은 곳에 쓰는 짧은 글: "카드 20장 · Lv10+ 3장"
 export const shortNeed = (need: Need) => `카드 ${need.cards}장${need.lv ? ` · Lv${need.lv}+ ${need.lvCards}장` : ''}`;
 
-// 도감이 허락하는 가장 깊은 원정대 장(앞에서부터 이어서)
-export function journeyOpenTo(p: DogamProgress): number {
+// 도감(과 여는 날)이 허락하는 가장 깊은 원정대 장(앞에서부터 이어서)
+export function journeyOpenTo(p: DogamProgress, now: Date = new Date()): number {
   let ch = 0;
-  while (ch < JOURNEY_NEEDS.length && meets(JOURNEY_NEEDS[ch]!, p)) ch++;
+  while (ch < JOURNEY_NEEDS.length && meets(JOURNEY_NEEDS[ch]!, p) && journeyReleased(ch + 1, now)) ch++;
   return ch;
 }
 

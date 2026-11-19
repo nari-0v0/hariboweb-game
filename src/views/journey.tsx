@@ -1,6 +1,6 @@
 import type { Member } from '../env';
 import type { JourneyBank, JourneyRecord, JourneyRun } from '../journey-db';
-import { BOSS_KEYS, CHAPTERS, chapterLevels, chapterOf } from '../journey-chapters';
+import { BOSS_KEYS, CHAPTERS, chapterBg, chapterLevels, chapterOf } from '../journey-chapters';
 import {
   DAILY_REWARD_JOURNEYS,
   DAYS,
@@ -37,7 +37,7 @@ import {
 import { FOES, PROPS, ZONE_NAMES, spriteSvg, zoneFor, type Zone } from '../journey-art';
 import { SPRITES } from '../sprites.gen';
 import { FictionNote } from './fiction';
-import { journeyNeed, journeyOpenTo, meets, needText, shortNeed, type DogamProgress } from '../unlock';
+import { journeyNeed, journeyOpenTo, journeyReleased, meets, needText, releaseText, shortNeed, type DogamProgress } from '../unlock';
 import { Layout } from './layout';
 import { Popup, type PopupLine } from './shop';
 import { TOWER_OPEN } from '../tower';
@@ -260,7 +260,7 @@ const preloadFor = (ch: number | undefined) => {
   return [...c.foes, c.elite, c.boss]
     .map((m) => `/journey/foe/${m.key}.webp`)
     .concat(Object.keys(SPRITES).filter((k) => k.startsWith('/journey/prop/')))
-    .concat(['meadow', 'deep', 'dusk', 'lair', 'night'].map((z) => `/journey/bg/${z}.webp`))
+    .concat((chapterBg(ch) ? ['night'] : ['meadow', 'deep', 'dusk', 'lair', 'night']).map((z) => `/journey/bg/${z}.webp`), chapterBg(ch) ?? [])
     .filter((src) => src.startsWith('/journey/bg/') || SPRITES[src]);
 };
 const Preload = (props: { ch?: number }) => (
@@ -379,7 +379,7 @@ export function Stage(props: { s: JourneyState; art: string; name: string; lost:
   return (
     <div
       class={`jr-stage zone-${zone}${plan ? ' fight' : ''}${prop ? ` at-${prop}` : ''}`}
-      style={`--jr-bg:url(${props.bg ?? `/journey/bg/${zone}.webp`})`}
+      style={`--jr-bg:url(${props.bg ?? (zone !== 'night' ? chapterBg(s.ch) : null) ?? `/journey/bg/${zone}.webp`})`}
       data-wait={plan ? String(plan.ms) : undefined}
     >
       <span class="jr-place">{props.place ?? ((s.ch ?? 1) > 1 && zone !== 'night' ? `${chapterOf(s.ch).name} · ${s.ch}장` : ZONE_NAMES[zone])}</span>
@@ -529,7 +529,7 @@ function Play(props: { run: JourneyRun; art: string; name: string; preview?: boo
 
 // 장 고르기: 열린 장만 누를 수 있어요. 기본은 마지막으로 돈 장(아래 장 재료를 모으는 사람이 매번 다시 안 골라도 되게),
 // 처음이거나 그 장을 못 가면 가장 높은 장이에요. 앞 장 대장을 이겨야 하고, 4장부터는 도감 카드도 모아야 열려요(src/unlock.ts).
-function ChapterPick(props: { unlocked: number; top: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number; last?: number; again?: boolean }) {
+export function ChapterPick(props: { unlocked: number; top: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number; last?: number; again?: boolean }) {
   const pick = Math.min(props.unlocked, journeyOpenTo(props.dogam));
   const chosen = props.last && props.last >= 1 && props.last <= pick ? props.last : pick;
   return (
@@ -539,16 +539,18 @@ function ChapterPick(props: { unlocked: number; top: number; dogam: DogamProgres
         {CHAPTERS.map((c) => {
           const need = journeyNeed(c.n);
           const dogamOk = meets(need, props.dogam);
-          const open = c.n <= props.unlocked && dogamOk;
+          const released = journeyReleased(c.n);
+          const open = c.n <= props.unlocked && dogamOk && released;
           const boss = picOf('foe', c.boss.key);
+          const bg = chapterBg(c.n);
           return (
             <label class={`jr-chapter${open ? '' : ' locked'}`}>
               <input type="radio" name="ch" value={c.n} checked={c.n === chosen} disabled={!open} />
-              <span class="jr-chapter-pic" aria-hidden="true">
+              <span class={`jr-chapter-pic${bg ? ' has-bg' : ''}`} aria-hidden="true" style={bg ? `--jr-ch-bg:url(${bg})` : undefined}>
                 {boss ? <img src={boss.src} alt="" loading="lazy" /> : <span>{c.boss.emoji}</span>}
               </span>
               <b>{c.n}장</b>
-              <span class="jr-chapter-name">{open ? c.name : c.n <= props.unlocked ? '📖 도감이 필요해요' : '잠겨 있어요'}</span>
+              <span class="jr-chapter-name">{open ? c.name : !released ? `📅 ${releaseText(c.n)}` : c.n <= props.unlocked ? '📖 도감이 필요해요' : '잠겨 있어요'}</span>
               <span class="hint">{chapterLevels(c.n)}</span>
               {open && c.n <= props.top && (
                 <span class="jr-farm" title="이미 깬 장을 다시 돌 때 모이는 젤코인">
@@ -687,7 +689,7 @@ function PetPane(props: { bank: JourneyBank; top: number; unlocked: number; late
     <div class="jp-pane">
       <PaneTitle id="pet" />
       <p class="hint">
-        펫은 젤코인으로 사고, 젤코인과 재료로 키워요. 원정과 끝없는 탑에는 한 마리만 데려가고, 효과도 데려간 펫 하나만 나요(두고 간 펫은 효과가 없어요). 장을 깨면 새 펫이 상점에 나와요. 레벨 5칸마다 필요한 재료 장이 올라가서, 펫은 깬 장 × 5 레벨까지 키울 수 있어요. 마지막 장까지 깨면 한도 없이, 가장 많이 가진 재료 한 가지로 계속 키워요. {props.later}
+        펫은 젤코인으로 사고, 젤코인과 재료로 키워요. 원정과 끝없는 탑에는 한 마리만 데려가고, 효과도 데려간 펫 하나만 나요(두고 간 펫은 효과가 없어요). 장을 깨면 새 펫이 상점에 나와요. 레벨 5칸마다 필요한 재료 장이 올라가서, 펫은 깬 장 × 5 레벨까지 키울 수 있어요. 9장까지 깨면 한도 없이, 가장 많이 가진 재료 한 가지로 계속 키워요. {props.later}
         다음 원정부터 적용돼요.
       </p>
       <div class="jp-pets">
@@ -1016,7 +1018,7 @@ export function JourneyPage(props: {
               </p>
               <p>장이 올라갈수록 몬스터 레벨이 20씩 올라가요(1장 Lv.1~20, 2장 Lv.21~40…).</p>
               <p>
-                하루 첫 {DAILY_REWARD_JOURNEYS}판은 끝날 때 내 카드 경험치를 받고(멀리 갈수록, 높은 장일수록 많이), 원정대를 끝까지(9장 대장까지) 처음 깨면 도감 젤리 {JOURNEY_FINISH_JELLY}개를 받아요. 남은
+                하루 첫 {DAILY_REWARD_JOURNEYS}판은 끝날 때 내 카드 경험치를 받고(멀리 갈수록, 높은 장일수록 많이), 9장 대장과 15장 대장을 처음 깰 때 도감 젤리를 {JOURNEY_FINISH_JELLY}개씩 받아요. 남은
                 젤코인과 강화 재료는 원정 준비소에 모여요.
               </p>
             </div>

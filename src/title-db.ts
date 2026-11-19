@@ -6,7 +6,7 @@ type N = { n: number };
 
 // 칭호 조건에 쓰는 내 기록을 한 번에 읽어요
 export async function loadTitleStats(db: D1Database, userId: string, nowIso: string): Promise<TitleStats> {
-  const [cards, seasons, clears, bingo, got, gave, own, gamble, member] = await db.batch([
+  const [cards, seasons, clears, bingo, got, gave, own, gamble, member, journey] = await db.batch([
     db.prepare('SELECT xp, voice_seconds FROM cards WHERE owner_id = ?').bind(userId),
     // 끝난 시즌마다 내가 끝까지 있던 모둠의 퀘스트 수와 깬 수
     db
@@ -33,6 +33,8 @@ export async function loadTitleStats(db: D1Database, userId: string, nowIso: str
     db.prepare('SELECT solo_xp AS n FROM profiles WHERE user_id = ?').bind(userId),
     db.prepare('SELECT chips, all_in_wins, jackpots, naturals FROM gamble_accounts WHERE user_id = ?').bind(userId),
     db.prepare('SELECT reset_at FROM members WHERE user_id = ?').bind(userId),
+    // 대장을 깬 가장 높은 장(색인으로 한 줄만 읽어요)
+    db.prepare("SELECT chapter AS n FROM journey_runs WHERE user_id = ? AND status = 'done' AND cleared = 1 ORDER BY chapter DESC LIMIT 1").bind(userId),
   ]);
   const cardRows = cards!.results as { xp: number; voice_seconds: number }[];
   const xps = cardRows.map((r) => Number(r.xp));
@@ -51,6 +53,7 @@ export async function loadTitleStats(db: D1Database, userId: string, nowIso: str
     bingoLines: n(bingo),
     praiseGot: n(got),
     praiseGave: n(gave),
+    journeyTop: n(journey),
   };
 }
 

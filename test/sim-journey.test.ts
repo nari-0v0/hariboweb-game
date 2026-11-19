@@ -5,8 +5,9 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, it } from 'vitest';
 import { actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, quitJourney, upgradeGear, NO_COINS, STALE_PICK } from '../src/journey-db';
-import { DAILY_REWARD_JOURNEYS, GEAR_IDS, gearNeed, perkCost, type JourneyAction, type KitId, type PerkId } from '../src/journey';
+import { DAILY_REWARD_JOURNEYS, GEAR_IDS, JELLY_CHAPTERS, gearNeed, perkCost, type JourneyAction, type KitId, type PerkId } from '../src/journey';
 import { MAX_CHAPTER } from '../src/journey-chapters';
+import { journeyOpenTo } from '../src/unlock';
 import { kstDay } from '../src/db';
 
 function fakeD1() {
@@ -95,10 +96,11 @@ it('시뮬: 원정대 수백 판 — 젤코인·재료·보상이 판 기록과 
         }
       }
       const top = (sql.prepare("SELECT COALESCE(MAX(chapter), 0) t FROM journey_runs WHERE user_id = ? AND status = 'done' AND cleared = 1").get(U) as { t: number }).t;
-      const ch = 1 + Math.floor(r() * Math.min(MAX_CHAPTER, top + 1));
+      const open = Math.min(MAX_CHAPTER, top + 1, journeyOpenTo({ cards: 60, levels: Array(60).fill(999) }, new Date(now))); // 10장부터는 여는 날 전이라 잠겨 있어요
+      const ch = 1 + Math.floor(r() * open);
       const kit: KitId[] = r() < 0.25 ? [(['potion', 'shield', 'clover'] as KitId[])[Math.floor(r() * 3)]!] : [];
       const coinsBefore = (await journeyBank(db, U)).coins;
-      const id = await beginJourney(db, U, ch, new Date(now), kit, Math.min(MAX_CHAPTER, top + 1));
+      const id = await beginJourney(db, U, ch, new Date(now), kit, open);
       expect(id).not.toBe(STALE_PICK);
       if (id === NO_COINS || !id) continue;
       const paid = coinsBefore - (await journeyBank(db, U)).coins;
@@ -149,10 +151,10 @@ it('시뮬: 원정대 수백 판 — 젤코인·재료·보상이 판 기록과 
       for (const [d, n] of perDay) expect(n, d).toBeLessThanOrEqual(DAILY_REWARD_JOURNEYS);
       // 보상 날짜는 끝낸 한국 날짜
       for (const x of runs) if (x.status === 'done') expect(x.reward_day).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-      // 마지막 장 젤리는 딱 한 번
+      // 9장(그리고 15장) 젤리는 장마다 딱 한 번
       finishJelly = runs.filter((x) => x.jelly > 0).length;
-      expect(finishJelly).toBeLessThanOrEqual(1);
-      if (finishJelly) expect(runs.find((x) => x.jelly > 0)!.chapter).toBe(MAX_CHAPTER);
+      expect(finishJelly).toBeLessThanOrEqual(JELLY_CHAPTERS.length);
+      for (const x of runs.filter((x) => x.jelly > 0)) expect(JELLY_CHAPTERS).toContain(x.chapter);
       // 강화 주머니 = 판마다 모은 것 − 쓴 것
       const bank = await journeyBank(db, U);
       let clears = 0, best = 0;

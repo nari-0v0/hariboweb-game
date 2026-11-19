@@ -10,9 +10,11 @@ export const DAYS = 20;
 export const ELITE_DAY = 10;
 export const DAILY_REWARD_JOURNEYS = 2; // 하루 첫 2판만 보상
 export const journeyXp = (day: number, cleared: boolean, ch = 1) => (cleared ? 12 + 3 * (ch - 1) : Math.min(10, 2 + Math.floor(day / 2)) + (ch - 1));
-// 도감 젤리는 원정대를 끝까지(마지막 장 대장을 처음) 깼을 때 한 번만 10개 줘요. 그 전에는 주지 않아요(나리 2026-11-13).
+// 도감 젤리는 9장 대장을 처음 깼을 때 10개(나리 2026-11-13), 15장(마지막 장) 대장을 처음 깼을 때 10개 더 줘요. 다른 장은 없어요.
 export const JOURNEY_FINISH_JELLY = 10;
-export const journeyJelly = (cleared: boolean, ch = 1, top = 0) => (cleared && ch >= MAX_CHAPTER && top < MAX_CHAPTER ? JOURNEY_FINISH_JELLY : 0);
+export const JELLY_CHAPTERS = [9, MAX_CHAPTER];
+export const journeyJelly = (cleared: boolean, ch = 1, top = 0) =>
+  cleared ? JELLY_CHAPTERS.filter((n) => ch >= n && top < n).length * JOURNEY_FINISH_JELLY : 0;
 
 export type SkillId = 'power' | 'vital' | 'guard' | 'leech' | 'crit' | 'spark' | 'shield' | 'mend' | 'thorn' | 'lucky';
 export const SKILLS: Record<SkillId, { name: string; icon: string; text: (lv: number) => string; max: number }> = {
@@ -129,7 +131,7 @@ export const GEAR: Record<GearId, { name: string; icon: string; stat: string; pe
   charm: { name: '장신구', icon: '💍', stat: '체력', per: 30 },
 };
 export const GEAR_IDS = Object.keys(GEAR) as GearId[];
-export const GEAR_MAX = 9;
+export const GEAR_MAX = 15; // +N에는 N장 재료가 들어요(장 수와 같아요)
 // 장마다 나오는 재료
 export const MATERIALS = [
   { icon: '🍃', name: '말랑 잎' },
@@ -141,6 +143,12 @@ export const MATERIALS = [
   { icon: '❄️', name: '서리 결정' },
   { icon: '🔶', name: '호박 조각' },
   { icon: '🔥', name: '화산석' },
+  { icon: '🕯️', name: '유령 촛농' },
+  { icon: '🐚', name: '심해 진주' },
+  { icon: '☁️', name: '구름 솜' },
+  { icon: '🍬', name: '굳은 사탕' },
+  { icon: '🌑', name: '그림자 조각' },
+  { icon: '⏳', name: '시간 모래' },
 ];
 export const material = (ch: number) => MATERIALS[Math.min(MATERIALS.length, Math.max(1, ch)) - 1]!;
 // 앞 장 재료도 같이 써요(멍쑤님 제안, 나리 2026-11-17): 한 번 강화하고 나면 앞 장 재료가 쓸모없어지지 않게,

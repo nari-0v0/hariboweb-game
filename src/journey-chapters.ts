@@ -151,13 +151,116 @@ export const CHAPTERS: Chapter[] = [
     elite: m(9, 'forge-golem', '대장간 골렘', '⚒️'),
     boss: m(9, 'ash-wyvern', '잿빛 와이번', '🐲'),
   },
+  {
+    n: 10,
+    name: '유령 저택',
+    foes: [
+      m(10, 'candle-ghost', '촛대 유령', '🕯️'),
+      m(10, 'sheet-ghost', '이불 유령', '👻'),
+      m(10, 'cracked-doll', '금 간 인형', '🪆'),
+      m(10, 'book-bat', '책 박쥐', '📕'),
+      m(10, 'dust-spider', '먼지 거미', '🕷️'),
+      m(10, 'portrait-mimic', '액자 괴물', '🖼️'),
+      m(10, 'shadow-cat', '그림자 고양이', '🐈‍⬛'),
+      m(10, 'key-rat', '열쇠 쥐', '🐀'),
+    ],
+    elite: m(10, 'skeleton-butler', '해골 집사', '💀'),
+    boss: m(10, 'chandelier-king', '샹들리에 왕', '👑'),
+  },
+  {
+    n: 11,
+    name: '깊은 바다',
+    foes: [
+      m(11, 'angler', '등불 아귀', '🐟'),
+      m(11, 'jelly', '해파리', '🪼'),
+      m(11, 'urchin', '성게', '🦔'),
+      m(11, 'octo', '꼬마 문어', '🐙'),
+      m(11, 'hermit-knight', '소라게 기사', '🐚'),
+      m(11, 'puffer', '복어', '🐡'),
+      m(11, 'eel', '곰치', '🐍'),
+      m(11, 'coral-sprite', '산호 정령', '🪸'),
+    ],
+    elite: m(11, 'shark-guard', '상어 경비병', '🦈'),
+    boss: m(11, 'kraken', '심해 크라켄', '🦑'),
+  },
+  {
+    n: 12,
+    name: '하늘 구름섬',
+    foes: [
+      m(12, 'cloud-sheep', '구름 양', '🐑'),
+      m(12, 'wind-sprite', '바람 정령', '🌬️'),
+      m(12, 'thunder-sparrow', '번개 참새', '🐦'),
+      m(12, 'rainbow-snake', '무지개 뱀', '🌈'),
+      m(12, 'feather-owl', '깃털 올빼미', '🦉'),
+      m(12, 'hail-golem', '우박 골렘', '🧊'),
+      m(12, 'balloon-raccoon', '열기구 너구리', '🎈'),
+      m(12, 'kite-goblin', '연 도깨비', '🪁'),
+    ],
+    elite: m(12, 'thunder-hawk', '천둥 매', '🦅'),
+    boss: m(12, 'storm-griffin', '폭풍 그리폰', '⛈️'),
+  },
+  {
+    n: 13,
+    name: '버려진 사탕 공장',
+    foes: [
+      m(13, 'melted-gummy', '녹은 곰젤리', '🧸'),
+      m(13, 'gum-slime', '껌 슬라임', '🫧'),
+      m(13, 'cane-snake', '지팡이사탕 뱀', '🍭'),
+      m(13, 'cotton-ghost', '솜사탕 유령', '☁️'),
+      m(13, 'choco-golem', '초콜릿 골렘', '🍫'),
+      m(13, 'macaron-mimic', '마카롱 미믹', '🍪'),
+      m(13, 'wind-soldier', '태엽 병정', '💂'),
+      m(13, 'lolli-bat', '롤리팝 박쥐', '🦇'),
+    ],
+    elite: m(13, 'foreman-bot', '공장장 로봇', '🤖'),
+    boss: m(13, 'gummy-giant', '곰젤리 거인', '🐻'),
+  },
+  {
+    n: 14,
+    name: '그림자 숲',
+    foes: [
+      m(14, 'shadow-wolf', '그림자 늑대', '🐺'),
+      m(14, 'wisp', '도깨비불', '🔥'),
+      m(14, 'bone-crow', '해골 까마귀', '🐦‍⬛'),
+      m(14, 'poison-shroom', '독버섯 정령', '🍄'),
+      m(14, 'spiderling', '새끼 거미', '🕷️'),
+      m(14, 'twisted-tree', '뒤틀린 나무', '🌳'),
+      m(14, 'night-moth', '밤 나방', '🦋'),
+      m(14, 'fog-snake', '안개 뱀', '🐍'),
+    ],
+    elite: m(14, 'scarecrow', '갑옷 허수아비', '🎃'),
+    boss: m(14, 'shadow-stag', '그림자 사슴왕', '🦌'),
+  },
+  {
+    n: 15,
+    name: '시간의 성',
+    foes: [
+      m(15, 'hourglass-soldier', '모래시계 병정', '⏳'),
+      m(15, 'gear-spider', '톱니 거미', '⚙️'),
+      m(15, 'pendulum-bat', '시계추 박쥐', '🦇'),
+      m(15, 'clock-knight', '태엽 기사', '🕰️'),
+      m(15, 'time-sprite', '시간 정령', '✨'),
+      m(15, 'chess-knight', '체스 말 기사', '♞'),
+      m(15, 'star-cat', '별자리 고양이', '🐱'),
+      m(15, 'mirror-twin', '거울 분신', '🪞'),
+    ],
+    elite: m(15, 'gargoyle', '시계탑 가고일', '🗿'),
+    boss: m(15, 'chrono-dragon', '시간의 용', '🐉'),
+  },
 ];
 
 export const MAX_CHAPTER = CHAPTERS.length;
+// 10장부터는 장마다 배경 그림이 따로 있어요(public/journey/bg/c<장>-bg.webp). 1~9장은 날짜별 배경 그대로.
+export const chapterBg = (n: number | undefined) => ((n ?? 1) >= 10 && (n ?? 1) <= MAX_CHAPTER ? `/journey/bg/c${n}-bg.webp` : null);
 export const chapterOf = (n: number | undefined): Chapter => CHAPTERS[Math.min(MAX_CHAPTER, Math.max(1, n ?? 1)) - 1]!;
+// 10장부터는 장비가 한 단계마다 더 크게 오르는 만큼 몬스터도 더 가파르게 세져요(1~9장 숫자는 그대로).
+// 시뮬레이션(훈련 끝까지 + 장비 +장 번호면 85~93% 승리, 한 단계 낮으면 46~68%)으로 맞춘 값(2026-11-19).
+export const LATE = { hp: 0.08, atk: 0.15 } as const;
+const late = (n: number) => Math.max(0, n - 9);
+const clampCh = (n: number | undefined) => Math.min(MAX_CHAPTER, Math.max(1, n ?? 1));
 // 몬스터 체력과 젤코인은 장마다 45%씩 늘어요.
-export const chapterPower = (n: number | undefined) => 1 + 0.45 * (Math.min(MAX_CHAPTER, Math.max(1, n ?? 1)) - 1);
+export const chapterPower = (n: number | undefined) => 1 + 0.45 * (clampCh(n) - 1) + LATE.hp * late(clampCh(n));
 // 몬스터 공격력은 장마다 더 가파르게 세져요. 공격력만 올리면 버티지 못하고, 갑옷·장신구도 올려야 해요(나리 2026-11-13).
-export const chapterAtk = (n: number | undefined) => 1 + 0.7 * (Math.min(MAX_CHAPTER, Math.max(1, n ?? 1)) - 1);
+export const chapterAtk = (n: number | undefined) => 1 + 0.7 * (clampCh(n) - 1) + LATE.atk * late(clampCh(n));
 export const chapterLevels = (n: number) => `Lv.${(n - 1) * 20 + 1}~${n * 20}`;
 export const BOSS_KEYS = new Set(CHAPTERS.map((c) => c.boss.key));

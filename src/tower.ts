@@ -39,7 +39,7 @@ export const cleanBoosts = (v: unknown): BoostId[] => {
 };
 
 // 몬스터 세기: '그 층에 맞는 장(층 ÷ 20)을 막 깬 사람'(훈련 끝까지 + 장비 +장 번호, 펫·강화 없음)이 겨우 이기게 맞춰요.
-// 그보다 약하면 강화나 펫, 장비로 넘어야 해요. 마지막 장 높이(180층)를 넘으면 층마다 1.5%씩 더 세져요.
+// 그보다 약하면 강화나 펫, 장비로 넘어야 해요. 마지막 장 높이(15장 = 300층)를 넘으면 층마다 1.5%씩 더 세져요.
 export const HITS = 6; // 기준인 사람이 몇 번 때려야 쓰러지나
 export const BOSS_HITS = 8;
 export const PAST_TOP = 1.015;
@@ -71,7 +71,7 @@ export function towerFoe(floor: number): { hp: number; atk: number; boss: boolea
   const atk = Math.round((r.def + (r.hp * 0.95) / (hits - 1)) * past);
   return { hp, atk, boss };
 }
-// 층 몬스터 그림: 그 층에 맞는 장의 몬스터. 10층마다 강한 적, 20층마다 대장. 180층 뒤로는 1장부터 다시 돌아요.
+// 층 몬스터 그림: 그 층에 맞는 장의 몬스터. 10층마다 강한 적, 20층마다 대장. 300층 뒤로는 1장부터 다시 돌아요.
 export function towerMonster(floor: number): Monster {
   const f = Math.max(1, Math.floor(floor));
   const ch = CHAPTERS[(Math.ceil(f / FLOORS_PER_CH) - 1) % CHAPTERS.length]!;
