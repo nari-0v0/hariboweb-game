@@ -8,7 +8,9 @@ export const PRAISE_BOX_NOTICE = '받는 사람에게는 보낸 사람이 보이
 // 띄어쓰기를 한 칸으로, 앞뒤 공백 없이, 100자까지
 export function cleanNote(raw: unknown): string {
   if (typeof raw !== 'string') return '';
-  return [...raw.replace(/\s+/g, ' ').trim()].slice(0, PRAISE_NOTE_MAX).join('').trim();
+  const note = [...raw.replace(/\s+/g, ' ').trim()].slice(0, PRAISE_NOTE_MAX).join('').trim();
+  // 글자·숫자·이모지가 하나도 없으면(예: "," 하나) 한마디 없이 칭찬만 보내요. 받는 사람 칭찬함에 “,”만 남지 않게요.
+  return /[\p{L}\p{N}\p{Extended_Pictographic}]/u.test(note) ? note : '';
 }
 
 const AI_PROMPT = `너는 디스코드 게임 모임의 칭찬 한마디 검사기야. 한 멤버가 같이 논 사람에게 칭찬과 함께 보낼 한마디를 적었어.
