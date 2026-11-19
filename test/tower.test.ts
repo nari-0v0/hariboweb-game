@@ -138,6 +138,13 @@ describe('끝없는 탑 도전', () => {
     setup(sql, 'me', 3, { coins: 5 });
     expect(await towerAttempt(db, 'me', 1, ['atk'], later(0))).toBe('nocoins');
   });
+  it('젤코인이 마이너스(조정 뒤 빚)여도 물약 없이는 도전하고, 이기면 빚이 줄어요', async () => {
+    const { sql, db } = database();
+    setup(sql, 'me', 3, { ...strong, coins: -50 });
+    expect(await towerAttempt(db, 'me', 1, ['atk'], later(0))).toBe('nocoins');
+    expect(await towerAttempt(db, 'me', 1, [], later(0))).toBe('ok');
+    expect((await journeyBank(db, 'me')).coins).toBe(-49);
+  });
   it('순위는 지금 있는 멤버만, 높은 층부터', async () => {
     const { sql, db } = database();
     setup(sql, 'me', 3, { tower: 5 });

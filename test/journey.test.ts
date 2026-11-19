@@ -544,6 +544,15 @@ describe('출발 준비물', () => {
     expect(await activeJourney(db, 'me')).toBeNull();
     expect((await journeyBank(db, 'me')).coins).toBe(5);
   });
+  it('젤코인이 마이너스(조정 뒤 빚)여도 준비물 없이는 떠날 수 있어요', async () => {
+    const { db, sql } = database();
+    sql.prepare(`INSERT INTO journey_bank (user_id, coins, mats, updated_at) VALUES ('me', -100, '{}', 'x')`).run();
+    expect(await beginJourney(db, 'me', 1, new Date(), ['potion'])).toBe(NO_COINS);
+    const id = await beginJourney(db, 'me', 1, new Date(), []);
+    expect(id).not.toBe(NO_COINS);
+    expect(id).toBeTruthy();
+    expect((await journeyBank(db, 'me')).coins).toBe(-100);
+  });
   it('방패는 처음 4번 절반만 맞고, 물약은 위험할 때 한 번 마셔요', () => {
     let usedPotion = 0;
     let shieldLeft = 0;
