@@ -164,6 +164,11 @@ export const gearNeed = (next: number) => {
   if (ch > 1) cost.push({ ch: ch - 1, n: LOWER_MATS });
   return { ch, mats, cost, coins: Math.round(30 * ch * (1 + 0.45 * (ch - 1))) };
 };
+// 남는 재료 팔기(나리 2026-11-19): N장 재료는 +N·+(N+1) 장비 강화에만 쓰여요. 장비 셋이 모두 그 위로 올라가면 팔 수 있어요.
+// 값은 1장 5젤코인 기준(장마다 2.5씩 더, 반올림). 펫 키우기에도 쓰이는 재료라 화면에서 한 번 더 물어봐요.
+export const matSellPrice = (ch: number) => Math.round(5 + 2.5 * (Math.max(1, Math.floor(ch)) - 1));
+export const matSellLevel = (ch: number) => Math.min(Math.max(1, Math.floor(ch)) + 1, GEAR_MAX); // 장비 셋 다 이 단계 이상이면 팔 수 있어요
+export const canSellMat = (gear: Gear, ch: number) => ch >= 1 && ch <= MATERIALS.length && Math.min(gear.weapon, gear.armor, gear.charm) >= matSellLevel(ch);
 export const hasMats = (have: Record<number, number>, cost: MatCost[]) => cost.every((c) => (have[c.ch] ?? 0) >= c.n);
 // 뒤 장 재료로 올린 단계일수록 더 많이 올라요(장마다 몬스터가 세지는 만큼).
 export const GEAR_GROW = 0.18;

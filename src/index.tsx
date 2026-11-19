@@ -93,7 +93,7 @@ import { imageRequestAllowed } from './image-guard';
 import { dbLimitKind, maintenanceOn, maintenanceSkips, maintenanceWhen, type DbLimit } from './maintenance';
 import { EscapePage } from './views/escape';
 import { JourneyPage } from './views/journey';
-import { NO_COINS, STALE_PICK, activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, journeyTop, quitJourney, upgradeGear } from './journey-db';
+import { NO_COINS, STALE_PICK, activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, journeyTop, quitJourney, sellMats, upgradeGear } from './journey-db';
 import { buyPet, equipPet, levelPet, parseTowerLast, towerAttempt, towerRanking } from './tower-db';
 import { cleanBoosts } from './tower';
 import { isPetId } from './pets';
@@ -1237,6 +1237,18 @@ members.post('/api/journey/gear', async (c) => {
     return c.redirect(`/expedition/go?prep=gear&n=${why}#perks`, 303);
   } catch (e) {
     console.error('원정 장비 강화 실패', e);
+    return c.redirect('/expedition/go?n=error#perks', 303);
+  }
+});
+members.post('/api/journey/sell', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const body = await c.req.parseBody();
+  const ch = Number(body.ch), n = Number(body.n);
+  try {
+    const got = await sellMats(c.env.DB, c.get('viewer').user_id, ch, n);
+    return c.redirect(`/expedition/go?prep=bag&n=${got > 0 ? 'sold' : 'nosell'}#perks`, 303);
+  } catch (e) {
+    console.error('원정 재료 팔기 실패', e);
     return c.redirect('/expedition/go?n=error#perks', 303);
   }
 });
