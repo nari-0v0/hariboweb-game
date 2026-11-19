@@ -121,7 +121,7 @@ export const bankRate = (farmed: number) => BANK_RATES[Math.min(Math.max(0, farm
 export const perkCost = (lv: number) => 20 + lv * 15; // 지금 단계에서 다음 단계로 가는 값
 
 // 장비 강화(나리 2026-11-13): 훈련은 젤코인으로 조금씩, 장비는 장마다 나오는 재료로 한 단계씩 크게.
-// +N 강화에는 N장 재료(그리고 앞 장 재료들)가 필요해서, 장을 깰수록 차례로 강해져요.
+// +N 강화에는 N장 재료(그리고 바로 앞 장 재료)가 필요해서, 장을 깰수록 차례로 강해져요.
 export type GearId = 'weapon' | 'armor' | 'charm';
 export type Gear = Record<GearId, number>;
 export const NO_GEAR: Gear = { weapon: 0, armor: 0, charm: 0 };
@@ -151,19 +151,24 @@ export const MATERIALS = [
   { icon: '⏳', name: '시간 모래' },
 ];
 export const material = (ch: number) => MATERIALS[Math.min(MATERIALS.length, Math.max(1, ch)) - 1]!;
-// 앞 장 재료도 같이 써요(멍쑤님 제안, 나리 2026-11-17): 한 번 강화하고 나면 앞 장 재료가 쓸모없어지지 않게,
-// +N에는 N장 재료에 더해 1장 ~ N-1장 재료를 장마다 LOWER_MATS개씩 더 내요. 장비를 끝까지 올릴 때까지 모든 재료가 쓰여요.
+// 앞 장 재료도 같이 써요(멍쑤님 제안, 나리 2026-11-17). 나리 2026-11-19: 1장 재료가 끝까지 계속 들어가는 건 너무 빡세서,
+// +N에는 N장 재료에 더해 바로 앞 장(N-1장) 재료만 LOWER_MATS개 더 내요.
 export const LOWER_MATS = 2;
 export type MatCost = { ch: number; n: number };
-// +next로 가는 값. mats = 그 장 재료 수, cost = 앞 장 재료까지 넣은 전체(뒤 장부터).
+// +next로 가는 값. mats = 그 장 재료 수, cost = 바로 앞 장 재료까지 넣은 전체(뒤 장부터).
 // 젤코인은 뒤 장일수록 몬스터가 주는 만큼 비싸져요(+1 30 … +9 약 1240).
 export const gearNeed = (next: number) => {
   const ch = Math.min(MATERIALS.length, Math.max(1, Math.floor(next)));
   const mats = 2 + Math.floor((ch - 1) / 3);
   const cost: MatCost[] = [{ ch, n: mats }];
-  for (let k = ch - 1; k >= 1; k--) cost.push({ ch: k, n: LOWER_MATS });
+  if (ch > 1) cost.push({ ch: ch - 1, n: LOWER_MATS });
   return { ch, mats, cost, coins: Math.round(30 * ch * (1 + 0.45 * (ch - 1))) };
 };
+// 남는 재료 팔기(나리 2026-11-19): N장 재료는 +N·+(N+1) 장비 강화에만 쓰여요. 장비 셋이 모두 그 위로 올라가면 팔 수 있어요.
+// 값은 1장 5젤코인 기준(장마다 2.5씩 더, 반올림). 펫 키우기에도 쓰이는 재료라 화면에서 한 번 더 물어봐요.
+export const matSellPrice = (ch: number) => Math.round(5 + 2.5 * (Math.max(1, Math.floor(ch)) - 1));
+export const matSellLevel = (ch: number) => Math.min(Math.max(1, Math.floor(ch)) + 1, GEAR_MAX); // 장비 셋 다 이 단계 이상이면 팔 수 있어요
+export const canSellMat = (gear: Gear, ch: number) => ch >= 1 && ch <= MATERIALS.length && Math.min(gear.weapon, gear.armor, gear.charm) >= matSellLevel(ch);
 export const hasMats = (have: Record<number, number>, cost: MatCost[]) => cost.every((c) => (have[c.ch] ?? 0) >= c.n);
 // 뒤 장 재료로 올린 단계일수록 더 많이 올라요(장마다 몬스터가 세지는 만큼).
 export const GEAR_GROW = 0.18;
@@ -172,11 +177,13 @@ export function gearBonus(id: GearId, lv: number): number {
   return Math.round(GEAR[id].per * (L + (GEAR_GROW * L * (L - 1)) / 2));
 }
 export const gearText = (id: GearId, lv: number) => `${GEAR[id].stat} +${gearBonus(id, lv)}`;
-// 재료가 나올 확률: 보통 몬스터 3%, 이벤트 싸움 5%, 강한 적 15%, 대장은 꼭 1개(처음 깨면 끝날 때 2개 더). 깬 장을 다시 돌면 FARM_DROP만큼.
-export const DROP = { foe: 0.03, event: 0.05, elite: 0.15 };
+// 재료가 나올 확률(나리 2026-11-19): 보통 몬스터 5%, 이벤트 싸움 5%, 강한 적 20%, 대장은 꼭 1개(처음 깨면 끝날 때 2개 더).
+// 깬 장을 다시 돌면 보통·이벤트·강한 적은 FARM_DROP만큼(3%·3%·12%), 대장은 FARM_BOSS(50%).
+export const DROP = { foe: 0.05, event: 0.05, elite: 0.2 };
 export const FIRST_CLEAR_BONUS = 2;
-// 이미 깬 장을 다시 돌면 재료는 하루 제한 없이 모이지만, 나올 확률은 이만큼으로 줄어요(대장 포함, 나리 2026-11-13).
-export const FARM_DROP = 0.45; // 2026-11-18 나리: 0.4 → 0.6 (슬금·감자님 "재료가 안 나온다" 제보). 2026-11-19 나리: 0.6 → 0.45
+// 이미 깬 장을 다시 돌면 재료는 하루 제한 없이 모이지만, 나올 확률은 이만큼으로 줄어요(나리 2026-11-13).
+export const FARM_DROP = 0.6; // 2026-11-18 나리: 0.4 → 0.6. 2026-11-19 나리: 0.45로 내렸다가 다시 0.6
+export const FARM_BOSS = 0.5; // 다시 돌 때 대장이 재료를 줄 확률(나리 2026-11-19)
 // 열린 장이 늘수록 훈련 한도가 늘어요(열린 장 하나마다 처음 한도의 절반씩). 열린 장 = 앞 장을 깼고 도감 조건도 채운 장.
 export const perkMax = (id: PerkId, unlocked: number) => PERKS[id].max + Math.floor(PERKS[id].max * 0.3) * (Math.max(1, unlocked) - 1);
 
@@ -328,7 +335,7 @@ export function battle(s: JourneyState, m: Monster, power: number, r: () => numb
   s.kills += 1;
   const coins = gainCoins(s, Math.round((4 + s.day) * power * cp));
   lines.push({ icon: m.emoji, text: `${m.name}${obj(m.name)} ${turns}턴 만에 물리쳤어요! 체력 ${s.hp - start >= 0 ? '+' : ''}${s.hp - start}, 젤코인 +${coins}`, tone: 'good' });
-  if (drop > 0 && rng(`${s.seed}:${s.day}:drop`)() < drop * (s.farm ? FARM_DROP : 1) * (s.kit?.includes('clover') ? 1.5 : 1)) {
+  if (drop > 0 && rng(`${s.seed}:${s.day}:drop`)() < (s.farm ? (drop >= 1 ? FARM_BOSS : drop * FARM_DROP) : drop) * (s.kit?.includes('clover') ? 1.5 : 1)) {
     s.mats = (s.mats ?? 0) + 1;
     const mt = material(s.ch ?? 1);
     lines.push({ icon: mt.icon, text: `강화 재료 ${mt.name}${obj(mt.name)} 주웠어요!`, tone: 'good' });

@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DAYS, journeyJelly, KIT_SHIELD_HITS, kitCost, actJourney, autoChoice, decodeJourney, journeyXp, perkMax, gearBonus, gearNeed, hasMats, GEAR_MAX, LOWER_MATS, FIRST_CLEAR_BONUS, FARM_DROP, FX_HITS, startJourney, stat, type JourneyState } from '../src/journey';
+import { DAYS, journeyJelly, KIT_SHIELD_HITS, kitCost, actJourney, autoChoice, decodeJourney, journeyXp, perkMax, gearBonus, gearNeed, hasMats, GEAR_MAX, LOWER_MATS, FIRST_CLEAR_BONUS, FARM_DROP, FARM_BOSS, DROP, FX_HITS, startJourney, stat, type JourneyState } from '../src/journey';
 import { NO_COINS, STALE_PICK, actJourneyRun, activeJourney, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from '../src/journey-db';
 
 function database() {
@@ -187,7 +187,7 @@ describe('원정대 저장과 보상', () => {
     bank = await journeyBank(db, 'me');
     expect(bank.armor).toBe(0);
   });
-  it('+2부터는 앞 장 재료도 장마다 2개씩 같이 써요(하나라도 모자라면 아무것도 빼지 않아요)', async () => {
+  it('+2부터는 바로 앞 장 재료도 2개 같이 써요(하나라도 모자라면 아무것도 빼지 않아요)', async () => {
     const { db, sql } = database();
     sql.prepare(`INSERT INTO journey_bank (user_id, coins, weapon, mats, updated_at) VALUES ('me', 1000, 1, '{"1":1,"2":5}', 'x')`).run();
     expect(await upgradeGear(db, 'me', 'weapon')).toBe(false); // 1장 재료가 1개뿐
@@ -197,19 +197,21 @@ describe('원정대 저장과 보상', () => {
     expect(await upgradeGear(db, 'me', 'weapon')).toBe(true); // +2: 2장 2개 + 1장 2개
     bank = await journeyBank(db, 'me');
     expect([bank.weapon, bank.mats[1], bank.mats[2]]).toEqual([2, 2, 3]);
-    expect(await upgradeGear(db, 'me', 'weapon')).toBe(true); // +3: 3장 2개 + 2장 2개 + 1장 2개
+    expect(await upgradeGear(db, 'me', 'weapon')).toBe(true); // +3: 3장 2개 + 2장 2개 (1장 재료는 안 들어요)
     bank = await journeyBank(db, 'me');
-    expect([bank.weapon, bank.mats[1] ?? 0, bank.mats[2], bank.mats[3]]).toEqual([3, 0, 1, 5]);
-    expect(await upgradeGear(db, 'me', 'armor')).toBe(false); // 갑옷 +1에 쓸 1장 재료가 이제 없어요
+    expect([bank.weapon, bank.mats[1], bank.mats[2], bank.mats[3]]).toEqual([3, 2, 1, 5]);
+    expect(await upgradeGear(db, 'me', 'armor')).toBe(true); // 갑옷 +1: 1장 재료 2개
+    bank = await journeyBank(db, 'me');
+    expect(await upgradeGear(db, 'me', 'charm')).toBe(false); // 1장 재료가 이제 없어요
   });
-  it('강화 값: 그 장 재료는 2~4개, 앞 장 재료는 장마다 2개, 1장 재료도 +9까지 계속 쓰여요', () => {
+  it('강화 값: 그 장 재료는 2~6개, 바로 앞 장 재료만 2개(나리 2026-11-19)', () => {
     expect(gearNeed(1).cost).toEqual([{ ch: 1, n: 2 }]);
-    expect(gearNeed(3).cost).toEqual([{ ch: 3, n: 2 }, { ch: 2, n: LOWER_MATS }, { ch: 1, n: LOWER_MATS }]);
+    expect(gearNeed(3).cost).toEqual([{ ch: 3, n: 2 }, { ch: 2, n: LOWER_MATS }]);
     const top = gearNeed(GEAR_MAX);
     expect(gearNeed(9).cost[0]).toEqual({ ch: 9, n: 4 });
     expect(top.cost[0]).toEqual({ ch: GEAR_MAX, n: 6 }); // 10~15장도 같은 공식(10~12장 5개, 13~15장 6개)
     expect(gearNeed(10).cost[0]).toEqual({ ch: 10, n: 5 });
-    expect(top.cost.map((c) => c.ch)).toEqual([15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]);
+    expect(top.cost).toEqual([{ ch: 15, n: 6 }, { ch: 14, n: LOWER_MATS }]);
     expect(hasMats({ 1: 2, 2: 2 }, gearNeed(2).cost)).toBe(true);
     expect(hasMats({ 1: 1, 2: 9 }, gearNeed(2).cost)).toBe(false);
   });
@@ -500,6 +502,11 @@ describe('깬 장 다시 돌기 재료', () => {
     expect(farm).toBeGreaterThan(0);
     expect(farm).toBeLessThan(fresh * (FARM_DROP + 0.15));
   });
+  it('재료 확률(나리 2026-11-19): 처음 5%·20%·대장 꼭, 다시 돌 때 60%·대장 50%', () => {
+    expect(DROP).toEqual({ foe: 0.05, event: 0.05, elite: 0.2 });
+    expect(FARM_DROP).toBe(0.6);
+    expect(FARM_BOSS).toBe(0.5);
+  });
 });
 
 describe('원정대 도감 젤리', () => {
@@ -584,5 +591,31 @@ describe('출발 준비물', () => {
       return mats;
     };
     expect(play(['clover'])).toBeGreaterThan(play([]) * 1.2);
+  });
+});
+
+describe('남는 재료 팔기(나리 2026-11-19)', () => {
+  it('값은 1장 5젤코인부터 장마다 2.5씩, 장비 셋이 모두 +(N+1) 이상일 때만 팔 수 있어요', async () => {
+    const { matSellPrice, canSellMat } = await import('../src/journey');
+    expect([1, 2, 3, 6, 9, 15].map(matSellPrice)).toEqual([5, 8, 10, 18, 25, 40]);
+    expect(canSellMat({ weapon: 2, armor: 2, charm: 2 }, 1)).toBe(true);
+    expect(canSellMat({ weapon: 2, armor: 2, charm: 1 }, 1)).toBe(false);
+    expect(canSellMat({ weapon: 6, armor: 6, charm: 6 }, 6)).toBe(false);
+    expect(canSellMat({ weapon: 15, armor: 15, charm: 15 }, 15)).toBe(true);
+    expect(canSellMat({ weapon: 14, armor: 15, charm: 15 }, 15)).toBe(false);
+  });
+  it('가진 만큼 다 팔고, 화면과 개수가 다르거나 조건이 안 되면 아무것도 안 바뀌어요', async () => {
+    const { db, sql } = database();
+    const { sellMats } = await import('../src/journey-db');
+    sql.prepare(`INSERT INTO journey_bank (user_id, coins, weapon, armor, charm, mats, updated_at) VALUES ('me', -100, 3, 3, 2, '{"1":7,"2":4,"3":5}', 'x')`).run();
+    expect(await sellMats(db, 'me', 1, 6)).toBe(0); // 화면은 6개, 실제 7개
+    expect(await sellMats(db, 'me', 2, 4)).toBe(0); // 부적이 +2라 2장 재료는 아직 필요
+    expect(await sellMats(db, 'me', 1, 7)).toBe(35);
+    let bank = await journeyBank(db, 'me');
+    expect([bank.coins, bank.mats[1] ?? 0, bank.mats[2], bank.mats[3]]).toEqual([-65, 0, 4, 5]);
+    expect(await sellMats(db, 'me', 1, 7)).toBe(0); // 두 번 눌러도 한 번만
+    expect(await sellMats(db, 'me', 99, 1)).toBe(0);
+    bank = await journeyBank(db, 'me');
+    expect(bank.coins).toBe(-65);
   });
 });

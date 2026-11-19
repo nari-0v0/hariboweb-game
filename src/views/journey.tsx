@@ -17,6 +17,9 @@ import {
   gearNeed,
   hasMats,
   LOWER_MATS,
+  canSellMat,
+  matSellLevel,
+  matSellPrice,
   type MatCost,
   gearText,
   material,
@@ -58,6 +61,8 @@ const NOTICES: Record<string, PopupLine[]> = {
   noperk: [{ title: '알림', text: '젤코인이 모자라거나 이미 끝까지 올렸어요.' }],
   gear: [{ title: '장비 강화 성공!', text: '다음 원정부터 더 강해져요.' }],
   nogear: [{ title: '알림', text: '강화에 드는 재료나 젤코인이 모자라요.' }],
+  sold: [{ title: '재료를 팔았어요', text: '젤코인으로 바꿨어요.' }],
+  nosell: [{ title: '알림', text: '지금은 그 재료를 팔 수 없어요. 다른 화면에서 개수가 바뀌었을 수 있어요.' }],
   kitcoins: [{ title: '알림', text: '젤코인이 모자라서 준비물을 살 수 없어요.' }],
   petbuy: [{ title: '새 펫!', text: '펫을 샀어요. 처음 산 펫이면 바로 데려가요. 다른 펫을 데려가는 중이면 \'데려가기\'를 눌러 바꿔요.' }],
   nopet: [{ title: '알림', text: '젤코인이 모자라거나 아직 상점에 없는 펫이에요.' }],
@@ -852,23 +857,50 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
       {props.tab === 'bag' && (
         <div class="jp-pane">
           <PaneTitle id="bag" />
-          <p class="hint">장마다 나오는 강화 재료예요. 장비를 올릴 때 써요. 숫자는 지금 가방에 있는 전체 개수예요. 앞 장 재료도 뒤 단계 강화에 계속 들어가니, 장비를 끝까지 올릴 때까지 버릴 재료가 없어요.</p>
+          <p class="hint">장마다 나오는 강화 재료예요. 장비를 올릴 때 써요. 숫자는 지금 가방에 있는 전체 개수예요. N장 재료는 +N 강화에 쓰이고, 바로 다음 단계(+N+1) 강화에도 2개씩 더 들어가요. 장비 셋이 모두 +(N+1)을 넘으면 N장 재료를 젤코인으로 팔 수 있어요.</p>
       <div class="jp-bag">
         {MATERIALS.map((m, i) => {
-          const n = bank.mats[i + 1] ?? 0;
-          const known = i + 1 <= props.unlocked;
+          const ch = i + 1;
+          const n = bank.mats[ch] ?? 0;
+          const known = ch <= props.unlocked;
+          const sell = n > 0 && canSellMat(bank, ch);
           return (
-            <span class={`jp-mat${n ? '' : ' empty'}${known ? '' : ' unknown'}`} title={known ? `${i + 1}장에서 나와요` : '아직 못 가 본 장'}>
+            <span class={`jp-mat${n ? '' : ' empty'}${known ? '' : ' unknown'}`} title={known ? `${ch}장에서 나와요` : '아직 못 가 본 장'}>
               <span aria-hidden="true">{known ? m.icon : '❔'}</span>
-              <span class="jp-mat-name">{known ? m.name : `${i + 1}장 재료`}</span>
+              <span class="jp-mat-name">{known ? m.name : `${ch}장 재료`}</span>
               <b title="가진 개수">{n}개</b>
+              {sell && (
+                <>
+                  <button class="jp-sell" type="button" popovertarget={`jp-sell-${ch}`} title={`장비 셋이 모두 +${matSellLevel(ch)} 이상이라 팔 수 있어요`}>
+                    팔기
+                  </button>
+                  <span class="jp-pop" id={`jp-sell-${ch}`} popover="auto">
+                    <span class="jp-pop-title">정말 팔까요?</span>
+                    <span class="jp-pop-text">
+                      {m.icon} {m.name} {n}개를 🪙 {n * matSellPrice(ch)}에 팔아요(1개 {matSellPrice(ch)}). 펫 키우기에도 쓰이는 재료이고, 판 뒤에는 되돌릴 수 없어요.
+                    </span>
+                    <span class="jp-pop-btns">
+                      <button class="btn btn-small" type="button" popovertarget={`jp-sell-${ch}`} popovertargetaction="hide">
+                        그만두기
+                      </button>
+                      <form method="post" action="/api/journey/sell">
+                        <input type="hidden" name="ch" value={String(ch)} />
+                        <input type="hidden" name="n" value={String(n)} />
+                        <button class="btn btn-small" type="submit">
+                          팔기
+                        </button>
+                      </form>
+                    </span>
+                  </span>
+                </>
+              )}
             </span>
           );
         })}
       </div>
 
           <p class="hint jp-drop">
-            재료는 그 장의 몬스터에게서 가끔(강한 적은 더 자주) 나오고, 대장은 꼭 1개 줘요. 처음 대장을 깨면 2개 더 받아요. 깬 장을 다시 돌면 재료는 하루 제한 없이 모이지만 나올 확률이 낮아요(대장도 가끔만 줘요). 높은 단계 강화에는 앞 장 재료도 들어서, 앞 장을 다시 돌아 모으는 것도 쓸모 있어요.
+            재료는 그 장의 몬스터에게서 가끔(강한 적은 더 자주) 나오고, 대장은 꼭 1개 줘요. 처음 대장을 깨면 2개 더 받아요. 깬 장을 다시 돌면 재료는 하루 제한 없이 모이지만 나올 확률이 낮아요(대장도 가끔만 줘요). +N 강화에는 바로 앞 장 재료도 2개씩 들어요.
           </p>
         </div>
       )}
@@ -917,7 +949,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
       {props.tab === 'gear' && (
         <div class="jp-pane">
           <PaneTitle id="gear" />
-          <p class="hint">+N으로 올리려면 N장 재료와 젤코인에 더해, 1장부터 N-1장까지 앞 장 재료가 장마다 {LOWER_MATS}개씩 들어요. 장을 깰수록 차례로 강해지고, 앞 장 재료도 계속 쓰여요.</p>
+          <p class="hint">+N으로 올리려면 N장 재료와 젤코인에 더해, 바로 앞 장(N-1장) 재료가 {LOWER_MATS}개 들어요. 장을 깰수록 차례로 강해져요.</p>
       <div class="jp-gear">
         {GEAR_IDS.map((id) => {
           const info = GEAR[id];
@@ -949,7 +981,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
                       </span>
                     ))}
                     {need.cost.length > 1 && (
-                      <span class="jp-item-low" title={`1장 ~ ${need.ch - 1}장 재료도 ${LOWER_MATS}개씩 들어요`}>
+                      <span class="jp-item-low" title={`${need.ch - 1}장 재료도 ${LOWER_MATS}개 들어요`}>
                         <small>이 재료도 들어요</small>
                         {need.cost.slice(1).map((c) => (
                           <span class={`jp-item-need${matOk(c) ? ' ok' : ''}`} title={`${c.ch}장에서 나와요`}>
