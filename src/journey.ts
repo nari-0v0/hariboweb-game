@@ -4,6 +4,7 @@
 // 모든 무작위는 판 씨앗(seed)과 날짜로 정해져서, 서버가 같은 입력에 늘 같은 결과를 내요.
 import { rng } from './rng';
 import { MAX_CHAPTER, chapterAtk, chapterOf, chapterPower, type Monster } from './journey-chapters';
+import { isPetId, petFx, type PetId } from './pets';
 
 export const DAYS = 20;
 export const ELITE_DAY = 10;
@@ -90,7 +91,11 @@ export type JourneyState = {
   potion?: number; // 남은 회복 물약
   last?: string; // 어제 생긴 일(foe·chest·shop·camp·event:id·skill). 같은 일이 연달아 나오지 않게
   evs?: EventId[]; // 이번 판에 나온 이벤트
+  pet?: { id: PetId; lv: number }; // 데려간 펫(떠날 때 레벨)
+  boost?: Boost; // 끝없는 탑에서 젤코인으로 산 잠깐 강해지기(그 층 싸움에만)
 };
+// 잠깐 강해지기: 공격력·최대 체력에 곱하는 몫(0.3 = +30%)
+export type Boost = { atk?: number; hp?: number };
 // next = 하루, auto = 고를 일이 생길 때까지, idle = 자동 선택(고를 일이 있으면 알아서 고르고, 없으면 하루 나아가요)
 export type JourneyAction = { a: 'next' } | { a: 'auto' } | { a: 'idle' } | { a: 'pick'; n: number } | { a: 'buy'; n: number } | { a: 'leave' };
 
@@ -184,25 +189,37 @@ export const cleanKit = (v: unknown): KitId[] => {
   return KIT_IDS.filter((id) => list.includes(id));
 };
 
-export function startJourney(seed: string, perks: Perks = NO_PERKS, ch = 1, gear: Partial<Gear> = NO_GEAR, kit: KitId[] = []): JourneyState {
+export function startJourney(seed: string, perks: Perks = NO_PERKS, ch = 1, gear: Partial<Gear> = NO_GEAR, kit: KitId[] = [], pet?: { id: PetId; lv: number } | null): JourneyState {
   const g = (id: GearId) => gearBonus(id, gear[id] ?? 0);
   const maxHp = 100 + PERKS.hp.per * perks.hp + g('charm');
   const packed = kit.length ? [{ icon: '🎒', text: `준비물: ${kit.map((id) => `${KIT[id].icon} ${KIT[id].name}`).join(', ')}` }] : [];
-  return {
+  const s: JourneyState = {
     ...(kit.length ? { kit, kitShield: kit.includes('shield') ? KIT_SHIELD_HITS : 0, potion: kit.includes('potion') ? 1 : 0 } : {}),
     v: 1, seed, ch, day: 0, hp: maxHp, maxHp, atk: 12 + PERKS.atk.per * perks.atk + g('weapon'), def: 2 + PERKS.def.per * perks.def + g('armor'), lv: 1, xp: 0, coins: 10, skills: {}, pending: null, queuedLevels: 0,
     today: [{ icon: '🎒', text: `${ch}장 ${chapterOf(ch).name}! 가방을 메고 출발해요. "다음 날"을 눌러 나아가요.` }, ...packed], journal: [], kills: 0, done: false, cleared: false,
   };
+  if (pet && isPetId(pet.id) && pet.lv > 0) {
+    s.pet = { id: pet.id, lv: pet.lv };
+    s.hp = stat(s).maxHp; // 솜사탕 양처럼 최대 체력을 올리는 펫이면 가득 채우고 떠나요
+  }
+  return s;
 }
 
 // 받침 따라 을/를
 const obj = (w: string) => ((w.charCodeAt(w.length - 1) - 0xac00) % 28 > 0 ? '을' : '를');
 const sk = (s: JourneyState, id: SkillId) => s.skills[id] ?? 0;
-export const stat = (s: JourneyState) => ({
-  atk: s.atk + 4 * sk(s, 'power'),
-  def: s.def + 2 * sk(s, 'guard'),
-  maxHp: s.maxHp + 25 * sk(s, 'vital'),
-});
+// 펫·탑 강화는 % 로 곱해요(펫이 없고 강화도 없으면 예전과 똑같아요).
+export const stat = (s: JourneyState) => {
+  const p = petFx(s.pet);
+  const atk = s.atk + 4 * sk(s, 'power');
+  const def = s.def + 2 * sk(s, 'guard');
+  const maxHp = s.maxHp + 25 * sk(s, 'vital');
+  return {
+    atk: Math.round(atk * (1 + p.atk + (s.boost?.atk ?? 0))),
+    def: Math.round(def * (1 + p.def)),
+    maxHp: Math.round(maxHp * (1 + p.hp + (s.boost?.hp ?? 0))),
+  };
+};
 
 function pickSkills(s: JourneyState, r: () => number, n = 3): SkillId[] {
   const pool = SKILL_IDS.filter((id) => sk(s, id) < SKILLS[id].max);
@@ -227,11 +244,15 @@ function gainCoins(s: JourneyState, n: number) {
 }
 
 // 자동 전투. 결과 요약만 적어요.
-function battle(s: JourneyState, m: Monster, power: number, r: () => number, lines: Line[], drop = 0) {
+// fixed: 끝없는 탑처럼 몬스터 체력·공격력을 따로 정한 싸움
+export function battle(s: JourneyState, m: Monster, power: number, r: () => number, lines: Line[], drop = 0, fixed?: { hp: number; atk: number }) {
   const st = stat(s);
   const cp = chapterPower(s.ch);
-  let mhp = Math.round((20 + s.day * 5) * power * cp);
-  const matk = Math.round((4 + s.day * 0.9) * (power > 1 ? 1 + (power - 1) * 0.3 : 1) * chapterAtk(s.ch));
+  const pf = petFx(s.pet);
+  let mhp = fixed ? fixed.hp : Math.round((20 + s.day * 5) * power * cp);
+  const matk = fixed ? fixed.atk : Math.round((4 + s.day * 0.9) * (power > 1 ? 1 + (power - 1) * 0.3 : 1) * chapterAtk(s.ch));
+  const mhp0 = mhp;
+  const poison = pf.poison > 0 ? Math.max(1, Math.round(mhp0 * pf.poison)) : 0;
   const start = s.hp;
   let shields = sk(s, 'shield');
   let turns = 0;
@@ -245,15 +266,17 @@ function battle(s: JourneyState, m: Monster, power: number, r: () => number, lin
     php[i] = Math.max(0, s.hp);
   };
   const fx: BattleFx = { foe: m.key, won: false, hits, hp0: start, mhp, left, php };
-  if (sk(s, 'spark')) {
-    mhp -= 10 * sk(s, 'spark');
-    fx.spark = 10 * sk(s, 'spark');
+  // 번개 선제(스킬)와 별무늬 고양이 별똥별(펫)은 싸움 시작에 한 번에 보여요
+  const opener = 10 * sk(s, 'spark') + (pf.star > 0 ? Math.max(1, Math.round(mhp0 * pf.star)) : 0);
+  if (opener > 0) {
+    mhp -= opener;
+    fx.spark = opener;
   }
   s.fx = fx;
   while (mhp > 0 && s.hp > 0 && turns < 40) {
     turns++;
-    const crit = r() < 0.12 * sk(s, 'crit');
-    const dmg = Math.max(1, st.atk * (crit ? 2 : 1));
+    const crit = r() < 0.12 * sk(s, 'crit') + pf.crit;
+    const dmg = Math.max(1, st.atk * (crit ? 2 : 1)) + poison; // 버섯 친구 독은 내 공격에 얹어요
     mhp -= dmg;
     note(crit ? [0, dmg, 1] : [0, dmg]);
     if (sk(s, 'leech')) {
@@ -262,6 +285,7 @@ function battle(s: JourneyState, m: Monster, power: number, r: () => number, lin
     }
     if (mhp <= 0) break;
     let hit = Math.max(1, matk - st.def);
+    if (pf.dodge > 0 && r() < pf.dodge) hit = 0; // 아기 펭귄: 피했어요
     if (shields > 0) {
       hit = Math.ceil(hit / 2);
       shields--;
@@ -271,6 +295,7 @@ function battle(s: JourneyState, m: Monster, power: number, r: () => number, lin
       s.kitShield = (s.kitShield ?? 0) - 1;
     }
     s.hp -= hit;
+    if (pf.regen > 0 && s.hp > 0) s.hp = Math.min(st.maxHp, s.hp + Math.max(1, Math.round(st.maxHp * pf.regen))); // 아기 슬라임 회복
     note([1, hit]);
     if ((s.potion ?? 0) > 0 && s.hp > 0 && s.hp <= st.maxHp * 0.3) {
       const heal = Math.min(st.maxHp - s.hp, Math.round(st.maxHp * 0.4));
@@ -563,7 +588,8 @@ export function decodeJourney(json: string): JourneyState | null {
     const s = JSON.parse(json) as JourneyState;
     const n = (v: unknown) => Number.isSafeInteger(v) && (v as number) >= 0;
     if (s.v !== 1 || typeof s.seed !== 'string' || ![s.day, s.hp, s.maxHp, s.atk, s.def, s.lv, s.xp, s.coins, s.queuedLevels, s.kills].every(n)) return null;
-    if (s.ch !== undefined && !(Number.isSafeInteger(s.ch) && s.ch >= 1 && s.ch <= 9)) return null;
+    if (s.ch !== undefined && !(Number.isSafeInteger(s.ch) && s.ch >= 1 && s.ch <= MAX_CHAPTER)) return null;
+    if (s.pet !== undefined && !(s.pet && isPetId(s.pet.id) && Number.isSafeInteger(s.pet.lv) && s.pet.lv > 0)) return null;
     if (!Array.isArray(s.today) || !Array.isArray(s.journal) || typeof s.done !== 'boolean' || !s.skills || typeof s.skills !== 'object') return null;
     return s;
   } catch {

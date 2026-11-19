@@ -40,6 +40,8 @@ import { FictionNote } from './fiction';
 import { journeyNeed, journeyOpenTo, meets, needText, shortNeed, type DogamProgress } from '../unlock';
 import { Layout } from './layout';
 import { Popup, type PopupLine } from './shop';
+import { TOWER_OPEN } from '../tower';
+import { PETS, PET_IDS, anyMatChapter, isPetId, petCap, petNeed, petText, type PetId } from '../pets';
 
 const NOTICES: Record<string, PopupLine[]> = {
   stale: [
@@ -55,6 +57,10 @@ const NOTICES: Record<string, PopupLine[]> = {
   gear: [{ title: '장비 강화 성공!', text: '다음 원정부터 더 강해져요.' }],
   nogear: [{ title: '알림', text: '강화에 드는 재료나 젤코인이 모자라요.' }],
   kitcoins: [{ title: '알림', text: '젤코인이 모자라서 준비물을 살 수 없어요.' }],
+  petbuy: [{ title: '새 펫!', text: '펫을 데려왔어요. 다음 원정부터 같이 가요.' }],
+  nopet: [{ title: '알림', text: '젤코인이 모자라거나 아직 상점에 없는 펫이에요.' }],
+  petup: [{ title: '펫이 컸어요!', text: '다음 원정부터 더 강해져요.' }],
+  nopetup: [{ title: '알림', text: '키우는 데 드는 재료나 젤코인이 모자라요.' }],
   stalepick: [{ title: '알림', text: '화면을 연 사이 갈 수 있는 장이나 준비물 값이 바뀌었어요. 젤코인은 그대로예요. 새 화면에서 다시 골라 주세요.' }],
   error: [
     { title: '오류', text: '오류가 발생하였습니다.', bad: true },
@@ -81,7 +87,7 @@ function Act(props: { run: JourneyRun; a: string; n?: number; children: unknown;
 
 // from: 싸우기 전 값. steps: 싸우는 동안 맞을 때마다 바뀌는 값(at초에 now로). 싸움 모션 동안은 칸마다 그때 값을 보여 주고,
 // 모션이 끝날 때(--reveal) 지금 값으로 바뀌어요.
-function Bar(props: { now: number; max: number; cls: string; label: string; from?: number; steps?: { at: number; now: number }[] }) {
+export function Bar(props: { now: number; max: number; cls: string; label: string; from?: number; steps?: { at: number; now: number }[] }) {
   const pc = (v: number) => Math.max(0, Math.min(100, Math.round((v / Math.max(1, props.max)) * 100)));
   const pct = pc(props.now);
   const phases = props.from === undefined ? [] : [{ at: 0, now: props.from }, ...(props.steps ?? [])];
@@ -235,7 +241,7 @@ for (const o of Object.values(OFFERS)) ICON_PROP[o.icon] = 'merchant';
 const FLIP = new Set(['hedgehog', 'crab', 'dragon']); // 오른쪽을 보고 그린 임시 그림은 뒤집어서 나를 보게 해요
 // 나리님이 만든 그림이 있으면 그걸 써요(scripts/build_sprites.py). 원래 크기의 0.62배로 보여 줘요.
 const PIC_SCALE = 0.62;
-const picOf = (dir: string, key: string) => {
+export const picOf = (dir: string, key: string) => {
   const src = `/journey/${dir}/${key}.webp`;
   const size = SPRITES[src];
   return size
@@ -358,26 +364,29 @@ function Pops(props: { list: { at: number; text: string; cls: string; len?: numb
   );
 }
 
-export function Stage(props: { s: JourneyState; art: string; name: string; lost: boolean }) {
+// bg·place: 끝없는 탑처럼 다른 배경·이름을 쓸 때
+export function Stage(props: { s: JourneyState; art: string; name: string; lost: boolean; bg?: string; place?: string; foeKey?: string }) {
   const { s } = props;
   const fx = s.fx;
   const prop = fx ? null : propFor(s);
   const zone: Zone = prop === 'camp' ? 'night' : fx && BOSS_KEYS.has(fx.foe) ? 'lair' : zoneFor(s.day);
   const plan = fx ? fightPlan(fx) : null;
   const foe = fx ? FOES[fx.foe] : null;
-  const img = fx ? picOf('foe', fx.foe) : prop ? picOf('prop', prop) : null;
+  const img = fx ? picOf('foe', fx.foe) : props.foeKey ? picOf('foe', props.foeKey) : prop ? picOf('prop', prop) : null;
   const pic = foe ?? (prop ? PROPS[prop] : null);
-  const key = fx?.foe ?? prop ?? '';
+  const key = fx?.foe ?? props.foeKey ?? prop ?? '';
+  const pet = s.pet && isPetId(s.pet.id) ? PETS[s.pet.id] : null;
   return (
     <div
       class={`jr-stage zone-${zone}${plan ? ' fight' : ''}${prop ? ` at-${prop}` : ''}`}
-      style={`--jr-bg:url(/journey/bg/${zone}.webp)`}
+      style={`--jr-bg:url(${props.bg ?? `/journey/bg/${zone}.webp`})`}
       data-wait={plan ? String(plan.ms) : undefined}
     >
-      <span class="jr-place">{(s.ch ?? 1) > 1 && zone !== 'night' ? `${chapterOf(s.ch).name} · ${s.ch}장` : ZONE_NAMES[zone]}</span>
+      <span class="jr-place">{props.place ?? ((s.ch ?? 1) > 1 && zone !== 'night' ? `${chapterOf(s.ch).name} · ${s.ch}장` : ZONE_NAMES[zone])}</span>
       <div class={`jr-hero jr-actor${props.lost ? ' down' : ''}`} style={plan ? `--a:${plan.hero};--a2:${plan.heroEnd || 'none'}` : undefined}>
         <img src={props.art} alt={props.name} width={96} height={96} />
         <span class="jr-shadow" />
+        {pet && <img class="jr-pet" src={`/journey/pet/${pet.file}.webp`} alt={pet.name} title={`${pet.name} Lv.${s.pet!.lv}`} width={40} height={40} />}
         {plan && <Pops list={plan.pops.filter((p) => p.on === 0)} />}
       </div>
       {(img || pic) && (
@@ -643,11 +652,12 @@ const STAT_ROWS = [
   { icon: '🛡️', name: '방어력', base: BASE.def, perk: 'def', gear: 'armor' },
 ] as const;
 
-export type PrepTab = 'bag' | 'train' | 'gear';
+export type PrepTab = 'bag' | 'train' | 'gear' | 'pet';
 export const PREP_TABS: { id: PrepTab; icon: string; name: string }[] = [
   { id: 'bag', icon: '🎒', name: '가방' },
   { id: 'train', icon: '🏋️', name: '훈련' },
   { id: 'gear', icon: '⚒️', name: '장비 강화' },
+  { id: 'pet', icon: '🐾', name: '펫' },
 ];
 export const prepTab = (v: string | undefined): PrepTab | null => (PREP_TABS.some((t) => t.id === v) ? (v as PrepTab) : null);
 
@@ -660,7 +670,101 @@ const PaneTitle = (props: { id: PrepTab }) => {
   );
 };
 
-function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number; art: string; name: string; tab: PrepTab | null }) {
+// 펫 하나를 지금 살 수 있거나 키울 수 있나(탭 배지용)
+function petReady(bank: JourneyBank, top: number, id: PetId): boolean {
+  const lv = bank.pets[id];
+  if (!lv) return top >= PETS[id].ch && bank.coins >= PETS[id].price;
+  if (lv + 1 > petCap(top)) return false;
+  const need = petNeed(lv + 1);
+  if (bank.coins < need.coins) return false;
+  return need.any ? anyMatChapter(bank.mats, need.any) !== null : hasMats(bank.mats, need.cost);
+}
+
+function PetPane(props: { bank: JourneyBank; top: number; unlocked: number; later: string }) {
+  const { bank, top } = props;
+  const matName = (ch: number) => (ch <= props.unlocked ? `${material(ch).icon} ${material(ch).name}` : `❔ ${ch}장 재료`);
+  return (
+    <div class="jp-pane">
+      <PaneTitle id="pet" />
+      <p class="hint">
+        펫은 젤코인으로 사고, 젤코인과 재료로 키워요. 원정과 끝없는 탑에 한 마리만 데려가요. 장을 깨면 새 펫이 상점에 나와요. 레벨 5칸마다 필요한 재료 장이 올라가서, 펫은 깬 장 × 5 레벨까지 키울 수 있어요. {props.later}
+        다음 원정부터 적용돼요.
+      </p>
+      <div class="jp-pets">
+        {PET_IDS.map((id) => {
+          const pet = PETS[id];
+          const lv = bank.pets[id] ?? 0;
+          const open = top >= pet.ch;
+          const on = bank.pet === id;
+          const cap = petCap(top);
+          const need = lv ? petNeed(lv + 1) : null;
+          const anyCh = need?.any ? anyMatChapter(bank.mats, need.any) : null;
+          const capped = lv > 0 && lv + 1 > cap;
+          const ready = petReady(bank, top, id);
+          return (
+            <div class={`jp-pet${lv ? ' owned' : ''}${on ? ' on' : ''}${open ? '' : ' locked'}`}>
+              <div class="jp-pet-pic">
+                <img src={`/journey/pet/${pet.file}.webp`} alt="" width={72} height={72} loading="lazy" />
+                {lv > 0 && <b class="jp-plus">Lv.{lv}</b>}
+              </div>
+              <b class="jp-pet-name">{pet.name}</b>
+              <span class="jp-item-now">{petText(id, Math.max(1, lv))}</span>
+              {!lv ? (
+                open ? (
+                  <form method="post" action="/api/journey/pet" class="jp-pet-form">
+                    <input type="hidden" name="a" value="buy" />
+                    <input type="hidden" name="k" value={id} />
+                    <button type="submit" class={`btn btn-small${ready ? ' btn-primary' : ''}`} disabled={!ready}>
+                      🪙 {pet.price}에 사기
+                    </button>
+                  </form>
+                ) : (
+                  <span class="jp-item-need">{pet.ch}장을 깨면 상점에 나와요</span>
+                )
+              ) : (
+                <>
+                  {capped ? (
+                    <span class="jp-item-need">{top + 1}장을 깨면 더 키울 수 있어요</span>
+                  ) : (
+                    need && (
+                      <>
+                        <span class="jp-item-next">Lv.{lv + 1}: {petText(id, lv + 1)}</span>
+                        {need.cost.map((c) => (
+                          <span class={`jp-item-need${(bank.mats[c.ch] ?? 0) >= c.n ? ' ok' : ''}`}>
+                            {matName(c.ch)} {bank.mats[c.ch] ?? 0}/{c.n}
+                          </span>
+                        ))}
+                        {need.any > 0 && <span class={`jp-item-need${anyCh ? ' ok' : ''}`}>아무 재료 {need.any}개{anyCh ? ` (${material(anyCh).name}에서)` : ''}</span>}
+                        <span class={`jp-item-need${bank.coins >= need.coins ? ' ok' : ''}`}>🪙 {need.coins}</span>
+                        <form method="post" action="/api/journey/pet" class="jp-pet-form">
+                          <input type="hidden" name="a" value="up" />
+                          <input type="hidden" name="k" value={id} />
+                          <input type="hidden" name="lv" value={String(lv)} />
+                          <button type="submit" class={`btn btn-small${ready ? ' btn-primary' : ''}`} disabled={!ready}>
+                            키우기
+                          </button>
+                        </form>
+                      </>
+                    )
+                  )}
+                  <form method="post" action="/api/journey/pet" class="jp-pet-form">
+                    <input type="hidden" name="a" value={on ? 'leave' : 'take'} />
+                    <input type="hidden" name="k" value={id} />
+                    <button type="submit" class="btn btn-small btn-ghost">
+                      {on ? '✓ 데려가는 중 (두고 가기)' : '데려가기'}
+                    </button>
+                  </form>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number; top: number; art: string; name: string; tab: PrepTab | null }) {
   const { bank } = props;
   const later = props.going ? '지금 원정이 끝난 뒤 ' : '';
   const matTotal = Object.values(bank.mats).reduce((a, b) => a + b, 0);
@@ -670,7 +774,12 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
     const n = gearNeed(bank[id] + 1);
     return hasMats(bank.mats, n.cost) && bank.coins >= n.coins;
   });
-  const badge: Record<PrepTab, string | null> = { bag: matTotal ? String(matTotal) : null, train: canTrain ? '!' : null, gear: canGear ? '!' : null };
+  const badge: Record<PrepTab, string | null> = {
+    bag: matTotal ? String(matTotal) : null,
+    train: canTrain ? '!' : null,
+    gear: canGear ? '!' : null,
+    pet: PET_IDS.some((id) => petReady(bank, props.top, id)) ? '!' : null,
+  };
   const tabs = (cls: string) => (
     <nav class={`jp-tabs ${cls}`} aria-label="원정 준비소">
       {PREP_TABS.map((t) => (
@@ -794,6 +903,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
 
         </div>
       )}
+      {props.tab === 'pet' && <PetPane bank={bank} top={props.top} unlocked={props.unlocked} later={later} />}
       {props.tab === 'gear' && (
         <div class="jp-pane">
           <PaneTitle id="gear" />
@@ -852,6 +962,20 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
         </div>
       )}
     </section>
+  );
+}
+
+// 끝없는 탑 들어가는 곳
+function TowerLink(props: { top: number; best: number }) {
+  const open = props.top >= TOWER_OPEN;
+  return (
+    <a class={`panel tw-link${open ? '' : ' locked'}`} href="/expedition/tower">
+      <img src="/journey/bg/tower.webp" alt="" width={64} height={64} loading="lazy" />
+      <span>
+        <b>🗼 끝없는 탑</b>
+        <small>{open ? (props.best > 0 ? `최고 ${props.best}층 · 다음 ${props.best + 1}층 도전` : '1층부터 올라가 보세요') : `원정대 ${TOWER_OPEN}장을 깨면 열려요`}</small>
+      </span>
+    </a>
   );
 }
 
@@ -914,7 +1038,8 @@ export function JourneyPage(props: {
             <ChapterPick unlocked={record.unlocked} top={record.top} dogam={props.dogam} farmed={record.farmed} coins={props.bank.coins} last={record.last} />
           </section>
         )}
-        <PerkPanel bank={props.bank} going={!!run} unlocked={Math.min(record.unlocked, journeyOpenTo(props.dogam))} art={props.art} name={name} tab={prepTab(props.prep)} />
+        <TowerLink top={record.top} best={props.bank.tower} />
+        <PerkPanel bank={props.bank} going={!!run} unlocked={Math.min(record.unlocked, journeyOpenTo(props.dogam))} top={record.top} art={props.art} name={name} tab={prepTab(props.prep)} />
         <FictionNote />
       </div>
     </Layout>

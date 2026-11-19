@@ -1,7 +1,7 @@
 import { dogamProgress, escapeNeed, meets } from './unlock';
 import { ESC_XP, escVariantOf, escapeUnlockIndex, actEscape, decodeEscape, escCase, escGrade, escJelly, startEscape, type EscAction, type EscCase, type EscGrade, type EscState } from './escape';
 
-export type EscRow = { id: string; user_id: string; case_id: string; state: string; rev: number; status: string; grade: string | null; xp: number; jelly: number };
+export type EscRow = { id: string; user_id: string; case_id: string; state: string; rev: number; status: string; grade: string | null; xp: number; jelly: number; started_at?: string; ended_at?: string | null };
 export type EscRun = { row: EscRow; def: EscCase; state: EscState };
 
 function decode(row: EscRow | null): EscRun | null {
@@ -20,7 +20,7 @@ export async function getEscape(db: D1Database, user: string, id: string): Promi
 // 사건마다 가장 좋은 등급(해결한 판만)
 export async function escapeRecord(db: D1Database, user: string): Promise<Map<string, EscGrade>> {
   const { results } = await db
-    .prepare("SELECT case_id, MIN(CASE grade WHEN 'S' THEN 0 WHEN 'A' THEN 1 WHEN 'B' THEN 2 ELSE 3 END) AS g FROM escape_runs WHERE user_id = ? AND status = 'done' GROUP BY case_id")
+    .prepare("SELECT case_id, MIN(CASE grade WHEN 'S' THEN 0 WHEN 'A' THEN 1 WHEN 'B' THEN 2 ELSE 3 END) AS g FROM escape_runs WHERE user_id = ? AND status = 'done' AND grade IS NOT NULL GROUP BY case_id")
     .bind(user)
     .all<{ case_id: string; g: number }>();
   return new Map(results.map((r) => [r.case_id, (['S', 'A', 'B', 'C'] as const)[r.g] ?? 'C']));
@@ -35,15 +35,27 @@ export async function escapeOpen(db: D1Database, user: string, caseId: string): 
   return need.cards === 0 || meets(need, await dogamProgress(db, user));
 }
 
+// 재수사 기록(사건마다): 재수사로 해결한 횟수, 가장 빠른 시간(초), 무결점 도장
+export type ReRecord = { clears: number; best: number | null; flawless: boolean };
+export async function reRecord(db: D1Database, user: string): Promise<Map<string, ReRecord>> {
+  const { results } = await db.prepare('SELECT case_id, clears, best_secs, flawless FROM escape_re WHERE user_id = ?').bind(user).all<{ case_id: string; clears: number; best_secs: number | null; flawless: number }>();
+  return new Map(results.map((r) => [r.case_id, { clears: r.clears, best: r.best_secs, flawless: r.flawless > 0 }]));
+}
+// 재수사는 그 사건을 한 번이라도 해결한 사람만 해요
+async function solvedOnce(db: D1Database, user: string, caseId: string): Promise<boolean> {
+  return !!(await db.prepare('SELECT 1 FROM escape_rewards WHERE user_id = ? AND case_id = ? LIMIT 1').bind(user, caseId).first());
+}
+
 export async function beginEscape(
-  db: D1Database, user: string, caseId: string, now = new Date(), replace?: { id: string; rev: number },
+  db: D1Database, user: string, caseId: string, now = new Date(), replace?: { id: string; rev: number }, re = false,
 ): Promise<string | null> {
   if (!escCase(caseId)) return null;
   if (!(await escapeOpen(db, user, caseId))) return null;
+  if (re && !(await solvedOnce(db, user, caseId))) return null;
   // 판 번호(전에 이 사건을 시작한 횟수)는 넣는 순간에도 같을 때만 넣어요. 두 탭에서 동시에 시작해
   // 횟수가 바뀌었으면 다시 세서 해요(같은 판이 두 번 나오지 않게).
   for (let attempt = 0; attempt < 3; attempt++) {
-    const out = await beginOnce(db, user, caseId, now, replace);
+    const out = await beginOnce(db, user, caseId, now, replace, re);
     if (out !== 'retry') return out;
   }
   return null;
@@ -51,18 +63,19 @@ export async function beginEscape(
 
 const TRIED = 'SELECT COUNT(*) FROM escape_runs WHERE user_id = ?2 AND case_id = ?7';
 async function beginOnce(
-  db: D1Database, user: string, caseId: string, now: Date, replace?: { id: string; rev: number },
+  db: D1Database, user: string, caseId: string, now: Date, replace?: { id: string; rev: number }, re = false,
 ): Promise<string | null | 'retry'> {
   const going = await activeEscape(db, user);
   if (going && !replace) return going.row.id;
   if (replace && (!going || going.row.id !== replace.id || going.row.rev !== replace.rev)) return null;
-  if (going?.row.case_id === caseId) return going.row.id;
+  // 같은 사건이라도 일반 판 ↔ 재수사 판을 바꿔 고르면 새 판으로 덮어요
+  if (going?.row.case_id === caseId && !!going.state.re === re) return going.row.id;
   // 이 사건을 전에 시작한 적이 있으면(해결했든 그만뒀든) 범인·단서·자리를 새로 섞은 판으로 해요(수수께끼는 같아요).
   const tried = (await db.prepare('SELECT COUNT(*) AS n FROM escape_runs WHERE user_id = ? AND case_id = ?').bind(user, caseId).first<{ n: number }>())?.n ?? 0;
   const def = escCase(caseId, tried)!;
   const id = crypto.randomUUID();
   const t = now.toISOString();
-  const state = JSON.stringify(startEscape(def));
+  const state = JSON.stringify(startEscape(def, re));
   if (replace) {
     const [quit] = await db.batch([
       db.prepare(`UPDATE escape_runs SET status = 'quit', updated_at = ?3, ended_at = ?3, mutation = ?5
@@ -112,6 +125,7 @@ export async function actEscapeRun(db: D1Database, user: string, id: string, rev
   if (!s) return 'bad';
   const t = now.toISOString();
   const token = crypto.randomUUID();
+  if (s.re && s.done) return finishRe(db, user, id, rev, run.def.id, s, t, token);
   const g = s.done ? escGrade(s) : null;
   // 아직 진행 중인 판은 진행 내용만 저장해요(색인 칸을 건드리지 않아 DB 쓰기가 3줄 → 1줄).
   if (!s.done) {
@@ -155,6 +169,38 @@ export async function actEscapeRun(db: D1Database, user: string, id: string, rev
              dogam_jelly = COALESCE(profiles.dogam_jelly, 0) + excluded.dogam_jelly, updated_at = excluded.updated_at`,
         )
         .bind(id, token, t),
+    );
+  }
+  const r = await db.batch(stmts);
+  return (r[0]?.meta.changes ?? 0) === 1 ? 'ok' : 'stale';
+}
+
+// 재수사 판 끝: 보상(경험치·젤리)은 없고 등급도 매기지 않아요(보통 판 기록과 섞이지 않게).
+// 해결하면 사건마다 한 줄에 횟수·가장 빠른 시간·무결점 도장을 모아요. 실패하면 그만둔 판으로 남아요.
+async function finishRe(db: D1Database, user: string, id: string, rev: number, caseId: string, s: EscState, t: string, token: string): Promise<'ok' | 'stale'> {
+  const won = !s.failed;
+  const stmts = [
+    db
+      .prepare(
+        `UPDATE escape_runs SET state = ?4, rev = rev + 1, mutation = ?3, updated_at = ?5, ended_at = ?5,
+           status = CASE WHEN ?6 THEN 'done' ELSE 'quit' END, grade = NULL, xp = 0, jelly = 0
+         WHERE id = ?1 AND user_id = ?2 AND rev = ?7 AND status = 'going'
+           AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)`,
+      )
+      .bind(id, user, token, JSON.stringify(s), t, won ? 1 : 0, rev),
+  ];
+  if (won) {
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO escape_re (user_id, case_id, clears, best_secs, flawless, updated_at)
+           SELECT user_id, ?3, 1, MAX(0, CAST(ROUND((julianday(ended_at) - julianday(started_at)) * 86400) AS INTEGER)), ?4, ended_at
+           FROM escape_runs WHERE id = ?1 AND mutation = ?2 AND status = 'done'
+           ON CONFLICT (user_id, case_id) DO UPDATE SET clears = escape_re.clears + 1,
+             best_secs = MIN(COALESCE(escape_re.best_secs, excluded.best_secs), excluded.best_secs),
+             flawless = MAX(escape_re.flawless, excluded.flawless), updated_at = excluded.updated_at`,
+        )
+        .bind(id, token, caseId, s.mistakes === 0 ? 1 : 0),
     );
   }
   const r = await db.batch(stmts);

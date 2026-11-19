@@ -375,6 +375,7 @@ export async function applySync(
     stmts.push(db.prepare('DELETE FROM story_runs WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM escape_runs WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM escape_rewards WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM escape_re WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM journey_runs WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM journey_bank WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM story_marks WHERE user_id = ?').bind(id));
