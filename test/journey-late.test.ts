@@ -85,3 +85,13 @@ describe('10장 배경 화면', () => {
     expect(String(Stage({ s: nine, art: '/a.webp', name: 'n', lost: false }))).not.toContain('c9-bg');
   });
 });
+
+describe('장 고르기 화면', () => {
+  it('9장을 깨고 도감을 다 채워도 여는 날 전이면 10장을 고를 수 없고 날짜가 보여요', async () => {
+    const { ChapterPick } = await import('../src/views/journey');
+    const html = String(ChapterPick({ unlocked: 10, top: 9, dogam: everyone, farmed: {}, coins: 0 }));
+    expect(html).toMatch(/value="10"[^>]*disabled/);
+    expect(html).toContain('1월 4일에 열려요');
+    expect(html).not.toMatch(/value="9"[^>]*disabled/);
+  });
+});

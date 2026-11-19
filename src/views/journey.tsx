@@ -529,7 +529,7 @@ function Play(props: { run: JourneyRun; art: string; name: string; preview?: boo
 
 // 장 고르기: 열린 장만 누를 수 있어요. 기본은 마지막으로 돈 장(아래 장 재료를 모으는 사람이 매번 다시 안 골라도 되게),
 // 처음이거나 그 장을 못 가면 가장 높은 장이에요. 앞 장 대장을 이겨야 하고, 4장부터는 도감 카드도 모아야 열려요(src/unlock.ts).
-function ChapterPick(props: { unlocked: number; top: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number; last?: number; again?: boolean }) {
+export function ChapterPick(props: { unlocked: number; top: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number; last?: number; again?: boolean }) {
   const pick = Math.min(props.unlocked, journeyOpenTo(props.dogam));
   const chosen = props.last && props.last >= 1 && props.last <= pick ? props.last : pick;
   return (
@@ -539,9 +539,9 @@ function ChapterPick(props: { unlocked: number; top: number; dogam: DogamProgres
         {CHAPTERS.map((c) => {
           const need = journeyNeed(c.n);
           const dogamOk = meets(need, props.dogam);
-          const open = c.n <= props.unlocked && dogamOk;
-          const boss = picOf('foe', c.boss.key);
           const released = journeyReleased(c.n);
+          const open = c.n <= props.unlocked && dogamOk && released;
+          const boss = picOf('foe', c.boss.key);
           const bg = chapterBg(c.n);
           return (
             <label class={`jr-chapter${open ? '' : ' locked'}`}>
