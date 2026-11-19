@@ -70,6 +70,7 @@ import { BLOCK_MAX_PENDING, BLOCK_MORE, blockCandidates, cancelBlock, decideBloc
 import { checkNote, cleanNote, listUnpostedAiLogs, logAiCheck, markAiLogsPosted, markPraiseSeen, praiseBox, praiseDayLabel, PRAISE_NOTE_MAX } from './praise-note';
 import type { BlockForm } from './views/bingo';
 import { GuidePage } from './views/guide';
+import { UpdatesPage } from './views/updates';
 import { TitlesPage } from './views/titles';
 import { titleById, titleProgress } from './titles';
 import {
@@ -190,6 +191,7 @@ app.get('/', async (c) => {
 
 // 사용설명서는 로그인하지 않아도 볼 수 있어요(디스코드 패널의 도움말 링크로도 들어와요).
 app.get('/guide', async (c) => page(c, <GuidePage viewer={await currentViewer(c)} />));
+app.get('/updates', async (c) => page(c, <UpdatesPage viewer={await currentViewer(c)} />));
 
 app.get('/auth/login', (c) => {
   const state = randomToken();

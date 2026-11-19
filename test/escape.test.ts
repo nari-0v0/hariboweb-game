@@ -415,6 +415,8 @@ describe('사건파일 퍼즐 게임 방식', () => {
     expect(coinsLeft(s1)).toBe(1);
     expect(actEscape(c, s1, { a: 'coin', k: 0 })).toBeNull();
     expect(actEscape(c, s1, { a: 'coin', k: 5 })).toBeNull();
+    // 재수사·오늘의 사건은 힌트가 없어서 동전도 못 주워요
+    expect(actEscape(c, { ...startEscape(c), re: 1 }, { a: 'coin', k: 0 })).toBeNull();
     // 동전으로 본 힌트는 등급에 안 들어가요
     const s2 = actEscape(c, s1, { a: 'hint' })!;
     expect([s2.hints, s2.spent, coinsLeft(s2)]).toEqual([0, 1, 0]);

@@ -395,3 +395,18 @@ document.addEventListener('click', (e) => {
     if (e.key === 'Escape' && !pop.hidden) close();
   });
 })();
+
+// 업데이트 현황: 위 메뉴 버튼에 새 줄 점. 업데이트 현황 화면을 열면 본 것으로 기억해요(브라우저에만, DB는 안 읽어요).
+(() => {
+  const KEY = 'upd-seen';
+  let seen = null;
+  try { seen = localStorage.getItem(KEY); } catch {}
+  const page = document.querySelector('[data-upd-seen]');
+  if (page) {
+    seen = page.getAttribute('data-upd-seen');
+    try { localStorage.setItem(KEY, seen); } catch {}
+  }
+  const btn = document.querySelector('[data-upd]');
+  const dot = btn && btn.querySelector('.upd-dot');
+  if (dot) dot.hidden = !btn.getAttribute('data-upd') || btn.getAttribute('data-upd') === seen;
+})();

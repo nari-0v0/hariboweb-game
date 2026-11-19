@@ -389,7 +389,8 @@ function Play(props: { run: EscRun; art: string; name: string }) {
   const qs = [def.question, ...(def.more ?? [])];
   const puzzles = def.objects.filter((o) => o.lock?.kind === 'code');
   const solved = puzzles.filter((o) => s.opened.includes(o.id)).length;
-  const coins = coinSpots(def, s.scene).filter((c) => !s.coins?.includes(`${s.scene}:${c.k}`));
+  // 재수사·오늘의 사건은 힌트가 없어서 동전도 숨겨요
+  const coins = s.re ? [] : coinSpots(def, s.scene).filter((c) => !s.coins?.includes(`${s.scene}:${c.k}`));
   const left = coinsLeft(s);
   const ready = canAnswer(def, s);
   const bg: RoomKey = scene.bg ?? 'office';
@@ -430,9 +431,11 @@ function Play(props: { run: EscRun; art: string; name: string }) {
                   🧩 {solved}/{puzzles.length}
                 </span>
               )}
-              <span class="esc-chip" title="힌트 동전">
-                🪙 {left}
-              </span>
+              {!s.re && (
+                <span class="esc-chip" title="힌트 동전">
+                  🪙 {left}
+                </span>
+              )}
               {s.re ? (
                 <span class="esc-chip esc-re" title="재수사: 답을 틀릴 수 있는 남은 기회">
                   {s.daily ? '📅' : '🔁'} ❤️ {Math.max(0, RE_LIVES - s.mistakes)}
@@ -572,12 +575,18 @@ function Play(props: { run: EscRun; art: string; name: string }) {
         </div>
         <CasePreload def={run.def} />
         <div class="esc-foot">
-          <span class="hint">물건을 눌러 살펴보세요. 방 곳곳을 누르면 숨은 힌트 동전이 있어요.</span>
+          <span class="hint">
+            {s.daily
+              ? '물건을 눌러 살펴보세요. 오늘의 사건은 힌트가 없고, 덮으면 오늘은 다시 할 수 없어요.'
+              : s.re
+                ? '물건을 눌러 살펴보세요. 재수사는 힌트가 없어요.'
+                : '물건을 눌러 살펴보세요. 방 곳곳을 누르면 숨은 힌트 동전이 있어요.'}
+          </span>
           <form method="post" action="/api/escape/quit">
             <input type="hidden" name="run" value={run.row.id} />
             <input type="hidden" name="rev" value={String(run.row.rev)} />
             <button class="btn btn-small btn-ghost" type="submit">
-              사건 덮기
+              {s.daily ? '사건 덮기(오늘 기회 끝)' : '사건 덮기'}
             </button>
           </form>
         </div>
@@ -830,7 +839,11 @@ export function EscapePage(props: {
                   ▶ 이어 하기
                 </a>
                 <br />
-                <span class="hint">다른 사건을 열면 하던 사건은 덮여요(다음에 열면 처음부터 해요. 입문·대화 사건이 아니면 범인·단서·자리가 바뀐 판이에요).</span>
+                <span class="hint">
+                  {run.state.daily
+                    ? '다른 사건을 열면 오늘의 사건은 덮이고, 오늘은 다시 할 수 없어요.'
+                    : '다른 사건을 열면 하던 사건은 덮여요(다음에 열면 처음부터 해요. 입문·대화 사건이 아니면 범인·단서·자리가 바뀐 판이에요).'}
+                </span>
               </p>
             )}
             {props.daily && <DailyPanel daily={props.daily} run={run} />}

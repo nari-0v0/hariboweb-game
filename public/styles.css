@@ -2310,6 +2310,16 @@ main.wide { max-width: 1320px; }
 
 /* 알림함(🔔) */
 .topbar-right { display: flex; align-items: center; gap: 8px; }
+/* 업데이트 현황(나리 2026-11-19): 종 왼쪽 작은 두 줄 버튼 */
+.upd-btn { position: relative; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; min-width: 44px; height: 38px; padding: 0 6px; border: 3px solid var(--ink); background: var(--paper); color: var(--ink); font-size: .62rem; line-height: 1.15; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.upd-btn:hover { background: #ffe9a8; }
+.upd-dot { position: absolute; top: -6px; right: -6px; width: 12px; height: 12px; border-radius: 50%; background: #ff3b30; border: 2px solid #fff; }
+.upd-dot[hidden] { display: none; }
+.upd-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.upd-list li { display: flex; gap: 10px; align-items: baseline; padding: 8px 10px; background: #fff; border: 3px solid var(--ink); overflow-wrap: anywhere; }
+.upd-list time { flex: none; font-weight: 700; font-size: .85rem; }
+.upd-list span { min-width: 0; font-size: .9rem; }
+
 .alert-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; text-decoration: none; }
 .alert-btn img { display: block; width: 32px; height: 32px; }
 /* 눌렸을 때(팝업 열림)는 배경 대신 종 색이 하늘색으로 바뀌어요 */
@@ -2352,7 +2362,12 @@ main.wide { max-width: 1320px; }
 @media (max-width: 420px) {
   .topbar .menu-word { display: none; }
   .topbar .menu-btn { min-width: 48px; }
+  /* 업데이트 현황 버튼이 들어가도 위 메뉴가 넘치지 않게 */
+  .topbar .brand { gap: 6px; min-width: 0; }
+  .topbar .brand-text { font-size: .86rem; }
+  .topbar-right { gap: 4px; flex: none; }
 }
+@media (max-width: 340px) { .topbar .brand-text { display: none; } }
 
 /* 메뉴 위 고정 공지 띠(나리 2026-11-18). 띠가 있으면 위 메뉴·팝업을 띠 높이(--nb)만큼 내려요. */
 .has-notice { --nb: 34px; }
