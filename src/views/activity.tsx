@@ -5,10 +5,10 @@ export const ACTIVITY_SCRIPT_SRC = '/discord-activity.js?v=1';
 export const activityScriptTag = (clientId: string) =>
   `<script src="${ACTIVITY_SCRIPT_SRC}" data-client-id="${clientId.replace(/[^0-9]/g, '')}" defer></script>`;
 
-// 디스코드 음성채널에서 🚀로 처음 열었을 때 보이는 화면. 스크립트가 디스코드로 로그인한 뒤 내 카드로 넘겨요.
+// 디스코드 음성채널에서 🚀로 처음 열었을 때 보이는 화면. 스크립트(첫 주소라서 index.tsx가 붙여요)가 디스코드로 로그인한 뒤 내 카드로 넘겨요.
 export function ActivityBootPage(props: { clientId: string }) {
   return (
-    <Layout title="디스코드에서 열기" scripts={[ACTIVITY_SCRIPT_SRC]}>
+    <Layout title="디스코드에서 열기">
       <section class="panel act-boot" id="activity-boot" data-client-id={props.clientId}>
         <h1>하리보 멤버 도감</h1>
         <p class="muted" id="activity-status" role="status" aria-live="polite">

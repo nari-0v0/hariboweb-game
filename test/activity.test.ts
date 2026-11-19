@@ -86,6 +86,7 @@ describe('디스코드 액티비티 화면', () => {
     expect(html).toContain('id="activity-boot"');
     expect(html).toContain(`data-client-id="${CLIENT}"`);
     expect(html).toContain('/discord-activity.js?v=');
+    expect(html.match(/discord-activity\.js/g)?.length).toBe(1);
   });
 
   it('디스코드 안 주소에서 온 code로 로그인하면 칸 전용 쿠키를 넣어요', async () => {
@@ -109,6 +110,26 @@ describe('디스코드 액티비티 화면', () => {
     expect(cookie).toContain('Secure');
     expect(cookie).toContain('Partitioned');
     expect(cookie).toContain('HttpOnly');
+  });
+
+  it('🚀로 다시 열면 예전 계정 쿠키를 먼저 지워요(계정을 바꿨을 수 있어요)', async () => {
+    const session = await signSession('test', { uid: A, exp: Date.now() + 60_000 });
+    const res = await app.request(LAUNCH, { headers: { Cookie: `hsa=${session}` } }, env(true));
+    const cookie = res.headers.get('Set-Cookie') ?? '';
+    expect(cookie).toMatch(/^hsa=;/);
+    expect(cookie).toContain('Max-Age=0');
+    expect(cookie).toContain('Partitioned');
+  });
+
+  it('점검 중에 🚀로 처음 열어도 디스코드 안 화면(스크립트)이 붙어요', async () => {
+    const e = { ...env(true), MAINTENANCE: '1' } as Env;
+    const res = await app.request(LAUNCH, {}, e);
+    expect(res.status).toBe(503);
+    const html = await res.text();
+    expect(html).toContain('class="in-activity"');
+    expect(html).toContain('discord-activity.js?v=');
+    // 스위치가 꺼져 있으면 그대로
+    expect(await (await app.request(LAUNCH, {}, { ...env(false), MAINTENANCE: '1' } as Env)).text()).not.toContain('in-activity');
   });
 
   it('하리보 서버 멤버가 아니면 not_member', async () => {
@@ -145,5 +166,19 @@ describe('디스코드 액티비티 화면', () => {
     const req = (e: Env) => app.request('/alerts/clear', { method: 'POST', headers: { Cookie: `hsa=${session}`, Origin: ACT } }, e);
     expect((await req(env(true, db))).status).not.toBe(403);
     expect((await req(env(false, db))).status).toBe(403);
+  });
+});
+
+describe('봇 서버(원본)가 멈췄을 때 워커 오류 화면', () => {
+  it('디스코드 안이면 오류 화면에도 디스코드 안 표시가 붙어요', async () => {
+    const { default: worker } = await import('../src/worker');
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('down'); }));
+    const e = { ...env(true), ORIGIN_URL: 'https://origin.example', ORIGIN_SECRET: 's' } as Env;
+    const ctx = {} as ExecutionContext;
+    const res = await worker.fetch(new Request('https://x.example/me', { headers: { Cookie: 'hsa=abc' } }), e, ctx);
+    expect(res.status).toBe(503);
+    expect(await res.text()).toContain('class="in-activity"');
+    const plain = await worker.fetch(new Request('https://x.example/me'), e, ctx);
+    expect(await plain.text()).not.toContain('in-activity');
   });
 });

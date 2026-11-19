@@ -18,6 +18,23 @@ export function isActivityLaunch(query: Record<string, string>): boolean {
   return !!query.frame_id && !!query.instance_id && (query.platform === 'desktop' || query.platform === 'mobile');
 }
 
+// 이 요청의 화면을 디스코드 안 화면으로 바꿔야 하는지: 디스코드 안 로그인 쿠키가 있거나, 🚀로 막 연 첫 주소일 때.
+// (첫 주소는 로그인 전이라 쿠키가 없어요. 점검 화면 등이 먼저 나와도 바깥 링크 열기 스크립트가 붙어야 해요.)
+export function wantsActivityPage(env: Pick<Env, 'DISCORD_ACTIVITY'>, request: Request): boolean {
+  if (!activityOn(env)) return false;
+  if (new RegExp(`(?:^|;\\s*)${ACTIVITY_COOKIE}=`).test(request.headers.get('Cookie') ?? '')) return true;
+  return isActivityLaunch(Object.fromEntries(new URL(request.url).searchParams));
+}
+
+// 화면(HTML) 응답이면 디스코드 안 화면으로 바꿔요. 그 밖의 응답은 그대로예요.
+export async function toActivityResponse(res: Response, scriptTag: string): Promise<Response> {
+  if (!(res.headers.get('Content-Type') ?? '').startsWith('text/html') || !res.body) return res;
+  const html = rewriteForActivity(await res.text(), scriptTag);
+  const headers = new Headers(res.headers);
+  headers.delete('Content-Length');
+  return new Response(html, { status: res.status, statusText: res.statusText, headers });
+}
+
 // 디스코드 안에서는 등록한 주소(URL Mapping)로만 그림을 받을 수 있어요.
 // 프로필 사진(cdn.discordapp.com)은 개발자 포털에 /cdn → cdn.discordapp.com 으로 등록하고, 화면 속 주소를 바꿔요.
 const CDN = /https:\/\/cdn\.discordapp\.com\//g;

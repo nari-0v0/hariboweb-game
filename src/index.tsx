@@ -5,7 +5,7 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import type { AppEnv, Member } from './env';
 import { randomToken, safeEqual, signSession, verifySession } from './crypto';
 import { authorizeUrl, exchangeCode, fetchGuildProfile, type LoginProfile } from './discord';
-import { ACTIVITY_COOKIE, activityOn, activityOrigin, isActivityLaunch, rewriteForActivity } from './activity';
+import { ACTIVITY_COOKIE, activityOn, activityOrigin, isActivityLaunch, toActivityResponse, wantsActivityPage } from './activity';
 import { ActivityBootPage, activityScriptTag } from './views/activity';
 import {
   assignCharacters,
@@ -133,15 +133,12 @@ export function originDownResponse(request: Request): Response {
   return new Response('<!doctype html>' + String(<ErrorPage retry={retry} />), { status: 503, headers });
 }
 // 디스코드 액티비티(디스코드 앱 안)에서 보는 화면이면 프로필 사진 주소를 디스코드 프록시 주소로 바꾸고,
-// 바깥 링크 열기 스크립트를 붙여요. 디스코드 안 로그인 쿠키(hsa)가 있을 때만 해요. 스위치가 꺼져 있으면 아무것도 안 해요.
+// 바깥 링크 열기 스크립트를 붙여요. 디스코드 안 로그인 쿠키(hsa)가 있거나 🚀로 막 연 첫 주소일 때만 해요.
+// 스위치가 꺼져 있으면 아무것도 안 해요.
 app.use('*', async (c, next) => {
+  const wants = wantsActivityPage(c.env, c.req.raw);
   await next();
-  if (!activityOn(c.env) || !getCookie(c, ACTIVITY_COOKIE)) return;
-  if (!(c.res.headers.get('Content-Type') ?? '').startsWith('text/html')) return;
-  const html = rewriteForActivity(await c.res.text(), activityScriptTag(c.env.DISCORD_CLIENT_ID));
-  const headers = new Headers(c.res.headers);
-  headers.delete('Content-Length');
-  c.res = new Response(html, { status: c.res.status, headers });
+  if (wants) c.res = await toActivityResponse(c.res, activityScriptTag(c.env.DISCORD_CLIENT_ID));
 });
 app.use('*', async (c, next) => {
   if (maintenanceOn(c.env.MAINTENANCE) && !maintenanceSkips(c.req.path)) return troubleResponse(c, 'maintenance');
@@ -203,6 +200,8 @@ async function startActivitySession(c: Context<AppEnv>, profile: LoginProfile) {
   });
 }
 
+const ACTIVITY_COOKIE_DELETE = { path: '/', secure: true, sameSite: 'None', partitioned: true } as const;
+
 // 쿠키가 맞아도 서버를 떠났으면(봇이 removed로 알려 주면) 들어올 수 없어요.
 // 디스코드 액티비티 안에서는 hsa 쿠키로 로그인해요(스위치가 켜져 있을 때만).
 async function currentViewer(c: Context<AppEnv>): Promise<Member | null> {
@@ -218,6 +217,8 @@ app.get('/', async (c) => {
   // 디스코드 음성채널 🚀로 연 첫 화면: 로그인 쿠키가 있어도 매번 디스코드 계정을 다시 확인해요(계정을 바꿨을 수 있어요).
   if (activityOn(c.env) && isActivityLaunch(c.req.query())) {
     c.header('Cache-Control', 'no-store');
+    // 디스코드 계정을 바꿨을 수 있어요. 확인이 끝나기 전에는 예전 계정으로 들어가지 못하게 먼저 지워요.
+    if (getCookie(c, ACTIVITY_COOKIE)) deleteCookie(c, ACTIVITY_COOKIE, ACTIVITY_COOKIE_DELETE);
     return page(c, <ActivityBootPage clientId={c.env.DISCORD_CLIENT_ID} />);
   }
   if (await currentViewer(c)) return c.redirect('/me');
@@ -259,6 +260,8 @@ app.post('/activity/login', bodyLimit({ maxSize: 4 * 1024, onError: tooLarge }),
   const body = (await c.req.json().catch(() => null)) as { code?: unknown } | null;
   const code = typeof body?.code === 'string' ? body.code.trim() : '';
   if (!code || code.length > 200) return c.json({ error: 'bad_code' }, 400);
+  // 확인에 실패하면 예전 계정 쿠키가 남아 있지 않게 지워요.
+  if (getCookie(c, ACTIVITY_COOKIE)) deleteCookie(c, ACTIVITY_COOKIE, ACTIVITY_COOKIE_DELETE);
   const token = await exchangeCode(c.env, code);
   if (!token) return c.json({ error: 'discord' }, 403);
   const profile = await fetchGuildProfile(c.env, token);
@@ -286,7 +289,7 @@ app.post('/auth/logout', (c) => {
   // 다른 사이트가 몰래 로그아웃시키지 못하게 다른 기능처럼 출처를 확인해요
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
   deleteCookie(c, SESSION_COOKIE, { path: '/' });
-  if (getCookie(c, ACTIVITY_COOKIE)) deleteCookie(c, ACTIVITY_COOKIE, { path: '/', secure: true, sameSite: 'None', partitioned: true });
+  if (getCookie(c, ACTIVITY_COOKIE)) deleteCookie(c, ACTIVITY_COOKIE, ACTIVITY_COOKIE_DELETE);
   return c.redirect('/');
 });
 
