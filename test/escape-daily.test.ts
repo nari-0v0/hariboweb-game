@@ -9,7 +9,7 @@ vi.mock('../src/escape-daily', async (orig) => ({ ...(await orig<typeof import('
 import { ESCAPE_CASES, escCase, actEscape, canAnswer, isLocked, startEscape, visible, type EscAction, type EscCase, type EscState } from '../src/escape';
 import { actEscapeRun, activeEscape, beginDaily, beginEscape, dailyInfo, getEscape, quitEscape, reRecord } from '../src/escape-db';
 import { STORY_SEEDS } from '../src/escape-stories';
-import { dailyPick, dailyStreak, dailyVariant, kstDay } from '../src/escape-daily';
+import { dailyPick, dailyVariant, kstDay, shownStreak } from '../src/escape-daily';
 
 function database() {
   const sql = new DatabaseSync(':memory:');
@@ -93,10 +93,11 @@ describe('오늘의 사건 규칙', () => {
     }
     expect(seen.size).toBeGreaterThan(2);
   });
-  it('연속 해결은 오늘(아직 안 했으면 어제)부터 이어진 날만 세요', () => {
-    expect(dailyStreak(['2026-11-19', '2026-11-18', '2026-11-16'], '2026-11-19')).toBe(2);
-    expect(dailyStreak(['2026-11-18', '2026-11-17'], '2026-11-19')).toBe(2);
-    expect(dailyStreak(['2026-11-17'], '2026-11-19')).toBe(0);
+  it('연속 해결은 마지막으로 해결한 날이 오늘이나 어제일 때만 이어져요', () => {
+    expect(shownStreak(3, '2026-11-19', '2026-11-19')).toBe(3);
+    expect(shownStreak(3, '2026-11-18', '2026-11-19')).toBe(3);
+    expect(shownStreak(3, '2026-11-17', '2026-11-19')).toBe(0);
+    expect(shownStreak(0, null, '2026-11-19')).toBe(0);
   });
   it('오늘의 판은 섞인 판이고 힌트 없이 재수사 규칙이에요', () => {
     const def = escCase(FREE.id, dailyVariant('2026-11-19'))!;
@@ -153,6 +154,43 @@ describe('오늘의 사건 DB', () => {
     expect([info.days, info.streak]).toEqual([1, 1]);
     expect((await reRecord(db, 'me')).size).toBe(0);
     expect(await beginDaily(db, 'me', T0)).toBe('played');
+  });
+  it('해결한 날 수와 연속은 날마다 쌓이고, 하루 건너뛰면 연속이 1부터 다시예요', async () => {
+    const { db, sql } = database();
+    solvedIt(sql);
+    const clear = async (at: Date) => {
+      const id = (await beginDaily(db, 'me', at)) as string;
+      const run = (await getEscape(db, 'me', id))!;
+      for (const [i, a] of run.def.solution!.entries()) expect(await actEscapeRun(db, 'me', id, i, a, at)).toBe('ok');
+    };
+    const day = (n: number) => new Date(Date.UTC(2026, 10, 19 + n, 3));
+    await clear(day(0));
+    await clear(day(1));
+    let info = (await dailyInfo(db, 'me', day(1)))!;
+    expect([info.days, info.streak]).toEqual([2, 2]);
+    expect((await dailyInfo(db, 'me', day(2)))!.streak).toBe(2); // 오늘 아직 안 했어도 어제까지 이어져요
+    expect((await dailyInfo(db, 'me', day(3)))!.streak).toBe(0); // 하루 건너뜀
+    await clear(day(3));
+    info = (await dailyInfo(db, 'me', day(3)))!;
+    expect([info.days, info.streak]).toEqual([3, 1]);
+  });
+  it('옛 화면(어제 날짜, 다른 사건)으로는 시작하지 않아요', async () => {
+    const { db, sql } = database();
+    solvedIt(sql);
+    expect(await beginDaily(db, 'me', T0, undefined, { day: '2026-11-18', caseId: FREE.id })).toBe('stale');
+    expect(await beginDaily(db, 'me', T0, undefined, { day: '2026-11-19', caseId: 'nope' })).toBe('stale');
+    expect(await activeEscape(db, 'me')).toBeNull();
+    expect(await beginDaily(db, 'me', T0, undefined, { day: '2026-11-19', caseId: FREE.id })).toMatch(/-/);
+  });
+  it('오늘의 사건을 하다가 같은 사건 재수사를 고르면 새 재수사 판이에요', async () => {
+    const { db, sql } = database();
+    solvedIt(sql);
+    const daily = (await beginDaily(db, 'me', T0))!;
+    const going = (await activeEscape(db, 'me'))!;
+    const re = (await beginEscape(db, 'me', FREE.id, T0, { id: daily, rev: going.row.rev }, true))!;
+    expect(re).not.toBe(daily);
+    const now = (await activeEscape(db, 'me'))!;
+    expect([now.state.re, now.state.daily]).toEqual([1, undefined]);
   });
   it('떠난 멤버는 시작할 수 없어요', async () => {
     const { db, sql } = database();

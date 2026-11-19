@@ -1337,7 +1337,9 @@ members.post('/api/escape/daily', async (c) => {
     const replacing = body.switch === '1';
     const oldId = String(body.run ?? ''), rev = Number(body.rev);
     if (replacing && (!ESC_ID.test(oldId) || !Number.isSafeInteger(rev) || rev < 0)) return c.redirect('/cases/room?n=stale#now', 303);
-    const id = await beginDaily(c.env.DB, user, new Date(), replacing ? { id: oldId, rev } : undefined);
+    const seen = { day: String(body.day ?? ''), caseId: String(body.case ?? '') };
+    const id = await beginDaily(c.env.DB, user, new Date(), replacing ? { id: oldId, rev } : undefined, seen);
+    if (id === 'stale') return c.redirect('/cases/room?list=1&n=dailystale#case-list', 303);
     if (id === 'played') return c.redirect('/cases/room?list=1&n=dailydone#case-list', 303);
     return c.redirect(id ? '/cases/room#now' : '/cases/room?list=1&n=bad#case-list', 303);
   } catch (e) {
@@ -1375,12 +1377,12 @@ members.post('/api/escape/act', async (c) => {
     const r = await actEscapeRun(c.env.DB, user, id, rev, act);
     if (r !== 'ok') return c.redirect(`/cases/room?n=${r}#now`, 303);
     // 다시 불러오기(리다이렉트) 없이 바로 화면을 그려 보내요. 한 번 왕복이 줄어서 빨라요.
-    const [after, best, profile, dogam, re] = await Promise.all([getEscape(c.env.DB, user, id), escapeRecord(c.env.DB, user), getProfile(c.env.DB, user), dogamProgress(c.env.DB, user), reRecord(c.env.DB, user)]);
+    const [after, best, profile, dogam, re, daily] = await Promise.all([getEscape(c.env.DB, user, id), escapeRecord(c.env.DB, user), getProfile(c.env.DB, user), dogamProgress(c.env.DB, user), reRecord(c.env.DB, user), dailyInfo(c.env.DB, user)]);
     const done = !!after && escEnded(after);
     c.header('Cache-Control', 'no-store');
     const viewer = c.get('viewer');
     const art = characterUrl(profile.character_id, user, profile.deco_id);
-    return page(c, <EscapePage viewer={viewer} art={art} run={done ? null : after} result={done ? after : null} best={best} re={re} dogam={dogam} url={done ? `/cases/room?r=${id}#now` : '/cases/room#now'} />);
+    return page(c, <EscapePage viewer={viewer} art={art} run={done ? null : after} result={done ? after : null} best={best} re={re} daily={daily} dogam={dogam} url={done ? `/cases/room?r=${id}#now` : '/cases/room#now'} />);
   } catch (e) {
     console.error('사건 진행 실패', e);
     return c.redirect('/cases/room?n=error#now', 303);

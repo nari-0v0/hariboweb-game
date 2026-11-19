@@ -12,6 +12,7 @@ import { uiForClient } from '../escape-ui';
 
 const NOTICES: Record<string, PopupLine[]> = {
   dailydone: [{ title: '알림', text: '오늘의 사건은 하루에 한 번이에요. 내일 새 사건이 와요.' }],
+  dailystale: [{ title: '알림', text: '날짜나 오늘의 사건이 바뀌었어요. 새 화면에서 다시 확인해 주세요.' }],
   stale: [
     {
       title: '알림',
@@ -682,7 +683,7 @@ function DailyPanel(props: { daily: DailyInfo; run: EscRun | null }) {
         </span>
       </div>
       {!def ? (
-        <p class="hint">사건을 하나 해결하면 열려요. 해결한 사건 중 하나를 매일 범인·단서·물건 자리를 새로 섞어 내 드려요.</p>
+        <p class="hint">이야기 사건(입문 사건 3개와 대화로 푸는 사건은 빼고)을 하나 해결하면 열려요. 해결한 사건 중 하나를 매일 범인·단서·물건 자리를 새로 섞어 내 드려요.</p>
       ) : t && !goingDaily ? (
         <p>
           {def.emoji} {def.title}:{' '}
@@ -692,6 +693,8 @@ function DailyPanel(props: { daily: DailyInfo; run: EscRun | null }) {
         </p>
       ) : (
         <form method="post" action="/api/escape/daily" class="esc-daily-form">
+          <input type="hidden" name="day" value={daily.day} />
+          <input type="hidden" name="case" value={def.id} />
           {run && !goingDaily && (
             <>
               <input type="hidden" name="switch" value="1" />

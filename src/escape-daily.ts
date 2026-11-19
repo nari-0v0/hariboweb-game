@@ -27,15 +27,6 @@ export function dailyPick(user: string, day: string, solved: Iterable<string>): 
   return pool.length ? pool[hash(`${user}:${day}`) % pool.length]! : null;
 }
 
-// 연속 해결 일수: 오늘(또는 오늘 아직 안 했으면 어제)부터 거꾸로 이어진 해결한 날 수
-export function dailyStreak(solvedDays: string[], today: string): number {
-  const set = new Set(solvedDays);
-  const prev = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
-  let d = set.has(today) ? today : prev(today);
-  let n = 0;
-  while (set.has(d)) {
-    n++;
-    d = prev(d);
-  }
-  return n;
-}
+export const prevDay = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+// 지금 보여 줄 연속 해결: 마지막으로 해결한 날이 오늘이나 어제면 이어지는 중, 아니면 끊겼어요(0)
+export const shownStreak = (streak: number, lastDay: string | null, today: string) => (lastDay === today || lastDay === prevDay(today) ? streak : 0);

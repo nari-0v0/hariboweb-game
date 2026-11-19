@@ -11,3 +11,10 @@ CREATE TABLE IF NOT EXISTS escape_daily (
   flawless INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (user_id, day)
 );
+-- 해결한 날 수·연속 해결은 해결할 때 한 줄에 쌓아요(목록을 열 때마다 지난 기록을 다 읽지 않게)
+CREATE TABLE IF NOT EXISTS escape_daily_stats (
+  user_id TEXT PRIMARY KEY,
+  days INTEGER NOT NULL DEFAULT 0,
+  streak INTEGER NOT NULL DEFAULT 0,
+  last_day TEXT
+);
