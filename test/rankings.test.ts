@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
-import { loadRankings, plainPodium, toPodium } from '../src/rankings';
+import { levelPodium, loadRankings, plainPodium, toPodium } from '../src/rankings';
 
 const ids = Array.from({ length: 6 }, (_, i) => `${i + 1}`.repeat(18));
 const [A, B, C, D] = ids as [string, string, string, string];
@@ -88,9 +88,11 @@ describe('순위 메뉴', () => {
     sql.prepare('UPDATE members SET active = 0 WHERE user_id = ?').run(ids[4]!);
     const r = await loadRankings(db, D, NOW, 'dogam');
     expect(r.dogam.top[0]).toMatchObject({ name: 'm1', value: 3 });
-    expect(r.dogamLevel.top.map((x) => [x.rank, x.name, x.label])).toEqual([[1, 'm3', 'Lv10↑ 1장'], [2, 'm2', 'Lv10↑ 1장'], [3, 'm1', 'Lv5↑ 3장']]);
-    expect(r.dogamLevel.me).toMatchObject({ rank: 4, label: 'Lv5↑ 1장' });
+    expect(r.dogamLevel.top.map((x) => [x.rank, x.name, x.label])).toEqual([[1, 'm3', ['Lv10↑ 1장', 'Lv5↑ 2장']], [2, 'm2', ['Lv10↑ 1장']], [3, 'm1', ['Lv5↑ 3장']]]);
+    expect(r.dogamLevel.me).toMatchObject({ rank: 4, label: ['Lv5↑ 1장'] });
     expect((await loadRankings(db, ids[5]!, NOW, 'dogam')).dogamLevel.me).toBeNull();
+    const tie = levelPodium([{ user_id: D, name: 'd', value: 1, t5: 1 }, { user_id: 'x', name: 'x', value: 1, t5: 1 }], 'x');
+    expect(tie.me).toMatchObject({ rank: 1 });
   });
 
   it('도감·원정대·사건파일은 지금 있는 멤버만 세요', async () => {

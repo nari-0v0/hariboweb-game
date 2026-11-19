@@ -6,7 +6,7 @@ import { seasonAt } from './team';
 // 순위 메뉴(/rank): 도감·빙고(젤리피)·원정대·사건파일·겜블장. 지금 서버에 있는 멤버만, 3위까지 + 내 순위.
 // 시상대에는 멤버 캐릭터 그림(나리 그림)을 같이 보여 줘요.
 
-export type PodiumRow = { rank: number; name: string; value: number; char: string | null; label?: string };
+export type PodiumRow = { rank: number; name: string; value: number; char: string | null; label?: string[] };
 export type Podium = { top: PodiumRow[]; me: PodiumRow | null };
 
 export const PODIUM_SIZE = 3;
@@ -72,8 +72,11 @@ export function levelPodium(list: Raw[], userId: string, size = PODIUM_SIZE): Po
   keyed.forEach(({ r, key }, i) => {
     const prev = keyed[i - 1];
     const rank = prev && cmp(prev.key, key) === 0 ? ranked[i - 1]!.rank : i + 1;
+    // 가장 높은 단계와, 그보다 카드가 더 많은 바로 아래 단계까지 보여 줘요(같은 최고 단계끼리 순위가 갈린 이유).
     const top = key.findIndex((n) => n > 0);
-    const label = `Lv${LEVEL_TIERS[top]}↑ ${key[top]}장`;
+    const label = [`Lv${LEVEL_TIERS[top]}↑ ${key[top]}장`];
+    const next = key.findIndex((n, k) => k > top && n > key[top]!);
+    if (next > 0) label.push(`Lv${LEVEL_TIERS[next]}↑ ${key[next]}장`);
     ranked.push({ id: r.user_id, rank, name: r.name ?? '알 수 없음', value: key[top]!, char: characterUrl(r.character_id, r.user_id, r.deco_id), label });
   });
   const strip = ({ rank, name, value, char, label }: PodiumRow) => ({ rank, name, value, char, label });

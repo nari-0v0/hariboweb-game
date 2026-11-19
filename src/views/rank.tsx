@@ -41,7 +41,7 @@ export function RankPage(props: { viewer: Member; ranks: Rankings; tab: RankTab 
           <div class="rk-pair">
             <PodiumBoard title="모은 도감 카드" icon="🃏" podium={r.dogam} show={(v) => `${n(v)}장`} note="같이 논 사람 카드를 많이 모은 순" />
             <PodiumBoard title="높은 레벨 카드" icon="⭐" podium={r.dogamLevel} show={(v) => `${n(v)}장`}
-              note="높은 레벨 카드가 많은 순 · Lv5부터 세요" empty="아직 Lv5 넘은 카드가 없어요. 첫 1등이 되어 보세요!" />
+              note="Lv100·50·30·20·15·10·5 카드 수를 높은 단계부터 비교해요 · 모두 같으면 공동 순위" empty="아직 Lv5 넘은 카드가 없어요. 첫 1등이 되어 보세요!" />
           </div>
         )}
         {tab === 'bingo' && (
