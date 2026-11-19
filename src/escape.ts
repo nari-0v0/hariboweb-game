@@ -404,6 +404,8 @@ function textUnitOk(lk: Extract<Lock, { kind: 'code' }>, v: string): boolean {
   return (!!unit && v === code + unit) || v === `${code}°`;
 }
 export const isLocked = (s: EscState, o: EscObject) => !!o.lock && !s.opened.includes(o.id);
+// 등급: 실수+동전 없이 본 힌트 0~1번 S, 2~3번 A, 4~6번 B, 그 넘으면 C(나리 2026-11-19: 규칙은 그대로, 화면에 기준만 보여 줘요).
+export const GRADE_RULE = 'S 실수·힌트 합쳐 1번까지 · A 2~3번 · B 4~6번 · C 7번 이상';
 export const escGrade = (s: EscState): EscGrade => {
   const p = s.mistakes + s.hints;
   return p <= 1 ? 'S' : p <= 3 ? 'A' : p <= 6 ? 'B' : 'C';

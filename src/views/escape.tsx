@@ -1,6 +1,6 @@
 import type { Member } from '../env';
 import type { DailyInfo, EscRun, ReRecord } from '../escape-db';
-import { ESCAPE_CASES, ESC_XP, escapeUnlockIndex, bigHint, canAnswer, coinSpots, coinsLeft, escGrade, hintIndex, RE_LIVES, isLocked, openScenes, puzzleNo, visible, type EscGrade, type EscObject } from '../escape';
+import { ESCAPE_CASES, ESC_XP, escapeUnlockIndex, bigHint, canAnswer, coinSpots, coinsLeft, escGrade, GRADE_RULE, hintIndex, RE_LIVES, isLocked, openScenes, puzzleNo, visible, type EscGrade, type EscObject } from '../escape';
 import { casePics, itemPic } from '../case-art';
 import { ROOMS, roomSrc, roomSrcSet, type Hotspot, type RoomKey } from '../case-rooms';
 import { ROOM_BLUR } from '../room-blur.gen';
@@ -780,6 +780,7 @@ function Result(props: { run: EscRun; going: boolean; record?: ReRecord }) {
           <p class="hint">
             실수 {run.state.mistakes}번 · 동전 없이 본 힌트 {run.state.hints}번 · 찾은 힌트 동전 {run.state.coins?.length ?? 0}개
           </p>
+          <p class="hint">등급: {GRADE_RULE}</p>
         </div>
       </div>
       <p class="esc-ending">{run.state.msg}</p>
@@ -824,7 +825,7 @@ export function EscapePage(props: {
             <summary aria-label="하는 법">?</summary>
             <div>
               <p>방 안 물건을 눌러 살피고, 열쇠와 비밀번호·수수께끼로 잠긴 곳을 열어 단서를 모아요. 단서가 모이면 진실을 맞혀요.</p>
-              <p>방 곳곳 빈 자리를 눌러 보면 숨은 힌트 동전이 있어요. 실수(틀린 비밀번호·장치 답·범인 답)와 동전 없이 본 힌트가 적을수록 등급이 높아요. 물건 합치기나 물건 대 보기는 틀려도 실수가 아니에요.</p>
+              <p>방 곳곳 빈 자리를 눌러 보면 숨은 힌트 동전이 있어요. 실수(틀린 비밀번호·장치 답·범인 답)와 동전 없이 본 힌트를 더해 등급을 매겨요({GRADE_RULE}). 물건 합치기나 물건 대 보기는 틀려도 실수가 아니에요.</p>
               <p>사건마다 처음 해결하면 내 카드 경험치 {ESC_XP}, S·A 등급이면 도감 젤리 1개도 받아요.</p>
               <p>해결한 사건은 🔁 재수사로 다시 풀 수 있어요. 힌트 없이, 답을 3번 틀리면 실패예요. 보상은 없고 가장 빠른 시간과 무결점 도장(💮, 한 번도 안 틀림)이 남아요.</p>
               {props.daily && <p>📅 오늘의 사건: 매일 내가 해결한 사건 하나가 범인·단서·물건 자리가 새로 섞여 나와요. 하루 한 번, 재수사처럼 힌트 없이 풀어요. 보상은 없고 해결한 날 수와 연속 기록이 남아요.</p>}
