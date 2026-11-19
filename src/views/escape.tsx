@@ -1,5 +1,5 @@
 import type { Member } from '../env';
-import type { EscRun, ReRecord } from '../escape-db';
+import type { DailyInfo, EscRun, ReRecord } from '../escape-db';
 import { ESCAPE_CASES, ESC_XP, escapeUnlockIndex, bigHint, canAnswer, coinSpots, coinsLeft, escGrade, hintIndex, RE_LIVES, isLocked, openScenes, puzzleNo, visible, type EscGrade, type EscObject } from '../escape';
 import { casePics, itemPic } from '../case-art';
 import { ROOMS, roomSrc, roomSrcSet, type Hotspot, type RoomKey } from '../case-rooms';
@@ -11,6 +11,7 @@ import { Popup, type PopupLine } from './shop';
 import { uiForClient } from '../escape-ui';
 
 const NOTICES: Record<string, PopupLine[]> = {
+  dailydone: [{ title: '알림', text: '오늘의 사건은 하루에 한 번이에요. 내일 새 사건이 와요.' }],
   stale: [
     {
       title: '알림',
@@ -433,7 +434,7 @@ function Play(props: { run: EscRun; art: string; name: string }) {
               </span>
               {s.re ? (
                 <span class="esc-chip esc-re" title="재수사: 답을 틀릴 수 있는 남은 기회">
-                  🔁 ❤️ {Math.max(0, RE_LIVES - s.mistakes)}
+                  {s.daily ? '📅' : '🔁'} ❤️ {Math.max(0, RE_LIVES - s.mistakes)}
                 </span>
               ) : (
                 <span class="esc-chip" title="실수">
@@ -666,6 +667,54 @@ function Play(props: { run: EscRun; art: string; name: string }) {
 
 const mmss = (secs: number) => `${Math.floor(secs / 60)}분 ${String(secs % 60).padStart(2, '0')}초`;
 // 재수사 결과: 등급 대신 걸린 시간과 무결점 도장
+// 오늘의 사건 칸(사건 목록 맨 위)
+function DailyPanel(props: { daily: DailyInfo; run: EscRun | null }) {
+  const { daily, run } = props;
+  const def = daily.caseId ? ESCAPE_CASES.find((c) => c.id === daily.caseId) : null;
+  const t = daily.today;
+  const goingDaily = !!run && !!t && run.row.id === t.run_id;
+  return (
+    <div class="esc-daily">
+      <div class="esc-daily-head">
+        <b>📅 오늘의 사건</b>
+        <span class="hint">
+          해결 {daily.days}일{daily.streak > 1 ? ` · 🔥 ${daily.streak}일 연속` : ''}
+        </span>
+      </div>
+      {!def ? (
+        <p class="hint">사건을 하나 해결하면 열려요. 해결한 사건 중 하나를 매일 범인·단서·물건 자리를 새로 섞어 내 드려요.</p>
+      ) : t && !goingDaily ? (
+        <p>
+          {def.emoji} {def.title}:{' '}
+          {t.solved ? <b>오늘 해결했어요{t.flawless ? ' 💮' : ''}{t.secs != null ? ` (${mmss(t.secs)})` : ''}</b> : <b>오늘은 실패했어요</b>}
+          <br />
+          <span class="hint">내일 새 사건이 와요.</span>
+        </p>
+      ) : (
+        <form method="post" action="/api/escape/daily" class="esc-daily-form">
+          {run && !goingDaily && (
+            <>
+              <input type="hidden" name="switch" value="1" />
+              <input type="hidden" name="run" value={run.row.id} />
+              <input type="hidden" name="rev" value={run.row.rev} />
+            </>
+          )}
+          <p>
+            {def.emoji} <b>{def.title}</b> <span class="hint">📍 {def.place}</span>
+            <br />
+            <span class="hint">
+              {goingDaily
+                ? `오늘의 사건을 푸는 중이에요. 힌트 없이 답을 ${RE_LIVES}번 틀리면 실패예요.`
+                : `하루 한 번, 힌트 없이 답을 ${RE_LIVES}번 틀리면 실패예요. 시작하면 오늘 기회를 써요${run ? '(하던 사건은 덮여요)' : ''}. 보상 없이 기록만 남아요.`}
+            </span>
+          </p>
+          <button type="submit" class="btn btn-primary btn-small">{goingDaily ? '▶ 이어 하기' : '📅 오늘의 사건 풀기'}</button>
+        </form>
+      )}
+    </div>
+  );
+}
+
 function ReResult(props: { run: EscRun; going: boolean; record?: ReRecord }) {
   const { run } = props;
   const s = run.state;
@@ -675,7 +724,7 @@ function ReResult(props: { run: EscRun; going: boolean; record?: ReRecord }) {
   const secs = Number.isFinite(ended) && Number.isFinite(started) ? Math.max(0, Math.round((ended - started) / 1000)) : null;
   return (
     <section class="jr-game esc-game esc-result" id="now">
-      <span class="eyebrow">🔁 재수사 {won ? '성공' : '실패'}</span>
+      <span class="eyebrow">{s.daily ? '📅 오늘의 사건' : '🔁 재수사'} {won ? '성공' : '실패'}</span>
       <h2>
         {run.def.emoji} {run.def.title}
       </h2>
@@ -685,12 +734,12 @@ function ReResult(props: { run: EscRun; going: boolean; record?: ReRecord }) {
           <b>{won ? (s.mistakes === 0 ? '무결점 해결! 도장을 받았어요' : '힌트 없이 해결했어요') : `답을 ${RE_LIVES}번 틀렸어요`}</b>
           <p class="hint">
             {secs !== null && won ? `걸린 시간 ${mmss(secs)} · ` : ''}틀린 답 {s.mistakes}번
-            {props.record?.best != null ? ` · 가장 빠른 기록 ${mmss(props.record.best)}` : ''}
+            {!s.daily && props.record?.best != null ? ` · 가장 빠른 기록 ${mmss(props.record.best)}` : ''}
           </p>
         </div>
       </div>
       <p class="esc-ending">{s.msg}</p>
-      <p class="hint">재수사는 보상 없이 기록만 남아요. 등급 기록도 그대로예요.</p>
+      <p class="hint">{s.daily ? '오늘의 사건은 하루에 한 번이에요. 보상 없이 기록만 남고, 내일 새 사건이 와요.' : '재수사는 보상 없이 기록만 남아요. 등급 기록도 그대로예요.'}</p>
       <a class="btn btn-primary" href={props.going ? '/cases/room' : '#case-list'}>
         {props.going ? '진행 중인 사건 이어 하기' : '다른 사건 고르기'}
       </a>
@@ -739,6 +788,7 @@ export function EscapePage(props: {
   result: EscRun | null;
   best: Map<string, EscGrade>;
   re?: Map<string, ReRecord>; // 재수사 기록
+  daily?: DailyInfo | null; // 오늘의 사건(스위치가 꺼져 있으면 null)
   dogam: DogamProgress;
   notice?: string;
   url?: string;
@@ -761,6 +811,7 @@ export function EscapePage(props: {
               <p>방 곳곳 빈 자리를 눌러 보면 숨은 힌트 동전이 있어요. 실수(틀린 비밀번호·장치 답·범인 답)와 동전 없이 본 힌트가 적을수록 등급이 높아요. 물건 합치기나 물건 대 보기는 틀려도 실수가 아니에요.</p>
               <p>사건마다 처음 해결하면 내 카드 경험치 {ESC_XP}, S·A 등급이면 도감 젤리 1개도 받아요.</p>
               <p>해결한 사건은 🔁 재수사로 다시 풀 수 있어요. 힌트 없이, 답을 3번 틀리면 실패예요. 보상은 없고 가장 빠른 시간과 무결점 도장(💮, 한 번도 안 틀림)이 남아요.</p>
+              {props.daily && <p>📅 오늘의 사건: 매일 내가 해결한 사건 하나가 범인·단서·물건 자리가 새로 섞여 나와요. 하루 한 번, 재수사처럼 힌트 없이 풀어요. 보상은 없고 해결한 날 수와 연속 기록이 남아요.</p>}
               <p>한 번 열었던 사건을 다시 열면 수수께끼는 같지만 범인·단서·물건 숨은 자리·시계 시각이 새로 바뀌어요. 맨 앞 입문 사건 3개와 대화로 푸는 사건은 그대로예요.</p>
             </div>
           </details>
@@ -779,6 +830,7 @@ export function EscapePage(props: {
                 <span class="hint">다른 사건을 열면 하던 사건은 덮여요(다음에 열면 처음부터 해요. 입문·대화 사건이 아니면 범인·단서·자리가 바뀐 판이에요).</span>
               </p>
             )}
+            {props.daily && <DailyPanel daily={props.daily} run={run} />}
             <p class="hint">별이 많을수록 수수께끼가 어려워요(★ → ★★ → ★★★). 맨 앞 입문 사건 3개는 짧고, 나머지는 방 3개, 수수께끼 5개, 물건 합치기, 범인·방법·동기까지 맞혀야 해요(대화로 푸는 사건은 물건 대신 사람에게 말을 걸어요).</p>
             <div class="esc-cases">
               {ESCAPE_CASES.map((c, i) => {

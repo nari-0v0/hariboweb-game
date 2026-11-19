@@ -2408,3 +2408,10 @@ main.wide { max-width: 1320px; }
 .esc-re-btn { width: 100%; font-size: .78rem; padding-left: 4px; padding-right: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .esc-chip.esc-re { background: #ffe0e8; }
 .jp-tab b { word-break: keep-all; text-align: center; }
+
+/* 오늘의 사건(사건 목록 맨 위) */
+.esc-daily { margin: 6px 0 12px; padding: 8px 10px; border: 3px solid var(--ink); background: var(--paper-2); line-height: 1.8; color: var(--ink); }
+.esc-game .esc-daily .hint { color: var(--ink-soft); }
+.esc-daily-head { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; justify-content: space-between; }
+.esc-daily p { margin: 4px 0; }
+.esc-daily-form .btn { margin-top: 4px; }

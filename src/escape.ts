@@ -362,6 +362,7 @@ export type EscState = {
   vr?: number; // 다시 푸는 판 번호(EscCase.vr과 같아요)
   re?: 1; // 재수사 판(힌트 없음, 답을 RE_LIVES번 틀리면 실패)
   failed?: 1; // 재수사에 실패해서 끝난 판
+  daily?: string; // 오늘의 사건 판(한국 날짜). 재수사 규칙(re: 1)과 같이 써요
 };
 // 재수사(나리 2026-11-19): 해결한 사건을 힌트 없이 다시. 답을 3번 틀리면 실패예요.
 // 실수로 세는 건 답을 낸 경우뿐이에요(비밀번호·암호, 장치 '확인', 범인 고르기). 합치기·물건 대 보기는 세지 않아요.
@@ -380,7 +381,8 @@ export type EscAction =
   | { a: 'go'; o: string }; // 열린 방으로 바로 가기(o = 방 id)
 export type EscGrade = 'S' | 'A' | 'B' | 'C';
 
-export function startEscape(c: EscCase, re = false): EscState {
+export function startEscape(c: EscCase, re = false, daily?: string): EscState {
+  if (daily) return { ...startEscape(c), re: 1, daily, msg: `📅 오늘의 사건! 힌트 없이, 답을 ${RE_LIVES}번 틀리면 실패예요. 범인·단서·물건 자리가 새로 섞였어요. ${c.intro}` };
   if (re) return { ...startEscape(c), re: 1, msg: `🔁 재수사! 힌트 없이, 답을 ${RE_LIVES}번 틀리면 실패예요. ${c.intro}` };
   return { v: 1, scene: c.scenes[0]!.id, inv: [], opened: [], seen: [], shown: [], clues: [], mistakes: 0, hints: 0, focus: null, msg: c.intro, tone: 'info', done: false, ...(c.vr ? { vr: c.vr } : {}) };
 }
