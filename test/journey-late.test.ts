@@ -108,3 +108,13 @@ describe('장 고르기 화면', () => {
     expect(html).not.toMatch(/value="9"[^>]*disabled/);
   });
 });
+
+describe('준비 중인 장은 끝없는 탑에도 안 나와요', () => {
+  it('탑 몬스터·재료·세기는 9장(180층)까지가 기준이에요', async () => {
+    const { towerMonster, towerFoe, towerMat } = await import('../src/tower');
+    const nine = new Set(CHAPTERS.filter((c) => c.n <= 9).flatMap((c) => [...c.foes, c.elite, c.boss].map((m) => m.key)));
+    for (let f = 1; f <= 400; f++) expect(nine.has(towerMonster(f).key), `${f}층`).toBe(true);
+    expect(towerMat(200, 15)?.ch).toBe(9);
+    expect(towerFoe(181).hp).toBeGreaterThan(towerFoe(179).hp); // 180층 뒤로는 층마다 1.5%씩 더 세져요
+  });
+});

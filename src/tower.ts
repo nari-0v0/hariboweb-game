@@ -8,6 +8,9 @@
 // - 같은 층·같은 능력이면 결과도 늘 같아요(씨앗 = 사람 + 층). 그냥 다시 누르기만 해서는 못 넘어요.
 import { rng } from './rng';
 import { CHAPTERS, MAX_CHAPTER, type Monster } from './journey-chapters';
+import { releasedTop } from './unlock';
+// 탑의 기준 장: 준비 중이 아닌 가장 높은 장(지금 9장 = 180층). 장이 열리면 탑도 따라 늘어나요.
+const towerTop = () => Math.max(1, releasedTop(MAX_CHAPTER));
 import { GEAR_MAX, PERKS, battle, gearBonus, startJourney, stat, type BattleFx, type Boost, type Gear, type Line, type Perks } from './journey';
 import type { PetId } from './pets';
 
@@ -21,7 +24,7 @@ export const towerCoins = (floor: number) => (floor >= 1 ? ((Math.floor(floor) -
 // 10층마다 재료: 그 층이 맞는 장(20층마다 하나씩)과 내가 깬 장 중 낮은 쪽
 export function towerMat(floor: number, top: number): { ch: number; n: number } | null {
   if (floor <= 0 || floor % MAT_EVERY !== 0 || top <= 0) return null;
-  return { ch: Math.max(1, Math.min(Math.ceil(floor / FLOORS_PER_CH), top, MAX_CHAPTER)), n: MAT_COUNT };
+  return { ch: Math.max(1, Math.min(Math.ceil(floor / FLOORS_PER_CH), top, towerTop())), n: MAT_COUNT };
 }
 
 // 잠깐 강해지기(그 층 도전 한 번)
@@ -39,12 +42,12 @@ export const cleanBoosts = (v: unknown): BoostId[] => {
 };
 
 // 몬스터 세기: '그 층에 맞는 장(층 ÷ 20)을 막 깬 사람'(훈련 끝까지 + 장비 +장 번호, 펫·강화 없음)이 겨우 이기게 맞춰요.
-// 그보다 약하면 강화나 펫, 장비로 넘어야 해요. 마지막 장 높이(15장 = 300층)를 넘으면 층마다 1.5%씩 더 세져요.
+// 그보다 약하면 강화나 펫, 장비로 넘어야 해요. 열린 마지막 장 높이(지금 9장 = 180층)를 넘으면 층마다 1.5%씩 더 세져요.
 export const HITS = 6; // 기준인 사람이 몇 번 때려야 쓰러지나
 export const BOSS_HITS = 8;
 export const PAST_TOP = 1.015;
 export function refStats(c: number) {
-  const k = Math.max(0, Math.min(MAX_CHAPTER, c));
+  const k = Math.max(0, Math.min(towerTop(), c));
   const perk = (id: keyof Perks) => {
     const max0 = PERKS[id].max;
     return PERKS[id].per * (max0 + Math.floor(max0 * 0.3) * (Math.max(1, k) - 1));
@@ -63,7 +66,8 @@ export function towerFoe(floor: number): { hp: number; atk: number; boss: boolea
   const f = Math.max(1, Math.floor(floor));
   const c = f / FLOORS_PER_CH;
   const r = refStats(c);
-  const past = f > MAX_CHAPTER * FLOORS_PER_CH ? PAST_TOP ** (f - MAX_CHAPTER * FLOORS_PER_CH) : 1;
+  const topFloor = towerTop() * FLOORS_PER_CH;
+  const past = f > topFloor ? PAST_TOP ** (f - topFloor) : 1;
   const boss = isBossFloor(f);
   const hits = boss ? BOSS_HITS : HITS;
   const hp = Math.round(r.atk * hits * past);
@@ -71,10 +75,10 @@ export function towerFoe(floor: number): { hp: number; atk: number; boss: boolea
   const atk = Math.round((r.def + (r.hp * 0.95) / (hits - 1)) * past);
   return { hp, atk, boss };
 }
-// 층 몬스터 그림: 그 층에 맞는 장의 몬스터. 10층마다 강한 적, 20층마다 대장. 300층 뒤로는 1장부터 다시 돌아요.
+// 층 몬스터 그림: 그 층에 맞는 장의 몬스터. 10층마다 강한 적, 20층마다 대장. 열린 마지막 장 뒤로는 1장부터 다시 돌아요.
 export function towerMonster(floor: number): Monster {
   const f = Math.max(1, Math.floor(floor));
-  const ch = CHAPTERS[(Math.ceil(f / FLOORS_PER_CH) - 1) % CHAPTERS.length]!;
+  const ch = CHAPTERS[(Math.ceil(f / FLOORS_PER_CH) - 1) % towerTop()]!;
   if (f % FLOORS_PER_CH === 0) return ch.boss;
   if (f % MAT_EVERY === 0) return ch.elite;
   return ch.foes[(f - 1) % ch.foes.length]!;
