@@ -73,6 +73,8 @@ export type Hotspot = {
   y: number;
   w: number;
   h: number;
+  // 누르는 범위(그림 속 물건보다 조금 넓을 수 있어요). 없으면 x·y·w·h 그대로.
+  tap?: { x: number; y: number; w: number; h: number };
   tag?: ('door' | 'lock' | 'clock' | 'wall')[];
   tool?: ('dark' | 'deep' | 'high' | 'tiny' | 'soil' | 'keyhole')[];
   rid?: string;
@@ -290,6 +292,29 @@ const FACES: Record<string, [number, number, number, string]> = {
   'kitchen/clock': [63.5, 16.6, 3.68, '#f7d6b2'],
   'ticket/clock': [79.5, 18.2, 5.02, '#fedda9'],
 };
+// 휴대폰에서 손가락으로 누르기 어려운 작은 물건(촛불·펼친 책 등)은 누르는 범위만 넓혀요(그림은 그대로).
+// 최소 가로 8%·세로 11%(휴대폰 방 그림에서 약 29px). 넓히다가 다른 물건의 가운데를 덮게 되면 덜 넓혀요.
+export const TAP_MIN_W = 8;
+export const TAP_MIN_H = 11;
+const inside = (b: { x: number; y: number; w: number; h: number }, px: number, py: number) =>
+  Math.abs(px - b.x) < b.w / 2 && Math.abs(py - b.y) < b.h / 2;
+function addTapAreas(spots: Hotspot[]) {
+  for (const h of spots) {
+    if (h.w >= TAP_MIN_W && h.h >= TAP_MIN_H) continue;
+    for (const t of [1, 0.75, 0.5, 0.25]) {
+      const w = h.w + Math.max(0, TAP_MIN_W - h.w) * t;
+      const hh = h.h + Math.max(0, TAP_MIN_H - h.h) * t;
+      // 방 그림 밖으로 나가지 않게 가운데를 안쪽으로 옮겨요
+      const x = Math.min(100 - w / 2, Math.max(w / 2, h.x));
+      const y = Math.min(100 - hh / 2, Math.max(hh / 2, h.y));
+      const b = { x, y, w, h: hh };
+      if (spots.some((o) => o !== h && inside(b, o.x, o.y) && !inside(h, o.x, o.y))) continue;
+      h.tap = b;
+      break;
+    }
+  }
+}
+
 function room(key: RoomKey, rows: Row[]): Room {
   const spots = rows.map(([id, label, at, x, y, w, h, flags]): Hotspot => {
     const f = flags.split(' ').filter(Boolean);
@@ -299,6 +324,7 @@ function room(key: RoomKey, rows: Row[]): Room {
     const face = FACES[`${key}/${id}`];
     return { id, label, at, x, y, w, h, ...(tag.length ? { tag } : {}), ...(tool.length ? { tool: [...tool] } : {}), ...(r ? { rid: RIDDLES[r] } : {}), ...(face ? { face } : {}) };
   });
+  addTapAreas(spots);
   // 사람 자리 계산은 무거워서(방 하나에 수 ms) 미리 계산해 둔 표(room-people.gen.ts)를 써요.
   // 표에 없는 새 방만 처음 쓸 때 계산해요. 방을 고치면 test/room-people.test.ts 안내대로 표를 다시 만들어요.
   let people: [number, number][] | undefined;
