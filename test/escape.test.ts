@@ -174,7 +174,12 @@ describe('사건파일 방탈출 내용', () => {
   it('합치기: 맞는 짝은 도구가 되고, 안 맞는 짝은 실수가 아니에요', () => {
     const c = ESCAPE_CASES.find((x) => x.combos)!;
     const s = { ...startEscape(c), inv: ['partA', 'partB', 'key12'] };
-    expect(actEscape(c, s, { a: 'combine', i: 'partA', j: 'partA' })).toBeNull();
+    // 같은 물건 두 칸(나리 2026-11-19 "그렇게는 할 수 없어요"만 떠서 헷갈림): 이유를 알려 주고 실수는 그대로예요
+    const same = actEscape(c, s, { a: 'combine', i: 'partA', j: 'partA' })!;
+    expect(same).not.toBeNull();
+    expect(same.msg).toContain('같은 물건끼리는');
+    expect(same.mistakes).toBe(0);
+    expect(same.inv).toEqual(['partA', 'partB', 'key12']);
     expect(actEscape(c, s, { a: 'combine', i: 'partA', j: 'nope' })).toBeNull();
     const bad = actEscape(c, s, { a: 'combine', i: 'partA', j: 'key12' })!;
     expect(bad.mistakes).toBe(0);
