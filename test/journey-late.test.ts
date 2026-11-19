@@ -109,6 +109,15 @@ describe('장 고르기 화면', () => {
     expect(html).toMatch(/value="10"[^>]*disabled/);
     expect(html).toContain('도감이 필요해요');
   });
+  it('9장 조건(55장)이 깨지면 10장 조건(49장)을 채워도 화면에서도 못 골라요(서버와 같게)', async () => {
+    const { ChapterPick } = await import('../src/views/journey');
+    const p = { cards: 54, levels: Array(54).fill(99), members: 99 };
+    const html = String(ChapterPick({ unlocked: 10, top: 9, dogam: p, farmed: {}, coins: 0 }));
+    expect(html).toMatch(/value="9"[^>]*disabled/);
+    expect(html).toMatch(/value="10"[^>]*disabled/);
+    expect(html).toContain('앞 장 도감 조건부터');
+    expect(html).toContain('name="kl" value="8"');
+  });
 });
 
 describe('끝없는 탑은 15장(300층)까지가 기준이에요', () => {
