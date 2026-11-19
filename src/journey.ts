@@ -348,7 +348,6 @@ function finish(s: JourneyState, lines: Line[]) {
 // - 싸움이 아닌 일(모닥불·상자·이벤트·상인)은 어제와 같은 종류가 또 나오면 다시 뽑아요.
 // - 모닥불은 체력이 15% 넘게 비었을 때만 나와요(꽉 찬 체력으로 쉬는 날 없애기).
 // 세 번 뽑아도 안 되면 그날은 싸움이에요.
-export const SHOP_OFFERS = 3; // 상인이 놓는 물건 수
 export type DayKind = 'foe' | 'chest' | 'event' | 'shop' | 'camp';
 export const CAMP_MISSING = 0.15;
 function pickDay(s: JourneyState, st: { maxHp: number }, r: () => number): DayKind {
@@ -437,7 +436,7 @@ function nextDay(s: JourneyState): Line[] {
   } else if (kind === 'shop') {
     const ids = Object.keys(OFFERS) as Offer['id'][];
     const offers: Offer[] = [];
-    while (offers.length < SHOP_OFFERS) {
+    while (offers.length < 3) {
       const id = ids.splice(Math.floor(r() * ids.length), 1)[0]!;
       offers.push({ id, price: OFFERS[id].price + Math.floor(s.day / 2) });
     }
@@ -514,8 +513,6 @@ export function autoChoice(s: JourneyState): JourneyAction | null {
     const yes = p.id === 'spring' ? hp > 0.4 : p.id === 'coin' ? false : p.id === 'bear' ? s.coins >= 10 : hp > 0.6;
     return { a: 'pick', n: yes ? 0 : 1 };
   }
-  // 나리 2026-11-19: 자동으로 돌릴 때는 상인 한 번에 1개만 사요(상인은 늘 3개를 놓고, 산 물건은 목록에서 빠져요)
-  if (p.offers.length < SHOP_OFFERS) return { a: 'leave' };
   const can = (id: Offer['id']) => p.offers.findIndex((o) => o.id === id && o.price <= s.coins);
   for (const id of (low ? ['potion', 'heart', 'scroll', 'sword', 'armor'] : ['scroll', 'sword', 'heart', 'armor']) as Offer['id'][]) {
     const n = can(id);
