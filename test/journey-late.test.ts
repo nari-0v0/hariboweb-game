@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CHAPTERS, MAX_CHAPTER, chapterAtk, chapterBg, chapterPower } from '../src/journey-chapters';
 import { GEAR_MAX, MATERIALS, gearBonus, gearNeed, journeyJelly } from '../src/journey';
-import { JOURNEY_NEEDS, JOURNEY_RELEASE, journeyNeed, journeyOpenTo, journeyReleased, releaseText } from '../src/unlock';
+import { JOURNEY_NEEDS, JOURNEY_RELEASE, journeyNeed, journeyOpenTo, journeyReleased, releaseText, releasedTop } from '../src/unlock';
 import { TITLES, titleProgress, type TitleStats } from '../src/titles';
 import { BAND_MAX, petCap } from '../src/pets';
 
@@ -25,6 +25,7 @@ describe('원정대 10~15장', () => {
     expect(journeyReleased(10, kst('2030-01-01'))).toBe(false);
     expect(releaseText(10)).toBe('준비 중이에요');
     expect(releaseText(9)).toBe('');
+    expect(releasedTop(MAX_CHAPTER)).toBe(9); // 장비도 +9까지만
   });
   it('여는 날을 정하면 그날(한국 0시)부터 열려요', () => {
     const saved = { ...JOURNEY_RELEASE };
@@ -105,5 +106,15 @@ describe('장 고르기 화면', () => {
     expect(html).toMatch(/value="10"[^>]*disabled/);
     expect(html).toContain('🚧 준비 중이에요');
     expect(html).not.toMatch(/value="9"[^>]*disabled/);
+  });
+});
+
+describe('준비 중인 장은 끝없는 탑에도 안 나와요', () => {
+  it('탑 몬스터·재료·세기는 9장(180층)까지가 기준이에요', async () => {
+    const { towerMonster, towerFoe, towerMat } = await import('../src/tower');
+    const nine = new Set(CHAPTERS.filter((c) => c.n <= 9).flatMap((c) => [...c.foes, c.elite, c.boss].map((m) => m.key)));
+    for (let f = 1; f <= 400; f++) expect(nine.has(towerMonster(f).key), `${f}층`).toBe(true);
+    expect(towerMat(200, 15)?.ch).toBe(9);
+    expect(towerFoe(181).hp).toBeGreaterThan(towerFoe(179).hp); // 180층 뒤로는 층마다 1.5%씩 더 세져요
   });
 });

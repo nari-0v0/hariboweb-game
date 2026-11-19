@@ -1,6 +1,6 @@
 import { kstDay } from './db';
 import { MAX_CHAPTER } from './journey-chapters';
-import { dogamProgress, journeyOpenTo } from './unlock';
+import { dogamProgress, journeyOpenTo, releasedTop } from './unlock';
 import { isPetId, parsePets, type PetBag, type PetId } from './pets';
 import { DAILY_REWARD_JOURNEYS, FIRST_CLEAR_BONUS, GEAR_MAX, NO_GEAR, gearNeed, hasMats, type Gear, type GearId, NO_PERKS, PERKS, perkMax, actJourney, bankRate, decodeJourney, journeyJelly, journeyXp, perkCost, startJourney, kitCost, type KitId, type JourneyAction, type JourneyState, type PerkId, type Perks } from './journey';
 
@@ -88,7 +88,7 @@ export const matPath = (ch: number) => `$."${ch}"`;
 export async function upgradeGear(db: D1Database, user: string, id: GearId, now = new Date(), seen?: number): Promise<boolean> {
   const bank = await journeyBank(db, user);
   const lv = bank[id];
-  if (lv >= GEAR_MAX || (seen !== undefined && seen !== lv)) return false;
+  if (lv >= Math.min(GEAR_MAX, releasedTop(MAX_CHAPTER, now)) || (seen !== undefined && seen !== lv)) return false; // 준비 중인 장의 재료 단계는 아직 못 올려요
   const need = gearNeed(lv + 1);
   if (!hasMats(bank.mats, need.cost) || bank.coins < need.coins) return false;
   // 재료는 장마다 따로 빼요. 하나라도 모자라면(다른 화면에서 먼저 썼으면) 아무것도 빼지 않아요.

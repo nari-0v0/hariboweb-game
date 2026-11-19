@@ -37,7 +37,9 @@ import {
 import { FOES, PROPS, ZONE_NAMES, spriteSvg, zoneFor, type Zone } from '../journey-art';
 import { SPRITES } from '../sprites.gen';
 import { FictionNote } from './fiction';
-import { journeyNeed, journeyOpenTo, journeyReleased, meets, needText, releaseText, shortNeed, type DogamProgress } from '../unlock';
+import { journeyNeed, journeyOpenTo, journeyReleased, meets, needText, releaseText, releasedTop, shortNeed, type DogamProgress } from '../unlock';
+// 장비를 올릴 수 있는 끝(준비 중인 장 재료 단계는 빼요)
+const gearTop = () => Math.min(GEAR_MAX, releasedTop(CHAPTERS.length));
 import { Layout } from './layout';
 import { Popup, type PopupLine } from './shop';
 import { TOWER_OPEN } from '../tower';
@@ -777,7 +779,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
   const matTotal = Object.values(bank.mats).reduce((a, b) => a + b, 0);
   const canTrain = PERK_IDS.some((id) => bank[id] < perkMax(id, props.unlocked) && bank.coins >= perkCost(bank[id]));
   const canGear = GEAR_IDS.some((id) => {
-    if (bank[id] >= GEAR_MAX) return false;
+    if (bank[id] >= gearTop()) return false;
     const n = gearNeed(bank[id] + 1);
     return hasMats(bank.mats, n.cost) && bank.coins >= n.coins;
   });
@@ -919,7 +921,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
         {GEAR_IDS.map((id) => {
           const info = GEAR[id];
           const lv = bank[id];
-          const full = lv >= GEAR_MAX;
+          const full = lv >= gearTop();
           const need = gearNeed(lv + 1);
           const matOk = (c: MatCost) => (bank.mats[c.ch] ?? 0) >= c.n;
           const seen = need.ch <= props.unlocked;
