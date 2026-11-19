@@ -15,6 +15,23 @@
     twice.reportValidity();
     // 캡처 단계라서 공통 로딩 가림막(app.js의 제출 리스너)보다 먼저 막아요. 가림막이 뜬 채로 남지 않아요.
   }, true);
+  // 두 번 누르기 막기: 사건 진행 폼을 한 번 보내면 새 화면이 뜰 때까지 다음 제출은 무시해요.
+  // (빠르게 두 번 누르면 두 번째가 옛 순번으로 가서 "다른 화면에서 이미 진행했어요" 알림이 떴어요.)
+  // window 버블 단계라서 위의 같은 이름 막기 등 다른 리스너가 막은 제출은 세지 않아요.
+  let sending = false;
+  addEventListener('submit', (e) => {
+    const f = e.target;
+    if (!(f instanceof HTMLFormElement) || !/\/api\/escape\/act$/.test(new URL(f.action, location.href).pathname)) return;
+    if (e.defaultPrevented) return;
+    if (sending) {
+      e.preventDefault();
+      return;
+    }
+    sending = true;
+  });
+  addEventListener('pageshow', () => {
+    sending = false;
+  });
   document.addEventListener('change', (e) => {
     const box = e.target instanceof HTMLSelectElement && e.target.closest('.esc-order');
     if (box) for (const x of box.querySelectorAll('select')) x.setCustomValidity('');

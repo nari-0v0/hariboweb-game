@@ -576,9 +576,15 @@ function actEscapeBase(c: EscCase, old: EscState, act: EscAction): EscState | nu
     return s;
   }
   if (act.a === 'combine') {
-    if (act.i === act.j || !s.inv.includes(act.i) || !s.inv.includes(act.j)) return null;
-    const k = (c.combos ?? []).find((x) => (x.a === act.i && x.b === act.j) || (x.a === act.j && x.b === act.i));
+    if (!s.inv.includes(act.i) || !s.inv.includes(act.j)) return null;
     s.focus = null;
+    // 같은 물건을 두 칸에 고르면 "할 수 없어요" 알림 대신 무엇이 문제인지 알려 줘요(실수로 세지 않아요).
+    if (act.i === act.j) {
+      s.msg = '같은 물건끼리는 합칠 수 없어요. 서로 다른 물건 두 개를 골라 주세요.';
+      s.tone = 'bad';
+      return s;
+    }
+    const k = (c.combos ?? []).find((x) => (x.a === act.i && x.b === act.j) || (x.a === act.j && x.b === act.i));
     // 합치기는 이것저것 맞춰 보는 게 당연해서 실수로 세지 않아요(등급도 그대로).
     if (!k) {
       s.fx = 'wrong';
