@@ -29,23 +29,26 @@ export const JOURNEY_NEEDS: Need[] = [
   { cards: 70, lv: 35, lvCards: 12 },
 ];
 
-// 원정대 장이 열리는 날(한국 시간 0시). 이 날 전에는 도감 조건을 채워도 잠겨 있어요. 날짜만 바꾸면 돼요.
-export const JOURNEY_RELEASE: Record<number, string> = {
-  10: '2027-01-04',
-  11: '2027-03-01',
-  12: '2027-05-03',
-  13: '2027-07-05',
-  14: '2027-09-06',
-  15: '2027-11-01',
+// 원정대 장이 열리는 날(한국 시간 0시). null이면 "준비 중"으로 잠겨 있어요(도감 조건을 채워도 안 열려요).
+// 나리 2026-11-19: 10~15장은 날짜를 정하기 전까지 준비 중으로 잠가 둬요. 기획 때 생각한 날: 10장 2027-01-04, 11장 03-01, 12장 05-03, 13장 07-05, 14장 09-06, 15장 11-01.
+export const JOURNEY_RELEASE: Record<number, string | null> = {
+  10: null,
+  11: null,
+  12: null,
+  13: null,
+  14: null,
+  15: null,
 };
 export const journeyReleased = (ch: number, now: Date = new Date()) => {
+  if (!(ch in JOURNEY_RELEASE)) return true;
   const day = JOURNEY_RELEASE[ch];
-  return !day || now.getTime() >= Date.parse(`${day}T00:00:00+09:00`);
+  return !!day && now.getTime() >= Date.parse(`${day}T00:00:00+09:00`);
 };
-// "1월 4일에 열려요"
+// "준비 중이에요" 또는 "1월 4일에 열려요"
 export const releaseText = (ch: number) => {
+  if (!(ch in JOURNEY_RELEASE)) return '';
   const day = JOURNEY_RELEASE[ch];
-  return day ? `${Number(day.slice(5, 7))}월 ${Number(day.slice(8, 10))}일에 열려요` : '';
+  return day ? `${Number(day.slice(5, 7))}월 ${Number(day.slice(8, 10))}일에 열려요` : '준비 중이에요';
 };
 
 // 사건파일: 목록 순서대로 5개씩 묶어요.
