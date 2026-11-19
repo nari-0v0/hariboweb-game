@@ -18,16 +18,16 @@ export const JOURNEY_NEEDS: Need[] = [
   { cards: 10 },
   { cards: 20 },
   { cards: 30 },
-  { cards: 35, lv: 10, lvCards: 5 },
+  // 7~15장(나리 2026-11-19): 카드는 15장 55장까지만. 15장(최종 보스)은 Lv30 카드 5장(하루 3시간씩 같이 해도 3주쯤).
+  { cards: 30, lv: 5, lvCards: 3 },
+  { cards: 35, lv: 5, lvCards: 5 },
+  { cards: 35, lv: 10, lvCards: 3 },
+  { cards: 40, lv: 10, lvCards: 5 },
+  { cards: 40, lv: 15, lvCards: 3 },
   { cards: 45, lv: 15, lvCards: 5 },
-  { cards: 48, lv: 20, lvCards: 5 }, // 나리 2026-11-19: 55 → 48 (15장이 55장이 되게)
-  // 10~15장(나리 2026-11-19): 카드는 15장에서 55장까지만, 대신 레벨 조건을 올려요.
-  { cards: 50, lv: 25, lvCards: 8 },
-  { cards: 51, lv: 30, lvCards: 8 },
-  { cards: 52, lv: 30, lvCards: 10 },
-  { cards: 53, lv: 35, lvCards: 10 },
-  { cards: 54, lv: 40, lvCards: 12 },
-  { cards: 55, lv: 45, lvCards: 12 },
+  { cards: 45, lv: 20, lvCards: 3 },
+  { cards: 55, lv: 20, lvCards: 5 },
+  { cards: 55, lv: 30, lvCards: 5 },
 ];
 
 // 원정대 장이 열리는 날(한국 시간 0시). null이면 "준비 중"으로 잠겨 있어요(도감 조건을 채워도 안 열려요).

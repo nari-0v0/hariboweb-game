@@ -14,9 +14,9 @@ describe('원정대 10~15장', () => {
     expect(CHAPTERS.map((c) => c.n)).toEqual(Array.from({ length: 15 }, (_, i) => i + 1));
     expect(MATERIALS).toHaveLength(15);
     expect(JOURNEY_NEEDS).toHaveLength(15);
-    expect(journeyNeed(9)).toEqual({ cards: 48, lv: 20, lvCards: 5 });
-    expect(journeyNeed(10)).toEqual({ cards: 50, lv: 25, lvCards: 8 });
-    expect(journeyNeed(15)).toEqual({ cards: 55, lv: 45, lvCards: 12 });
+    expect(journeyNeed(9)).toEqual({ cards: 35, lv: 10, lvCards: 3 });
+    expect(journeyNeed(10)).toEqual({ cards: 40, lv: 10, lvCards: 5 });
+    expect(journeyNeed(15)).toEqual({ cards: 55, lv: 30, lvCards: 5 });
     // 나리 2026-11-19: 카드는 15장 55장이 끝, 장마다 조건이 내려가지 않아요
     for (let n = 2; n <= 15; n++) {
       expect(journeyNeed(n).cards).toBeGreaterThanOrEqual(journeyNeed(n - 1).cards);
@@ -29,10 +29,12 @@ describe('원정대 10~15장', () => {
     expect(journeyReleased(10)).toBe(true);
     expect(releaseText(10)).toBe('');
     expect(releasedTop(MAX_CHAPTER)).toBe(15); // 장비도 +15까지
-    expect(journeyOpenTo({ cards: 49, levels: Array(49).fill(99) })).toBe(9);
-    expect(journeyOpenTo({ cards: 50, levels: Array(50).fill(99) })).toBe(10);
-    expect(journeyOpenTo({ cards: 55, levels: Array(55).fill(44) })).toBe(14); // 15장은 Lv45 카드 12장
-    expect(journeyOpenTo({ cards: 55, levels: Array(55).fill(24) })).toBe(9); // 10장은 Lv25 카드 8장
+    expect(journeyOpenTo({ cards: 39, levels: Array(39).fill(99) })).toBe(9);
+    expect(journeyOpenTo({ cards: 44, levels: Array(44).fill(99) })).toBe(11);
+    expect(journeyOpenTo({ cards: 54, levels: Array(54).fill(99) })).toBe(13);
+    expect(journeyOpenTo({ cards: 55, levels: Array(55).fill(29) })).toBe(14); // 15장은 Lv30 카드 5장
+    expect(journeyOpenTo({ cards: 55, levels: [30, 30, 30, 30, ...Array(51).fill(99).map(() => 20)] })).toBe(14);
+    expect(journeyOpenTo({ cards: 55, levels: [30, 30, 30, 30, 30, ...Array(50).fill(1)] })).toBe(15);
   });
   it('나중에 새 장을 날짜로 잠그면: null은 "준비 중", 날짜는 그날(한국 0시)부터 열려요', () => {
     try {
@@ -112,17 +114,18 @@ describe('장 고르기 화면', () => {
   });
   it('도감 조건이 모자라면 10장은 "도감이 필요해요"로 잠겨요', async () => {
     const { ChapterPick } = await import('../src/views/journey');
-    const html = String(ChapterPick({ unlocked: 10, top: 9, dogam: { cards: 49, levels: Array(49).fill(99) }, farmed: {}, coins: 0 }));
+    const html = String(ChapterPick({ unlocked: 10, top: 9, dogam: { cards: 39, levels: Array(39).fill(99) }, farmed: {}, coins: 0 }));
     expect(html).toMatch(/value="10"[^>]*disabled/);
     expect(html).toContain('도감이 필요해요');
   });
   it('앞 장 조건이 깨지면 뒤 장 조건을 채워도 화면에서도 못 골라요(서버와 같게)', async () => {
     const { ChapterPick } = await import('../src/views/journey');
-    const p = { cards: 47, levels: Array(47).fill(99) };
+    const p = { cards: 34, levels: Array(34).fill(99) };
     const html = String(ChapterPick({ unlocked: 10, top: 9, dogam: p, farmed: {}, coins: 0 }));
     expect(html).toMatch(/value="9"[^>]*disabled/);
     expect(html).toMatch(/value="10"[^>]*disabled/);
-    expect(html).toContain('name="kl" value="8"');
+    expect(html).toMatch(/value="8"[^>]*disabled/);
+    expect(html).toContain('name="kl" value="7"');
   });
 });
 
