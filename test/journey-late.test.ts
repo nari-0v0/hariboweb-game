@@ -18,17 +18,29 @@ describe('원정대 10~15장', () => {
     expect(journeyNeed(15)).toEqual({ cards: 70, lv: 35, lvCards: 12 });
     expect(Object.keys(JOURNEY_RELEASE).map(Number)).toEqual([10, 11, 12, 13, 14, 15]);
   });
-  it('여는 날(한국 0시) 전에는 도감을 다 채워도 9장까지만 열려요', () => {
-    expect(journeyOpenTo(everyone, kst('2027-01-03'))).toBe(9);
-    expect(journeyOpenTo(everyone, new Date(kst('2027-01-04').getTime() - 1))).toBe(9);
-    expect(journeyOpenTo(everyone, kst('2027-01-04'))).toBe(10);
-    expect(journeyOpenTo(everyone, kst('2027-09-06'))).toBe(14);
-    expect(journeyOpenTo(everyone, kst('2027-11-01'))).toBe(15);
-    // 날이 지나도 도감이 모자라면 그 장에서 멈춰요
-    expect(journeyOpenTo({ cards: 61, levels: Array(61).fill(99) }, kst('2027-12-01'))).toBe(10);
+  it('지금은 10~15장이 "준비 중"으로 잠겨 있어서 도감을 다 채워도 9장까지만 열려요', () => {
+    expect(Object.values(JOURNEY_RELEASE).every((d) => d === null)).toBe(true);
+    expect(journeyOpenTo(everyone, kst('2030-01-01'))).toBe(9);
     expect(journeyReleased(9, kst('2020-01-01'))).toBe(true);
-    expect(releaseText(10)).toBe('1월 4일에 열려요');
-    expect(releaseText(15)).toBe('11월 1일에 열려요');
+    expect(journeyReleased(10, kst('2030-01-01'))).toBe(false);
+    expect(releaseText(10)).toBe('준비 중이에요');
+    expect(releaseText(9)).toBe('');
+  });
+  it('여는 날을 정하면 그날(한국 0시)부터 열려요', () => {
+    const saved = { ...JOURNEY_RELEASE };
+    Object.assign(JOURNEY_RELEASE, { 10: '2027-01-04', 11: '2027-03-01', 12: '2027-05-03', 13: '2027-07-05', 14: '2027-09-06', 15: '2027-11-01' });
+    try {
+      expect(journeyOpenTo(everyone, kst('2027-01-03'))).toBe(9);
+      expect(journeyOpenTo(everyone, new Date(kst('2027-01-04').getTime() - 1))).toBe(9);
+      expect(journeyOpenTo(everyone, kst('2027-01-04'))).toBe(10);
+      expect(journeyOpenTo(everyone, kst('2027-09-06'))).toBe(14);
+      expect(journeyOpenTo(everyone, kst('2027-11-01'))).toBe(15);
+      expect(journeyOpenTo({ cards: 61, levels: Array(61).fill(99) }, kst('2027-12-01'))).toBe(10);
+      expect(releaseText(10)).toBe('1월 4일에 열려요');
+      expect(releaseText(15)).toBe('11월 1일에 열려요');
+    } finally {
+      for (const k of Object.keys(JOURNEY_RELEASE)) JOURNEY_RELEASE[Number(k)] = saved[Number(k)] ?? null;
+    }
   });
   it('10장부터는 장마다 배경이 있고, 1~9장은 날짜별 배경 그대로예요', () => {
     expect(chapterBg(9)).toBeNull();
@@ -87,11 +99,11 @@ describe('10장 배경 화면', () => {
 });
 
 describe('장 고르기 화면', () => {
-  it('9장을 깨고 도감을 다 채워도 여는 날 전이면 10장을 고를 수 없고 날짜가 보여요', async () => {
+  it('9장을 깨고 도감을 다 채워도 10장은 고를 수 없고 "준비 중"이 보여요', async () => {
     const { ChapterPick } = await import('../src/views/journey');
     const html = String(ChapterPick({ unlocked: 10, top: 9, dogam: everyone, farmed: {}, coins: 0 }));
     expect(html).toMatch(/value="10"[^>]*disabled/);
-    expect(html).toContain('1월 4일에 열려요');
+    expect(html).toContain('🚧 준비 중이에요');
     expect(html).not.toMatch(/value="9"[^>]*disabled/);
   });
 });

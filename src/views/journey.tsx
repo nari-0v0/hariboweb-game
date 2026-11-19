@@ -550,7 +550,7 @@ export function ChapterPick(props: { unlocked: number; top: number; dogam: Dogam
                 {boss ? <img src={boss.src} alt="" loading="lazy" /> : <span>{c.boss.emoji}</span>}
               </span>
               <b>{c.n}장</b>
-              <span class="jr-chapter-name">{open ? c.name : !released ? `📅 ${releaseText(c.n)}` : c.n <= props.unlocked ? '📖 도감이 필요해요' : '잠겨 있어요'}</span>
+              <span class="jr-chapter-name">{open ? c.name : !released ? `🚧 ${releaseText(c.n)}` : c.n <= props.unlocked ? '📖 도감이 필요해요' : '잠겨 있어요'}</span>
               <span class="hint">{chapterLevels(c.n)}</span>
               {open && c.n <= props.top && (
                 <span class="jr-farm" title="이미 깬 장을 다시 돌 때 모이는 젤코인">
