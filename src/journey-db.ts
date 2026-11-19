@@ -2,7 +2,7 @@ import { kstDay } from './db';
 import { MAX_CHAPTER } from './journey-chapters';
 import { dogamProgress, journeyOpenTo, releasedTop } from './unlock';
 import { isPetId, parsePets, type PetBag, type PetId } from './pets';
-import { DAILY_REWARD_JOURNEYS, FIRST_CLEAR_BONUS, GEAR_MAX, NO_GEAR, gearNeed, hasMats, type Gear, type GearId, NO_PERKS, PERKS, perkMax, actJourney, bankRate, decodeJourney, journeyJelly, journeyXp, perkCost, startJourney, kitCost, type KitId, type JourneyAction, type JourneyState, type PerkId, type Perks } from './journey';
+import { DAILY_REWARD_JOURNEYS, FIRST_CLEAR_BONUS, GEAR_MAX, NO_GEAR, gearNeed, hasMats, canSellMat, matSellLevel, matSellPrice, type Gear, type GearId, NO_PERKS, PERKS, perkMax, actJourney, bankRate, decodeJourney, journeyJelly, journeyXp, perkCost, startJourney, kitCost, type KitId, type JourneyAction, type JourneyState, type PerkId, type Perks } from './journey';
 
 export type JourneyRow = { id: string; user_id: string; state: string; rev: number; status: string; day: number; cleared: number; xp: number; jelly: number; reward_day: string | null };
 export type JourneyRun = { row: JourneyRow; state: JourneyState };
@@ -109,6 +109,23 @@ export async function upgradeGear(db: D1Database, user: string, id: GearId, now 
     .bind(...binds)
     .run();
   return (r.meta.changes ?? 0) > 0;
+}
+
+// 남는 재료 팔기: 그 장 재료를 가진 만큼 모두 젤코인으로 바꿔요. seen = 화면에 보이던 개수(다른 화면에서 바뀌었으면 false).
+export async function sellMats(db: D1Database, user: string, ch: number, seen: number, now = new Date()): Promise<number> {
+  if (!Number.isSafeInteger(ch) || !Number.isSafeInteger(seen) || seen <= 0) return 0;
+  const bank = await journeyBank(db, user);
+  if (!canSellMat(bank, ch) || (bank.mats[ch] ?? 0) !== seen) return 0;
+  const lv = matSellLevel(ch);
+  const coins = seen * matSellPrice(ch);
+  const r = await db
+    .prepare(
+      `UPDATE journey_bank SET coins = coins + ?3, mats = json_set(mats, ?2, 0), updated_at = ?5
+       WHERE user_id = ?1 AND COALESCE(json_extract(mats, ?2), 0) = ?4 AND weapon >= ?6 AND armor >= ?6 AND charm >= ?6`,
+    )
+    .bind(user, matPath(ch), coins, seen, now.toISOString(), lv)
+    .run();
+  return (r.meta.changes ?? 0) > 0 ? coins : 0;
 }
 
 // 강화 한 단계. 동전이 모자라거나 끝까지 올렸거나 다른 화면에서 먼저 샀으면 false.

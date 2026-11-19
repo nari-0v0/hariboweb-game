@@ -2212,6 +2212,14 @@ main.wide { max-width: 1320px; }
 .jp-mat-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .jp-mat.empty { background: #f4f4f4; color: var(--ink-soft); }
 .jp-mat.unknown { opacity: .55; }
+.jp-mat:has(.jp-sell) { flex-wrap: wrap; }
+.jp-sell { flex: 1 0 100%; padding: 1px 6px; border: 2px solid var(--ink); background: #fff; font: inherit; font-size: .72rem; cursor: pointer; }
+.jp-pop { width: min(320px, calc(100vw - 32px)); box-sizing: border-box; padding: 16px; color: var(--ink); background: var(--paper, #fff); border: 3px solid var(--ink); box-shadow: 0 6px 0 rgba(0, 0, 0, .18); font-size: .9rem; white-space: normal; }
+.jp-pop::backdrop { background: rgba(30, 40, 60, .35); }
+.jp-pop-title { display: block; font-weight: 700; font-size: 1.05rem; margin-bottom: 8px; }
+.jp-pop-text { display: block; overflow-wrap: anywhere; }
+.jp-pop-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+.jp-pop-btns form { margin: 0; }
 .jp-train { display: grid; gap: 8px; }
 .jp-row-form, .jp-gear-form { margin: 0; }
 .jp-row { width: 100%; display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border: 3px solid var(--ink); background: var(--paper); color: var(--ink); font: inherit; text-align: left; cursor: pointer; box-shadow: 0 4px 0 var(--ink); }
