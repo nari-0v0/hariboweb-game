@@ -68,7 +68,7 @@ it('aggregates active members, exact level boundaries and game progress without 
         { members: 0, journeyFinishers: 0, escapeFinishers: 0 },
       ],
     },
-    journey: { started: 1, chapters: expect.arrayContaining([{ chapter: 9, cleared: 1, need: { cards: 55, lv: 20, lvCards: 5 }, members: 1, journeyFinishers: 1, escapeFinishers: 0 }]) },
+    journey: { started: 1, chapters: expect.arrayContaining([{ chapter: 9, cleared: 1, need: { cards: 48, lv: 20, lvCards: 5 }, members: 1, journeyFinishers: 1, escapeFinishers: 0 }]) },
     escape: { started: 1, solvedMilestones: expect.arrayContaining([{ solved: 1, members: 1 }, { solved: 5, members: 0 }]) },
   });
 });

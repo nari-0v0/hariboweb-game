@@ -399,7 +399,7 @@ describe('원정대 장(챕터)', () => {
     const previous = (await beginJourney(db, 'me'))!;
     sql.prepare("UPDATE journey_runs SET status = 'done', cleared = 1, chapter = ? WHERE id = ?").run(MAX_CHAPTER, previous);
     const card = sql.prepare("INSERT INTO members (user_id, display_name, active, updated_at) VALUES (?, '친구', 1, 'x')");
-    const pair = sql.prepare("INSERT INTO cards (owner_id, target_id, xp, first_met, updated_at) VALUES ('me', ?, 6000, 'x', 'x')");
+    const pair = sql.prepare("INSERT INTO cards (owner_id, target_id, xp, first_met, updated_at) VALUES ('me', ?, 10000, 'x', 'x')");
     for (let i = 0; i < 70; i++) {
       card.run(`friend-${i}`);
       pair.run(`friend-${i}`);

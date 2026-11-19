@@ -14,8 +14,14 @@ describe('원정대 10~15장', () => {
     expect(CHAPTERS.map((c) => c.n)).toEqual(Array.from({ length: 15 }, (_, i) => i + 1));
     expect(MATERIALS).toHaveLength(15);
     expect(JOURNEY_NEEDS).toHaveLength(15);
-    expect(journeyNeed(10)).toEqual({ cards: 60, lv: 20, lvCards: 8, cap: true });
-    expect(journeyNeed(15)).toEqual({ cards: 70, lv: 35, lvCards: 12, cap: true });
+    expect(journeyNeed(9)).toEqual({ cards: 48, lv: 20, lvCards: 5 });
+    expect(journeyNeed(10)).toEqual({ cards: 50, lv: 25, lvCards: 8 });
+    expect(journeyNeed(15)).toEqual({ cards: 55, lv: 45, lvCards: 12 });
+    // 나리 2026-11-19: 카드는 15장 55장이 끝, 장마다 조건이 내려가지 않아요
+    for (let n = 2; n <= 15; n++) {
+      expect(journeyNeed(n).cards).toBeGreaterThanOrEqual(journeyNeed(n - 1).cards);
+      expect(journeyNeed(n).lv ?? 0).toBeGreaterThanOrEqual(journeyNeed(n - 1).lv ?? 0);
+    }
     expect(Object.keys(JOURNEY_RELEASE)).toEqual([]); // 나리 2026-11-19: 날짜 잠금 없이 도감 조건만
   });
   it('10~15장은 도감 조건만 채우면 열려요', () => {
@@ -23,9 +29,10 @@ describe('원정대 10~15장', () => {
     expect(journeyReleased(10)).toBe(true);
     expect(releaseText(10)).toBe('');
     expect(releasedTop(MAX_CHAPTER)).toBe(15); // 장비도 +15까지
-    expect(journeyOpenTo({ cards: 59, levels: Array(59).fill(99) })).toBe(9);
-    expect(journeyOpenTo({ cards: 61, levels: Array(61).fill(99) })).toBe(10);
-    expect(journeyOpenTo({ cards: 70, levels: Array(70).fill(34) })).toBe(14); // 15장은 Lv35 카드 12장
+    expect(journeyOpenTo({ cards: 49, levels: Array(49).fill(99) })).toBe(9);
+    expect(journeyOpenTo({ cards: 50, levels: Array(50).fill(99) })).toBe(10);
+    expect(journeyOpenTo({ cards: 55, levels: Array(55).fill(44) })).toBe(14); // 15장은 Lv45 카드 12장
+    expect(journeyOpenTo({ cards: 55, levels: Array(55).fill(24) })).toBe(9); // 10장은 Lv25 카드 8장
   });
   it('나중에 새 장을 날짜로 잠그면: null은 "준비 중", 날짜는 그날(한국 0시)부터 열려요', () => {
     try {
@@ -105,17 +112,16 @@ describe('장 고르기 화면', () => {
   });
   it('도감 조건이 모자라면 10장은 "도감이 필요해요"로 잠겨요', async () => {
     const { ChapterPick } = await import('../src/views/journey');
-    const html = String(ChapterPick({ unlocked: 10, top: 9, dogam: { cards: 55, levels: Array(55).fill(99) }, farmed: {}, coins: 0 }));
+    const html = String(ChapterPick({ unlocked: 10, top: 9, dogam: { cards: 49, levels: Array(49).fill(99) }, farmed: {}, coins: 0 }));
     expect(html).toMatch(/value="10"[^>]*disabled/);
     expect(html).toContain('도감이 필요해요');
   });
-  it('9장 조건(55장)이 깨지면 10장 조건(49장)을 채워도 화면에서도 못 골라요(서버와 같게)', async () => {
+  it('앞 장 조건이 깨지면 뒤 장 조건을 채워도 화면에서도 못 골라요(서버와 같게)', async () => {
     const { ChapterPick } = await import('../src/views/journey');
-    const p = { cards: 54, levels: Array(54).fill(99), members: 99 };
+    const p = { cards: 47, levels: Array(47).fill(99) };
     const html = String(ChapterPick({ unlocked: 10, top: 9, dogam: p, farmed: {}, coins: 0 }));
     expect(html).toMatch(/value="9"[^>]*disabled/);
     expect(html).toMatch(/value="10"[^>]*disabled/);
-    expect(html).toContain('앞 장 도감 조건부터');
     expect(html).toContain('name="kl" value="8"');
   });
 });
@@ -137,20 +143,3 @@ describe('끝없는 탑은 15장(300층)까지가 기준이에요', () => {
   });
 });
 
-describe('10~15장 카드 장수 조건은 멤버 수의 50%까지(나리 2026-11-19)', () => {
-  it('99명이면 49장이 끝이고, 레벨 조건은 그대로예요', async () => {
-    const { cardCap, capNeed, meets, needText, shortNeed } = await import('../src/unlock');
-    expect(cardCap(99)).toBe(49);
-    expect(cardCap(100)).toBe(50);
-    expect(cardCap(undefined)).toBe(Infinity);
-    expect(capNeed(journeyNeed(15), 99)).toEqual({ cards: 49, lv: 35, lvCards: 12, cap: true });
-    expect(capNeed(journeyNeed(9), 99)).toEqual({ cards: 55, lv: 20, lvCards: 5 }); // 1~9장·사건파일은 그대로
-    const p = { cards: 55, levels: Array(55).fill(99), members: 99 };
-    expect(journeyOpenTo(p)).toBe(15); // 9장(55장)을 채우면 10~15장은 카드 장수로는 안 막혀요
-    expect(journeyOpenTo({ ...p, cards: 54, levels: Array(54).fill(99) })).toBe(8);
-    expect(meets(journeyNeed(15), { ...p, levels: Array(55).fill(34) })).toBe(false);
-    expect(shortNeed(journeyNeed(10), p)).toBe('카드 49장 · Lv20+ 8장');
-    expect(needText(journeyNeed(10), { ...p, cards: 40 })).toContain('도감 카드 49장 (지금 40장)');
-    expect(shortNeed(journeyNeed(9), p)).toBe('카드 55장 · Lv20+ 5장');
-  });
-});
