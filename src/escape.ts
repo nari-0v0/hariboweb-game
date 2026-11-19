@@ -542,6 +542,7 @@ function actEscapeBase(c: EscCase, old: EscState, act: EscAction): EscState | nu
     return s;
   }
   if (act.a === 'coin') {
+    if (s.re) return null; // 재수사·오늘의 사건은 힌트가 없어서 동전도 없어요
     const spot = coinSpots(c, s.scene).find((x) => x.k === act.k);
     const id = `${s.scene}:${act.k}`;
     if (!spot || s.coins?.includes(id)) return null;
