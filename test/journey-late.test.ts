@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CHAPTERS, MAX_CHAPTER, chapterAtk, chapterBg, chapterPower } from '../src/journey-chapters';
 import { GEAR_MAX, MATERIALS, gearBonus, gearNeed, journeyJelly } from '../src/journey';
-import { JOURNEY_NEEDS, JOURNEY_RELEASE, journeyNeed, journeyOpenTo, journeyReleased, releaseText } from '../src/unlock';
+import { JOURNEY_NEEDS, JOURNEY_RELEASE, journeyNeed, journeyOpenTo, journeyReleased, releaseText, releasedTop } from '../src/unlock';
 import { TITLES, titleProgress, type TitleStats } from '../src/titles';
 import { BAND_MAX, petCap } from '../src/pets';
 
@@ -25,6 +25,7 @@ describe('원정대 10~15장', () => {
     expect(journeyReleased(10, kst('2030-01-01'))).toBe(false);
     expect(releaseText(10)).toBe('준비 중이에요');
     expect(releaseText(9)).toBe('');
+    expect(releasedTop(MAX_CHAPTER)).toBe(9); // 장비도 +9까지만
   });
   it('여는 날을 정하면 그날(한국 0시)부터 열려요', () => {
     const saved = { ...JOURNEY_RELEASE };

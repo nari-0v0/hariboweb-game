@@ -44,6 +44,12 @@ export const journeyReleased = (ch: number, now: Date = new Date()) => {
   const day = JOURNEY_RELEASE[ch];
   return !!day && now.getTime() >= Date.parse(`${day}T00:00:00+09:00`);
 };
+// 지금 열린(준비 중이 아닌) 가장 높은 장. 장비 강화도 여기까지만 보여 줘요(+N에 N장 재료가 들어서).
+export const releasedTop = (max: number, now: Date = new Date()) => {
+  let ch = 0;
+  while (ch < max && journeyReleased(ch + 1, now)) ch++;
+  return ch;
+};
 // "준비 중이에요" 또는 "1월 4일에 열려요"
 export const releaseText = (ch: number) => {
   if (!(ch in JOURNEY_RELEASE)) return '';
