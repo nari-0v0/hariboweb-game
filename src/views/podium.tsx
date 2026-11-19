@@ -29,7 +29,7 @@ function Spot(props: { row: PodiumRow | undefined; place: 1 | 2 | 3; show: (v: n
         <small>{PLACE[r.rank - 1] ?? ''}</small>
       </span>
       <span class="pd-name">{r.name}</span>
-      <span class="pd-value">{props.show(r.value)}</span>
+      <span class="pd-value">{r.label ? r.label.map((l, i) => (i ? [<br />, l] : l)) : props.show(r.value)}</span>
     </li>
   );
 }
@@ -60,7 +60,7 @@ export function PodiumBoard(props: { title: string; icon: string; podium: Podium
           <span>
             내 순위 <b>{me.rank}위</b>
           </span>
-          <span class="pd-me-v">{props.show(me.value)}</span>
+          <span class="pd-me-v">{me.label ? me.label.join(' · ') : props.show(me.value)}</span>
         </p>
       )}
     </section>

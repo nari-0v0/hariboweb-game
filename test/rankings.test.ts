@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
-import { loadRankings, plainPodium, toPodium } from '../src/rankings';
+import { levelPodium, loadRankings, plainPodium, toPodium } from '../src/rankings';
 
 const ids = Array.from({ length: 6 }, (_, i) => `${i + 1}`.repeat(18));
 const [A, B, C, D] = ids as [string, string, string, string];
@@ -74,19 +74,25 @@ describe('순위 메뉴', () => {
     expect(plainPodium([{ name: 'x', value: 5 }, { name: 'y', value: 4 }, { name: 'z', value: 3 }, { name: 'w', value: 1 }]).top).toHaveLength(3);
   });
 
-  it('카드 레벨 합계: 카드가 적어도 깊게 논 사람이 앞설 수 있어요', async () => {
+  it('높은 레벨 카드: 가장 높은 단계 카드 수부터, 같으면 다음 단계로 비교해요', async () => {
     const { sql, db } = fakeD1();
     const card = sql.prepare("INSERT INTO cards (owner_id, target_id, xp, first_met, updated_at) VALUES (?, ?, ?, 'x', 'x')");
-    for (const t of [B, C, D]) card.run(A, t, 0); // A: Lv1 카드 3장 = 3
-    card.run(B, A, 365); // B: Lv10 카드 1장 = 10 (365 XP = Lv10)
-    card.run(C, A, 5); // C: Lv2 1장 = 2 (5 XP = Lv2)
-    card.run(D, A, 2); // D: Lv1 1장 = 1
+    const LV5 = 72, LV10 = 365;
+    for (const t of [B, C, D]) card.run(A, t, LV5); // A: Lv5 3장
+    card.run(B, A, LV10); // B: Lv10 1장
+    card.run(C, A, LV10); // C: Lv10 1장 + Lv5 1장 → B보다 위
+    card.run(C, B, LV5);
+    card.run(D, A, LV10 - 1); // D: Lv9 1장 → Lv5 단계 1장
+    card.run(ids[5]!, A, 0); // Lv1뿐이면 순위에 없어요
     card.run(D, ids[4]!, 999999); // 떠난 멤버 카드는 빼요
     sql.prepare('UPDATE members SET active = 0 WHERE user_id = ?').run(ids[4]!);
     const r = await loadRankings(db, D, NOW, 'dogam');
     expect(r.dogam.top[0]).toMatchObject({ name: 'm1', value: 3 });
-    expect(r.dogamLevel.top.map((x) => [x.rank, x.name, x.value])).toEqual([[1, 'm2', 10], [2, 'm1', 3], [3, 'm3', 2]]);
-    expect(r.dogamLevel.me).toMatchObject({ rank: 4, value: 1 });
+    expect(r.dogamLevel.top.map((x) => [x.rank, x.name, x.label])).toEqual([[1, 'm3', ['Lv10↑ 1장', 'Lv5↑ 2장']], [2, 'm2', ['Lv10↑ 1장']], [3, 'm1', ['Lv5↑ 3장']]]);
+    expect(r.dogamLevel.me).toMatchObject({ rank: 4, label: ['Lv5↑ 1장'] });
+    expect((await loadRankings(db, ids[5]!, NOW, 'dogam')).dogamLevel.me).toBeNull();
+    const tie = levelPodium([{ user_id: D, name: 'd', value: 1, t5: 1 }, { user_id: 'x', name: 'x', value: 1, t5: 1 }], 'x');
+    expect(tie.me).toMatchObject({ rank: 1 });
   });
 
   it('도감·원정대·사건파일은 지금 있는 멤버만 세요', async () => {
@@ -101,7 +107,7 @@ describe('순위 메뉴', () => {
     const r = await loadRankings(db, B, NOW);
     expect(r.dogam.top.map((x) => [x.name, x.value])).toEqual([['m1', 3], ['m2', 1]]);
     expect(r.dogam.me).toMatchObject({ rank: 2, value: 1 });
-    expect(r.dogamLevel.top.map((x) => [x.name, x.value])).toEqual([['m1', 3], ['m2', 1]]);
+    expect(r.dogamLevel.top).toEqual([]);
     expect(r.escape.top.map((x) => x.name)).toEqual(['m3']);
     expect(r.journey.top).toEqual([]);
   });
