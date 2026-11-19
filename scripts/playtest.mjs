@@ -49,9 +49,19 @@ await build({
   format: "esm",
   outfile: "work/playtest-chapters.mjs",
 });
-const { MAX_CHAPTER: CHAPTER_COUNT } = await import(
+await build({
+  entryPoints: ["src/unlock.ts"],
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  outfile: "work/playtest-unlock.mjs",
+});
+const { MAX_CHAPTER } = await import(
   "../work/playtest-chapters.mjs?" + Date.now()
 );
+// "준비 중"으로 잠긴 장(src/unlock.ts JOURNEY_RELEASE)은 사람도 못 들어가니 로봇도 열린 장까지만 깨요.
+const { releasedTop } = await import("../work/playtest-unlock.mjs?" + Date.now());
+const CHAPTER_COUNT = releasedTop(MAX_CHAPTER);
 function solution(c) {
   if (c.solution) return c.solution;
   let s = startEscape(c);
@@ -495,7 +505,7 @@ try {
         .locator(".choose-card")
         .filter({ has: page.locator("input[value=boy]") })
         .click();
-      await page.getByRole("button", { name: "확정", exact: true }).click();
+      await page.getByRole("button", { name: /^(다음|확정)$/ }).click();
       await page.getByRole("button", { name: "네, 이걸로 할게요" }).click();
     }
     console.log(`Authenticated; ${ESCAPE_CASES.length} cases`);
