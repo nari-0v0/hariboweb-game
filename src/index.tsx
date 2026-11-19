@@ -1285,7 +1285,8 @@ members.post('/api/tower/fight', async (c) => {
   const floor = Number(Array.isArray(body.floor) ? body.floor[0] : body.floor);
   if (!Number.isSafeInteger(floor) || floor < 1) return c.redirect('/expedition/tower?n=bad#now', 303);
   try {
-    const r = await towerAttempt(c.env.DB, c.get('viewer').user_id, floor, cleanBoosts(body.boost));
+    const at = Array.isArray(body.at) ? body.at[0] : body.at;
+    const r = await towerAttempt(c.env.DB, c.get('viewer').user_id, floor, cleanBoosts(body.boost), new Date(), typeof at === 'string' ? at : undefined);
     return c.redirect(r === 'ok' ? '/expedition/tower?r=1#now' : `/expedition/tower?n=${r}#now`, 303);
   } catch (e) {
     console.error('탑 도전 실패', e);

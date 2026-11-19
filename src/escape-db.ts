@@ -68,7 +68,8 @@ async function beginOnce(
   const going = await activeEscape(db, user);
   if (going && !replace) return going.row.id;
   if (replace && (!going || going.row.id !== replace.id || going.row.rev !== replace.rev)) return null;
-  if (going?.row.case_id === caseId) return going.row.id;
+  // 같은 사건이라도 일반 판 ↔ 재수사 판을 바꿔 고르면 새 판으로 덮어요
+  if (going?.row.case_id === caseId && !!going.state.re === re) return going.row.id;
   // 이 사건을 전에 시작한 적이 있으면(해결했든 그만뒀든) 범인·단서·자리를 새로 섞은 판으로 해요(수수께끼는 같아요).
   const tried = (await db.prepare('SELECT COUNT(*) AS n FROM escape_runs WHERE user_id = ? AND case_id = ?').bind(user, caseId).first<{ n: number }>())?.n ?? 0;
   const def = escCase(caseId, tried)!;

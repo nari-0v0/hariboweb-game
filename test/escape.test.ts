@@ -669,6 +669,17 @@ describe('재수사', () => {
     expect(await reRecord(db, 'me')).toEqual(new Map([[c.id, { clears: 1, best: 95, flawless: true }]]));
     expect((await escapeRecord(db, 'me')).get(c.id)).toBe('S');
   });
+  it('같은 사건에서 일반 판 ↔ 재수사 판을 바꿔 고르면 새 판으로 덮어요', async () => {
+    const { db } = database();
+    const { steps } = solve(c);
+    const first = (await beginEscape(db, 'me', c.id))!;
+    for (const [i, a] of steps.entries()) await actEscapeRun(db, 'me', first, i, a);
+    const normal = (await beginEscape(db, 'me', c.id))!;
+    const going = (await activeEscape(db, 'me'))!;
+    const re = (await beginEscape(db, 'me', c.id, new Date(), { id: normal, rev: going.row.rev }, true))!;
+    expect(re).not.toBe(normal);
+    expect((await activeEscape(db, 'me'))!.state.re).toBe(1);
+  });
   it('재수사에 실패하면 그만둔 판으로 남고 기록은 그대로예요', async () => {
     const { db } = database();
     const { steps } = solve(c);

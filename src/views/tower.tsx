@@ -7,6 +7,7 @@ import { BOOSTS, BOOST_IDS, TOWER_OPEN, boostPrice, isBossFloor, towerCoins, tow
 import type { TowerLast, TowerRank } from '../tower-db';
 import { Bar, Stage, fightPlan } from './journey';
 import { Layout } from './layout';
+import { FictionNote } from './fiction';
 import { jo } from '../josa';
 import { Popup, type PopupLine } from './shop';
 
@@ -104,6 +105,7 @@ export function TowerPage(props: { viewer: Member; art: string; bank: JourneyBan
                 <div class="jr-pad">
                   <form method="post" action="/api/tower/fight" class="tw-form">
                     <input type="hidden" name="floor" value={String(floor)} />
+                    <input type="hidden" name="at" value={bank.towerAt ?? ''} />
                     <p class="tw-next">
                       <b>
                         {floor}층{isBossFloor(floor) ? ' (강한 적)' : ''}: {monster.name}
@@ -159,6 +161,7 @@ export function TowerPage(props: { viewer: Member; art: string; bank: JourneyBan
             <li>잠깐 강해지기는 도전 한 번에만 들고, 그 층 보상보다 늘 비싸요.</li>
           </ul>
         </details>
+        <FictionNote />
       </div>
     </Layout>
   );

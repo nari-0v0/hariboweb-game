@@ -17,11 +17,13 @@ export function parseTowerLast(raw: string | null | undefined): TowerLast | null
 
 export type TowerResult = 'ok' | 'locked' | 'stale' | 'fast' | 'nocoins';
 // 한 층 도전. seen = 화면에 보이던 층(옛 화면·두 번 누르기로 다른 층에 젤코인을 쓰지 않게).
-export async function towerAttempt(db: D1Database, user: string, seen: number, boosts: BoostId[], now = new Date()): Promise<TowerResult> {
+// seenAt = 화면을 그릴 때의 마지막 도전 시각(tower_at). 진 뒤 옛 화면·늦게 온 재전송으로 물약 값이 두 번 나가지 않게
+// 지금 값과 같을 때만 도전해요(undefined면 확인하지 않아요: 배포 전에 열어 둔 화면).
+export async function towerAttempt(db: D1Database, user: string, seen: number, boosts: BoostId[], now = new Date(), seenAt?: string): Promise<TowerResult> {
   const [bank, top] = await Promise.all([journeyBank(db, user), journeyTop(db, user)]);
   if (top < TOWER_OPEN) return 'locked';
   const floor = bank.tower + 1;
-  if (seen !== floor) return 'stale';
+  if (seen !== floor || (seenAt !== undefined && seenAt !== (bank.towerAt ?? ''))) return 'stale';
   if (bank.towerAt && now.getTime() - Date.parse(bank.towerAt) < TOWER_GAP_MS) return 'fast';
   const cost = boostCost(boosts, floor);
   if (bank.coins < cost) return 'nocoins';
@@ -35,10 +37,10 @@ export async function towerAttempt(db: D1Database, user: string, seen: number, b
     .prepare(
       `UPDATE journey_bank SET coins = coins - ?3 + ?4, tower = tower + ?5, tower_at = ?6, tower_last = ?7, updated_at = ?6,
          mats = CASE WHEN ?8 > 0 THEN json_set(mats, ?9, COALESCE(json_extract(mats, ?9), 0) + ?8) ELSE mats END
-       WHERE user_id = ?1 AND tower = ?2 AND coins >= ?3 AND (tower_at IS NULL OR tower_at <= ?10)
+       WHERE user_id = ?1 AND tower = ?2 AND coins >= ?3 AND (tower_at IS NULL OR tower_at <= ?10) AND (?11 IS NULL OR COALESCE(tower_at, '') = ?11)
          AND EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)`,
     )
-    .bind(user, floor - 1, cost, gain, f.won ? 1 : 0, t, JSON.stringify(last), mat?.n ?? 0, matPath(mat?.ch ?? 1), gapFrom)
+    .bind(user, floor - 1, cost, gain, f.won ? 1 : 0, t, JSON.stringify(last), mat?.n ?? 0, matPath(mat?.ch ?? 1), gapFrom, seenAt ?? null)
     .run();
   return (r.meta.changes ?? 0) > 0 ? 'ok' : 'stale';
 }

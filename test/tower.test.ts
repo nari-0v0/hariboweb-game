@@ -113,6 +113,15 @@ describe('끝없는 탑 도전', () => {
     expect(bank.coins).toBe(1000 - boostPrice('atk', 151));
     expect(parseTowerLast(bank.towerLast)?.won).toBe(false);
   });
+  it('진 뒤 옛 화면에서 다시 보내도 물약 값이 두 번 나가지 않아요', async () => {
+    const { sql, db } = database();
+    setup(sql, 'me', 3, { tower: 150, coins: 1000 });
+    expect(await towerAttempt(db, 'me', 151, ['atk'], later(0), '')).toBe('ok');
+    expect(await towerAttempt(db, 'me', 151, ['atk'], later(TOWER_GAP_MS + 1), '')).toBe('stale');
+    const bank = await journeyBank(db, 'me');
+    expect(bank.coins).toBe(1000 - boostPrice('atk', 151));
+    expect(await towerAttempt(db, 'me', 151, ['atk'], later(TOWER_GAP_MS + 1), bank.towerAt ?? '')).toBe('ok');
+  });
   it('젤코인이 모자라면 잠깐 강해지기를 못 사요', async () => {
     const { sql, db } = database();
     setup(sql, 'me', 3, { coins: 5 });
