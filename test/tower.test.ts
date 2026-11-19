@@ -49,6 +49,13 @@ const later = (ms: number) => new Date(Date.UTC(2026, 10, 19) + ms);
 const strong = { atk: 40, hp: 40, def: 15, weapon: 9, armor: 9, charm: 9 };
 
 describe('끝없는 탑 규칙', () => {
+  it('예전 보상(n개)으로 더 받은 양 ⌊T²/4⌋은 절반 보상과의 차이와 같아요', () => {
+    for (let T = 0; T <= 300; T++) {
+      let extra = 0;
+      for (let f = 1; f <= T; f++) extra += f - towerCoins(f);
+      expect(Math.floor((T * T) / 4)).toBe(extra);
+    }
+  });
   it('n층 보상은 젤코인 n의 절반(올림)이에요', () => {
     expect([1, 2, 10, 11, 69].map(towerCoins)).toEqual([1, 1, 5, 6, 35]);
   });
