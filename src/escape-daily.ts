@@ -5,8 +5,8 @@
 // - 수수께끼는 같아서 숫자만 바꾼 문제는 만들지 않아요(사건파일이 계산 문제처럼 느껴진다는 나리 의견).
 import { STORY_SEEDS } from './escape-stories';
 
-// 나리 허락 전까지 꺼 둬요(합쳐도 화면에 안 보이고 시작도 안 돼요). 켜려면 true로 바꿔 배포해요.
-export const DAILY_OPEN = false;
+// 나리 2026-11-19 켬("오늘의 사건도 배포해줘"). false로 바꿔 배포하면 화면에서 사라지고 시작도 안 돼요.
+export const DAILY_OPEN = true;
 
 const KST_MS = 9 * 60 * 60 * 1000;
 // 한국 날짜(YYYY-MM-DD)
