@@ -117,7 +117,7 @@ export async function buyPerk(db: D1Database, user: string, id: PerkId, now = ne
   const lv = bank[id];
   if (seen !== undefined && seen !== lv) return false;
   const cost = perkCost(lv);
-  const max = perkMax(id, Math.min(unlockedFrom(top), journeyOpenTo(dogam)));
+  const max = perkMax(id, Math.min(unlockedFrom(top), journeyOpenTo(dogam, now)));
   if (lv >= max || bank.coins < cost) return false;
   const r = await db
     .prepare(`UPDATE journey_bank SET coins = coins - ?3, ${id} = ${id} + 1, updated_at = ?5 WHERE user_id = ?1 AND ${id} = ?2 AND coins >= ?3 AND ${id} < ?4`)
@@ -138,7 +138,7 @@ export async function beginJourney(db: D1Database, user: string, chapter = 1, no
   // 앞 장을 깼고(unlocked), 도감 조건도 채운 장까지만 떠날 수 있어요.
   const [top, dogam] = await Promise.all([journeyTop(db, user), dogamProgress(db, user)]);
   const unlocked = unlockedFrom(top);
-  const level = Math.min(unlocked, journeyOpenTo(dogam));
+  const level = Math.min(unlocked, journeyOpenTo(dogam, now));
   if (!Number.isSafeInteger(chapter) || chapter < 1) return null;
   if (chapter > level || (kit.length > 0 && shownLevel !== undefined && shownLevel !== level)) return STALE_PICK;
   const ch = chapter;

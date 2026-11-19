@@ -1469,6 +1469,7 @@ main.wide { max-width: 1320px; }
 .jr-chapter-pic { display: grid; place-items: center; height: 64px; width: 100%; }
 .jr-chapter-pic img { max-height: 64px; max-width: 90%; width: auto; image-rendering: auto; }
 .jr-chapter-pic span { font-size: 2rem; }
+.jr-chapter-pic.has-bg { background: var(--jr-ch-bg) center / cover no-repeat; border-radius: 2px; }
 .jr-chapter-name { font-size: .78rem; line-height: 1.4; }
 .jr-game .jr-chapter .hint { font-size: .68rem; }
 .jr-depart { width: 100%; margin-top: 10px; font-size: 1.15rem; padding: 14px; }
@@ -1482,7 +1483,7 @@ main.wide { max-width: 1320px; }
   .jr-console .jr-auto { order: 0; margin-top: auto; }
   .jr-game #journey > .jr-drawer { grid-column: 1 / -1; }
   .jr-talk { max-height: 220px; min-height: 140px; }
-  .jr-game .jr-chapter-list { grid-template-columns: repeat(9, 1fr); }
+  .jr-game .jr-chapter-list { grid-template-columns: repeat(5, 1fr); }
 }
 @media (max-width: 520px) {
   .jr-perks .jr-cards { grid-template-columns: 1fr; }

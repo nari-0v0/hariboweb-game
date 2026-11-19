@@ -42,7 +42,7 @@ it('aggregates active members, exact level boundaries and game progress without 
   }
   card.run('player-a', 'departed', xpForLevel(25), now, now);
   card.run('player-a', 'player-a', xpForLevel(25), now, now);
-  sql.prepare("INSERT INTO journey_runs (id, user_id, chapter, state, status, cleared, started_at, updated_at) VALUES (?, ?, 9, '{}', 'done', 1, ?, ?)")
+  sql.prepare("INSERT INTO journey_runs (id, user_id, chapter, state, status, cleared, started_at, updated_at) VALUES (?, ?, 15, '{}', 'done', 1, ?, ?)")
     .run('journey', 'player-a', now, now);
   sql.prepare("INSERT INTO escape_runs (id, user_id, case_id, state, status, started_at, updated_at) VALUES (?, ?, ?, '{}', 'done', ?, ?)")
     .run('escape', 'player-a', 'jellyjar', now, now);

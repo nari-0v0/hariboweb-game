@@ -23,7 +23,8 @@ export type TitleRule =
   | { kind: 'bingoFull'; count: number } // 빙고판을 다 채운 수
   | { kind: 'praiseGot'; count: number }
   | { kind: 'praiseGave'; count: number }
-  | { kind: 'voiceHours'; hours: number }; // 같이 통화한 시간(카드마다 더해서)
+  | { kind: 'voiceHours'; hours: number } // 같이 통화한 시간(카드마다 더해서)
+  | { kind: 'journeyTop'; chapter: number }; // 원정대 이 장 대장을 깸
 
 // retired: 지금은 얻을 수 없는 칭호(예전 모둠 퀘스트 8개). 이미 얻은 사람에게만 보여요.
 export type Title = { id: string; name: string; group: string; rule: TitleRule; retired?: boolean };
@@ -113,12 +114,16 @@ export const GAMBLE_TITLES: Title[] = [
   { id: GAMBLE_WINNER_ID, name: '도박신', group: '겜블장', rule: { kind: 'gambleSeason' } },
 ];
 
+// 원정대 칭호(2026-11-19): 마지막 장(15장) 대장을 처음 깨면 얻어요.
+export const JOURNEY_TITLES: Title[] = [{ id: 'journey-15', name: '시간정복', group: '원정대', rule: { kind: 'journeyTop', chapter: 15 } }];
+
 let shopNo = 0;
 export const TITLES: Title[] = [
   ...SHOP_GROUPS.flatMap(([group, price, names]) =>
     names.split(' ').map((name): Title => ({ id: `shop-${++shopNo}`, name, group, rule: { kind: 'shop', price } })),
   ),
   ...GAMBLE_TITLES,
+  ...JOURNEY_TITLES,
   ...LADDERS.flatMap((l) => l.steps.map(([v, name]): Title => ({ id: `${l.id}-${v}`, name, group: l.group, rule: l.rule(v), ...(l.retired ? { retired: true } : {}) }))),
 ];
 
@@ -145,6 +150,7 @@ export type TitleStats = {
   praiseGot: number;
   praiseGave: number;
   voiceSeconds: number;
+  journeyTop?: number; // 원정대 대장을 깬 가장 높은 장
 };
 
 export type TitleProgress = { ok: boolean; text: string; now?: string };
@@ -208,6 +214,10 @@ export function titleProgress(t: Title, s: TitleStats): TitleProgress {
       return count(s.praiseGave, r.count, `칭찬 ${r.count}번 하기`, '번');
     case 'voiceHours':
       return count(Math.floor(s.voiceSeconds / 3600), r.hours, `같이 통화 ${r.hours}시간`, '시간');
+    case 'journeyTop': {
+      const top = s.journeyTop ?? 0;
+      return { ok: top >= r.chapter, text: `원정대 ${r.chapter}장 대장 물리치기`, now: `${top}장까지 깸` };
+    }
   }
 }
 

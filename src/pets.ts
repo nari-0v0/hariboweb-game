@@ -34,7 +34,9 @@ const POWER: Record<PetId, [base: number, per: number]> = {
   dragon: [4, 1],
 };
 export const BAND = 5; // 재료 장이 바뀌는 레벨 칸
-export const BAND_MAX = MAX_CHAPTER * BAND; // 장 재료로 올리는 마지막 레벨(9장이면 45)
+// 펫은 9장까지의 재료로 올려요. 10~15장이 생겨도 그대로(이미 키운 펫이 바뀌지 않게, 2026-11-19). 10장 뒤 재료는 끝없는 레벨에 쓸 수 있어요.
+export const PET_CHAPTERS = 9;
+export const BAND_MAX = PET_CHAPTERS * BAND; // 장 재료로 올리는 마지막 레벨(45)
 export const PET_EXTRA = 0.2; // 그 뒤 레벨 하나가 치는 몫
 // 펫이 너무 세면 원정대 장이 쉬워져요(시뮬레이션: 0.35면 같은 장비에서 깨는 확률이 10~25%p쯤 올라요, 2026-11-19).
 export const PET_SCALE = 0.35;
@@ -57,8 +59,8 @@ export function petFx(pet: { id: string; lv: number } | null | undefined): PetFx
   return { ...NO_PET_FX, [key[pet.id]]: v };
 }
 
-// 펫 최고 레벨: 깬 장 × 5. 마지막 장까지 깼으면 끝이 없어요(Infinity).
-export const petCap = (top: number) => (top >= MAX_CHAPTER ? Infinity : Math.max(0, top) * BAND);
+// 펫 최고 레벨: 깬 장 × 5. 9장까지 깼으면 끝이 없어요(Infinity).
+export const petCap = (top: number) => (top >= PET_CHAPTERS ? Infinity : Math.max(0, top) * BAND);
 
 // Lv(next-1) → Lv next로 올리는 값.
 // 재료 칸 b = ceil(next / 5): b장 재료 (b+1)개 + (b-1)장 재료 (b-1)개, 젤코인 50 × next.

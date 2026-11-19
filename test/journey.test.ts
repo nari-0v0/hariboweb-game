@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { DAYS, journeyJelly, KIT_SHIELD_HITS, kitCost, actJourney, autoChoice, decodeJourney, journeyXp, perkMax, gearBonus, gearNeed, hasMats, GEAR_MAX, LOWER_MATS, FIRST_CLEAR_BONUS, FARM_DROP, FX_HITS, startJourney, stat, type JourneyState } from '../src/journey';
@@ -206,8 +206,10 @@ describe('원정대 저장과 보상', () => {
     expect(gearNeed(1).cost).toEqual([{ ch: 1, n: 2 }]);
     expect(gearNeed(3).cost).toEqual([{ ch: 3, n: 2 }, { ch: 2, n: LOWER_MATS }, { ch: 1, n: LOWER_MATS }]);
     const top = gearNeed(GEAR_MAX);
-    expect(top.cost[0]).toEqual({ ch: GEAR_MAX, n: 4 });
-    expect(top.cost.map((c) => c.ch)).toEqual([9, 8, 7, 6, 5, 4, 3, 2, 1]);
+    expect(gearNeed(9).cost[0]).toEqual({ ch: 9, n: 4 });
+    expect(top.cost[0]).toEqual({ ch: GEAR_MAX, n: 6 }); // 10~15장도 같은 공식(10~12장 5개, 13~15장 6개)
+    expect(gearNeed(10).cost[0]).toEqual({ ch: 10, n: 5 });
+    expect(top.cost.map((c) => c.ch)).toEqual([15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]);
     expect(hasMats({ 1: 2, 2: 2 }, gearNeed(2).cost)).toBe(true);
     expect(hasMats({ 1: 1, 2: 9 }, gearNeed(2).cost)).toBe(false);
   });
@@ -397,20 +399,21 @@ describe('원정대 장(챕터)', () => {
     const previous = (await beginJourney(db, 'me'))!;
     sql.prepare("UPDATE journey_runs SET status = 'done', cleared = 1, chapter = ? WHERE id = ?").run(MAX_CHAPTER, previous);
     const card = sql.prepare("INSERT INTO members (user_id, display_name, active, updated_at) VALUES (?, '친구', 1, 'x')");
-    const pair = sql.prepare("INSERT INTO cards (owner_id, target_id, xp, first_met, updated_at) VALUES ('me', ?, 2000, 'x', 'x')");
-    for (let i = 0; i < 55; i++) {
+    const pair = sql.prepare("INSERT INTO cards (owner_id, target_id, xp, first_met, updated_at) VALUES ('me', ?, 6000, 'x', 'x')");
+    for (let i = 0; i < 70; i++) {
       card.run(`friend-${i}`);
       pair.run(`friend-${i}`);
     }
-    const id = (await beginJourney(db, 'me', MAX_CHAPTER))!;
+    const id = (await beginJourney(db, 'me', MAX_CHAPTER, new Date('2027-11-01T00:00:00+09:00')))!;
     expect((await getJourney(db, 'me', id))?.state).toMatchObject({ ch: MAX_CHAPTER, farm: true });
   });
   it('장마다 몬스터 10마리 그림이 있고 이름이 겹치지 않아요', async () => {
     const { CHAPTERS } = await import('../src/journey-chapters');
     const { SPRITES } = await import('../src/sprites.gen');
     const keys = CHAPTERS.flatMap((c) => [...c.foes, c.elite, c.boss].map((m) => m.key));
-    expect(CHAPTERS).toHaveLength(9);
-    expect(new Set(keys).size).toBe(90);
+    expect(CHAPTERS).toHaveLength(15);
+    expect(new Set(keys).size).toBe(150);
+    for (const c of CHAPTERS.filter((c) => c.n >= 10)) expect(existsSync(join(process.cwd(), 'public', `journey/bg/c${c.n}-bg.webp`)), `c${c.n}-bg`).toBe(true);
     for (const k of keys) expect(SPRITES[`/journey/foe/${k}.webp`], k).toBeTruthy();
   });
   it('2장은 2장 몬스터가 나오고 더 세요', async () => {
@@ -424,7 +427,7 @@ describe('원정대 장(챕터)', () => {
     }
     expect(seen.length).toBeGreaterThan(0);
     for (const k of seen) expect(two.has(k), k).toBe(true);
-    expect(decodeJourney(JSON.stringify({ ...startJourney('a'), ch: 12 }))).toBeNull();
+    expect(decodeJourney(JSON.stringify({ ...startJourney('a'), ch: 16 }))).toBeNull();
   });
   it('열린 장까지만 떠날 수 있고, 장을 깨면 다음 장이 열려요', async () => {
     const { db, sql } = database();
