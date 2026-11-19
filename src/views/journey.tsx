@@ -687,7 +687,7 @@ function PetPane(props: { bank: JourneyBank; top: number; unlocked: number; late
     <div class="jp-pane">
       <PaneTitle id="pet" />
       <p class="hint">
-        펫은 젤코인으로 사고, 젤코인과 재료로 키워요. 원정과 끝없는 탑에 한 마리만 데려가요. 장을 깨면 새 펫이 상점에 나와요. 레벨 5칸마다 필요한 재료 장이 올라가서, 펫은 깬 장 × 5 레벨까지 키울 수 있어요. {props.later}
+        펫은 젤코인으로 사고, 젤코인과 재료로 키워요. 원정과 끝없는 탑에는 한 마리만 데려가고, 효과도 데려간 펫 하나만 나요(두고 간 펫은 효과가 없어요). 장을 깨면 새 펫이 상점에 나와요. 레벨 5칸마다 필요한 재료 장이 올라가서, 펫은 깬 장 × 5 레벨까지 키울 수 있어요. {props.later}
         다음 원정부터 적용돼요.
       </p>
       <div class="jp-pets">
