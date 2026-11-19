@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DAYS, journeyJelly, KIT_SHIELD_HITS, kitCost, actJourney, autoChoice, decodeJourney, journeyXp, perkMax, gearBonus, gearNeed, hasMats, GEAR_MAX, LOWER_MATS, FIRST_CLEAR_BONUS, FARM_DROP, FX_HITS, startJourney, stat, type JourneyState } from '../src/journey';
+import { DAYS, journeyJelly, KIT_SHIELD_HITS, kitCost, actJourney, autoChoice, decodeJourney, journeyXp, perkMax, gearBonus, gearNeed, hasMats, GEAR_MAX, LOWER_MATS, FIRST_CLEAR_BONUS, FARM_DROP, FARM_BOSS, DROP, FX_HITS, startJourney, stat, type JourneyState } from '../src/journey';
 import { NO_COINS, STALE_PICK, actJourneyRun, activeJourney, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from '../src/journey-db';
 
 function database() {
@@ -499,6 +499,11 @@ describe('깬 장 다시 돌기 재료', () => {
     expect(fresh).toBeGreaterThan(200); // 대장은 꼭 1개
     expect(farm).toBeGreaterThan(0);
     expect(farm).toBeLessThan(fresh * (FARM_DROP + 0.15));
+  });
+  it('재료 확률(나리 2026-11-19): 처음 5%·20%·대장 꼭, 다시 돌 때 60%·대장 50%', () => {
+    expect(DROP).toEqual({ foe: 0.05, event: 0.05, elite: 0.2 });
+    expect(FARM_DROP).toBe(0.6);
+    expect(FARM_BOSS).toBe(0.5);
   });
 });
 
