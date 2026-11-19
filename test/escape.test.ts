@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ESCAPE_CASES, escCase, actEscape, canAnswer, openScenes, escGrade, isLocked, startEscape, visible, type EscAction, type EscCase, type EscState } from '../src/escape';
+import { ESCAPE_CASES, GRADE_RULE, escCase, actEscape, canAnswer, openScenes, escGrade, isLocked, startEscape, visible, type EscAction, type EscCase, type EscState } from '../src/escape';
 import { actEscapeRun, activeEscape, beginEscape, escapeRecord, getEscape, quitEscape, reRecord } from '../src/escape-db';
 import { checkUi } from '../src/escape-ui';
 
@@ -696,5 +696,18 @@ describe('재수사', () => {
     expect(run.state.failed).toBe(1);
     expect((await reRecord(db, 'me')).size).toBe(0);
     expect(await activeEscape(db, 'me')).toBeNull();
+  });
+});
+
+describe('등급 기준(나리 2026-11-19)', () => {
+  it('실수·힌트 합쳐 1번까지 S, 기준 글과 맞아요', () => {
+    const base = startEscape(ESCAPE_CASES[0]!);
+    expect(escGrade({ ...base, mistakes: 0, hints: 0 })).toBe('S');
+    expect(escGrade({ ...base, mistakes: 1, hints: 0 })).toBe('S');
+    expect(escGrade({ ...base, mistakes: 1, hints: 1 })).toBe('A');
+    expect(escGrade({ ...base, mistakes: 2, hints: 1 })).toBe('A');
+    expect(escGrade({ ...base, mistakes: 4, hints: 0 })).toBe('B');
+    expect(escGrade({ ...base, mistakes: 7, hints: 0 })).toBe('C');
+    expect(GRADE_RULE).toContain('1번까지');
   });
 });
