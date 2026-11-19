@@ -83,7 +83,7 @@ export async function journeyBank(db: D1Database, user: string): Promise<Journey
 export const bankPet = (bank: JourneyBank) => (bank.pet && bank.pets[bank.pet] ? { id: bank.pet, lv: bank.pets[bank.pet]! } : null);
 export const matPath = (ch: number) => `$."${ch}"`;
 
-// 장비 한 단계. +N에는 N장 재료, 앞 장 재료(장마다 LOWER_MATS개), 젤코인이 들어요. 모자라거나 끝까지 올렸거나 다른 화면에서 먼저 했으면 false.
+// 장비 한 단계. +N에는 N장 재료, 바로 앞 장 재료(LOWER_MATS개), 젤코인이 들어요. 모자라거나 끝까지 올렸거나 다른 화면에서 먼저 했으면 false.
 // seen = 화면에 보이던 단계(오래된 화면에서 누르면 다음 단계 값을 내지 않게).
 export async function upgradeGear(db: D1Database, user: string, id: GearId, now = new Date(), seen?: number): Promise<boolean> {
   const bank = await journeyBank(db, user);
