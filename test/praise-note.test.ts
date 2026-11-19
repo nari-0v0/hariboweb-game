@@ -65,6 +65,8 @@ describe('한마디 검사', () => {
     expect(cleanNote(' . . !? ')).toBe('');
     expect(cleanNote('💛')).toBe('💛');
     expect(cleanNote('ㅋㅋ')).toBe('ㅋㅋ');
+    expect(cleanNote('🇰🇷')).toBe('🇰🇷');
+    expect(cleanNote('♥')).toBe('♥');
   });
 
   it('AI가 비꼬기라고 하면 한마디는 빼요. 욕설은 막지 않고, AI가 없거나 실패하면 그대로 보내요', async () => {
