@@ -52,12 +52,13 @@ describe('끝없는 탑 규칙', () => {
   it('예전 보상(n개)으로 더 받은 양 ⌊T²/4⌋은 절반 보상과의 차이와 같아요', () => {
     for (let T = 0; T <= 300; T++) {
       let extra = 0;
-      for (let f = 1; f <= T; f++) extra += f - towerCoins(f);
+      for (let f = 1; f <= T; f++) extra += f - Math.ceil(f / 2); // 0054 당시 절반 보상
       expect(Math.floor((T * T) / 4)).toBe(extra);
     }
   });
-  it('n층 보상은 젤코인 n의 절반(올림)이에요', () => {
-    expect([1, 2, 10, 11, 69].map(towerCoins)).toEqual([1, 1, 5, 6, 35]);
+  it('층 보상은 10층마다 1개부터 다시 세요(1·11·21층 1개, 10·20층 10개)', () => {
+    expect([1, 2, 10, 11, 12, 20, 21, 69, 101].map(towerCoins)).toEqual([1, 2, 10, 1, 2, 10, 1, 9, 1]);
+    expect(towerCoins(0)).toBe(0);
   });
   it('잠깐 강해지기 값은 어느 층에서나 그 층 보상보다 비싸요', () => {
     for (let f = 1; f <= 500; f++) for (const id of BOOST_IDS) expect(boostPrice(id, f)).toBeGreaterThan(towerCoins(f));
@@ -106,13 +107,13 @@ describe('끝없는 탑 도전', () => {
     expect(await towerAttempt(db, 'me', 10, [], later(0))).toBe('ok');
     let bank = await journeyBank(db, 'me');
     expect(bank.tower).toBe(10);
-    expect(bank.coins).toBe(105);
+    expect(bank.coins).toBe(110);
     expect(bank.mats[1]).toBe(2);
     expect(parseTowerLast(bank.towerLast)?.won).toBe(true);
     expect(await towerAttempt(db, 'me', 11, [], later(100))).toBe('fast');
     expect(await towerAttempt(db, 'me', 11, ['atk', 'hp'], later(TOWER_GAP_MS + 1))).toBe('ok');
     bank = await journeyBank(db, 'me');
-    expect(bank.coins).toBe(105 - boostCost(['atk', 'hp'], 11) + 6);
+    expect(bank.coins).toBe(110 - boostCost(['atk', 'hp'], 11) + 1);
   });
   it('지면 그 층에 머물고 보상은 없어요. 잠깐 강해지기 값은 그래도 나가요', async () => {
     const { sql, db } = database();
