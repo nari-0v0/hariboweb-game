@@ -561,7 +561,7 @@ export function ChapterPick(props: { unlocked: number; top: number; dogam: Dogam
               )}
               {need.cards > 0 && (
                 <span class={`jr-need${dogamOk ? ' ok' : ''}`} title={needText(need, props.dogam)}>
-                  {dogamOk ? '📖 도감 ✓' : `📖 ${shortNeed(need)}`}
+                  {dogamOk ? '📖 도감 ✓' : `📖 ${shortNeed(need, props.dogam)}`}
                 </span>
               )}
             </label>

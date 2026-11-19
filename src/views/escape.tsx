@@ -861,7 +861,7 @@ export function EscapePage(props: {
                           🔒
                         </span>
                         <b>잠긴 사건</b>
-                        <span class="esc-file-need">📖 {shortNeed(need)}</span>
+                        <span class="esc-file-need">📖 {shortNeed(need, props.dogam)}</span>
                       </span>
                     </div>
                   );

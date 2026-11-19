@@ -1,7 +1,7 @@
 import { ESCAPE_CASES } from './escape';
 import { MAX_CHAPTER } from './journey-chapters';
 import { xpForLevel } from './levels';
-import { ESCAPE_STEPS, JOURNEY_NEEDS, type Need } from './unlock';
+import { ESCAPE_STEPS, JOURNEY_NEEDS, capNeed, type Need } from './unlock';
 
 const PLANNED_NEEDS: Need[] = [
   { cards: 60, lv: 25, lvCards: 5 },
@@ -43,7 +43,8 @@ export async function gameProgressStats(db: D1Database) {
     FROM active_members m LEFT JOIN dogam d ON d.owner_id = m.user_id
   `).bind(JSON.stringify(ESCAPE_CASES.map(({ id }) => id))).all<ProgressRow>();
 
-  function eligibility(need: Need) {
+  function eligibility(need0: Need) {
+    const need = capNeed(need0, rows.length);
     const eligible = rows.filter((row) => row.cards >= need.cards &&
       (need.lv === undefined || (row[`lv${need.lv}`] ?? 0) >= (need.lvCards ?? 0)));
     return {

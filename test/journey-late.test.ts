@@ -14,8 +14,8 @@ describe('원정대 10~15장', () => {
     expect(CHAPTERS.map((c) => c.n)).toEqual(Array.from({ length: 15 }, (_, i) => i + 1));
     expect(MATERIALS).toHaveLength(15);
     expect(JOURNEY_NEEDS).toHaveLength(15);
-    expect(journeyNeed(10)).toEqual({ cards: 60, lv: 20, lvCards: 8 });
-    expect(journeyNeed(15)).toEqual({ cards: 70, lv: 35, lvCards: 12 });
+    expect(journeyNeed(10)).toEqual({ cards: 60, lv: 20, lvCards: 8, cap: true });
+    expect(journeyNeed(15)).toEqual({ cards: 70, lv: 35, lvCards: 12, cap: true });
     expect(Object.keys(JOURNEY_RELEASE)).toEqual([]); // 나리 2026-11-19: 날짜 잠금 없이 도감 조건만
   });
   it('10~15장은 도감 조건만 채우면 열려요', () => {
@@ -125,5 +125,23 @@ describe('끝없는 탑은 15장(300층)까지가 기준이에요', () => {
     expect(sawLate).toBe(true);
     expect(towerMat(300, 15)?.ch).toBe(15);
     expect(towerFoe(301).hp).toBeGreaterThan(towerFoe(299).hp);
+  });
+});
+
+describe('10~15장 카드 장수 조건은 멤버 수의 50%까지(나리 2026-11-19)', () => {
+  it('99명이면 49장이 끝이고, 레벨 조건은 그대로예요', async () => {
+    const { cardCap, capNeed, meets, needText, shortNeed } = await import('../src/unlock');
+    expect(cardCap(99)).toBe(49);
+    expect(cardCap(100)).toBe(50);
+    expect(cardCap(undefined)).toBe(Infinity);
+    expect(capNeed(journeyNeed(15), 99)).toEqual({ cards: 49, lv: 35, lvCards: 12, cap: true });
+    expect(capNeed(journeyNeed(9), 99)).toEqual({ cards: 55, lv: 20, lvCards: 5 }); // 1~9장·사건파일은 그대로
+    const p = { cards: 55, levels: Array(55).fill(99), members: 99 };
+    expect(journeyOpenTo(p)).toBe(15); // 9장(55장)을 채우면 10~15장은 카드 장수로는 안 막혀요
+    expect(journeyOpenTo({ ...p, cards: 54, levels: Array(54).fill(99) })).toBe(8);
+    expect(meets(journeyNeed(15), { ...p, levels: Array(55).fill(34) })).toBe(false);
+    expect(shortNeed(journeyNeed(10), p)).toBe('카드 49장 · Lv20+ 8장');
+    expect(needText(journeyNeed(10), { ...p, cards: 40 })).toContain('도감 카드 49장 (지금 40장)');
+    expect(shortNeed(journeyNeed(9), p)).toBe('카드 55장 · Lv20+ 5장');
   });
 });
