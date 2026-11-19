@@ -81,8 +81,9 @@ export function TowerPage(props: { viewer: Member; art: string; bank: JourneyBan
                     )}
                   </div>
                   <div class="jr-stats">
-                    <span title="공격력">⚔️ {st.atk}</span>
-                    <span title="방어력">🛡️ {st.def}</span>
+                    {/* 결과 화면은 그 싸움에 쓴 능력치(물약 포함)를 보여 줘요 */}
+                    <span title="공격력">⚔️ {last ? last.fight.atk : st.atk}</span>
+                    <span title="방어력">🛡️ {last ? last.fight.def : st.def}</span>
                     {pet && <span title={petText(pet.id, pet.lv)}>🐾 {PETS[pet.id].name} Lv.{pet.lv}</span>}
                   </div>
                 </div>

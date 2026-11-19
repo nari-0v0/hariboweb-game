@@ -57,7 +57,7 @@ const NOTICES: Record<string, PopupLine[]> = {
   gear: [{ title: '장비 강화 성공!', text: '다음 원정부터 더 강해져요.' }],
   nogear: [{ title: '알림', text: '강화에 드는 재료나 젤코인이 모자라요.' }],
   kitcoins: [{ title: '알림', text: '젤코인이 모자라서 준비물을 살 수 없어요.' }],
-  petbuy: [{ title: '새 펫!', text: '펫을 데려왔어요. 다음 원정부터 같이 가요.' }],
+  petbuy: [{ title: '새 펫!', text: '펫을 샀어요. 처음 산 펫이면 바로 데려가요. 다른 펫을 데려가는 중이면 \'데려가기\'를 눌러 바꿔요.' }],
   nopet: [{ title: '알림', text: '젤코인이 모자라거나 아직 상점에 없는 펫이에요.' }],
   petup: [{ title: '펫이 컸어요!', text: '다음 원정부터 더 강해져요.' }],
   nopetup: [{ title: '알림', text: '키우는 데 드는 재료나 젤코인이 모자라요.' }],
@@ -687,7 +687,7 @@ function PetPane(props: { bank: JourneyBank; top: number; unlocked: number; late
     <div class="jp-pane">
       <PaneTitle id="pet" />
       <p class="hint">
-        펫은 젤코인으로 사고, 젤코인과 재료로 키워요. 원정과 끝없는 탑에는 한 마리만 데려가고, 효과도 데려간 펫 하나만 나요(두고 간 펫은 효과가 없어요). 장을 깨면 새 펫이 상점에 나와요. 레벨 5칸마다 필요한 재료 장이 올라가서, 펫은 깬 장 × 5 레벨까지 키울 수 있어요. {props.later}
+        펫은 젤코인으로 사고, 젤코인과 재료로 키워요. 원정과 끝없는 탑에는 한 마리만 데려가고, 효과도 데려간 펫 하나만 나요(두고 간 펫은 효과가 없어요). 장을 깨면 새 펫이 상점에 나와요. 레벨 5칸마다 필요한 재료 장이 올라가서, 펫은 깬 장 × 5 레벨까지 키울 수 있어요. 마지막 장까지 깨면 한도 없이, 가장 많이 가진 재료 한 가지로 계속 키워요. {props.later}
         다음 원정부터 적용돼요.
       </p>
       <div class="jp-pets">
@@ -734,7 +734,12 @@ function PetPane(props: { bank: JourneyBank; top: number; unlocked: number; late
                             {matName(c.ch)} {bank.mats[c.ch] ?? 0}/{c.n}
                           </span>
                         ))}
-                        {need.any > 0 && <span class={`jp-item-need${anyCh ? ' ok' : ''}`}>아무 재료 {need.any}개{anyCh ? ` (${material(anyCh).name}에서)` : ''}</span>}
+                        {need.any > 0 && (
+                          <span class={`jp-item-need${anyCh ? ' ok' : ''}`}>
+                            한 가지 재료 {anyCh ? `${material(anyCh).icon} ${material(anyCh).name} ` : ''}
+                            {Math.max(0, ...Object.values(bank.mats))}/{need.any}
+                          </span>
+                        )}
                         <span class={`jp-item-need${bank.coins >= need.coins ? ' ok' : ''}`}>🪙 {need.coins}</span>
                         <form method="post" action="/api/journey/pet" class="jp-pet-form">
                           <input type="hidden" name="a" value="up" />

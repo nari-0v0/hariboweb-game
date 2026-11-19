@@ -286,11 +286,12 @@ export function battle(s: JourneyState, m: Monster, power: number, r: () => numb
     if (mhp <= 0) break;
     let hit = Math.max(1, matk - st.def);
     if (pf.dodge > 0 && r() < pf.dodge) hit = 0; // 아기 펭귄: 피했어요
-    if (shields > 0) {
+    // 피한 공격에는 방패를 쓰지 않아요(방패 횟수는 실제로 맞은 공격만 세요)
+    if (hit > 0 && shields > 0) {
       hit = Math.ceil(hit / 2);
       shields--;
     }
-    if ((s.kitShield ?? 0) > 0) {
+    if (hit > 0 && (s.kitShield ?? 0) > 0) {
       hit = Math.ceil(hit / 2);
       s.kitShield = (s.kitShield ?? 0) - 1;
     }

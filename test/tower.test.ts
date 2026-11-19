@@ -237,3 +237,20 @@ describe('펫', () => {
     expect((await journeyBank(db, 'me')).pet).toBeNull();
   });
 });
+
+describe('아기 펭귄 회피와 방패', () => {
+  it('피한 공격에는 준비물 방패 횟수를 쓰지 않아요', async () => {
+    const { startJourney, battle } = await import('../src/journey');
+    const { rng } = await import('../src/rng');
+    const { CHAPTERS } = await import('../src/journey-chapters');
+    let checked = 0;
+    for (let i = 0; i < 40; i++) {
+      const s = startJourney(`dodge${i}`, { atk: 1, hp: 30, def: 0 } as never, 1, undefined, ['shield'], { id: 'penguin', lv: 3000 });
+      battle(s, CHAPTERS[0]!.foes[0]!, 1, rng(`dodge${i}`), [], 0, { hp: 400, atk: 30 });
+      const taken = s.fx!.hits.filter((h) => h[0] === 1 && h[1] > 0).length;
+      expect(s.kitShield).toBe(Math.max(0, 4 - taken));
+      if (s.fx!.hits.some((h) => h[0] === 1 && h[1] === 0)) checked++;
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+});
