@@ -101,7 +101,7 @@ import { GEAR, PERKS, cleanKit, type GearId, type PerkId } from './journey';
 import { clearReadAlerts, deleteAlert, listAlerts, markAlertsRead } from './alerts';
 import { AlertBox, AlertsPage } from './views/alerts';
 import { grantJelly, parseGrant } from './jelly-grant';
-import { activeEscape, actEscapeRun, beginEscape, escapeOpen, escapeRecord, getEscape, quitEscape, reRecord, type EscRun } from './escape-db';
+import { activeEscape, actEscapeRun, beginDaily, beginEscape, dailyInfo, escapeOpen, escapeRecord, getEscape, quitEscape, reRecord, type EscRun } from './escape-db';
 import { UI_MAX } from './escape-ui';
 
 const SESSION_COOKIE = 'hs';
@@ -1301,11 +1301,11 @@ const escEnded = (r: EscRun) => r.row.status === 'done' || (r.row.status === 'qu
 members.get('/cases/room', async (c) => {
   const viewer = c.get('viewer');
   c.header('Cache-Control', 'no-store');
-  const [run, best, profile, dogam, re] = await Promise.all([activeEscape(c.env.DB, viewer.user_id), escapeRecord(c.env.DB, viewer.user_id), getProfile(c.env.DB, viewer.user_id), dogamProgress(c.env.DB, viewer.user_id), reRecord(c.env.DB, viewer.user_id)]);
+  const [run, best, profile, dogam, re, daily] = await Promise.all([activeEscape(c.env.DB, viewer.user_id), escapeRecord(c.env.DB, viewer.user_id), getProfile(c.env.DB, viewer.user_id), dogamProgress(c.env.DB, viewer.user_id), reRecord(c.env.DB, viewer.user_id), dailyInfo(c.env.DB, viewer.user_id)]);
   const art = characterUrl(profile.character_id, viewer.user_id, profile.deco_id);
   const rid = c.req.query('r') ?? '';
   const done = ESC_ID.test(rid) ? await getEscape(c.env.DB, viewer.user_id, rid) : null;
-  return page(c, <EscapePage viewer={viewer} art={art} run={run} result={done && escEnded(done) ? done : null} best={best} re={re} dogam={dogam} notice={c.req.query('n')} list={c.req.query('list') === '1'} />);
+  return page(c, <EscapePage viewer={viewer} art={art} run={run} result={done && escEnded(done) ? done : null} best={best} re={re} daily={daily} dogam={dogam} notice={c.req.query('n')} list={c.req.query('list') === '1'} />);
 });
 members.post('/api/escape/start', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
@@ -1325,6 +1325,25 @@ members.post('/api/escape/start', async (c) => {
     return c.redirect(id ? '/cases/room#now' : replacing ? '/cases/room?n=stale#now' : '/cases/room?n=bad', 303);
   } catch (e) {
     console.error('사건 시작 실패', e);
+    return c.redirect('/cases/room?n=error', 303);
+  }
+});
+// 오늘의 사건 시작(하루 한 번). 하던 사건이 있으면 화면에 보이던 판을 덮어요.
+members.post('/api/escape/daily', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const body = await c.req.parseBody();
+  try {
+    const user = c.get('viewer').user_id;
+    const replacing = body.switch === '1';
+    const oldId = String(body.run ?? ''), rev = Number(body.rev);
+    if (replacing && (!ESC_ID.test(oldId) || !Number.isSafeInteger(rev) || rev < 0)) return c.redirect('/cases/room?n=stale#now', 303);
+    const seen = { day: String(body.day ?? ''), caseId: String(body.case ?? '') };
+    const id = await beginDaily(c.env.DB, user, new Date(), replacing ? { id: oldId, rev } : undefined, seen);
+    if (id === 'stale') return c.redirect('/cases/room?list=1&n=dailystale#case-list', 303);
+    if (id === 'played') return c.redirect('/cases/room?list=1&n=dailydone#case-list', 303);
+    return c.redirect(id ? '/cases/room#now' : '/cases/room?list=1&n=bad#case-list', 303);
+  } catch (e) {
+    console.error('오늘의 사건 시작 실패', e);
     return c.redirect('/cases/room?n=error', 303);
   }
 });
@@ -1358,12 +1377,12 @@ members.post('/api/escape/act', async (c) => {
     const r = await actEscapeRun(c.env.DB, user, id, rev, act);
     if (r !== 'ok') return c.redirect(`/cases/room?n=${r}#now`, 303);
     // 다시 불러오기(리다이렉트) 없이 바로 화면을 그려 보내요. 한 번 왕복이 줄어서 빨라요.
-    const [after, best, profile, dogam, re] = await Promise.all([getEscape(c.env.DB, user, id), escapeRecord(c.env.DB, user), getProfile(c.env.DB, user), dogamProgress(c.env.DB, user), reRecord(c.env.DB, user)]);
+    const [after, best, profile, dogam, re, daily] = await Promise.all([getEscape(c.env.DB, user, id), escapeRecord(c.env.DB, user), getProfile(c.env.DB, user), dogamProgress(c.env.DB, user), reRecord(c.env.DB, user), dailyInfo(c.env.DB, user)]);
     const done = !!after && escEnded(after);
     c.header('Cache-Control', 'no-store');
     const viewer = c.get('viewer');
     const art = characterUrl(profile.character_id, user, profile.deco_id);
-    return page(c, <EscapePage viewer={viewer} art={art} run={done ? null : after} result={done ? after : null} best={best} re={re} dogam={dogam} url={done ? `/cases/room?r=${id}#now` : '/cases/room#now'} />);
+    return page(c, <EscapePage viewer={viewer} art={art} run={done ? null : after} result={done ? after : null} best={best} re={re} daily={daily} dogam={dogam} url={done ? `/cases/room?r=${id}#now` : '/cases/room#now'} />);
   } catch (e) {
     console.error('사건 진행 실패', e);
     return c.redirect('/cases/room?n=error#now', 303);

@@ -1,4 +1,5 @@
 import { dogamProgress, escapeNeed, meets } from './unlock';
+import { DAILY_OPEN, dailyPick, dailyVariant, kstDay, prevDay, shownStreak } from './escape-daily';
 import { ESC_XP, escVariantOf, escapeUnlockIndex, actEscape, decodeEscape, escCase, escGrade, escJelly, startEscape, type EscAction, type EscCase, type EscGrade, type EscState } from './escape';
 
 export type EscRow = { id: string; user_id: string; case_id: string; state: string; rev: number; status: string; grade: string | null; xp: number; jelly: number; started_at?: string; ended_at?: string | null };
@@ -68,8 +69,8 @@ async function beginOnce(
   const going = await activeEscape(db, user);
   if (going && !replace) return going.row.id;
   if (replace && (!going || going.row.id !== replace.id || going.row.rev !== replace.rev)) return null;
-  // 같은 사건이라도 일반 판 ↔ 재수사 판을 바꿔 고르면 새 판으로 덮어요
-  if (going?.row.case_id === caseId && !!going.state.re === re) return going.row.id;
+  // 같은 사건이라도 일반 판 ↔ 재수사 판(또는 오늘의 사건 판)을 바꿔 고르면 새 판으로 덮어요
+  if (going?.row.case_id === caseId && !!going.state.re === re && !going.state.daily) return going.row.id;
   // 이 사건을 전에 시작한 적이 있으면(해결했든 그만뒀든) 범인·단서·자리를 새로 섞은 판으로 해요(수수께끼는 같아요).
   const tried = (await db.prepare('SELECT COUNT(*) AS n FROM escape_runs WHERE user_id = ? AND case_id = ?').bind(user, caseId).first<{ n: number }>())?.n ?? 0;
   const def = escCase(caseId, tried)!;
@@ -189,7 +190,28 @@ async function finishRe(db: D1Database, user: string, id: string, rev: number, c
       )
       .bind(id, user, token, JSON.stringify(s), t, won ? 1 : 0, rev),
   ];
-  if (won) {
+  if (won && s.daily) {
+    // 오늘의 사건은 재수사 기록과 따로, 그날 줄에 시간과 무결점만 적어요
+    stmts.push(
+      db
+        .prepare(
+          `UPDATE escape_daily SET solved = 1, flawless = ?4,
+             secs = (SELECT MAX(0, CAST(ROUND((julianday(ended_at) - julianday(started_at)) * 86400) AS INTEGER)) FROM escape_runs WHERE id = ?3 AND mutation = ?5 AND status = 'done')
+           WHERE user_id = ?1 AND day = ?2 AND run_id = ?3 AND EXISTS (SELECT 1 FROM escape_runs WHERE id = ?3 AND mutation = ?5 AND status = 'done')`,
+        )
+        .bind(user, s.daily, id, s.mistakes === 0 ? 1 : 0, token),
+      // 해결한 날 수 +1, 어제도 해결했으면 연속 +1(아니면 1부터). 같은 날 두 번 세지 않게 last_day를 봐요.
+      db
+        .prepare(
+          `INSERT INTO escape_daily_stats (user_id, days, streak, last_day)
+           SELECT ?1, 1, 1, ?2 WHERE EXISTS (SELECT 1 FROM escape_daily WHERE user_id = ?1 AND day = ?2 AND run_id = ?3 AND solved = 1)
+           ON CONFLICT (user_id) DO UPDATE SET days = escape_daily_stats.days + 1,
+             streak = CASE WHEN escape_daily_stats.last_day = ?4 THEN escape_daily_stats.streak + 1 ELSE 1 END, last_day = ?2
+           WHERE escape_daily_stats.last_day IS NULL OR escape_daily_stats.last_day < ?2`,
+        )
+        .bind(user, s.daily, id, prevDay(s.daily)),
+    );
+  } else if (won) {
     stmts.push(
       db
         .prepare(
@@ -205,4 +227,78 @@ async function finishRe(db: D1Database, user: string, id: string, rev: number, c
   }
   const r = await db.batch(stmts);
   return (r[0]?.meta.changes ?? 0) === 1 ? 'ok' : 'stale';
+}
+
+// 오늘의 사건 상태(사건 목록 맨 위에 보여 줘요)
+export type DailyRow = { case_id: string; run_id: string; solved: number; secs: number | null; flawless: number };
+export type DailyInfo = { day: string; caseId: string | null; today: DailyRow | null; days: number; streak: number };
+// 오늘 풀 사건: 해결했고 지금도 열 수 있는 이야기 사건 중에서 골라요(도감 조건이 모자라진 사건은 빼요)
+async function dailyCase(db: D1Database, user: string, day: string): Promise<string | null> {
+  const [solved, dogam] = await Promise.all([db.prepare('SELECT case_id FROM escape_rewards WHERE user_id = ?').bind(user).all<{ case_id: string }>(), dogamProgress(db, user)]);
+  const open = solved.results.map((r) => r.case_id).filter((id) => {
+    const i = escapeUnlockIndex(id);
+    if (i < 0) return false;
+    const need = escapeNeed(i);
+    return need.cards === 0 || meets(need, dogam);
+  });
+  return dailyPick(user, day, open);
+}
+export async function dailyInfo(db: D1Database, user: string, now = new Date()): Promise<DailyInfo | null> {
+  if (!DAILY_OPEN) return null;
+  const day = kstDay(now);
+  const [today, stats] = await Promise.all([
+    db.prepare('SELECT case_id, run_id, solved, secs, flawless FROM escape_daily WHERE user_id = ? AND day = ?').bind(user, day).first<DailyRow>(),
+    db.prepare('SELECT days, streak, last_day FROM escape_daily_stats WHERE user_id = ?').bind(user).first<{ days: number; streak: number; last_day: string | null }>(),
+  ]);
+  return { day, caseId: today?.case_id ?? (await dailyCase(db, user, day)), today: today ?? null, days: stats?.days ?? 0, streak: shownStreak(stats?.streak ?? 0, stats?.last_day ?? null, day) };
+}
+
+// 오늘의 사건 시작. 오늘 이미 시작했으면 그 판이 진행 중일 때만 이어 해요('played' = 오늘 기회를 이미 씀).
+// seen = 화면에 보이던 날짜·사건. 날이 바뀌었거나 사건이 달라졌으면 시작하지 않고 'stale'(옛 화면이 새 날 기회를 쓰지 않게).
+// 하던 다른 사건이 있으면 replace(화면에 보이던 판·순번)가 맞을 때만 덮어요.
+export async function beginDaily(
+  db: D1Database, user: string, now = new Date(), replace?: { id: string; rev: number }, seen?: { day: string; caseId: string },
+): Promise<string | 'played' | 'stale' | null> {
+  if (!DAILY_OPEN) return null;
+  const day = kstDay(now);
+  if (seen && seen.day !== day) return 'stale';
+  const mine = await db.prepare('SELECT run_id FROM escape_daily WHERE user_id = ? AND day = ?').bind(user, day).first<{ run_id: string }>();
+  const going = await activeEscape(db, user);
+  if (mine) return going?.row.id === mine.run_id ? mine.run_id : 'played';
+  if (going && !replace) return null;
+  if (replace && (!going || going.row.id !== replace.id || going.row.rev !== replace.rev)) return null;
+  const caseId = await dailyCase(db, user, day);
+  if (seen && seen.caseId !== caseId) return 'stale';
+  const def = caseId && escCase(caseId, dailyVariant(day));
+  if (!caseId || !def) return null;
+  const id = crypto.randomUUID();
+  const t = now.toISOString();
+  const state = JSON.stringify(startEscape(def, true, day));
+  const fresh = `EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1) AND NOT EXISTS (SELECT 1 FROM escape_daily WHERE user_id = ?2 AND day = ?6)`;
+  const stmts: D1PreparedStatement[] = [];
+  if (replace) {
+    stmts.push(
+      db
+        .prepare(`UPDATE escape_runs SET status = 'quit', updated_at = ?3, ended_at = ?3, mutation = ?5
+          WHERE user_id = ?1 AND id = ?2 AND rev = ?4 AND status = 'going' AND EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
+            AND NOT EXISTS (SELECT 1 FROM escape_daily WHERE user_id = ?1 AND day = ?6)`)
+        .bind(user, replace.id, t, replace.rev, id, day),
+    );
+  }
+  // 하루 한 판: 그날 줄이 없을 때만 판을 넣고, 넣은 판이 있을 때만 그날 줄을 넣어요(한 번에, 두 탭이 동시에 눌러도 하나만)
+  stmts.push(
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO escape_runs (id, user_id, case_id, state, started_at, updated_at)
+         SELECT ?1, ?2, ?3, ?4, ?5, ?5 WHERE ${fresh}
+           AND (?7 IS NULL OR EXISTS (SELECT 1 FROM escape_runs WHERE id = ?7 AND mutation = ?1 AND status = 'quit'))`,
+      )
+      .bind(id, user, caseId, state, t, day, replace?.id ?? null),
+    db
+      .prepare(`INSERT OR IGNORE INTO escape_daily (user_id, day, case_id, run_id) SELECT ?1, ?2, ?3, ?4 WHERE EXISTS (SELECT 1 FROM escape_runs WHERE id = ?4 AND user_id = ?1)`)
+      .bind(user, day, caseId, id),
+  );
+  await db.batch(stmts);
+  const row = await db.prepare('SELECT run_id FROM escape_daily WHERE user_id = ? AND day = ?').bind(user, day).first<{ run_id: string }>();
+  return row?.run_id === id ? id : null;
 }
