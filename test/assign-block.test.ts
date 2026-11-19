@@ -388,3 +388,9 @@ it('3팀으로 나눌 수 없는 제외 관계도 인원이나 별도 조건을 
   separateBlocked(plan, blocked);
   for (const no of [0, 1, 2]) expect([...plan.values()].filter((g) => g === no)).toHaveLength(3);
 });
+
+it('안내 문구는 팀 배정 기준으로 같은 말을 써요(나리 2026-11-19)', async () => {
+  const { BLOCK_QUESTION, BLOCK_NOTICE, BLOCK_UNDO_NOTICE } = await import('../src/assign-block');
+  for (const text of [BLOCK_QUESTION, ...BLOCK_NOTICE, BLOCK_UNDO_NOTICE]) expect(text).not.toContain('같은 판');
+  expect(BLOCK_NOTICE[0]).toBe('적어 준 사유를 AI가 검토해 같은 팀에 배정할지 판단해요.');
+});
