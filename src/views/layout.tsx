@@ -2,6 +2,7 @@ import { GAMBLE_LOCKED } from '../gamble';
 import { OWNER_CONTACT_URL } from '../contact';
 import { PREFETCH_RULES } from '../prefetch';
 import { NOTICE_BAR } from '../maintenance';
+import { updatesMark } from '../updates';
 import type { Child } from 'hono/jsx';
 import type { Member } from '../env';
 
@@ -33,8 +34,8 @@ export function Layout(props: {
         <link rel="preload" href="/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin="" />
         {props.preloadImages?.map((href) => <link rel="preload" href={href} as="image" fetchpriority="high" />)}
         <link rel="icon" type="image/png" href="/char/deco/explorer.png" />
-        <link rel="stylesheet" href="/styles.css?v=daily-1119" />
-        <script src="/app.js?v=jr-auto-off-2" defer></script>
+        <link rel="stylesheet" href="/styles.css?v=upd-1119" />
+        <script src="/app.js?v=upd-1119" defer></script>
         {props.scripts?.map((script) => typeof script === 'string'
           ? <script src={script} defer></script>
           : <script src={script.src} type={script.type}></script>)}
@@ -60,6 +61,12 @@ export function Layout(props: {
           </a>
           {props.viewer && (
             <div class="topbar-right">
+              {/* 업데이트 현황: 새 줄이 있으면 점(app.js가 브라우저에 기억한 값과 비교해요) */}
+              <a class="upd-btn" href="/updates" data-upd={updatesMark()}>
+                <span>업데이트</span>
+                <span>현황</span>
+                <i class="upd-dot" aria-hidden="true" hidden />
+              </a>
               {/* 알림함: 안 읽은 알림이 있으면 빨간 점. 누르면 팝업(app.js), 자바스크립트가 없으면 /alerts 화면 */}
               <a
                 class="alert-btn"
