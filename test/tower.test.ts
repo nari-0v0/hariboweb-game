@@ -138,6 +138,17 @@ describe('끝없는 탑 도전', () => {
     setup(sql, 'me', 3, { coins: 5 });
     expect(await towerAttempt(db, 'me', 1, ['atk'], later(0))).toBe('nocoins');
   });
+  it('배포 뒤 조정 SQL은 옛 방식으로 받은 층만 빼고, 다시 돌려도 그대로예요', async () => {
+    const { sql, db } = database();
+    setup(sql, 'me', 3, { ...strong, tower: 20, coins: 100 });
+    setup(sql, 'you', 3, { ...strong, tower: 69, coins: 592 });
+    expect(await towerAttempt(db, 'me', 21, [], later(0))).toBe('ok'); // 새 방식으로 21층 1개
+    const fix = readFileSync(join(__dirname, '../scripts/once/2026-11-19-tower-coins-reset10.sql'), 'utf8');
+    sql.exec(fix);
+    sql.exec(fix);
+    expect((await journeyBank(db, 'me')).coins).toBe(101); // 1~20층은 두 방식 합계가 같아요(110)
+    expect((await journeyBank(db, 'you')).coins).toBe(592 - (1225 - 375));
+  });
   it('젤코인이 마이너스(조정 뒤 빚)여도 물약 없이는 도전하고, 이기면 빚이 줄어요', async () => {
     const { sql, db } = database();
     setup(sql, 'me', 3, { ...strong, coins: -50 });
