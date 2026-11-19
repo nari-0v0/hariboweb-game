@@ -22,3 +22,6 @@
 # 겜블장 스크립트도 주소 끝 ?v=숫자로 바꿔요. 매번 서버에 다시 묻지 않아야 결과 화면이 바로 움직여요.
 /gamble.js
   Cache-Control: public, max-age=31536000, immutable
+# 디스코드 액티비티 스크립트도 주소 끝 ?v=숫자로 바꿔요.
+/discord-activity.js
+  Cache-Control: public, max-age=31536000, immutable

@@ -23,6 +23,8 @@ export type Env = {
   ORIGIN_SECRET?: string;
   // 1이면 모든 화면을 "점검 중이에요"로 바꿔요(Cloudflare 설정 > 변수에서 나리가 켜고 꺼요). 봇 동기화는 503을 받고 나중에 다시 보내요.
   MAINTENANCE?: string;
+  // 1이면 디스코드 액티비티(음성채널 🚀 버튼으로 디스코드 안에서 열기)를 켜요. 비어 있으면 꺼져 있어요(activity.ts).
+  DISCORD_ACTIVITY?: string;
 };
 
 export type Member = {

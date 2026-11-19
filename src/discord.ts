@@ -14,17 +14,19 @@ export function authorizeUrl(env: Env, redirectUri: string, state: string): stri
   return `https://discord.com/oauth2/authorize?${params}`;
 }
 
-export async function exchangeCode(env: Env, code: string, redirectUri: string): Promise<string | null> {
+// redirectUri가 없으면 디스코드 액티비티(앱 안 화면)에서 받은 code예요. 이때는 redirect_uri를 보내지 않아요.
+export async function exchangeCode(env: Env, code: string, redirectUri?: string): Promise<string | null> {
+  const body = new URLSearchParams({
+    client_id: env.DISCORD_CLIENT_ID,
+    client_secret: env.DISCORD_CLIENT_SECRET,
+    grant_type: 'authorization_code',
+    code,
+  });
+  if (redirectUri) body.set('redirect_uri', redirectUri);
   const res = await fetch(`${API}/oauth2/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: env.DISCORD_CLIENT_ID,
-      client_secret: env.DISCORD_CLIENT_SECRET,
-      grant_type: 'authorization_code',
-      code,
-      redirect_uri: redirectUri,
-    }),
+    body,
   });
   if (!res.ok) return null;
   const data = (await res.json()) as { access_token?: string };

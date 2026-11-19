@@ -5,6 +5,8 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import type { AppEnv, Member } from './env';
 import { randomToken, safeEqual, signSession, verifySession } from './crypto';
 import { authorizeUrl, exchangeCode, fetchGuildProfile, type LoginProfile } from './discord';
+import { ACTIVITY_COOKIE, activityOn, activityOrigin, isActivityLaunch, rewriteForActivity } from './activity';
+import { ActivityBootPage, activityScriptTag } from './views/activity';
 import {
   assignCharacters,
   buyGenderChange,
@@ -130,6 +132,17 @@ export function originDownResponse(request: Request): Response {
   const retry = request.method === 'GET' && /^\/(?![\/\\])/.test(url.pathname) ? url.pathname + url.search : '/me';
   return new Response('<!doctype html>' + String(<ErrorPage retry={retry} />), { status: 503, headers });
 }
+// 디스코드 액티비티(디스코드 앱 안)에서 보는 화면이면 프로필 사진 주소를 디스코드 프록시 주소로 바꾸고,
+// 바깥 링크 열기 스크립트를 붙여요. 디스코드 안 로그인 쿠키(hsa)가 있을 때만 해요. 스위치가 꺼져 있으면 아무것도 안 해요.
+app.use('*', async (c, next) => {
+  await next();
+  if (!activityOn(c.env) || !getCookie(c, ACTIVITY_COOKIE)) return;
+  if (!(c.res.headers.get('Content-Type') ?? '').startsWith('text/html')) return;
+  const html = rewriteForActivity(await c.res.text(), activityScriptTag(c.env.DISCORD_CLIENT_ID));
+  const headers = new Headers(c.res.headers);
+  headers.delete('Content-Length');
+  c.res = new Response(html, { status: c.res.status, headers });
+});
 app.use('*', async (c, next) => {
   if (maintenanceOn(c.env.MAINTENANCE) && !maintenanceSkips(c.req.path)) return troubleResponse(c, 'maintenance');
   await next();
@@ -141,7 +154,9 @@ const tooLarge = (c: Context<AppEnv>) => c.text('요청이 너무 커요', 413);
 // 그림 퍼 가기 막기: 다른 사이트에 우리 그림 주소를 붙여 쓰거나, 그림 주소를 새 탭에서 바로 여는 건 거절해요.
 // 우리 화면 안에서 쓰는 그림, 하리보봇이 가져가는 그림(Referer 없음)은 그대로 보여요.
 const imageGuard = async (c: Context<AppEnv>) => {
-  if (!imageRequestAllowed(c.req.header('Referer'), c.req.header('Sec-Fetch-Dest'), new URL(c.req.url).origin, baseUrl(c)))
+  const origins = [new URL(c.req.url).origin, baseUrl(c)];
+  if (activityOn(c.env)) origins.push(activityOrigin(c.env));
+  if (!imageRequestAllowed(c.req.header('Referer'), c.req.header('Sec-Fetch-Dest'), ...origins))
     return c.text('', 403, { 'Cache-Control': 'no-store' });
   const res = await c.env.ASSETS.fetch(c.req.raw);
   return res.status === 404 ? c.notFound() : res;
@@ -173,9 +188,25 @@ async function startSession(c: Context<AppEnv>, profile: LoginProfile) {
   });
 }
 
+// 디스코드 액티비티 안 로그인. 디스코드 앱은 우리 화면을 다른 사이트(discord.com) 속 칸으로 띄워서,
+// 쿠키가 칸 안에서도 저장·전송되도록 SameSite=None + Partitioned(그 칸 전용 보관함)로 넣어요.
+async function startActivitySession(c: Context<AppEnv>, profile: LoginProfile) {
+  await upsertLoginMember(c.env.DB, profile);
+  const exp = Date.now() + SESSION_DAYS * 86_400_000;
+  setCookie(c, ACTIVITY_COOKIE, await signSession(c.env.SESSION_SECRET, { uid: profile.id, exp }), {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'None',
+    partitioned: true,
+    path: '/',
+    maxAge: SESSION_DAYS * 86_400,
+  });
+}
+
 // 쿠키가 맞아도 서버를 떠났으면(봇이 removed로 알려 주면) 들어올 수 없어요.
+// 디스코드 액티비티 안에서는 hsa 쿠키로 로그인해요(스위치가 켜져 있을 때만).
 async function currentViewer(c: Context<AppEnv>): Promise<Member | null> {
-  const token = getCookie(c, SESSION_COOKIE);
+  const token = getCookie(c, SESSION_COOKIE) ?? (activityOn(c.env) ? getCookie(c, ACTIVITY_COOKIE) : undefined);
   if (!token) return null;
   const session = await verifySession(c.env.SESSION_SECRET, token);
   if (!session) return null;
@@ -184,6 +215,11 @@ async function currentViewer(c: Context<AppEnv>): Promise<Member | null> {
 }
 
 app.get('/', async (c) => {
+  // 디스코드 음성채널 🚀로 연 첫 화면: 로그인 쿠키가 있어도 매번 디스코드 계정을 다시 확인해요(계정을 바꿨을 수 있어요).
+  if (activityOn(c.env) && isActivityLaunch(c.req.query())) {
+    c.header('Cache-Control', 'no-store');
+    return page(c, <ActivityBootPage clientId={c.env.DISCORD_CLIENT_ID} />);
+  }
   if (await currentViewer(c)) return c.redirect('/me');
   const notMember = c.req.query('error') === 'not_member';
   return page(c, <LandingPage notMember={notMember} devLogin={c.env.DEV_LOGIN === '1'} />);
@@ -215,6 +251,28 @@ app.get('/auth/callback', async (c) => {
   return c.redirect('/me');
 });
 
+// 디스코드 액티비티 로그인: 디스코드 앱이 준 code를 받아 하리보 서버 멤버인지 확인하고 hsa 쿠키를 넣어요.
+app.post('/activity/login', bodyLimit({ maxSize: 4 * 1024, onError: tooLarge }), async (c) => {
+  c.header('Cache-Control', 'no-store');
+  if (!activityOn(c.env)) return c.notFound();
+  if (!sameOrigin(c)) return c.json({ error: 'bad_origin' }, 403);
+  const body = (await c.req.json().catch(() => null)) as { code?: unknown } | null;
+  const code = typeof body?.code === 'string' ? body.code.trim() : '';
+  if (!code || code.length > 200) return c.json({ error: 'bad_code' }, 400);
+  const token = await exchangeCode(c.env, code);
+  if (!token) return c.json({ error: 'discord' }, 403);
+  const profile = await fetchGuildProfile(c.env, token);
+  if (!profile) return c.json({ error: 'not_member' }, 403);
+  await startActivitySession(c, profile);
+  return c.json({ ok: true });
+});
+// 쿠키가 정말 저장됐는지 확인(디스코드 앱이 쿠키를 막으면 여기서 알 수 있어요).
+app.get('/activity/check', async (c) => {
+  c.header('Cache-Control', 'no-store');
+  if (!activityOn(c.env)) return c.notFound();
+  return c.json({ in: !!(await currentViewer(c)) });
+});
+
 // 로컬 개발 전용. .dev.vars에 DEV_LOGIN=1이 있을 때만 열려요.
 app.get('/auth/dev', async (c) => {
   if (c.env.DEV_LOGIN !== '1') return c.notFound();
@@ -228,6 +286,7 @@ app.post('/auth/logout', (c) => {
   // 다른 사이트가 몰래 로그아웃시키지 못하게 다른 기능처럼 출처를 확인해요
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
   deleteCookie(c, SESSION_COOKIE, { path: '/' });
+  if (getCookie(c, ACTIVITY_COOKIE)) deleteCookie(c, ACTIVITY_COOKIE, { path: '/', secure: true, sameSite: 'None', partitioned: true });
   return c.redirect('/');
 });
 
@@ -827,16 +886,18 @@ members.post('/api/me/character', (c) => c.redirect('/shop#gender'));
 
 // 다른 사이트에서 보낸 요청(CSRF)을 막아요. 요즘 브라우저는 POST에 Origin을 붙여요.
 // Origin이 없으면 Sec-Fetch-Site, 그다음 Referer로 확인해요. 셋 다 없는 아주 옛 브라우저만 쿠키의 SameSite=Lax에 맡겨요.
+// 디스코드 액티비티가 켜져 있으면 디스코드 안 주소(https://<앱ID>.discordsays.com)에서 온 요청도 우리 화면이에요.
 const sameOrigin = (c: Context<AppEnv>) => {
   const self = new URL(c.req.url).origin;
+  const okOrigin = (o: string) => o === self || (activityOn(c.env) && o === activityOrigin(c.env));
   const origin = c.req.header('Origin');
-  if (origin) return origin === self;
+  if (origin) return okOrigin(origin);
   const site = c.req.header('Sec-Fetch-Site');
   if (site) return site === 'same-origin' || site === 'none';
   const referer = c.req.header('Referer');
   if (referer) {
     try {
-      return new URL(referer).origin === self;
+      return okOrigin(new URL(referer).origin);
     } catch {
       return false;
     }

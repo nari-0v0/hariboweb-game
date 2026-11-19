@@ -2431,3 +2431,20 @@ main.wide { max-width: 1320px; }
 .esc-daily-head { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; justify-content: space-between; }
 .esc-daily p { margin: 4px 0; }
 .esc-daily-form .btn { margin-top: 4px; }
+
+/* 디스코드 액티비티(디스코드 앱 안에서 연 도감). 휴대폰 디스코드의 위·아래 가림 영역만큼 비켜요.
+   --discord-safe-area-inset-*는 디스코드가 넣어 주는 값, 없으면 0이에요. 로그아웃은 디스코드 안에서는 숨겨요. */
+html.in-activity {
+  --act-top: max(env(safe-area-inset-top, 0px), var(--discord-safe-area-inset-top, 0px));
+  --act-bottom: max(env(safe-area-inset-bottom, 0px), var(--discord-safe-area-inset-bottom, 0px));
+}
+html.in-activity body {
+  --nb: var(--act-top);
+  padding-top: var(--act-top); padding-bottom: var(--act-bottom);
+  padding-left: var(--discord-safe-area-inset-left, 0px); padding-right: var(--discord-safe-area-inset-right, 0px);
+}
+html.in-activity body.has-notice { --nb: calc(34px + var(--act-top)); }
+html.in-activity .notice-bar { top: var(--act-top); }
+html.in-activity .menu-foot form { display: none; }
+.act-boot { max-width: 420px; margin: 12vh auto 0; text-align: center; }
+.act-boot .act-retry[hidden] { display: none; }

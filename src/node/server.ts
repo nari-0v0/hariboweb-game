@@ -127,6 +127,7 @@ export async function createNodeRuntime(options: NodeRuntimeOptions = {}): Promi
     GAME_PROGRESS_TOKEN: variables.GAME_PROGRESS_TOKEN,
     SCRIM_QUESTS: variables.SCRIM_QUESTS,
     MAINTENANCE: variables.MAINTENANCE,
+    DISCORD_ACTIVITY: variables.DISCORD_ACTIVITY,
     AI: workersAi(variables.CF_ACCOUNT_ID, variables.CF_AI_TOKEN),
     // 광장은 제거되어 Node 서버에서는 이 바인딩을 사용하지 않아요.
     PLAZA: undefined as unknown as Env['PLAZA'],
