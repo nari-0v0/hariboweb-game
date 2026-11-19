@@ -60,6 +60,13 @@ describe('한마디 검사', () => {
     expect(cleanNote('  오늘   캐리 \n고마워요 ')).toBe('오늘 캐리 고마워요');
     expect([...cleanNote('가'.repeat(150))]).toHaveLength(100);
     expect(cleanNote(3)).toBe('');
+    // 글자 없이 문장부호만 있으면 한마디 없음(받는 사람 칭찬함에 “,”만 남지 않게)
+    expect(cleanNote(',')).toBe('');
+    expect(cleanNote(' . . !? ')).toBe('');
+    expect(cleanNote('💛')).toBe('💛');
+    expect(cleanNote('ㅋㅋ')).toBe('ㅋㅋ');
+    expect(cleanNote('🇰🇷')).toBe('🇰🇷');
+    expect(cleanNote('♥')).toBe('♥');
   });
 
   it('AI가 비꼬기라고 하면 한마디는 빼요. 욕설은 막지 않고, AI가 없거나 실패하면 그대로 보내요', async () => {
