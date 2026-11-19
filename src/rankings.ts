@@ -1,5 +1,6 @@
 import { characterUrl } from './character';
 import { expireAllHands, gambleMyRanks, gambleRanks } from './gamble-db';
+import { levelSql } from './sync';
 import { seasonAt } from './team';
 
 // 순위 메뉴(/rank): 도감·빙고(젤리피)·원정대·사건파일·겜블장. 지금 서버에 있는 멤버만, 3위까지 + 내 순위.
@@ -10,7 +11,7 @@ export type Podium = { top: PodiumRow[]; me: PodiumRow | null };
 
 export const PODIUM_SIZE = 3;
 
-type Raw = { user_id: string; name: string | null; value: number; character_id?: string | null; deco_id?: string | null };
+type Raw = { user_id: string; name: string | null; value: number; character_id?: string | null; deco_id?: string | null; lv?: number };
 
 // 값이 큰 순(같으면 SQL이 정한 순서). 같은 값이면 같은 순위예요.
 export function toPodium(rows: Raw[], userId: string, size = PODIUM_SIZE): Podium {
@@ -52,10 +53,20 @@ async function rows(db: D1Database, sql: string, ...binds: unknown[]): Promise<R
   return load;
 }
 
+// 카드 레벨 합계 순: 합계가 같으면 카드가 적은 사람(더 깊게 논 사람)이 앞, 그다음은 카드 수 순위와 같은 순서.
+export function byLevel(list: Raw[]): Raw[] {
+  return list
+    .map((r, i) => ({ r, i, lv: Number(r.lv) || 0 }))
+    .filter((x) => x.lv > 0)
+    .sort((a, b) => b.lv - a.lv || a.r.value - b.r.value || a.i - b.i)
+    .map(({ r, lv }) => ({ ...r, value: lv }));
+}
+
 const WHO = `m.display_name AS name, p.character_id, p.deco_id`;
 
 export type Rankings = {
   dogam: Podium; // 모은 도감 카드 수(지금 있는 멤버 카드만)
+  dogamLevel: Podium; // 그 카드들의 레벨을 모두 더한 값(나리 2026-11-19)
   jellypiSeason: Podium;
   jellypiAll: Podium;
   journey: Podium; // 원정대 가장 높이 간 레벨
@@ -81,7 +92,8 @@ export async function loadRankings(db: D1Database, userId: string, nowMs: number
   const [dogam, journey, escape, jpSeason, jpAll, gamble, gambleMine] = await Promise.all([
     !want('dogam') ? none : rows(
       db,
-      `SELECT c.owner_id AS user_id, ${WHO}, COUNT(*) AS value FROM cards c
+      // 카드 레벨 합계도 같은 줄에서 같이 세요(카드 표를 두 번 읽지 않게).
+      `SELECT c.owner_id AS user_id, ${WHO}, COUNT(*) AS value, SUM(${levelSql('c.xp')}) AS lv FROM cards c
        JOIN members m ON m.user_id = c.owner_id AND m.active = 1
        JOIN members t ON t.user_id = c.target_id AND t.active = 1
        LEFT JOIN profiles p ON p.user_id = c.owner_id
@@ -108,6 +120,7 @@ export async function loadRankings(db: D1Database, userId: string, nowMs: number
   const [chips = [], best = [], allIn = [], top = []] = gamble;
   return {
     dogam: toPodium(dogam, userId),
+    dogamLevel: toPodium(byLevel(dogam), userId),
     jellypiSeason: toPodium(jpSeason, userId),
     jellypiAll: toPodium(jpAll, userId),
     journey: toPodium(journey, userId),

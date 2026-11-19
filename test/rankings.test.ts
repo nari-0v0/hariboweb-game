@@ -74,6 +74,21 @@ describe('순위 메뉴', () => {
     expect(plainPodium([{ name: 'x', value: 5 }, { name: 'y', value: 4 }, { name: 'z', value: 3 }, { name: 'w', value: 1 }]).top).toHaveLength(3);
   });
 
+  it('카드 레벨 합계: 카드가 적어도 깊게 논 사람이 앞설 수 있어요', async () => {
+    const { sql, db } = fakeD1();
+    const card = sql.prepare("INSERT INTO cards (owner_id, target_id, xp, first_met, updated_at) VALUES (?, ?, ?, 'x', 'x')");
+    for (const t of [B, C, D]) card.run(A, t, 0); // A: Lv1 카드 3장 = 3
+    card.run(B, A, 365); // B: Lv10 카드 1장 = 10 (365 XP = Lv10)
+    card.run(C, A, 5); // C: Lv2 1장 = 2 (5 XP = Lv2)
+    card.run(D, A, 2); // D: Lv1 1장 = 1
+    card.run(D, ids[4]!, 999999); // 떠난 멤버 카드는 빼요
+    sql.prepare('UPDATE members SET active = 0 WHERE user_id = ?').run(ids[4]!);
+    const r = await loadRankings(db, D, NOW, 'dogam');
+    expect(r.dogam.top[0]).toMatchObject({ name: 'm1', value: 3 });
+    expect(r.dogamLevel.top.map((x) => [x.rank, x.name, x.value])).toEqual([[1, 'm2', 10], [2, 'm1', 3], [3, 'm3', 2]]);
+    expect(r.dogamLevel.me).toMatchObject({ rank: 4, value: 1 });
+  });
+
   it('도감·원정대·사건파일은 지금 있는 멤버만 세요', async () => {
     const { sql, db } = fakeD1();
     const card = sql.prepare("INSERT INTO cards (owner_id, target_id, xp, first_met, updated_at) VALUES (?, ?, 1, 'x', 'x')");
@@ -86,6 +101,7 @@ describe('순위 메뉴', () => {
     const r = await loadRankings(db, B, NOW);
     expect(r.dogam.top.map((x) => [x.name, x.value])).toEqual([['m1', 3], ['m2', 1]]);
     expect(r.dogam.me).toMatchObject({ rank: 2, value: 1 });
+    expect(r.dogamLevel.top.map((x) => [x.name, x.value])).toEqual([['m1', 3], ['m2', 1]]);
     expect(r.escape.top.map((x) => x.name)).toEqual(['m3']);
     expect(r.journey.top).toEqual([]);
   });
