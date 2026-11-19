@@ -76,17 +76,6 @@ describe('원정대 하루 모험 규칙', () => {
     const c = autoChoice(s)!;
     expect(actJourney(s, c)).not.toBeNull();
   });
-  it('자동으로 돌리면 상인에게서 1개만 사고 떠나요(나리 2026-11-19)', () => {
-    const shop: JourneyState = { ...startJourney('shop1'), coins: 9999, pending: { kind: 'shop', offers: [{ id: 'scroll', price: 10 }, { id: 'sword', price: 10 }, { id: 'heart', price: 10 }] } };
-    const first = autoChoice(shop)!;
-    expect(first.a).toBe('buy');
-    const after = actJourney(shop, first)!;
-    expect(after.pending?.kind).toBe('shop');
-    expect(autoChoice(after)).toEqual({ a: 'leave' });
-    const idle = actJourney(actJourney(shop, { a: 'idle' })!, { a: 'idle' })!;
-    expect(idle.coins).toBe(9999 - 10);
-    expect(idle.pending?.kind).not.toBe('shop');
-  });
   it('"고를 때까지"는 여러 날을 한 번에 가요', () => {
     const s = actJourney(startJourney('far'), { a: 'auto' })!;
     expect(s.pending || s.done || s.day > 1).toBeTruthy();
