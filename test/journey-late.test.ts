@@ -16,31 +16,28 @@ describe('원정대 10~15장', () => {
     expect(JOURNEY_NEEDS).toHaveLength(15);
     expect(journeyNeed(10)).toEqual({ cards: 60, lv: 20, lvCards: 8 });
     expect(journeyNeed(15)).toEqual({ cards: 70, lv: 35, lvCards: 12 });
-    expect(Object.keys(JOURNEY_RELEASE).map(Number)).toEqual([10, 11, 12, 13, 14, 15]);
+    expect(Object.keys(JOURNEY_RELEASE)).toEqual([]); // 나리 2026-11-19: 날짜 잠금 없이 도감 조건만
   });
-  it('지금은 10~15장이 "준비 중"으로 잠겨 있어서 도감을 다 채워도 9장까지만 열려요', () => {
-    expect(Object.values(JOURNEY_RELEASE).every((d) => d === null)).toBe(true);
-    expect(journeyOpenTo(everyone, kst('2030-01-01'))).toBe(9);
-    expect(journeyReleased(9, kst('2020-01-01'))).toBe(true);
-    expect(journeyReleased(10, kst('2030-01-01'))).toBe(false);
-    expect(releaseText(10)).toBe('준비 중이에요');
-    expect(releaseText(9)).toBe('');
-    expect(releasedTop(MAX_CHAPTER)).toBe(9); // 장비도 +9까지만
+  it('10~15장은 도감 조건만 채우면 열려요', () => {
+    expect(journeyOpenTo(everyone)).toBe(15);
+    expect(journeyReleased(10)).toBe(true);
+    expect(releaseText(10)).toBe('');
+    expect(releasedTop(MAX_CHAPTER)).toBe(15); // 장비도 +15까지
+    expect(journeyOpenTo({ cards: 59, levels: Array(59).fill(99) })).toBe(9);
+    expect(journeyOpenTo({ cards: 61, levels: Array(61).fill(99) })).toBe(10);
+    expect(journeyOpenTo({ cards: 70, levels: Array(70).fill(34) })).toBe(14); // 15장은 Lv35 카드 12장
   });
-  it('여는 날을 정하면 그날(한국 0시)부터 열려요', () => {
-    const saved = { ...JOURNEY_RELEASE };
-    Object.assign(JOURNEY_RELEASE, { 10: '2027-01-04', 11: '2027-03-01', 12: '2027-05-03', 13: '2027-07-05', 14: '2027-09-06', 15: '2027-11-01' });
+  it('나중에 새 장을 날짜로 잠그면: null은 "준비 중", 날짜는 그날(한국 0시)부터 열려요', () => {
     try {
+      Object.assign(JOURNEY_RELEASE, { 10: '2027-01-04', 15: null });
       expect(journeyOpenTo(everyone, kst('2027-01-03'))).toBe(9);
       expect(journeyOpenTo(everyone, new Date(kst('2027-01-04').getTime() - 1))).toBe(9);
-      expect(journeyOpenTo(everyone, kst('2027-01-04'))).toBe(10);
-      expect(journeyOpenTo(everyone, kst('2027-09-06'))).toBe(14);
-      expect(journeyOpenTo(everyone, kst('2027-11-01'))).toBe(15);
-      expect(journeyOpenTo({ cards: 61, levels: Array(61).fill(99) }, kst('2027-12-01'))).toBe(10);
+      expect(journeyOpenTo(everyone, kst('2027-01-04'))).toBe(14);
       expect(releaseText(10)).toBe('1월 4일에 열려요');
-      expect(releaseText(15)).toBe('11월 1일에 열려요');
+      expect(releaseText(15)).toBe('준비 중이에요');
+      expect(releasedTop(MAX_CHAPTER, kst('2030-01-01'))).toBe(14);
     } finally {
-      for (const k of Object.keys(JOURNEY_RELEASE)) JOURNEY_RELEASE[Number(k)] = saved[Number(k)] ?? null;
+      for (const k of Object.keys(JOURNEY_RELEASE)) delete JOURNEY_RELEASE[Number(k)];
     }
   });
   it('10장부터는 장마다 배경이 있고, 1~9장은 날짜별 배경 그대로예요', () => {
@@ -100,21 +97,33 @@ describe('10장 배경 화면', () => {
 });
 
 describe('장 고르기 화면', () => {
-  it('9장을 깨고 도감을 다 채워도 10장은 고를 수 없고 "준비 중"이 보여요', async () => {
+  it('9장을 깨고 도감을 다 채우면 10장을 고를 수 있어요', async () => {
     const { ChapterPick } = await import('../src/views/journey');
     const html = String(ChapterPick({ unlocked: 10, top: 9, dogam: everyone, farmed: {}, coins: 0 }));
+    expect(html).not.toMatch(/value="10"[^>]*disabled/);
+    expect(html).not.toContain('준비 중');
+  });
+  it('도감 조건이 모자라면 10장은 "도감이 필요해요"로 잠겨요', async () => {
+    const { ChapterPick } = await import('../src/views/journey');
+    const html = String(ChapterPick({ unlocked: 10, top: 9, dogam: { cards: 55, levels: Array(55).fill(99) }, farmed: {}, coins: 0 }));
     expect(html).toMatch(/value="10"[^>]*disabled/);
-    expect(html).toContain('🚧 준비 중이에요');
-    expect(html).not.toMatch(/value="9"[^>]*disabled/);
+    expect(html).toContain('도감이 필요해요');
   });
 });
 
-describe('준비 중인 장은 끝없는 탑에도 안 나와요', () => {
-  it('탑 몬스터·재료·세기는 9장(180층)까지가 기준이에요', async () => {
+describe('끝없는 탑은 15장(300층)까지가 기준이에요', () => {
+  it('탑 몬스터·재료가 10~15장까지 나와요', async () => {
     const { towerMonster, towerFoe, towerMat } = await import('../src/tower');
-    const nine = new Set(CHAPTERS.filter((c) => c.n <= 9).flatMap((c) => [...c.foes, c.elite, c.boss].map((m) => m.key)));
-    for (let f = 1; f <= 400; f++) expect(nine.has(towerMonster(f).key), `${f}층`).toBe(true);
-    expect(towerMat(200, 15)?.ch).toBe(9);
-    expect(towerFoe(181).hp).toBeGreaterThan(towerFoe(179).hp); // 180층 뒤로는 층마다 1.5%씩 더 세져요
+    const all = new Set(CHAPTERS.flatMap((c) => [...c.foes, c.elite, c.boss].map((m) => m.key)));
+    const late = new Set(CHAPTERS.filter((c) => c.n >= 10).flatMap((c) => [...c.foes, c.elite, c.boss].map((m) => m.key)));
+    let sawLate = false;
+    for (let f = 1; f <= 400; f++) {
+      const k = towerMonster(f).key;
+      expect(all.has(k), `${f}층`).toBe(true);
+      if (late.has(k)) sawLate = true;
+    }
+    expect(sawLate).toBe(true);
+    expect(towerMat(300, 15)?.ch).toBe(15);
+    expect(towerFoe(301).hp).toBeGreaterThan(towerFoe(299).hp);
   });
 });

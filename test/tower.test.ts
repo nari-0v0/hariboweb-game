@@ -70,7 +70,8 @@ describe('끝없는 탑 규칙', () => {
     expect(towerMat(30, 3)).toEqual({ ch: 2, n: 2 });
     expect(towerMat(60, 3)).toEqual({ ch: 3, n: 2 });
     expect(towerMat(70, 3)).toEqual({ ch: 3, n: 2 }); // 4장을 못 깼으면 3장 재료
-    expect(towerMat(400, MAX_CHAPTER)?.ch).toBe(9); // 10~15장이 준비 중인 동안은 9장 재료까지
+    expect(towerMat(400, MAX_CHAPTER)?.ch).toBe(MAX_CHAPTER); // 15장까지 깼으면 15장 재료까지
+    expect(towerMat(400, 9)?.ch).toBe(9);
   });
   it('몬스터는 층이 오를수록 세지고, 같은 층·같은 능력이면 결과가 늘 같아요', () => {
     for (let f = 1; f < 300; f++) {

@@ -30,15 +30,8 @@ export const JOURNEY_NEEDS: Need[] = [
 ];
 
 // 원정대 장이 열리는 날(한국 시간 0시). null이면 "준비 중"으로 잠겨 있어요(도감 조건을 채워도 안 열려요).
-// 나리 2026-11-19: 10~15장은 날짜를 정하기 전까지 준비 중으로 잠가 둬요. 기획 때 생각한 날: 10장 2027-01-04, 11장 03-01, 12장 05-03, 13장 07-05, 14장 09-06, 15장 11-01.
-export const JOURNEY_RELEASE: Record<number, string | null> = {
-  10: null,
-  11: null,
-  12: null,
-  13: null,
-  14: null,
-  15: null,
-};
+// 나리 2026-11-19 저녁: 10~15장은 날짜 없이 도감 조건만 채우면 열려요. 그래서 지금은 비어 있어요(나중에 새 장을 미리 잠글 때만 써요).
+export const JOURNEY_RELEASE: Record<number, string | null> = {};
 export const journeyReleased = (ch: number, now: Date = new Date()) => {
   if (!(ch in JOURNEY_RELEASE)) return true;
   const day = JOURNEY_RELEASE[ch];
