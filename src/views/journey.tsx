@@ -542,7 +542,8 @@ export function ChapterPick(props: { unlocked: number; top: number; dogam: Dogam
           const need = journeyNeed(c.n);
           const dogamOk = meets(need, props.dogam);
           const released = journeyReleased(c.n);
-          const open = c.n <= props.unlocked && dogamOk && released;
+          const open = c.n <= pick; // 서버(journeyOpenTo)와 같은 판정: 앞 장부터 이어서 열려요
+
           const boss = picOf('foe', c.boss.key);
           const bg = chapterBg(c.n);
           return (
@@ -552,7 +553,7 @@ export function ChapterPick(props: { unlocked: number; top: number; dogam: Dogam
                 {boss ? <img src={boss.src} alt="" loading="lazy" /> : <span>{c.boss.emoji}</span>}
               </span>
               <b>{c.n}장</b>
-              <span class="jr-chapter-name">{open ? c.name : !released ? `🚧 ${releaseText(c.n)}` : c.n <= props.unlocked ? '📖 도감이 필요해요' : '잠겨 있어요'}</span>
+              <span class="jr-chapter-name">{open ? c.name : !released ? `🚧 ${releaseText(c.n)}` : c.n > props.unlocked ? '잠겨 있어요' : dogamOk ? '📖 앞 장 도감 조건부터' : '📖 도감이 필요해요'}</span>
               <span class="hint">{chapterLevels(c.n)}</span>
               {open && c.n <= props.top && (
                 <span class="jr-farm" title="이미 깬 장을 다시 돌 때 모이는 젤코인">
@@ -561,7 +562,7 @@ export function ChapterPick(props: { unlocked: number; top: number; dogam: Dogam
               )}
               {need.cards > 0 && (
                 <span class={`jr-need${dogamOk ? ' ok' : ''}`} title={needText(need, props.dogam)}>
-                  {dogamOk ? '📖 도감 ✓' : `📖 ${shortNeed(need)}`}
+                  {dogamOk ? '📖 도감 ✓' : `📖 ${shortNeed(need, props.dogam)}`}
                 </span>
               )}
             </label>

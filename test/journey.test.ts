@@ -404,10 +404,7 @@ describe('원정대 장(챕터)', () => {
       card.run(`friend-${i}`);
       pair.run(`friend-${i}`);
     }
-    const { JOURNEY_RELEASE } = await import('../src/unlock');
-    const saved = { ...JOURNEY_RELEASE };
-    for (const k of Object.keys(JOURNEY_RELEASE)) JOURNEY_RELEASE[Number(k)] = '2027-01-01'; // 열렸다고 치고
-    const id = await beginJourney(db, 'me', MAX_CHAPTER, new Date('2027-11-01T00:00:00+09:00')).finally(() => Object.assign(JOURNEY_RELEASE, saved));
+    const id = await beginJourney(db, 'me', MAX_CHAPTER);
     expect((await getJourney(db, 'me', id!))?.state).toMatchObject({ ch: MAX_CHAPTER, farm: true });
   });
   it('장마다 몬스터 10마리 그림이 있고 이름이 겹치지 않아요', async () => {
