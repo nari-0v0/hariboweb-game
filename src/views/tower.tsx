@@ -37,7 +37,8 @@ export function TowerPage(props: { viewer: Member; art: string; bank: JourneyBan
   const mat = towerMat(floor, top);
   const fought: JourneyState | null = last ? { ...me, fx: last.fight.fx } : null;
   const plan = last ? fightPlan(last.fight.fx) : null;
-  const picked = new Set(last?.boosts ?? []);
+  // 진 층을 다시 할 때만 쓴 물약을 미리 골라 둬요(이긴 뒤 다음 층에서 모르고 또 사지 않게).
+  const picked = new Set(last && !last.won ? last.boosts : []);
   return (
     <Layout title="끝없는 탑" viewer={props.viewer} active="expedition">
       <Popup lines={props.notice && Object.hasOwn(NOTICES, props.notice) ? NOTICES[props.notice] ?? [] : []} />
@@ -80,8 +81,9 @@ export function TowerPage(props: { viewer: Member; art: string; bank: JourneyBan
                     )}
                   </div>
                   <div class="jr-stats">
-                    <span title="공격력">⚔️ {st.atk}</span>
-                    <span title="방어력">🛡️ {st.def}</span>
+                    {/* 결과 화면은 그 싸움에 쓴 능력치(물약 포함)를 보여 줘요 */}
+                    <span title="공격력">⚔️ {last ? last.fight.atk : st.atk}</span>
+                    <span title="방어력">🛡️ {last ? last.fight.def : st.def}</span>
                     {pet && <span title={petText(pet.id, pet.lv)}>🐾 {PETS[pet.id].name} Lv.{pet.lv}</span>}
                   </div>
                 </div>
@@ -156,7 +158,7 @@ export function TowerPage(props: { viewer: Member; art: string; bank: JourneyBan
           <ul>
             <li>원정대 {TOWER_OPEN}장을 깨면 열려요. 층마다 몬스터 하나와 싸워요. 자동으로 오르지 않고, 층마다 직접 눌러요.</li>
             <li>깬 층은 저장돼요. 지면 그 층부터 다시 하고, 층마다 보상은 처음 깰 때 한 번만 받아요.</li>
-            <li>n층을 깨면 젤코인 n개, 10층마다 강화 재료 2개를 받아요. 재료는 20층마다 다음 장 재료로 바뀌지만, 내가 깬 장까지만 나와요.</li>
+            <li>n층을 깨면 젤코인 n의 절반(1층 1개, 10층 5개, 11층 6개), 10층마다 강화 재료 2개를 받아요. 재료는 20층마다 다음 장 재료로 바뀌지만, 내가 깬 장까지만 나와요.</li>
             <li>싸움에는 원정 준비소의 훈련·장비와 데려간 펫이 들어가요. 같은 층에서 같은 능력이면 결과도 늘 같아서, 다시 누르기만 해서는 못 넘어요.</li>
             <li>잠깐 강해지기는 도전 한 번에만 들고, 그 층 보상보다 늘 비싸요.</li>
           </ul>

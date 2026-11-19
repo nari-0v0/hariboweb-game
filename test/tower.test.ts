@@ -49,6 +49,16 @@ const later = (ms: number) => new Date(Date.UTC(2026, 10, 19) + ms);
 const strong = { atk: 40, hp: 40, def: 15, weapon: 9, armor: 9, charm: 9 };
 
 describe('끝없는 탑 규칙', () => {
+  it('예전 보상(n개)으로 더 받은 양 ⌊T²/4⌋은 절반 보상과의 차이와 같아요', () => {
+    for (let T = 0; T <= 300; T++) {
+      let extra = 0;
+      for (let f = 1; f <= T; f++) extra += f - towerCoins(f);
+      expect(Math.floor((T * T) / 4)).toBe(extra);
+    }
+  });
+  it('n층 보상은 젤코인 n의 절반(올림)이에요', () => {
+    expect([1, 2, 10, 11, 69].map(towerCoins)).toEqual([1, 1, 5, 6, 35]);
+  });
   it('잠깐 강해지기 값은 어느 층에서나 그 층 보상보다 비싸요', () => {
     for (let f = 1; f <= 500; f++) for (const id of BOOST_IDS) expect(boostPrice(id, f)).toBeGreaterThan(towerCoins(f));
   });
@@ -96,13 +106,13 @@ describe('끝없는 탑 도전', () => {
     expect(await towerAttempt(db, 'me', 10, [], later(0))).toBe('ok');
     let bank = await journeyBank(db, 'me');
     expect(bank.tower).toBe(10);
-    expect(bank.coins).toBe(110);
+    expect(bank.coins).toBe(105);
     expect(bank.mats[1]).toBe(2);
     expect(parseTowerLast(bank.towerLast)?.won).toBe(true);
     expect(await towerAttempt(db, 'me', 11, [], later(100))).toBe('fast');
     expect(await towerAttempt(db, 'me', 11, ['atk', 'hp'], later(TOWER_GAP_MS + 1))).toBe('ok');
     bank = await journeyBank(db, 'me');
-    expect(bank.coins).toBe(110 - boostCost(['atk', 'hp'], 11) + 11);
+    expect(bank.coins).toBe(105 - boostCost(['atk', 'hp'], 11) + 6);
   });
   it('지면 그 층에 머물고 보상은 없어요. 잠깐 강해지기 값은 그래도 나가요', async () => {
     const { sql, db } = database();
@@ -133,6 +143,26 @@ describe('끝없는 탑 도전', () => {
     setup(sql, 'you', 3, { tower: 12 });
     setup(sql, 'gone', 3, { tower: 99 });
     expect((await towerRanking(db)).map((r) => r.user_id)).toEqual(['you', 'me']);
+  });
+});
+
+describe('탑 순위 같은 층', () => {
+  it('같은 층이면 먼저 오른 사람이 위예요. 그 뒤 진 도전으로 밀리지 않아요', async () => {
+    const { sql, db } = database();
+    setup(sql, 'me', 3, { ...strong, tower: 0, coins: 0 });
+    setup(sql, 'you', 3, { ...strong, tower: 0, coins: 0 });
+    expect(await towerAttempt(db, 'me', 1, [], later(0))).toBe('ok');
+    expect(await towerAttempt(db, 'you', 1, [], later(10))).toBe('ok');
+    // 내가 더 높은 층에서 지는 걸 흉내 내요(늦은 시각의 진 도전)
+    sql.prepare("UPDATE journey_bank SET tower_at = '2099-01-01T00:00:00.000Z' WHERE user_id = 'me'").run();
+    expect((await towerRanking(db)).map((r) => r.user_id)).toEqual(['me', 'you']);
+  });
+  it('진 도전은 오른 때를 바꾸지 않아요', async () => {
+    const { sql, db } = database();
+    setup(sql, 'me', 3, { tower: 150, coins: 1000 });
+    sql.prepare("UPDATE journey_bank SET tower_up_at = 'x' WHERE user_id = 'me'").run();
+    expect(await towerAttempt(db, 'me', 151, [], later(0))).toBe('ok');
+    expect(sql.prepare("SELECT tower_up_at FROM journey_bank WHERE user_id = 'me'").get()).toEqual({ tower_up_at: 'x' });
   });
 });
 
@@ -205,5 +235,22 @@ describe('펫', () => {
     expect(run!.state.hp).toBeGreaterThan(100); // 솜사탕 양: 최대 체력이 올라서 가득 채우고 떠나요
     await equipPet(db, 'me', null);
     expect((await journeyBank(db, 'me')).pet).toBeNull();
+  });
+});
+
+describe('아기 펭귄 회피와 방패', () => {
+  it('피한 공격에는 준비물 방패 횟수를 쓰지 않아요', async () => {
+    const { startJourney, battle } = await import('../src/journey');
+    const { rng } = await import('../src/rng');
+    const { CHAPTERS } = await import('../src/journey-chapters');
+    let checked = 0;
+    for (let i = 0; i < 40; i++) {
+      const s = startJourney(`dodge${i}`, { atk: 1, hp: 30, def: 0 } as never, 1, undefined, ['shield'], { id: 'penguin', lv: 3000 });
+      battle(s, CHAPTERS[0]!.foes[0]!, 1, rng(`dodge${i}`), [], 0, { hp: 400, atk: 30 });
+      const taken = s.fx!.hits.filter((h) => h[0] === 1 && h[1] > 0).length;
+      expect(s.kitShield).toBe(Math.max(0, 4 - taken));
+      if (s.fx!.hits.some((h) => h[0] === 1 && h[1] === 0)) checked++;
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 });

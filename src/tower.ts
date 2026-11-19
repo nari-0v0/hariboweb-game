@@ -1,7 +1,7 @@
 // 끝없는 탑(나리 2026-11-19): 원정대 3장을 깨면 열려요.
 // - 한 층 = 한 판 싸움. 자동 사냥은 없고, 층마다 '도전'을 직접 눌러요.
 // - 깬 층은 저장돼요. 지면 같은 층부터 다시 하고, 층마다 보상은 처음 깰 때 한 번만 받아요.
-// - 보상은 작게: n층을 깨면 젤코인 n개. 10층마다 강화 재료 2개.
+// - 보상은 작게: n층을 깨면 젤코인 n의 절반(올림, 나리 2026-11-19에 n개 → 절반). 10층마다 강화 재료 2개.
 //   재료 장은 20층마다 하나씩 올라가요(10·20층 = 1장, 30·40층 = 2장 …). 단, 내가 깬 장까지만 나와요.
 // - 젤코인으로 잠깐 강해지기: 도전 한 번에만 들어요. 값은 그 층 보상보다 늘 비싸서 탑으로 젤코인을 불리는 일은 없어요.
 // - 싸움에는 원정 준비소의 훈련·장비와 데려간 펫이 들어가요(판 안에서 배우는 스킬은 없어요).
@@ -17,7 +17,7 @@ export const MAT_EVERY = 10;
 export const MAT_COUNT = 2;
 export const TOWER_GAP_MS = 1500; // 도전 사이 최소 간격(버튼 연타·자동 누르기 막기)
 
-export const towerCoins = (floor: number) => Math.max(0, Math.floor(floor));
+export const towerCoins = (floor: number) => Math.max(0, Math.ceil(Math.floor(floor) / 2));
 // 10층마다 재료: 그 층이 맞는 장(20층마다 하나씩)과 내가 깬 장 중 낮은 쪽
 export function towerMat(floor: number, top: number): { ch: number; n: number } | null {
   if (floor <= 0 || floor % MAT_EVERY !== 0 || top <= 0) return null;
