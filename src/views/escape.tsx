@@ -708,7 +708,7 @@ function DailyPanel(props: { daily: DailyInfo; run: EscRun | null }) {
             <span class="hint">
               {goingDaily
                 ? `오늘의 사건을 푸는 중이에요. 힌트 없이 답을 ${RE_LIVES}번 틀리면 실패예요.`
-                : `하루 한 번, 힌트 없이 답을 ${RE_LIVES}번 틀리면 실패예요. 시작하면 오늘 기회를 써요${run ? '(하던 사건은 덮여요)' : ''}. 보상 없이 기록만 남아요.`}
+                : `내가 해결한 사건 중 하나를 범인·단서·물건 자리를 새로 섞었어요. 하루 한 번, 힌트 없이 답을 ${RE_LIVES}번 틀리면 실패예요. 시작하면 오늘 기회를 써요${run ? '(하던 사건은 덮여요)' : ''}. 보상 없이 기록만 남아요.`}
             </span>
           </p>
           <button type="submit" class="btn btn-primary btn-small">{goingDaily ? '▶ 이어 하기' : '📅 오늘의 사건 풀기'}</button>
