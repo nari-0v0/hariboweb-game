@@ -131,7 +131,11 @@ export function clockTime(msg: string): [number, number] | null {
   return t ? [Number(t[1]) % 12, Number(t[2] ?? 0)] : null;
 }
 
-const box = (h: Hotspot) => `left:${h.x - h.w / 2}%;top:${h.y - h.h / 2}%;width:${h.w}%;height:${h.h}%`;
+// 누르는 칸은 tap(작은 물건만 조금 넓힌 범위)을 써요
+const box = (h: Hotspot) => {
+  const b = h.tap ?? h;
+  return `left:${b.x - b.w / 2}%;top:${b.y - b.h / 2}%;width:${b.w}%;height:${b.h}%`;
+};
 
 // 방 그림 속 물건 자리 하나. 눌러야 반응해요(표시는 없어요).
 function Hot(props: { run: EscRun; o: EscObject; h: Hotspot }) {
