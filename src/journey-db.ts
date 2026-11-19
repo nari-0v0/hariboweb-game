@@ -146,7 +146,7 @@ export async function beginJourney(db: D1Database, user: string, chapter = 1, no
   const t = now.toISOString();
   const bank = await journeyBank(db, user);
   const cost = kitCost(kit, level);
-  if (cost > bank.coins) return NO_COINS;
+  if (cost > 0 && cost > bank.coins) return NO_COINS; // 빚(마이너스)이 있어도 준비물 없이는 떠날 수 있어요
   const state = startJourney(id, bank, ch, bank, kit, bankPet(bank));
   // 이미 깬 장(재료가 덜 나와요). 마지막 장을 깨도 unlocked는 더 올라가지 않아요.
   state.farm = ch < unlocked || (ch === MAX_CHAPTER && !!await db

@@ -26,7 +26,7 @@ export async function towerAttempt(db: D1Database, user: string, seen: number, b
   if (seen !== floor || (seenAt !== undefined && seenAt !== (bank.towerAt ?? ''))) return 'stale';
   if (bank.towerAt && now.getTime() - Date.parse(bank.towerAt) < TOWER_GAP_MS) return 'fast';
   const cost = boostCost(boosts, floor);
-  if (bank.coins < cost) return 'nocoins';
+  if (cost > 0 && bank.coins < cost) return 'nocoins'; // 빚(마이너스)이 있어도 물약 없이는 도전할 수 있어요
   const f = towerFight(user, floor, bank, bank, bankPet(bank), boosts);
   const gain = f.won ? towerCoins(floor) : 0;
   const mat = f.won ? towerMat(floor, top) : null;
@@ -35,10 +35,10 @@ export async function towerAttempt(db: D1Database, user: string, seen: number, b
   const gapFrom = new Date(now.getTime() - TOWER_GAP_MS).toISOString();
   const r = await db
     .prepare(
-      `UPDATE journey_bank SET coins = coins - ?3 + ?4, tower = tower + ?5, tower_at = ?6, tower_last = ?7, updated_at = ?6,
+      `UPDATE journey_bank SET coins = coins - ?3 + ?4, tower = tower + ?5, tower_new = tower_new + ?5, tower_at = ?6, tower_last = ?7, updated_at = ?6,
          tower_up_at = CASE WHEN ?5 > 0 THEN ?6 ELSE tower_up_at END,
          mats = CASE WHEN ?8 > 0 THEN json_set(mats, ?9, COALESCE(json_extract(mats, ?9), 0) + ?8) ELSE mats END
-       WHERE user_id = ?1 AND tower = ?2 AND coins >= ?3 AND (tower_at IS NULL OR tower_at <= ?10) AND (?11 IS NULL OR COALESCE(tower_at, '') = ?11)
+       WHERE user_id = ?1 AND tower = ?2 AND (?3 = 0 OR coins >= ?3) AND (tower_at IS NULL OR tower_at <= ?10) AND (?11 IS NULL OR COALESCE(tower_at, '') = ?11)
          AND EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)`,
     )
     .bind(user, floor - 1, cost, gain, f.won ? 1 : 0, t, JSON.stringify(last), mat?.n ?? 0, matPath(mat?.ch ?? 1), gapFrom, seenAt ?? null)
