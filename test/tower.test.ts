@@ -136,6 +136,26 @@ describe('끝없는 탑 도전', () => {
   });
 });
 
+describe('탑 순위 같은 층', () => {
+  it('같은 층이면 먼저 오른 사람이 위예요. 그 뒤 진 도전으로 밀리지 않아요', async () => {
+    const { sql, db } = database();
+    setup(sql, 'me', 3, { ...strong, tower: 0, coins: 0 });
+    setup(sql, 'you', 3, { ...strong, tower: 0, coins: 0 });
+    expect(await towerAttempt(db, 'me', 1, [], later(0))).toBe('ok');
+    expect(await towerAttempt(db, 'you', 1, [], later(10))).toBe('ok');
+    // 내가 더 높은 층에서 지는 걸 흉내 내요(늦은 시각의 진 도전)
+    sql.prepare("UPDATE journey_bank SET tower_at = '2099-01-01T00:00:00.000Z' WHERE user_id = 'me'").run();
+    expect((await towerRanking(db)).map((r) => r.user_id)).toEqual(['me', 'you']);
+  });
+  it('진 도전은 오른 때를 바꾸지 않아요', async () => {
+    const { sql, db } = database();
+    setup(sql, 'me', 3, { tower: 150, coins: 1000 });
+    sql.prepare("UPDATE journey_bank SET tower_up_at = 'x' WHERE user_id = 'me'").run();
+    expect(await towerAttempt(db, 'me', 151, [], later(0))).toBe('ok');
+    expect(sql.prepare("SELECT tower_up_at FROM journey_bank WHERE user_id = 'me'").get()).toEqual({ tower_up_at: 'x' });
+  });
+});
+
 describe('펫', () => {
   it('키우는 젤코인과 재료는 레벨이 오를수록 늘어요', () => {
     let coins = 0, mats = 0;

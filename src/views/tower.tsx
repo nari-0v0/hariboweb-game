@@ -37,7 +37,8 @@ export function TowerPage(props: { viewer: Member; art: string; bank: JourneyBan
   const mat = towerMat(floor, top);
   const fought: JourneyState | null = last ? { ...me, fx: last.fight.fx } : null;
   const plan = last ? fightPlan(last.fight.fx) : null;
-  const picked = new Set(last?.boosts ?? []);
+  // 진 층을 다시 할 때만 쓴 물약을 미리 골라 둬요(이긴 뒤 다음 층에서 모르고 또 사지 않게).
+  const picked = new Set(last && !last.won ? last.boosts : []);
   return (
     <Layout title="끝없는 탑" viewer={props.viewer} active="expedition">
       <Popup lines={props.notice && Object.hasOwn(NOTICES, props.notice) ? NOTICES[props.notice] ?? [] : []} />

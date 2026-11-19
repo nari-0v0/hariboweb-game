@@ -36,6 +36,7 @@ export async function towerAttempt(db: D1Database, user: string, seen: number, b
   const r = await db
     .prepare(
       `UPDATE journey_bank SET coins = coins - ?3 + ?4, tower = tower + ?5, tower_at = ?6, tower_last = ?7, updated_at = ?6,
+         tower_up_at = CASE WHEN ?5 > 0 THEN ?6 ELSE tower_up_at END,
          mats = CASE WHEN ?8 > 0 THEN json_set(mats, ?9, COALESCE(json_extract(mats, ?9), 0) + ?8) ELSE mats END
        WHERE user_id = ?1 AND tower = ?2 AND coins >= ?3 AND (tower_at IS NULL OR tower_at <= ?10) AND (?11 IS NULL OR COALESCE(tower_at, '') = ?11)
          AND EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)`,
@@ -50,7 +51,7 @@ export async function towerRanking(db: D1Database, limit = 10): Promise<TowerRan
   const { results } = await db
     .prepare(
       `SELECT b.user_id, m.display_name, b.tower FROM journey_bank b JOIN members m ON m.user_id = b.user_id AND m.active = 1
-       WHERE b.tower > 0 ORDER BY b.tower DESC, b.tower_at ASC LIMIT ?`,
+       WHERE b.tower > 0 ORDER BY b.tower DESC, b.tower_up_at ASC LIMIT ?`,
     )
     .bind(limit)
     .all<TowerRank>();
@@ -98,7 +99,8 @@ export async function levelPet(db: D1Database, user: string, id: PetId, seen?: n
   const r = await db
     .prepare(
       `UPDATE journey_bank SET coins = coins - ?3, pets = json_set(pets, ?5, ?2 + 1), mats = json_set(mats, ${sets.join(', ')}), updated_at = ?4
-       WHERE user_id = ?1 AND json_extract(pets, ?5) = ?2 AND coins >= ?3 AND ${checks.join(' AND ')}`,
+       WHERE user_id = ?1 AND json_extract(pets, ?5) = ?2 AND coins >= ?3 AND ${checks.join(' AND ')}
+         AND EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)`,
     )
     .bind(...binds)
     .run();
