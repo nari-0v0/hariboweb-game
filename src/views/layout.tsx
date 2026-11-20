@@ -35,7 +35,7 @@ export function Layout(props: {
         {props.preloadImages?.map((href) => <link rel="preload" href={href} as="image" fetchpriority="high" />)}
         <link rel="icon" type="image/png" href="/char/deco/explorer.png" />
         <link rel="stylesheet" href="/styles.css?v=hud3-1121" />
-        <script src="/app.js?v=autonext2-1121" defer></script>
+        <script src="/app.js?v=autonext3-1121" defer></script>
         {props.scripts?.map((script) => typeof script === 'string'
           ? <script src={script} defer></script>
           : <script src={script.src} type={script.type}></script>)}

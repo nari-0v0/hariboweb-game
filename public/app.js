@@ -133,7 +133,8 @@ addEventListener('pageshow', (e) => {
   if (new URLSearchParams(location.search).get('n') === 'quit') set(false);
   const again = document.querySelector('.jr-result form.jr-chapters');
   if (again && get()) {
-    const finalWait = Number(document.querySelector('[data-final-wait]')?.getAttribute('data-final-wait')) || 0;
+    // 결과가 실제로 보이는 때부터 5초를 세요(움직임 줄이기면 결과가 바로 보여요. 아래 마지막 싸움 처리와 같은 규칙)
+    const finalWait = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : Number(document.querySelector('[data-final-wait]')?.getAttribute('data-final-wait')) || 0;
     const box = document.createElement('div');
     box.className = 'jr-autonext';
     box.setAttribute('role', 'status');
