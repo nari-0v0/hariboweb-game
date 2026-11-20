@@ -515,7 +515,7 @@ describe('원정대 도감 젤리', () => {
     const ins = sql.prepare("INSERT INTO journey_runs (id, user_id, state, started_at, updated_at, chapter, status, cleared, reward_day, xp) VALUES (?, 'me', '{}', 'x', 'x', ?, 'done', 1, ?, ?)");
     for (let ch = 1; ch <= 8; ch++) ins.run(`c${ch}`, ch, '2000-01-01', 0);
     // 오늘 보상 2판은 이미 받았어요
-    const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+    const today = new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 10); // 도감 날짜(한국 아침 6시 기준)
     ins.run('t1', 1, today, 5);
     ins.run('t2', 1, today, 5);
     const s = startJourney('final', { atk: 200, hp: 200, def: 100 }, 9, {});

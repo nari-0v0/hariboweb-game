@@ -1,16 +1,16 @@
 // 오늘의 사건(나리 2026-11-19): 하루에 한 번, 내가 해결한 사건 하나를 범인·단서·물건 자리를 새로 섞어 다시 풀어요.
 // - 재수사와 같은 규칙: 힌트 없음, 답(비밀번호·장치 확인·범인)을 3번 틀리면 실패.
-// - 하루에 한 번만(시작하면 그날 기회를 쓴 거예요). 날짜는 한국 시간으로 바뀌어요.
+// - 하루에 한 번만(시작하면 그날 기회를 쓴 거예요). 날짜는 한국 시간 아침 6시에 바뀌어요.
 // - 보상은 없고 기록만(해결한 날 수, 연속 해결, 그날 걸린 시간). 숙제처럼 되지 않게(나리 2026-11-19).
 // - 수수께끼는 같아서 숫자만 바꾼 문제는 만들지 않아요(사건파일이 계산 문제처럼 느껴진다는 나리 의견).
 import { STORY_SEEDS } from './escape-stories';
+import { gameDay } from './day';
 
 // 나리 2026-11-19 켬("오늘의 사건도 배포해줘"). false로 바꿔 배포하면 화면에서 사라지고 시작도 안 돼요.
 export const DAILY_OPEN = true;
 
-const KST_MS = 9 * 60 * 60 * 1000;
-// 한국 날짜(YYYY-MM-DD)
-export const kstDay = (now: Date) => new Date(now.getTime() + KST_MS).toISOString().slice(0, 10);
+// 도감 날짜(한국 시간 아침 6시에 바뀌어요. src/day.ts)
+export const kstDay = (now: Date) => gameDay(now);
 // 그날의 섞은 판 번호. 다시 열기 판 번호(그 사건을 시작한 횟수)와 겹치지 않게 크게 잡아요.
 export const dailyVariant = (day: string) => 100_000 + Math.floor(Date.parse(`${day}T00:00:00Z`) / 86_400_000);
 

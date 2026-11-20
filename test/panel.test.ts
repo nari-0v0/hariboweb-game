@@ -77,9 +77,10 @@ describe('칭찬하기', () => {
     expect(jellyOf(sql, A)).toBe(4);
   });
 
-  it('한국 날짜로 세요', () => {
-    expect(kstDay(new Date('2026-11-01T15:00:00Z'))).toBe('2026-11-02');
-    expect(kstDay(new Date('2026-11-01T14:59:59Z'))).toBe('2026-11-01');
+  it('한국 시간 아침 6시에 날짜가 바뀌어요', () => {
+    expect(kstDay(new Date('2026-11-01T21:00:00Z'))).toBe('2026-11-02');
+    expect(kstDay(new Date('2026-11-01T20:59:59Z'))).toBe('2026-11-01');
+    expect(kstDay(new Date('2026-11-01T15:00:00Z'))).toBe('2026-11-01'); // 한국 자정은 아직 전날
   });
 });
 

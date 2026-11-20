@@ -7,8 +7,8 @@ import { cardScore, COIN_PAYOUT, payback, openingPayout, playHand, SLOTS, slotPa
 import { SHOP_ITEMS } from '../src/shop';
 import { loadRankings } from '../src/rankings';
 
-const TODAY = '2026-11-10T14:59:00.000Z';
-const TOMORROW = '2026-11-10T15:00:00.000Z';
+const TODAY = '2026-11-10T20:59:00.000Z'; // 한국 11/11 5:59(아직 11/10)
+const TOMORROW = '2026-11-10T21:00:00.000Z'; // 한국 11/11 6:00
 // 같은 날 TODAY보다 n초 뒤(판 사이 최소 간격을 넘기려고 써요)
 const LATER = (n: number) => new Date(Date.parse(TODAY) + n * 1000).toISOString();
 const USER = '100000000000000001';

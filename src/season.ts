@@ -1,3 +1,4 @@
+import { dayStartMs } from './day';
 import { awardGambleSeason } from './gamble-db';
 // 시즌 모둠 퀘스트: 모둠 나누기, 봇 기록 모으기, 퀘스트 확인과 보상.
 // 시즌 = 커뮤니티 주기(2주). 봇이 동기화 때 시즌 시작·끝을 보내면 처음 한 번 모둠을 만들어요.
@@ -313,9 +314,8 @@ export async function seasonStatements(db: D1Database, p: SeasonPayload, nowMs: 
 export async function seasonTargets(db: D1Database, p: SeasonPayload): Promise<{ season: Season; join: boolean }[]> {
   const out: { season: Season; join: boolean }[] = [];
   if (p.season && (await db.prepare('SELECT 1 FROM seasons WHERE id = ?').bind(p.season.id).first())) out.push({ season: p.season, join: true });
-  // 출석은 날짜(한국 시간)만 오므로 그날 0시로 봐요.
-  const times = [...p.room_minutes.map((r) => r.at), ...p.scrims.map((s) => s.at), ...p.attendance.map((a) => `${a.day}T00:00:00+09:00`)]
-    .map((x) => Date.parse(x))
+  // 출석은 도감 날짜만 오므로 그날이 시작하는 순간(한국 시간 아침 6시)으로 봐요.
+  const times = [...p.room_minutes.map((r) => Date.parse(r.at)), ...p.scrims.map((s) => Date.parse(s.at)), ...p.attendance.map((a) => dayStartMs(a.day))]
     .filter(Number.isFinite);
   if (!times.length) return out;
   const earliest = new Date(Math.min(...times)).toISOString();
