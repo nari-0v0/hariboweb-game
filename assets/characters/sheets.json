@@ -914,6 +914,266 @@
      "로봇 기사"
     ]
    ]
+  },
+  {
+   "file": "deco/jobs2/astronaut-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "astronaut-girl",
+     "우주비행사 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/astronaut-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "astronaut-boy",
+     "우주비행사 소년"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/beekeeper-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "beekeeper-girl",
+     "양봉가 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/beekeeper-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "beekeeper-boy",
+     "양봉가 소년"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/calligrapher-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "calligrapher-girl",
+     "서예가 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/calligrapher-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "calligrapher-boy",
+     "서예가 소년"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/clockmaker-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "clockmaker-girl",
+     "시계공 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/clockmaker-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "clockmaker-boy",
+     "시계공 소년"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/conductor-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "conductor-girl",
+     "차장 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/conductor-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "conductor-boy",
+     "차장 소년"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/construction-worker-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "construction-worker-girl",
+     "건설공 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/construction-worker-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "construction-worker-boy",
+     "건설공 소년"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/diver-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "diver-girl",
+     "잠수부 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/diver-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "diver-boy",
+     "잠수부 소년"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/farmer-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "farmer-girl",
+     "농부 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/farmer-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "farmer-boy",
+     "농부 소년"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/lighthouse-keeper-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "lighthouse-keeper-girl",
+     "등대지기 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/lighthouse-keeper-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "lighthouse-keeper-boy",
+     "등대지기 소년"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/puppeteer-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "puppeteer-girl",
+     "인형술사 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/puppeteer-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "puppeteer-boy",
+     "인형술사 소년"
+    ]
+   ]
   }
  ]
 }

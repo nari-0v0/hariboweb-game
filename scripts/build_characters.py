@@ -82,6 +82,15 @@ def cut_sheet(path, rows):
     return out
 
 
+def cut_single(path):
+    """투명 배경 낱장 그림(캐릭터 한 명). 벌·물방울처럼 떨어진 소품도 지우지 않고 빈 테두리만 잘라요."""
+    img = np.array(Image.open(path).convert("RGBA"))
+    ys, xs = np.where(img[..., 3] > 0)
+    a = img[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1].copy()
+    a[..., :3][a[..., 3] == 0] = 0
+    return a
+
+
 def cut_characters(sheets):
     names, sprites, seen = [], [], set()
     for sheet in sheets:
@@ -90,7 +99,10 @@ def cut_characters(sheets):
         for key, _ in chars:
             assert key not in seen, f"이름이 겹쳐요: {key}"
             seen.add(key)
-        sprites += cut_sheet(SRC / sheet["file"], sheet["rows"])
+        if sheet.get("single"):
+            sprites.append(cut_single(SRC / sheet["file"]))
+        else:
+            sprites += cut_sheet(SRC / sheet["file"], sheet["rows"])
         names += [tuple(c) for c in chars]
     return names, sprites
 
