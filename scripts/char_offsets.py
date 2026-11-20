@@ -5,7 +5,6 @@
 새 그림을 넣으면 다시 돌려요: python3 scripts/char_offsets.py
 """
 
-import re
 from pathlib import Path
 
 import numpy as np
@@ -90,9 +89,7 @@ def main() -> None:
     rows = []
     for path in sorted(CHAR.glob("*.png")) + sorted((CHAR / "deco").glob("*.png")):
         key = path.relative_to(CHAR).as_posix()
-        # 기본 캐릭터 색 여분(-1~-3)은 원래 그림(-0)과 자세가 같아요: 색 때문에 얼굴을 잘못 찾지 않게 -0 값을 그대로 써요.
-        base = re.sub(r"-[1-9]\.png$", "-0.png", key) if "/" not in key else key
-        off = MANUAL[base] if base in MANUAL else feet_offset(CHAR / base)
+        off = MANUAL[key] if key in MANUAL else feet_offset(path)
         if abs(off) >= 1.5 or (key in MANUAL and off):
             rows.append(f"  '{key}': {off},")
     OUT.write_text(
