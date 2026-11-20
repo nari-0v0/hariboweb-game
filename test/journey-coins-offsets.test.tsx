@@ -65,22 +65,23 @@ describe('원정대 싸움 중 젤코인 (슬금님 제보 2026-11-20)', () => {
   });
 });
 
-describe('꾸밈 캐릭터 가운데 맞추기 (멍쑤님 제보 2026-11-20)', () => {
-  it('꼬리가 발 높이에 있는 꾸밈 캐릭터는 꼬리 때문에 옮기지 않아요', () => {
-    // 드래곤: 몸 전체는 거의 가운데(1.0%)라 따로 옮기지 않아요(예전엔 꼬리 때문에 7.6%)
+describe('꾸밈 캐릭터 가운데 맞추기 (멍쑤님 제보 2026-11-20, 얼굴 기준으로 바꿈 #291)', () => {
+  it('꼬리가 발 높이에 있어도 꼬리 때문에 크게 옮기지 않아요(얼굴을 가운데에 둬요)', () => {
+    // 드래곤: 얼굴이 거의 가운데라 따로 옮기지 않아요(예전 발 기준일 땐 꼬리 때문에 7.6%)
     expect(CHAR_OFFSETS['deco/dragon.png']).toBeUndefined();
-    // 꼬리 달린 동물 옷들도 몸 전체 기준이라 예전(7~9%)보다 훨씬 덜 옮겨요
-    for (const k of ['deco/fox.png', 'deco/wolf.png', 'deco/dino.png', 'deco/tiger.png', 'deco/raccoon.png']) expect(Math.abs(CHAR_OFFSETS[k] ?? 0)).toBeLessThan(3);
+    // 꼬리 달린 동물 옷들도 예전 발 기준(7~9%)보다 덜 옮겨요
+    for (const k of ['deco/fox.png', 'deco/wolf.png', 'deco/dino.png', 'deco/tiger.png', 'deco/raccoon.png']) expect(Math.abs(CHAR_OFFSETS[k] ?? 0)).toBeLessThan(6);
   });
 
-  it('멤버 기본 캐릭터 값은 그대로예요(포니테일은 발 기준)', () => {
-    expect(CHAR_OFFSETS['girl-36-0.png']).toBe(13.8);
-    expect(CHAR_OFFSETS['girl-43-0.png']).toBe(15.3);
-    expect(CHAR_OFFSETS['girl-08-0.png']).toBe(-8.6);
+  it('포니테일 멤버 캐릭터는 여전히 얼굴 쪽으로 옮겨요', () => {
+    expect(CHAR_OFFSETS['girl-36-0.png']).toBeGreaterThan(10);
+    expect(CHAR_OFFSETS['girl-43-0.png']).toBeGreaterThan(10);
+    expect(CHAR_OFFSETS['girl-08-0.png']).toBeLessThan(-6);
   });
 
-  it('스크립트는 꾸밈 캐릭터에만 몸 전체 기준을 써요', () => {
+  it('스크립트는 얼굴 가운데를 먼저 찾고, 못 찾으면 몸 가운데를 써요', () => {
     const py = readFileSync('scripts/char_offsets.py', 'utf8');
-    expect(py).toContain('path.parent.name == "deco" and abs(feet) - abs(whole) > TAIL_GAP');
+    expect(py).toContain('def face_center');
+    expect(py).toContain('def body_center');
   });
 });

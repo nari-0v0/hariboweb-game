@@ -27,7 +27,9 @@ export const THEME_PRICES: Record<string, number> = {
 
 const DECO_TIERS: [number, string[]][] = [
   [30, ['hoodie', 'pink-knit', 'student', 'sailor', 'office', 'winter', 'winter-scarf', 'red-cap', 'prep', 'camper', 'bookworm', 'courier']],
-  [35, ['teacher', 'professor', 'nurse', 'barista', 'baker', 'chef', 'painter', 'photographer', 'soccer', 'basketball', 'tennis', 'baseball', 'swimmer', 'varsity', 'beret-girl', 'sailor-boy', 'sunflower', 'skater']],
+  [35, ['teacher', 'professor', 'nurse', 'barista', 'baker', 'chef', 'painter', 'photographer', 'soccer', 'basketball', 'tennis', 'baseball', 'swimmer', 'varsity', 'beret-girl', 'sailor-boy', 'sunflower', 'skater',
+    // 직업 캐릭터 13종 소녀·소년(나리 2026-11-20): 다른 직업 캐릭터와 같은 값
+    ...['astronaut', 'beekeeper', 'calligrapher', 'clockmaker', 'conductor', 'construction-worker', 'diver', 'farmer', 'lighthouse-keeper', 'puppeteer', 'firefighter', 'glassblower', 'brewer'].flatMap((j) => [`${j}-girl`, `${j}-boy`])]],
   [40, ['rabbit', 'bear', 'puppy', 'calico', 'frog', 'chick', 'duck', 'sheep', 'hamster', 'cow', 'monkey', 'koala', 'seal', 'penguin', 'deer', 'raccoon']],
   [45, ['fox', 'wolf', 'tiger', 'panda', 'polar-bear', 'red-panda', 'shark', 'dino', 'bunny-hoodie', 'bunny-pajama', 'cat-girl', 'wolf-jacket', 'gamer-girl', 'streamer', 'guitarist', 'ballerina', 'detective', 'explorer', 'techwear']],
   [50, ['maid', 'butler', 'rocker', 'black-dress', 'cyber', 'idol']],
@@ -137,3 +139,6 @@ export function serviceItem(id: unknown): ServiceItem | undefined {
 export function servicePrice(item: ServiceItem, bought: number): number {
   return Math.ceil(item.base * item.grow ** Math.max(0, bought));
 }
+
+// 살 수 있는 테마·꾸밈 캐릭터는 싼 것부터, 값이 같으면 가나다 순으로 보여 줘요(나리 2026-11-20)
+export const shopOrder = (a: ShopItem, b: ShopItem) => (a.price ?? 0) - (b.price ?? 0) || a.name.localeCompare(b.name, 'ko');

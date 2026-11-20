@@ -252,12 +252,16 @@ input:not([type=radio]):not([type=checkbox]):focus { background: #fff6fa; border
 .jelly { margin-left: auto; padding: 2px 12px; background: var(--pink-soft); border: 3px solid var(--ink); font-weight: 700; clip-path: var(--notch); white-space: nowrap; }
 .center { text-align: center; margin-top: 12px; }
 .shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 14px 10px; }
-.shop-grid.deco { max-height: 520px; overflow-y: auto; padding-right: 4px; }
+.shop-grid.deco { max-height: 520px; overflow-y: auto; padding: 6px; }
 .shop-item { display: grid; gap: 4px; justify-items: center; align-content: start; text-align: center; min-width: 0; }
 .shop-item form { margin: 0; }
 .shop-item .theme-img { width: 72px; cursor: pointer; padding: 14%; font: inherit; }
 .shop-item .theme-img.previewing, .theme.previewing .theme-img { outline: 3px dashed var(--pink); outline-offset: 2px; }
 .shop-item img { width: 100%; height: 84px; object-fit: contain; image-rendering: pixelated; }
+.deco-pick { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer; font: inherit; }
+.deco-pick:hover img { transform: translateY(-2px); }
+.deco-pick:focus-visible { outline: 3px solid var(--pink); outline-offset: 2px; }
+.deco-pick.previewing img { outline: 3px dashed var(--pink); outline-offset: 2px; }
 .shop-item.buy img, .shop-item.reward img, .shop-item.buy .theme-img, .shop-item.reward .theme-img { filter: saturate(.45); }
 .shop-item.using img, .shop-item.using .theme-img { outline: 3px solid var(--pink); outline-offset: 2px; }
 .shop-name { font-size: .72rem; line-height: 1.3; overflow-wrap: anywhere; }
@@ -338,12 +342,6 @@ input:not([type=radio]):not([type=checkbox]):focus { background: #fff6fa; border
 .c-art {
   position: relative; overflow: hidden; background: var(--t-sky); border: 1.2cqw solid var(--t-ink);
   box-shadow: inset 0 0 0 1cqw rgba(255, 255, 255, .5);
-}
-.c-art::before {
-  /* 작은 픽셀 별/점 무늬 */
-  content: ''; position: absolute; inset: 0; opacity: .5;
-  background-image: radial-gradient(#fff 35%, transparent 36%);
-  background-size: 7cqw 7cqw; background-position: 2cqw 2cqw;
 }
 .c-label {
   position: absolute; z-index: 2; top: 2.4cqw; left: 50%; translate: -50% 0; white-space: nowrap;

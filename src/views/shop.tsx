@@ -1,8 +1,10 @@
 import { JELLY_PER_CARD_STEP, LEVEL_STEP } from '../sync';
 import type { NickJob, Profile, Purchase } from '../db';
 import type { Member } from '../env';
-import { PRICES, SERVICES, SHOP_ITEMS, canUse, rewardNeed, serviceItem, servicePrice, type ShopItem } from '../shop';
+import { PRICES, SERVICES, SHOP_ITEMS, canUse, shopOrder, rewardNeed, serviceItem, servicePrice, type ShopItem } from '../shop';
 import { poolOf } from '../character';
+import { CHAR_OFFSETS } from '../char-offsets';
+import { DECO_CHARACTERS } from '../characters';
 import { Card } from './card';
 import { titleName } from '../titles';
 import { Layout } from './layout';
@@ -112,6 +114,24 @@ function stateOf(item: ShopItem, p: { profile: Profile; owned: Set<string>; card
   return item.price === null ? 'reward' : 'buy';
 }
 
+// 꾸밈 캐릭터를 누르면 큰 내 카드에 미리 끼워 봐요(사기 전, 잠긴 보상 캐릭터도). public/app.js가 처리해요.
+function DecoPick({ item }: { item: ShopItem }) {
+  const feet = CHAR_OFFSETS[`deco/${item.key}.png`] ?? 0;
+  // 목록 그림도 몸이 칸 가운데에 오게 옮겨요(높이 84px에 맞춘 그림 너비 기준)
+  const size = DECO_CHARACTERS.find((d) => d.id === item.key);
+  // 칸(테두리)은 그대로 두고 그 안에서 그림만 옮겨요(object-position). 칸이 가장 좁을 때(92px)도
+  // 그림이 잘리지 않을 만큼만 옮겨요.
+  const drawn = size ? (size.w / size.h) * 84 : 0;
+  const room = Math.max(0, (92 - drawn) / 2);
+  const raw = feet ? (feet / 100) * drawn : 0;
+  const shift = Math.round(Math.max(-room, Math.min(room, raw)) * 10) / 10;
+  return (
+    <button type="button" class="deco-pick" data-preview-deco={item.key} data-ax={String(feet)} aria-label={`${item.name} 미리 보기`}>
+      <img src={`/char/deco/${item.key}.png`} alt="" loading="lazy" style={shift ? `object-position: calc(50% - ${shift}px) 50%` : undefined} />
+    </button>
+  );
+}
+
 function Action(props: { item: ShopItem; state: State; cards: number; members: number }) {
   const { item, state } = props;
   if (state === 'using') return <span class="tag on">사용 중</span>;
@@ -182,8 +202,7 @@ export function ShopPage(props: {
 }) {
   const { viewer, profile, owned, cards, members } = props;
   const ctx = { profile, owned, cards, members };
-  // 살 수 있는 테마·꾸밈 캐릭터는 싼 것부터 보여 줘요(값이 같으면 원래 순서)
-  const byPrice = (a: ShopItem, b: ShopItem) => (a.price ?? 0) - (b.price ?? 0);
+  const byPrice = shopOrder;
   const themes = SHOP_ITEMS.filter((i) => i.kind === 'theme').sort(byPrice);
   const decoBuy = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price !== null).sort(byPrice);
   const decoReward = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price === null);
@@ -335,13 +354,13 @@ export function ShopPage(props: {
 
           <section class="panel">
             <h2>꾸밈 캐릭터</h2>
-            <p class="muted">구매한 캐릭터에서 ‘쓰기’를 누르면 내 카드 그림이 바뀌어요. 언제든 기본 캐릭터로 돌아갈 수 있어요.</p>
+            <p class="muted">캐릭터 그림을 누르면 내 카드에 미리 끼워 볼 수 있어요. 구매한 캐릭터에서 ‘쓰기’를 누르면 내 카드 그림이 바뀌어요. 언제든 기본 캐릭터로 돌아갈 수 있어요.</p>
             <div class="shop-grid deco">
               {decoBuy.map((item) => {
                 const state = stateOf(item, ctx);
                 return (
                   <div class={`shop-item ${state}`}>
-                    <img src={`/char/deco/${item.key}.png`} alt="" loading="lazy" />
+                    <DecoPick item={item} />
                     <span class="shop-name">{item.name}</span>
                     <Action item={item} state={state} cards={cards} members={members} />
                   </div>
@@ -358,7 +377,7 @@ export function ShopPage(props: {
                 const state = stateOf(item, ctx);
                 return (
                   <div class={`shop-item ${state}`}>
-                    <img src={`/char/deco/${item.key}.png`} alt="" loading="lazy" />
+                    <DecoPick item={item} />
                     <span class="shop-name">{item.name}</span>
                     <Action item={item} state={state} cards={cards} members={members} />
                   </div>
