@@ -2469,3 +2469,4 @@ main.wide { max-width: 1320px; }
 .jr-plus { margin: 0 2px; opacity: .7; }
 .jr-hud .jr-lab { margin-right: 3px; }
 @media (max-width: 480px) { .jr-hud { justify-content: flex-end; } }
+.jr-auto-err { display: block; flex-basis: 100%; margin-top: 4px; color: #b3261e; font-size: .8rem; }

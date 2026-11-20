@@ -128,6 +128,7 @@ addEventListener('pageshow', (e) => {
   const set = (on) => { mem = !!on; try { on ? localStorage.setItem(KEY, '1') : localStorage.removeItem(KEY); } catch {} };
   let timer = 0;
   let busy = false;
+  let fails = 0; // 연결이 잠깐 끊긴 횟수(이어서). 3번이면 멈추고 알려 줘요(점검 W166)
   // 자동은 끌 때까지 계속 켜져 있어요(나리 2026-11-21, 처음처럼). 그만두기를 누르면 꺼져요.
   // 판이 끝나면 결과를 보여 주고 5초 기다린 뒤(남은 초를 보여 줘요) 같은 장으로 다시 떠나요. 준비물은 사지 않아요.
   if (new URLSearchParams(location.search).get('n') === 'quit') set(false);
@@ -167,7 +168,7 @@ addEventListener('pageshow', (e) => {
     clearTimeout(timer);
     // 싸움 모션이 있으면 다 보여 준 뒤에 다음으로 넘어가요. 싸움 없는 날은 0.5초만 쉬어요(나리 2026-11-15, 예전 1.3초).
     const wait = Number(document.querySelector('[data-wait]')?.getAttribute('data-wait')) || 0;
-    if (on) timer = setTimeout(tick, Math.max(500, wait));
+    if (on) timer = setTimeout(tick, Math.max(500, wait, fails * 3000)); // 연결이 끊겼으면 3초·6초 뒤 다시 해 봐요
   };
   async function tick() {
     const form = document.querySelector('form[data-idle]');
@@ -196,8 +197,15 @@ addEventListener('pageshow', (e) => {
       const mine = document.querySelector('.jr-quit input[name="rev"]');
       if (rev && mine) mine.value = rev.value;
       if (open) next.querySelector('details')?.setAttribute('open', '');
+      fails = 0;
     } catch {
-      set(false);
+      fails += 1;
+      if (fails >= 3) {
+        set(false);
+        fails = 0;
+        const box = document.querySelector('[data-auto-toggle]');
+        if (box && !box.querySelector('.jr-auto-err')) box.insertAdjacentHTML('beforeend', '<small class="jr-auto-err">연결이 끊겨서 자동을 멈췄어요. 다시 켜 주세요.</small>');
+      }
     } finally {
       busy = false;
       sync();
@@ -206,6 +214,7 @@ addEventListener('pageshow', (e) => {
   document.addEventListener('change', (e) => {
     const box = e.target instanceof Element && e.target.closest('[data-auto-toggle]');
     if (!box) return;
+    box.querySelector('.jr-auto-err')?.remove();
     set(e.target.checked);
     sync();
   });
