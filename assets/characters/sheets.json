@@ -1226,6 +1226,32 @@
      "유리공예가 소년"
     ]
    ]
+  },
+  {
+   "file": "deco/jobs2/brewer-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "brewer-girl",
+     "양조사 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/brewer-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "brewer-boy",
+     "양조사 소년"
+    ]
+   ]
   }
  ]
 }

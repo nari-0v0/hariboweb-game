@@ -68,10 +68,10 @@ const sheets = JSON.parse(readFileSync('assets/characters/sheets.json', 'utf8'))
   deco: { file: string; single?: boolean; characters: [string, string][] }[];
 };
 const singles = sheets.deco.filter((s) => s.single);
-const JOBS = ['astronaut', 'beekeeper', 'calligrapher', 'clockmaker', 'conductor', 'construction-worker', 'diver', 'farmer', 'lighthouse-keeper', 'puppeteer', 'firefighter', 'glassblower'];
+const JOBS = ['astronaut', 'beekeeper', 'calligrapher', 'clockmaker', 'conductor', 'construction-worker', 'diver', 'farmer', 'lighthouse-keeper', 'puppeteer', 'firefighter', 'glassblower', 'brewer'];
 
 describe('낱장 꾸밈 캐릭터 그림', () => {
-  it('직업 캐릭터 12종 × 소녀·소년이 모두 낱장으로 들어가 있어요', () => {
+  it('직업 캐릭터 13종 × 소녀·소년이 모두 낱장으로 들어가 있어요', () => {
     const ids = singles.map((s) => s.characters[0]![0]);
     expect(ids).toEqual(JOBS.flatMap((j) => [`${j}-girl`, `${j}-boy`]));
     for (const s of singles) expect(s.characters.length).toBe(1);

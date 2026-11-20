@@ -233,4 +233,6 @@ export const DECO_CHARACTERS = [
   { id: 'firefighter-boy', name: '소방관 소년', w: 153, h: 236 },
   { id: 'glassblower-girl', name: '유리공예가 소녀', w: 160, h: 220 },
   { id: 'glassblower-boy', name: '유리공예가 소년', w: 147, h: 239 },
+  { id: 'brewer-girl', name: '양조사 소녀', w: 140, h: 236 },
+  { id: 'brewer-boy', name: '양조사 소년', w: 137, h: 236 },
 ] as const;
