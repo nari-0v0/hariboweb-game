@@ -610,6 +610,13 @@ export function ChapterPick(props: { unlocked: number; top: number; dogam: Dogam
           })}
         </div>
       </fieldset>
+      {/* 출발 전에 자동을 켜고 끄기(나리 2026-11-21). 켜 두면 판이 끝나도 꺼지지 않고 다음 판도 자동이에요. 브라우저에 기억해요. */}
+      <label class="jr-auto-pre" hidden data-auto-pre>
+        <input type="checkbox" />
+        <span>
+          <b>🤖 자동으로 진행</b> 스킬·갈림길·상점까지 알아서 골라요. 켜 두면 판이 끝나도 계속 켜져 있어요
+        </span>
+      </label>
       <button class="btn btn-primary jr-depart" type="submit">
         🎒 {props.again ? '다시 떠나기' : '원정 떠나기'}
       </button>

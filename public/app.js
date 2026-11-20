@@ -128,8 +128,23 @@ addEventListener('pageshow', (e) => {
   const set = (on) => { mem = !!on; try { on ? localStorage.setItem(KEY, '1') : localStorage.removeItem(KEY); } catch {} };
   let timer = 0;
   let busy = false;
-  // 원정 한 판이 끝나면(결과 화면이나 그만두기) 자동은 꺼져요. 다음 판은 직접 켜야 해요(슬금님 제안, 2026-11-18).
-  if (document.querySelector('.jr-result') || new URLSearchParams(location.search).get('n') === 'quit') set(false);
+  // 출발 전 "자동으로 진행"(나리 2026-11-21): 켜 두면 판이 끝나도 자동이 꺼지지 않고, 다음 판도 자동으로 떠나요.
+  const KEEP = 'jr-auto-keep';
+  let keepMem = false;
+  try { keepMem = localStorage.getItem(KEEP) === '1'; } catch {}
+  const setKeep = (on) => { keepMem = !!on; try { on ? localStorage.setItem(KEEP, '1') : localStorage.removeItem(KEEP); } catch {} };
+  // 원정 한 판이 끝나면(결과 화면이나 그만두기) 자동은 꺼져요(슬금님 제안, 2026-11-18). 출발 전에 켜 두었으면 그대로예요.
+  if ((document.querySelector('.jr-result') || new URLSearchParams(location.search).get('n') === 'quit') && !keepMem) set(false);
+  const pre = document.querySelector('[data-auto-pre]');
+  if (pre) {
+    pre.hidden = false;
+    const box = pre.querySelector('input');
+    box.checked = keepMem;
+    pre.classList.toggle('on', keepMem);
+    box.addEventListener('change', () => { setKeep(box.checked); pre.classList.toggle('on', box.checked); });
+    // 떠날 때 이번 판 자동을 출발 전 선택대로 맞춰요
+    pre.closest('form')?.addEventListener('submit', () => set(box.checked));
+  }
   const sync = () => {
     const box = document.querySelector('[data-auto-toggle]');
     if (!box) return;
