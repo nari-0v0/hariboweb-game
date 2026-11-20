@@ -6,6 +6,9 @@ src/characters.ts 목록을 만들어요. 그림 목록과 이름은 assets/char
   새 그림을 넣으면 여분을 쓰던 멤버가 새 디자인으로 옮겨 가요.
 - 꾸밈 캐릭터(deco): public/char/deco/<이름>.png. 꾸미기에서 골라 바꿔 끼는 캐릭터예요.
 
+- 다 그린 그림(final): assets/characters/final/<기본은 이름-색>.png, final/deco/<이름>.png 가 있으면
+  자르거나 색을 돌리지 않고 그 그림을 그대로 써요(나리님이 손본 최종 그림, 2026-11-21).
+
 사용법: python3 scripts/build_characters.py
 """
 import colorsys
@@ -19,6 +22,7 @@ from scipy import ndimage
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "assets" / "characters"
 OUT = ROOT / "public" / "char"
+FINAL = SRC / "final"
 VARIANTS = 4
 # 몸 전체가 살구색 털이라 피부 보호를 끄는 캐릭터
 FUR_SKIN: set[str] = set()
@@ -112,6 +116,12 @@ def save(a, path):
     Image.fromarray(a).quantize(128, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE).save(path, optimize=True)
 
 
+def final_or(a, rel):
+    """final/ 에 다 그린 그림이 있으면 그걸, 없으면 잘라 만든 그림을 써요."""
+    f = FINAL / rel
+    return np.array(Image.open(f).convert("RGBA")) if f.exists() else a
+
+
 def ts_list(names, sizes):
     return ",\n".join(f"  {{ id: '{k}', name: '{n}', w: {sizes[k][0]}, h: {sizes[k][1]} }}" for k, n in names)
 
@@ -176,13 +186,16 @@ def main():
     names, sprites = cut_characters(spec["basic"])
     sizes = {}
     for (key, _), a in zip(names, sprites):
-        sizes[key] = [int(a.shape[1]), int(a.shape[0])]
         hue = main_color(a)
         for v in range(VARIANTS):
-            save(recolor(a, v * 360 // VARIANTS, hue, key not in FUR_SKIN), OUT / f"{key}-{v}.png")
+            b = final_or(recolor(a, v * 360 // VARIANTS, hue, key not in FUR_SKIN), f"{key}-{v}.png")
+            if v == 0:
+                sizes[key] = [int(b.shape[1]), int(b.shape[0])]
+            save(b, OUT / f"{key}-{v}.png")
     deco_names, deco_sprites = cut_characters(spec["deco"])
     deco_sizes = {}
     for (key, _), a in zip(deco_names, deco_sprites):
+        a = final_or(a, f"deco/{key}.png")
         deco_sizes[key] = [int(a.shape[1]), int(a.shape[0])]
         save(a, deco_out / f"{key}.png")
     (ROOT / "src" / "characters.ts").write_text(

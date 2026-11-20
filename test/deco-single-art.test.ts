@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { DECO_CHARACTERS } from '../src/characters';
@@ -78,14 +78,17 @@ describe('낱장 꾸밈 캐릭터 그림', () => {
   });
 
   it.each(singles.map((s) => [s.characters[0]![0], s.file] as const))('%s: 빈 테두리만 자르고 떨어진 소품도 남아요', (id, file) => {
-    const src = readPng(`assets/characters/${file}`);
+    // 나리가 손본 최종 그림(final/)이 있으면 그 그림이 원본이에요(자르지 않고 그대로 써요).
+    const final = `assets/characters/final/deco/${id}.png`;
+    const isFinal = existsSync(final);
+    const src = readPng(isFinal ? final : `assets/characters/${file}`);
     const out = readPng(`public/char/deco/${id}.png`);
-    const want = box(src);
+    const want = isFinal ? { w: src.w, h: src.h } : box(src);
     expect([out.w, out.h]).toEqual([want.w, want.h]);
     // 원본에서 또렷한 픽셀(알파 128 이상)은 같은 자리에 모두 남아요: 시트 모드처럼 떨어진 조각을 지우면 빠져요.
     // (아주 옅은 가장자리 번짐은 색 128개로 줄일 때 투명으로 합쳐질 수 있어요)
-    const left = Math.min(...[...Array(src.w).keys()].filter((x) => [...Array(src.h).keys()].some((y) => src.alpha[y * src.w + x]! > 0)));
-    const top = Math.min(...[...Array(src.h).keys()].filter((y) => [...Array(src.w).keys()].some((x) => src.alpha[y * src.w + x]! > 0)));
+    const left = isFinal ? 0 : Math.min(...[...Array(src.w).keys()].filter((x) => [...Array(src.h).keys()].some((y) => src.alpha[y * src.w + x]! > 0)));
+    const top = isFinal ? 0 : Math.min(...[...Array(src.h).keys()].filter((y) => [...Array(src.w).keys()].some((x) => src.alpha[y * src.w + x]! > 0)));
     let lost = 0;
     for (let y = 0; y < src.h; y++)
       for (let x = 0; x < src.w; x++)
