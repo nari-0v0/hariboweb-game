@@ -2468,3 +2468,4 @@ main.wide { max-width: 1320px; }
 .jr-stk small { font-size: .55em; font-weight: 400; opacity: .8; margin-bottom: 1px; }
 .jr-plus { margin: 0 2px; opacity: .7; }
 .jr-hud .jr-lab { margin-right: 3px; }
+@media (max-width: 480px) { .jr-hud { justify-content: flex-end; } }
