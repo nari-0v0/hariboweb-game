@@ -1,4 +1,5 @@
 import { levelFromXp } from './levels';
+import { notTestMember } from './test-accounts';
 
 // 도감으로 게임 열기(나리 2026-11-13): 원정대 1~3장, 사건파일 처음 5개는 그냥 할 수 있어요.
 // 계단식(나리 2026-11-13): 활동 많은 사람은 1~2주마다 새 장이 열리게, 한 단계에서 한 달 넘게 멈추지 않게 실제 기록으로 맞췄어요. 그 뒤로는 도감 카드를 일정 장 수 이상 모아야 하고, 더 깊이 가면 모은 카드 중 일정 레벨 이상인 카드도 필요해요.
@@ -98,7 +99,7 @@ export async function dogamProgress(db: D1Database, userId: string): Promise<Dog
   const { results } = await db
     .prepare(
       `SELECT c.xp FROM cards c JOIN members t ON t.user_id = c.target_id AND t.active = 1
-       WHERE c.owner_id = ? AND c.target_id != c.owner_id`,
+       WHERE c.owner_id = ? AND c.target_id != c.owner_id AND ${notTestMember('c.target_id')}`,
     )
     .bind(userId)
     .all<{ xp: number }>();

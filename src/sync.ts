@@ -246,11 +246,12 @@ async function afterReset(db: D1Database, p: SyncPayload, nowMs: number): Promis
 }
 
 // 테스트 계정(src/test-accounts.ts)은 멤버로는 남지만(로그인·테스트용) 함께한 경험치(카드)를 만들지 않고,
-// 초록하리보·신입이 아닌 것으로 받아서 시즌 팀에 들어가지 않게(이미 들어가 있으면 빠지게) 해요.
+// 신입이 아닌 것으로 받아요. 초록하리보 값은 봇이 보낸 때만 false로 바꿔요(안 보내는 예전 봇에서 이 계정만 값이 생기면
+// 시즌이 "역할 정보 있음"으로 잘못 판단해요). 시즌 팀에서 빼는 건 src/season.ts가 직접 해요.
 export function withoutTestMembers(p: SyncPayload): SyncPayload {
   return {
     ...p,
-    members: p.members.map((m) => (isTestMember(m.id) ? { ...m, green: false, is_newbie: false } : m)),
+    members: p.members.map((m) => (isTestMember(m.id) ? { ...m, is_newbie: false, ...(m.green === undefined ? {} : { green: false }) } : m)),
     pair_xp: p.pair_xp.filter((x) => !isTestMember(x.a) && !isTestMember(x.b)),
   };
 }

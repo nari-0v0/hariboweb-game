@@ -2,6 +2,7 @@ import { characterUrl } from './character';
 import { expireAllHands, gambleMyRanks, gambleRanks } from './gamble-db';
 import { xpForLevel } from './levels';
 import { seasonAt } from './team';
+import { notTestMember } from './test-accounts';
 
 // 순위 메뉴(/rank): 도감·빙고(젤리피)·원정대·사건파일·겜블장. 지금 서버에 있는 멤버만, 3위까지 + 내 순위.
 // 시상대에는 멤버 캐릭터 그림(나리 그림)을 같이 보여 줘요.
@@ -119,7 +120,7 @@ export async function loadRankings(db: D1Database, userId: string, nowMs: number
        JOIN members m ON m.user_id = c.owner_id AND m.active = 1
        JOIN members t ON t.user_id = c.target_id AND t.active = 1
        LEFT JOIN profiles p ON p.user_id = c.owner_id
-       WHERE c.owner_id != c.target_id GROUP BY c.owner_id ORDER BY value DESC, MAX(c.first_met) ASC, c.owner_id`,
+       WHERE c.owner_id != c.target_id AND ${notTestMember('c.target_id')} GROUP BY c.owner_id ORDER BY value DESC, MAX(c.first_met) ASC, c.owner_id`,
     ),
     // 원정대 화면의 내 최고 기록과 같게, 끝난 판(완주·실패)만 세요. 그만둔 판은 빼요.
     !want('journey') ? none : rows(
