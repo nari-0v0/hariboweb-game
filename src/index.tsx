@@ -641,19 +641,22 @@ app.get('/api/bot/team/:id', async (c) => {
   const x = await bingoExtras(c.env.DB, id, new Date().toISOString());
   const t = x.team;
   const names = new Map(t?.members.map((m) => [m.id, m.name]) ?? []);
+  const allIds = t?.members.map((m) => m.id) ?? [];
+  const pairMinutes = new Map(t?.pairs.map((p) => [pairKey(p.a, p.b), p.minutes]) ?? []);
   return c.json({
     season: x.season ? { start: x.season.start, end: x.season.end } : null,
     team: t
       ? {
           no: t.no + 1,
-          members: t.members.filter((m) => !m.left).map((m) => ({ id: m.id, name: m.name })),
+          // mates: 그 팀원이 30분 이상 함께한 팀원 수(need명이면 달성). 패널에서 팀원마다 진행을 보여 줘요.
+          members: t.members.filter((m) => !m.left).map((m) => ({ id: m.id, name: m.name, mates: matesOf(m.id, allIds, pairMinutes, t.resets) })),
           target: t.target,
           achievers: t.achievers.map((a) => ({ id: a, name: names.get(a) ?? '알 수 없음' })),
           complete: t.complete,
           bonus: t.bonus,
           me: myTeamState(t, id),
           need: t.need,
-          my_mates: matesOf(id, t.members.map((m) => m.id), new Map(t.pairs.map((p) => [pairKey(p.a, p.b), p.minutes])), t.resets),
+          my_mates: matesOf(id, allIds, pairMinutes, t.resets),
         }
       : null,
     server: x.server ? { target: x.server.target, kidnapped: x.server.kidnapped.length, met: x.server.met, joined: x.server.participants.includes(id) } : null,
