@@ -12,7 +12,6 @@ import { Card, formatHours } from './card';
 import { Layout } from './layout';
 import { COMMUNITY_URL } from '../contact';
 import { type PraiseBox, PRAISE_BOX_NOTICE, praiseDayLabel } from '../praise-note';
-import { kstDay } from '../db';
 
 const SAMPLE_STATS: [string, string][] = [
   ['레벨', '20'],
