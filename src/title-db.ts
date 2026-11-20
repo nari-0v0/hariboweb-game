@@ -117,7 +117,7 @@ export async function equipTitle(db: D1Database, userId: string, titleId: string
 
 // 상점 칭호를 도감 젤리로 사요(젤리 빼기와 칭호 주기를 한 번에)
 export async function buyTitle(db: D1Database, userId: string, t: Title): Promise<'done' | 'owned' | 'not_enough_jelly' | 'not_for_sale'> {
-  if (t.rule.kind !== 'shop') return 'not_for_sale';
+  if (t.rule.kind !== 'shop' || t.retired) return 'not_for_sale';
   const result = await buyWithJelly(db, userId, titleItemId(t.id), t.rule.price);
   if (result === 'done') {
     // 결과는 칭호 화면에서 바로 보여 줘요(상점 결과 팝업에 또 뜨지 않게). 이 정리가 실패해도 산 건 산 거예요.

@@ -119,10 +119,20 @@ export const GAMBLE_TITLES: Title[] = [
 // 원정대 칭호(2026-11-19): 마지막 장(15장) 대장을 처음 깨면 얻어요.
 export const JOURNEY_TITLES: Title[] = [{ id: 'journey-15', name: '시간정복', group: '원정대', rule: { kind: 'journeyTop', chapter: 15 } }];
 
+// 더 팔지 않는 상점 칭호(나리 2026-11-21: 자음만 있는 칭호는 빼요). id가 밀리지 않게 목록에는 남기고,
+// 이미 산 사람에게만 보여요(산 사람이 없으면 아무에게도 안 보여요).
+const RETIRED_SHOP = new Set(['ㄱㄱ', 'ㅇㅈ', 'ㄹㅇ']);
+
 let shopNo = 0;
 export const TITLES: Title[] = [
   ...SHOP_GROUPS.flatMap(([group, price, names]) =>
-    names.split(' ').map((name): Title => ({ id: `shop-${++shopNo}`, name, group, rule: { kind: 'shop', price } })),
+    names.split(' ').map((name): Title => ({
+      id: `shop-${++shopNo}`,
+      name,
+      group,
+      rule: { kind: 'shop', price },
+      ...(RETIRED_SHOP.has(name) ? { retired: true } : {}),
+    })),
   ),
   ...GAMBLE_TITLES,
   ...JOURNEY_TITLES,
