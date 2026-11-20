@@ -4,6 +4,7 @@ import type { Member } from '../env';
 import { PRICES, SERVICES, SHOP_ITEMS, canUse, shopOrder, rewardNeed, serviceItem, servicePrice, type ShopItem } from '../shop';
 import { poolOf } from '../character';
 import { CHAR_OFFSETS } from '../char-offsets';
+import { DECO_CHARACTERS } from '../characters';
 import { Card } from './card';
 import { titleName } from '../titles';
 import { Layout } from './layout';
@@ -110,9 +111,12 @@ function stateOf(item: ShopItem, p: { profile: Profile; owned: Set<string>; card
 // 꾸밈 캐릭터를 누르면 큰 내 카드에 미리 끼워 봐요(사기 전, 잠긴 보상 캐릭터도). public/app.js가 처리해요.
 function DecoPick({ item }: { item: ShopItem }) {
   const feet = CHAR_OFFSETS[`deco/${item.key}.png`] ?? 0;
+  // 목록 그림도 몸이 칸 가운데에 오게 옮겨요(높이 84px에 맞춘 그림 너비 기준)
+  const size = DECO_CHARACTERS.find((d) => d.id === item.key);
+  const shift = size && feet ? Math.round((feet / 100) * (size.w / size.h) * 84 * 10) / 10 : 0;
   return (
     <button type="button" class="deco-pick" data-preview-deco={item.key} data-ax={String(feet)} aria-label={`${item.name} 미리 보기`}>
-      <img src={`/char/deco/${item.key}.png`} alt="" loading="lazy" />
+      <img src={`/char/deco/${item.key}.png`} alt="" loading="lazy" style={shift ? `translate: ${-shift}px 0` : undefined} />
     </button>
   );
 }
