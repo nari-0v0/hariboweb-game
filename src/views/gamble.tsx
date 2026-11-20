@@ -1,7 +1,7 @@
 import { comma } from '../num';
 import type { Member } from '../env';
 import { GAMBLE_ART, SLOT_ART } from '../gamble-art';
-import { CHERRY_PAIR, COIN_PAYOUT, ROULETTE, SLOTS, payback, rankOf, type CoinFlip, type CoinSide } from '../gamble';
+import { CHERRY_PAIR, COIN_PAYOUT, DAILY_CHIPS, ROULETTE, SLOTS, payback, rankOf, type CoinFlip, type CoinSide } from '../gamble';
 import { gambleDay, publicHand, type GambleAccount, type Game, type Round } from '../gamble-db';
 import { plainPodium } from '../rankings';
 import { Layout } from './layout';
@@ -290,7 +290,7 @@ export function GambleLocked(props: { viewer: Member }) {
 
 export function GambleLobby(props: {
   viewer: Member; account: GambleAccount | null; inProgress: boolean;
-  ranks: Rank[][]; now: string; daily: boolean; notice?: string;
+  ranks: Rank[][]; now: string; daily: number; notice?: string;
 }) {
   const balance = props.account?.chips ?? 0;
   const [balanceRank = [], bestRank = [], allInRank = [], seasonRank = []] = props.ranks;
@@ -301,7 +301,7 @@ export function GambleLobby(props: {
         <section class="gb-panel gb-lobby-intro">
           <h1>겜블장 <Art name="slot" /></h1>
           <ChipBalance balance={balance} />
-          {props.daily && <p role="status">오늘 젤칩 1000개 받았어요.</p>}
+          {props.daily > 0 && <p role="status">오늘 젤칩 {props.daily}개 받았어요.{props.daily > DAILY_CHIPS ? ' (💎 부스터 감사 +' + (props.daily - DAILY_CHIPS) + ')' : ''}</p>}
           {notice && <p role="status">{notice}</p>}
           {balance === 0 && !props.inProgress && props.account?.rescue_day !== gambleDay(props.now) && (
             <form method="post" action="/gamble/rescue">
@@ -342,7 +342,7 @@ export function GambleLobby(props: {
 
 export function GambleRoom(props: {
   viewer: Member; game: Game; balance: number; hand: Round | null; result: Round | null;
-  daily: boolean; notice?: string; url?: string;
+  daily: number; notice?: string; url?: string;
 }) {
   const { game, balance } = props;
   const hand = game === 'cards' ? props.hand : null;
@@ -358,7 +358,7 @@ export function GambleRoom(props: {
           <a href="/gamble">← 겜블장</a>
           <ChipBalance balance={balance} />
           {game !== 'cards' && props.hand && <a class="gb-resume" href="/gamble/cards">진행 중인 카드 21로 가기</a>}
-          {props.daily && <p role="status">오늘 젤칩 1000개 받았어요.</p>}
+          {props.daily > 0 && <p role="status">오늘 젤칩 {props.daily}개 받았어요.{props.daily > DAILY_CHIPS ? ' (💎 부스터 감사 +' + (props.daily - DAILY_CHIPS) + ')' : ''}</p>}
         </div>
         <section class="gb-panel gb-room" aria-label={GAMES[game]} data-gb-settled={result ? 'yes' : undefined} data-gb-url={props.url} data-gb-prefetch={game === 'cards' ? ALL_CARD_IMAGES.join(' ') : undefined}
           data-gb-motion={motion?.game} data-gb-key={motion ? `${motion.token}:${motion.revision}:${result ? 'done' : 'active'}` : undefined}>

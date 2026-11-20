@@ -1,5 +1,6 @@
 import { comma } from './num';
 import { levelFromXp, xpForLevel } from './levels';
+import { BOOSTER_TITLE_ID } from './booster';
 
 // 도감 칭호. 고르면 하리보봇이 디스코드 닉네임 앞에 `「칭호」 `로 붙여요(닉네임·생년과는 따로).
 // 디스코드 서버 태그처럼 4글자까지예요. 이름·조건·값은 여기서만 바꾸면 돼요.
@@ -24,7 +25,8 @@ export type TitleRule =
   | { kind: 'praiseGot'; count: number }
   | { kind: 'praiseGave'; count: number }
   | { kind: 'voiceHours'; hours: number } // 같이 통화한 시간(카드마다 더해서)
-  | { kind: 'journeyTop'; chapter: number }; // 원정대 이 장 대장을 깸
+  | { kind: 'journeyTop'; chapter: number } // 원정대 이 장 대장을 깸
+  | { kind: 'booster' }; // 디스코드 서버 부스트 중에만(얻은 기록으로 남지 않아요)
 
 // retired: 지금은 얻을 수 없는 칭호(예전 모둠 퀘스트 8개). 이미 얻은 사람에게만 보여요.
 export type Title = { id: string; name: string; group: string; rule: TitleRule; retired?: boolean };
@@ -123,6 +125,9 @@ export const JOURNEY_TITLES: Title[] = [{ id: 'journey-15', name: '시간정복'
 // 이미 산 사람에게만 보여요(산 사람이 없으면 아무에게도 안 보여요).
 const RETIRED_SHOP = new Set(['ㄱㄱ', 'ㅇㅈ', 'ㄹㅇ']);
 
+// 서버 부스터 칭호(나리 2026-11-21): 부스트 중에만 쓸 수 있어요. 끊으면 떼지고, 다시 하면 또 쓸 수 있어요.
+export const BOOSTER_TITLES: Title[] = [{ id: BOOSTER_TITLE_ID, name: '부스터', group: '서버 부스터', rule: { kind: 'booster' } }];
+
 let shopNo = 0;
 export const TITLES: Title[] = [
   ...SHOP_GROUPS.flatMap(([group, price, names]) =>
@@ -136,6 +141,7 @@ export const TITLES: Title[] = [
   ),
   ...GAMBLE_TITLES,
   ...JOURNEY_TITLES,
+  ...BOOSTER_TITLES,
   ...LADDERS.flatMap((l) => l.steps.map(([v, name]): Title => ({ id: `${l.id}-${v}`, name, group: l.group, rule: l.rule(v), ...(l.retired ? { retired: true } : {}) }))),
 ];
 
@@ -163,6 +169,7 @@ export type TitleStats = {
   praiseGave: number;
   voiceSeconds: number;
   journeyTop?: number; // 원정대 대장을 깬 가장 높은 장
+  booster?: boolean; // 지금 디스코드 서버 부스트 중
 };
 
 export type TitleProgress = { ok: boolean; text: string; now?: string };
@@ -226,6 +233,8 @@ export function titleProgress(t: Title, s: TitleStats): TitleProgress {
       return count(s.praiseGave, r.count, `칭찬 ${r.count}번 하기`, '번');
     case 'voiceHours':
       return count(Math.floor(s.voiceSeconds / 3600), r.hours, `같이 통화 ${r.hours}시간`, '시간');
+    case 'booster':
+      return { ok: s.booster === true, text: '디스코드 서버 부스트 중에만 쓸 수 있어요', now: s.booster ? '💎 부스트 중' : '부스트 안 함' };
     case 'journeyTop': {
       const top = s.journeyTop ?? 0;
       return { ok: top >= r.chapter, text: `원정대 ${r.chapter}장 대장 물리치기`, now: `${top}장까지 깸` };

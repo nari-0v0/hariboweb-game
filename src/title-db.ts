@@ -1,3 +1,4 @@
+import { BOOSTER_TITLE_ID } from './booster';
 import { buyWithJelly, countOwnedCards, markPurchasesSeen } from './db';
 import { FULL_LINE } from './bingo';
 import { TITLES, titleById, titleItemId, titleProgress, type Title, type TitleStats } from './titles';
@@ -32,7 +33,7 @@ export async function loadTitleStats(db: D1Database, userId: string, nowIso: str
     db.prepare("SELECT COUNT(*) AS n FROM praises WHERE from_id = ?1 AND created_at >= COALESCE((SELECT reset_at FROM members WHERE user_id = ?1), '')").bind(userId),
     db.prepare('SELECT solo_xp AS n FROM profiles WHERE user_id = ?').bind(userId),
     db.prepare('SELECT chips, all_in_wins, jackpots, naturals FROM gamble_accounts WHERE user_id = ?').bind(userId),
-    db.prepare('SELECT reset_at FROM members WHERE user_id = ?').bind(userId),
+    db.prepare('SELECT reset_at, booster FROM members WHERE user_id = ?').bind(userId),
     // 대장을 깬 가장 높은 장(색인으로 한 줄만 읽어요)
     db.prepare("SELECT chapter AS n FROM journey_runs WHERE user_id = ? AND status = 'done' AND cleared = 1 ORDER BY chapter DESC LIMIT 1").bind(userId),
   ]);
@@ -41,6 +42,7 @@ export async function loadTitleStats(db: D1Database, userId: string, nowIso: str
   const n = (r: D1Result | undefined) => Number((r?.results[0] as N | undefined)?.n ?? 0);
   return {
     resetAt: (member?.results[0] as { reset_at: string | null } | undefined)?.reset_at ?? null,
+    booster: Number((member?.results[0] as { booster?: number } | undefined)?.booster) === 1,
     gamble: gamble?.results[0] as TitleStats['gamble'],
     bestXp: xps.reduce((a, b) => Math.max(a, b), 0),
     ownXp: n(own),
@@ -59,7 +61,11 @@ export async function loadTitleStats(db: D1Database, userId: string, nowIso: str
 
 export async function ownedTitles(db: D1Database, userId: string): Promise<Set<string>> {
   const { results } = await db
-    .prepare(`SELECT item_id FROM owned_items WHERE user_id = ? AND item_id LIKE 'title:%'`)
+    // 부스터 칭호는 얻은 기록 없이, 지금 부스트 중이면 가진 것으로 봐요
+    .prepare(
+      `SELECT item_id FROM owned_items WHERE user_id = ?1 AND item_id LIKE 'title:%'
+       UNION SELECT 'title:${BOOSTER_TITLE_ID}' FROM members WHERE user_id = ?1 AND active = 1 AND booster = 1`,
+    )
     .bind(userId)
     .all<{ item_id: string }>();
   return new Set(results.map((r) => r.item_id.slice(6)));
@@ -67,7 +73,7 @@ export async function ownedTitles(db: D1Database, userId: string): Promise<Set<s
 
 // 조건을 채운 칭호는 얻은 것으로 남겨요(나중에 기록이 줄어도 그대로). 새로 얻은 칭호 id를 돌려줘요.
 export async function recordEarnedTitles(db: D1Database, userId: string, stats: TitleStats, owned: Set<string>): Promise<string[]> {
-  const fresh = TITLES.filter((t) => t.rule.kind !== 'shop' && !owned.has(t.id) && titleProgress(t, stats).ok).map((t) => t.id);
+  const fresh = TITLES.filter((t) => t.rule.kind !== 'shop' && t.rule.kind !== 'booster' && !owned.has(t.id) && titleProgress(t, stats).ok).map((t) => t.id);
   if (!fresh.length) return [];
   const t = new Date().toISOString();
   const results = await db.batch(
@@ -105,7 +111,8 @@ export async function equipTitle(db: D1Database, userId: string, titleId: string
     .prepare(
       `INSERT INTO profiles (user_id, title_id, updated_at)
        SELECT ?1, ?2, ?3 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
-         AND (?2 IS NULL OR EXISTS (SELECT 1 FROM owned_items WHERE user_id = ?1 AND item_id = 'title:' || ?2))
+         AND (?2 IS NULL OR EXISTS (SELECT 1 FROM owned_items WHERE user_id = ?1 AND item_id = 'title:' || ?2)
+           OR (?2 = '${BOOSTER_TITLE_ID}' AND EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1 AND booster = 1)))
        ON CONFLICT (user_id) DO UPDATE SET
          title_applied = CASE WHEN COALESCE(title_id, '') = COALESCE(?2, '') THEN '?' ELSE title_applied END,
          title_id = ?2, title_note = NULL, updated_at = ?3`,
