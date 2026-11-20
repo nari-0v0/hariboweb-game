@@ -184,14 +184,14 @@ Content-Type: application/json
 - `GET /api/bot/team/<디스코드 ID>` → 고정 패널 "우리 팀".
   ```json
   { "season": { "start": "…", "end": "…" },
-    "team": { "no": 3, "members": [{ "id": "ID", "name": "닉네임" }], "target": 4,
+    "team": { "no": 3, "members": [{ "id": "ID", "name": "닉네임", "mates": 2 }], "target": 4,
               "achievers": [{ "id": "ID", "name": "닉네임" }], "complete": false, "bonus": false, "me": "todo",
               "need": 5, "my_mates": 2 },
     "server": { "target": 10, "kidnapped": 4, "met": false, "joined": true },
     "rules": { "goal_min": 30, "kidnap_min": 30, "team_jelly": 3, "server_jelly": 5 },
     "page_url": "https://.../bingo" }
   ```
-  `team`이 `null`이면 이번 시즌 팀이 없어요. `me`: `done`(나는 달성), `todo`(아직), `team-done`(팀 완료, 나는 아직), `bonus`(보너스 칸). `need`는 내가 달성하려면 30분 이상 함께해야 하는 팀원 수, `my_mates`는 지금까지 30분 이상 함께한 팀원 수예요.
+  `team`이 `null`이면 이번 시즌 팀이 없어요. `me`: `done`(나는 달성), `todo`(아직), `team-done`(팀 완료, 나는 아직), `bonus`(보너스 칸). `need`는 내가 달성하려면 30분 이상 함께해야 하는 팀원 수, `my_mates`는 지금까지 30분 이상 함께한 팀원 수예요. `members[].mates`는 그 팀원이 30분 이상 함께한 팀원 수(`need` 이상이면 그 사람은 달성)예요.
 - `GET /api/bot/teams` → 고정 패널 본문 "팀 순위" 그림용. `{"season": {...}, "ranking": [{"no","rank","done","total","size","complete","bonus"}], "server": {"target","kidnapped","met"}, "page_url": "..."}`. `done`/`total`은 팀 퀘스트 달성 수/목표. 팀 목표를 채운 팀 → 달성 비율 → 달성 수 순이고 보너스 칸 팀은 맨 뒤예요. 시즌이나 팀이 없으면 `"ranking": null`.
 - 예전 `GET /api/bot/group/<ID>`, `GET /api/bot/ranking`(모둠 퀘스트용)은 옛 봇을 위해 남아 있지만 새 봇은 쓰지 않아요.
 - 알림(DM·채팅)은 보내지 않아요. 고정 패널과 웹 `/bingo`에서만 보여요.
