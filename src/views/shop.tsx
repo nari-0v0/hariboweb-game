@@ -1,7 +1,7 @@
 import { JELLY_PER_CARD_STEP, LEVEL_STEP } from '../sync';
 import type { NickJob, Profile, Purchase } from '../db';
 import type { Member } from '../env';
-import { PRICES, SERVICES, SHOP_ITEMS, canUse, rewardNeed, serviceItem, servicePrice, type ShopItem } from '../shop';
+import { PRICES, SERVICES, SHOP_ITEMS, canUse, shopOrder, rewardNeed, serviceItem, servicePrice, type ShopItem } from '../shop';
 import { poolOf } from '../character';
 import { Card } from './card';
 import { titleName } from '../titles';
@@ -176,8 +176,7 @@ export function ShopPage(props: {
 }) {
   const { viewer, profile, owned, cards, members } = props;
   const ctx = { profile, owned, cards, members };
-  // 살 수 있는 테마·꾸밈 캐릭터는 싼 것부터 보여 줘요(값이 같으면 원래 순서)
-  const byPrice = (a: ShopItem, b: ShopItem) => (a.price ?? 0) - (b.price ?? 0);
+  const byPrice = shopOrder;
   const themes = SHOP_ITEMS.filter((i) => i.kind === 'theme').sort(byPrice);
   const decoBuy = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price !== null).sort(byPrice);
   const decoReward = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price === null);

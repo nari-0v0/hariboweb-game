@@ -137,3 +137,6 @@ export function serviceItem(id: unknown): ServiceItem | undefined {
 export function servicePrice(item: ServiceItem, bought: number): number {
   return Math.ceil(item.base * item.grow ** Math.max(0, bought));
 }
+
+// 살 수 있는 테마·꾸밈 캐릭터는 싼 것부터, 값이 같으면 가나다 순으로 보여 줘요(나리 2026-11-20)
+export const shopOrder = (a: ShopItem, b: ShopItem) => (a.price ?? 0) - (b.price ?? 0) || a.name.localeCompare(b.name, 'ko');

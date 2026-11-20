@@ -339,12 +339,6 @@ input:not([type=radio]):not([type=checkbox]):focus { background: #fff6fa; border
   position: relative; overflow: hidden; background: var(--t-sky); border: 1.2cqw solid var(--t-ink);
   box-shadow: inset 0 0 0 1cqw rgba(255, 255, 255, .5);
 }
-.c-art::before {
-  /* 작은 픽셀 별/점 무늬 */
-  content: ''; position: absolute; inset: 0; opacity: .5;
-  background-image: radial-gradient(#fff 35%, transparent 36%);
-  background-size: 7cqw 7cqw; background-position: 2cqw 2cqw;
-}
 .c-label {
   position: absolute; z-index: 2; top: 2.4cqw; left: 50%; translate: -50% 0; white-space: nowrap;
   background: var(--t-paper); border: .9cqw solid var(--t-ink); padding: .4cqw 3cqw; font-size: 4cqw; font-weight: 700;
