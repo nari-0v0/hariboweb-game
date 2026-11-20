@@ -19,11 +19,11 @@ export const MAX_CH = 9;
 
 // 경계는 아래 구간이에요(딱 3시간이면 1~3시간 칸).
 export const TIERS = [
-  { upto: 1, label: '1시간까지', jelly: 1, mats: 1, chips: 500 },
-  { upto: 3, label: '1~3시간', jelly: 2, mats: 1, chips: 1000 },
-  { upto: 6, label: '3~6시간', jelly: 3, mats: 2, chips: 2000 },
-  { upto: 12, label: '6~12시간', jelly: 4, mats: 2, chips: 3000 },
-  { upto: Infinity, label: '12시간 넘게', jelly: 5, mats: 3, chips: 5000 },
+  { upto: 1, label: '1시간까지', jelly: 1, mats: 1, chips: 100 },
+  { upto: 3, label: '1~3시간', jelly: 1, mats: 1, chips: 300 },
+  { upto: 6, label: '3~6시간', jelly: 2, mats: 1, chips: 500 },
+  { upto: 12, label: '6~12시간', jelly: 2, mats: 2, chips: 800 },
+  { upto: Infinity, label: '12시간 넘게', jelly: 3, mats: 2, chips: 1200 },
 ];
 
 export function tierFor(hours) {

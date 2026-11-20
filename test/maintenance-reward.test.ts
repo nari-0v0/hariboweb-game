@@ -24,28 +24,28 @@ const one = (sql: DatabaseSync, q: string) => sql.prepare(q).get() as Record<str
 
 it('점검 시간에 맞는 칸을 고르고, 경계는 아래 칸이에요', () => {
   expect(tierFor(0.5).jelly).toBe(1);
-  expect(tierFor(1).chips).toBe(500);
-  expect(tierFor(3).chips).toBe(1000);
-  expect(tierFor(3.01).chips).toBe(2000);
-  expect(tierFor(12).jelly).toBe(4);
-  expect(tierFor(20).mats).toBe(3);
+  expect(tierFor(1).chips).toBe(100);
+  expect(tierFor(3).chips).toBe(300);
+  expect(tierFor(3.01).chips).toBe(500);
+  expect(tierFor(12).jelly).toBe(2);
+  expect(tierFor(20).mats).toBe(2);
   expect(() => tierFor(0)).toThrow();
   expect(() => tierFor('abc')).toThrow();
 });
 
 it('지금 멤버에게 젤리·재료·젤칩·알림을 주고, 두 번 실행해도 한 번만 줘요', () => {
   const sql = freshDb();
-  const run = buildRewardSql(4, '2026-11-21T10:00:00.000Z'); // 3~6시간: 젤리 3, 재료 2, 젤칩 2000
+  const run = buildRewardSql(4, '2026-11-21T10:00:00.000Z'); // 3~6시간: 젤리 2, 재료 1, 젤칩 500
   sql.exec(run);
   sql.exec(run);
-  expect(one(sql, `SELECT dogam_jelly FROM profiles WHERE user_id = '${A}'`)?.dogam_jelly).toBe(13);
-  expect(one(sql, `SELECT dogam_jelly FROM profiles WHERE user_id = '${B}'`)?.dogam_jelly).toBe(3);
-  expect(one(sql, `SELECT COUNT(*) n, SUM(amount) s FROM jelly_grants`)).toEqual({ n: 2, s: 6 });
-  expect(JSON.parse(String(one(sql, `SELECT mats FROM journey_bank WHERE user_id = '${A}'`)?.mats))).toEqual({ '1': 4, '2': 2, '3': 3 });
+  expect(one(sql, `SELECT dogam_jelly FROM profiles WHERE user_id = '${A}'`)?.dogam_jelly).toBe(12);
+  expect(one(sql, `SELECT dogam_jelly FROM profiles WHERE user_id = '${B}'`)?.dogam_jelly).toBe(2);
+  expect(one(sql, `SELECT COUNT(*) n, SUM(amount) s FROM jelly_grants`)).toEqual({ n: 2, s: 4 });
+  expect(JSON.parse(String(one(sql, `SELECT mats FROM journey_bank WHERE user_id = '${A}'`)?.mats))).toEqual({ '1': 3, '2': 1, '3': 2 });
   expect(one(sql, `SELECT coins FROM journey_bank WHERE user_id = '${A}'`)?.coins).toBe(50);
-  expect(JSON.parse(String(one(sql, `SELECT mats FROM journey_bank WHERE user_id = '${B}'`)?.mats))).toEqual({ '1': 2 });
-  expect(one(sql, `SELECT chips FROM gamble_accounts WHERE user_id = '${A}'`)?.chips).toBe(3000);
-  expect(one(sql, `SELECT chips, free_day FROM gamble_accounts WHERE user_id = '${B}'`)).toEqual({ chips: 2000, free_day: null });
+  expect(JSON.parse(String(one(sql, `SELECT mats FROM journey_bank WHERE user_id = '${B}'`)?.mats))).toEqual({ '1': 1 });
+  expect(one(sql, `SELECT chips FROM gamble_accounts WHERE user_id = '${A}'`)?.chips).toBe(1500);
+  expect(one(sql, `SELECT chips, free_day FROM gamble_accounts WHERE user_id = '${B}'`)).toEqual({ chips: 500, free_day: null });
   expect(one(sql, `SELECT COUNT(*) n FROM alerts WHERE ref = 'maint-2026-11-21'`)?.n).toBe(2);
   // 떠난 멤버는 받지 않아요
   expect(one(sql, `SELECT COUNT(*) n FROM journey_bank WHERE user_id = '${LEFT}'`)?.n).toBe(0);
@@ -53,9 +53,9 @@ it('지금 멤버에게 젤리·재료·젤칩·알림을 주고, 두 번 실행
   // 알림을 지운 뒤 다시 실행해도 또 받지 않아요(받음 표시는 지급 기록)
   sql.exec(`DELETE FROM alerts`);
   sql.exec(run);
-  expect(one(sql, `SELECT dogam_jelly FROM profiles WHERE user_id = '${A}'`)?.dogam_jelly).toBe(13);
-  expect(one(sql, `SELECT chips FROM gamble_accounts WHERE user_id = '${A}'`)?.chips).toBe(3000);
-  expect(JSON.parse(String(one(sql, `SELECT mats FROM journey_bank WHERE user_id = '${A}'`)?.mats))).toEqual({ '1': 4, '2': 2, '3': 3 });
+  expect(one(sql, `SELECT dogam_jelly FROM profiles WHERE user_id = '${A}'`)?.dogam_jelly).toBe(12);
+  expect(one(sql, `SELECT chips FROM gamble_accounts WHERE user_id = '${A}'`)?.chips).toBe(1500);
+  expect(JSON.parse(String(one(sql, `SELECT mats FROM journey_bank WHERE user_id = '${A}'`)?.mats))).toEqual({ '1': 3, '2': 1, '3': 2 });
   expect(one(sql, `SELECT COUNT(*) n FROM alerts`)?.n).toBe(0);
 });
 
