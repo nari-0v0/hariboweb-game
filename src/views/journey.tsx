@@ -663,7 +663,7 @@ export function ChapterPick(props: { unlocked: number; top: number; dogam: Dogam
   );
 }
 
-function Result(props: { run: JourneyRun; art: string; name: string; unlocked: number; top: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number; going: boolean }) {
+function Result(props: { run: JourneyRun; art: string; name: string; unlocked: number; top: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number; going: boolean; bag?: number }) {
   const { run } = props;
   const s = run.state;
   // 마지막 날 싸움이 있으면 먼저 평소 진행 화면 모양으로 싸움을 보여 주고(화면 길이로도 끝난 걸 알 수 없게),
@@ -671,7 +671,8 @@ function Result(props: { run: JourneyRun; art: string; name: string; unlocked: n
   const reveal = s.fx ? fightPlan(s.fx).reveal : 0;
   return (
     <>
-      {reveal > 0 && <Play run={run} art={props.art} name={props.name} preview />}
+      {/* 마지막 싸움에도 재료 칸을 보여 줘요. 이번 판 재료는 이미 가방에 넣었으니 그만큼 빼서 정산 전 보유량으로 보여 줘요 */}
+      {reveal > 0 && <Play run={run} art={props.art} name={props.name} preview bag={props.bag === undefined ? undefined : Math.max(0, props.bag - (run.state.matsBanked ?? 0))} />}
       {reveal > 0 && <noscript><style>{'.jr-final-fight { display: none !important; } .jr-result[hidden] { display: block !important; }'}</style></noscript>}
     <section class="jr-game jr-result" id={reveal > 0 ? undefined : 'now'} hidden={reveal > 0} data-final-wait={reveal > 0 ? String(reveal) : undefined}>
       <span class="eyebrow">{s.cleared ? '원정 성공' : '원정 끝'}</span>
@@ -1116,7 +1117,7 @@ export function JourneyPage(props: {
             </div>
           </details>
         </div>
-        {result ? <Result run={result} art={props.art} name={name} unlocked={record.unlocked} top={record.top} dogam={props.dogam} farmed={record.farmed} coins={props.bank.coins} going={!!run} /> : run ? <Play run={run} art={props.art} name={name} bag={props.bank.mats[run.state.ch ?? 1] ?? 0} /> : null}
+        {result ? <Result run={result} art={props.art} name={name} unlocked={record.unlocked} top={record.top} dogam={props.dogam} farmed={record.farmed} coins={props.bank.coins} going={!!run} bag={props.bank.mats[result.state.ch ?? 1] ?? 0} /> : run ? <Play run={run} art={props.art} name={name} bag={props.bank.mats[run.state.ch ?? 1] ?? 0} /> : null}
         {!run && !result && (
           <section class="jr-game jr-lobby" id="now">
             <div class="jr-lobby-stage" style={`--jr-bg:url(/journey/bg/${zoneFor(1)}.webp)`}>
