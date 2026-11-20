@@ -93,7 +93,7 @@ export function TowerPage(props: { viewer: Member; art: string; bank: JourneyBan
                   <ul class="jr-today jr-talk" role="status">
                     {last.auto && (
                       <li>
-                        🤖 자동 도전: {last.auto.from}층부터 {last.auto.cleared}층을 올랐어요{last.auto.cleared > 0 ? `(${last.auto.from}~${last.auto.from + last.auto.cleared - 1}층)` : ''}.
+                        🤖 자동 도전: {last.auto.cleared > 0 ? `${last.auto.from}층부터 ${last.auto.from + last.auto.cleared - 1}층까지 ${last.auto.cleared}개 층을 올랐어요.` : `${last.auto.from}층에서 바로 멈췄어요.`}
                       </li>
                     )}
                     {last.won ? (
