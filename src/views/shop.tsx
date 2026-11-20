@@ -18,6 +18,12 @@ const NOTICES: Record<string, PopupLine[]> = {
   not_enough_jelly: [{ title: '구매 실패', text: '도감 젤리가 부족해서 구매하지 못했습니다.', bad: true }],
   service_pending: [{ title: '구매 완료', text: '구매가 완료되었습니다. 하리보봇이 곧 디스코드에 적용해요(5분 안쪽).' }],
   gender_same: [{ title: '알림', text: '이미 그 성별 캐릭터예요.' }],
+  rerolled: [{ title: '변경 완료', text: '새 기본 캐릭터로 바뀌었어요! 내 카드에서 확인해 보세요.' }],
+  reroll_none: [{ title: '알림', text: '지금은 바꿀 수 있는 빈 캐릭터가 없어요. 도감 젤리는 그대로예요.' }],
+  reroll_changed: [{ title: '알림', text: '그 사이 캐릭터가 바뀌었어요. 도감 젤리는 그대로예요. 다시 눌러 주세요.' }],
+  reset_done: [{ title: '초기화 완료', text: '겜블장·원정대·사건파일을 처음부터 다시 할 수 있어요.' }],
+  reset_changed: [{ title: '알림', text: '다른 화면에서 이미 초기화했어요. 도감 젤리는 또 빠지지 않았어요.' }],
+  reset_unchecked: [{ title: '알림', text: '안내를 읽고 "알겠어요"에 체크해 주세요.', bad: true }],
   price_changed: [{ title: '알림', text: '그 사이 값이 바뀌었어요. 새 값을 확인하고 다시 사 주세요.' }],
   nick_pending: [{ title: '변경 신청 완료', text: '하리보봇이 곧 디스코드 닉네임을 바꿔요(5분 안쪽). 칭호와 생년은 그대로예요.' }],
   nick_none: [{ title: '알림', text: '닉네임 변경권이 없거나, 앞서 신청한 변경을 아직 적용하는 중이에요.' }],
@@ -181,7 +187,7 @@ export function ShopPage(props: {
   const themes = SHOP_ITEMS.filter((i) => i.kind === 'theme').sort(byPrice);
   const decoBuy = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price !== null).sort(byPrice);
   const decoReward = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price === null);
-  const nameOf = (id: string) => SHOP_ITEMS.find((i) => i.id === id)?.name ?? serviceItem(id)?.name ?? (id === 'change:gender' ? '성별 바꾸기' : id);
+  const nameOf = (id: string) => SHOP_ITEMS.find((i) => i.id === id)?.name ?? serviceItem(id)?.name ?? (id === 'change:gender' ? '성별 바꾸기' : id === 'change:reroll' ? '캐릭터 리롤권' : id === 'reset:games' ? '게임 기록 초기화권' : id);
   const popup = props.results.flatMap((p) => resultLines(p, nameOf(p.item_id)));
   const notice = props.notice && Object.hasOwn(NOTICES, props.notice) ? NOTICES[props.notice] : undefined;
   if (notice) popup.unshift(...notice);
@@ -256,6 +262,24 @@ export function ShopPage(props: {
                   </div>
                   <a class="btn btn-small btn-buy" href="/shop/gender">
                     🍬 {PRICES.gender}
+                  </a>
+                </div>
+                <div class="service-item" id="reroll">
+                  <div>
+                    <span class="shop-name">캐릭터 리롤권</span>
+                    <p class="hint">같은 성별의 다른 기본 캐릭터로 무작위로 바꾸고 바로 확정해요. 되돌릴 수 없어요.</p>
+                  </div>
+                  <a class="btn btn-small btn-buy" href="/shop/reroll">
+                    🍬 {PRICES.reroll}
+                  </a>
+                </div>
+                <div class="service-item" id="reset">
+                  <div>
+                    <span class="shop-name">게임 기록 초기화권</span>
+                    <p class="hint">겜블장·원정대·사건파일을 처음부터 다시 해요. 도감·캐릭터·산 물건은 그대로예요.</p>
+                  </div>
+                  <a class="btn btn-small btn-buy" href="/shop/reset">
+                    🍬 {PRICES.reset}
                   </a>
                 </div>
             </div>

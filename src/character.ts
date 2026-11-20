@@ -49,6 +49,18 @@ export function pickCharacter(userId: string, taken: Set<string>, pool?: Charact
   return order.find((id) => !taken.has(id) && !forbidden?.has(id)) ?? order.find((id) => !forbidden?.has(id)) ?? key(bases[start]!, 0);
 }
 
+// 리롤권(나리 2026-11-20): 같은 묶음에서 아무도 안 쓰는 캐릭터 중 하나를 무작위로. 디자인이 다른 원래 그림(-0)이 먼저고,
+// 그게 다 차면 색만 바꾼 여분에서 골라요. 빈 캐릭터가 없으면 null(사지 않아요).
+export function rerollCharacter(pool: CharacterPool, current: string | null, taken: Set<string>, forbidden: Set<string>, rand: () => number = Math.random): string | null {
+  const bases = basesIn(pool);
+  const free = (variant: number) => bases.map((b) => key(b, variant)).filter((id) => id !== current && !taken.has(id) && !forbidden.has(id));
+  for (let v = 0; v < CHARACTER_VARIANTS; v++) {
+    const list = free(v);
+    if (list.length) return list[Math.floor(rand() * list.length)]!;
+  }
+  return null;
+}
+
 // 다시 골라야 하는 캐릭터인지: 캐릭터가 없거나 그림이 없어진 때뿐이에요.
 // 한 번 받은 캐릭터는 저절로 바뀌지 않아요(나리 2026-11-17). 여분 색을 쓰던 멤버도
 // 다른 사람이 나가거나 성별을 바꿔 빈 디자인이 생겼다고 옮기지 않아요.

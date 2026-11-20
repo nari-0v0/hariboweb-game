@@ -2449,3 +2449,10 @@ main.wide { max-width: 1320px; }
 .esc-daily-head { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; justify-content: space-between; }
 .esc-daily p { margin: 4px 0; }
 .esc-daily-form .btn { margin-top: 4px; }
+
+/* 게임 기록 초기화권 확인 화면(2026-11-20) */
+.reset-confirm h1 { font-size: 1.2rem; }
+.reset-list { margin: 10px 0; padding-left: 20px; line-height: 1.6; }
+.reset-list li { margin-bottom: 6px; }
+.reset-check { display: flex; gap: 8px; align-items: flex-start; font-weight: 700; cursor: pointer; }
+.reset-check input { margin-top: 3px; width: 18px; height: 18px; flex: none; }
