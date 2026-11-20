@@ -35,7 +35,14 @@ def feet_offset(path: Path) -> float:
             centers.append((starts[k] + ends[k] - 1) / 2)
     cx = float(np.median(centers))
     width = alpha.shape[1]
-    return round((cx + 0.5 - width / 2) / width * 100, 1)
+    off = (cx + 0.5 - width / 2) / width * 100
+    # 옮겨도 그림이 카드 그림 칸 밖으로 잘리지 않을 만큼만 옮겨요(나리 2026-11-20: 로봇 칼이 잘림).
+    # 카드 그림 칸: 그림 높이 76%, 너비 최대 92%(styles.css .c-avatar), 칸 가로:세로는 가장 좁을 때 약 0.84.
+    art_ratio, img_h, img_max_w = 0.84, 0.76, 0.92
+    img_w = min(img_h * alpha.shape[1] / alpha.shape[0], img_max_w * art_ratio)
+    room = max(0.0, (art_ratio / img_w - 1) * 50 - 1)  # 한쪽 여유(그림 너비 %), 1%는 테두리 몫
+    off = max(-room, min(room, off))
+    return round(off, 1)
 
 
 def main() -> None:
