@@ -12,7 +12,6 @@ import { Card, formatHours } from './card';
 import { Layout } from './layout';
 import { COMMUNITY_URL } from '../contact';
 import { type PraiseBox, PRAISE_BOX_NOTICE, praiseDayLabel } from '../praise-note';
-import { kstDay } from '../db';
 
 const SAMPLE_STATS: [string, string][] = [
   ['레벨', '20'],
@@ -523,7 +522,7 @@ export function CardPage(props: { viewer: Member; owner: Member; target: Member;
           <div class="tiles">
             <div class="tile">
               <span class="tile-label">처음 만난 날</span>
-              <b>{entry.first_met ? kstDay(new Date(entry.first_met)).replace(/-/g, '.') : '-'}</b>
+              <b>{entry.first_met ? new Date(Date.parse(entry.first_met) + 9 * 3_600_000).toISOString().slice(0, 10).replace(/-/g, '.') : '-'}</b>
             </div>
             <div class="tile">
               <span class="tile-label">함께 통화</span>

@@ -14,6 +14,7 @@ import { levelFromXp } from '../src/levels';
 import { STARTER_JELLY } from '../src/db';
 import { boardFor, CENTER, FULL_JELLY, LINE_JELLY, LINES, splitCycle, type BingoStats, emptyStats } from '../src/bingo';
 import { kstParts } from '../src/season';
+import { gameDay } from '../src/day';
 
 vi.mock('../src/plaza-room', () => ({ PlazaRoom: class {} }));
 
@@ -139,7 +140,7 @@ it('시뮬: 동기화·탈퇴·재가입·칭찬·내 카드 열기를 섞어도
           for (let j = i + 1; j < room.length; j++) pair_xp.push({ a: room[i]!, b: room[j]!, xp: mins, voice_seconds: mins * 60, at: new Date(now - mins * 60_000).toISOString() });
         const solo_xp = room.filter(() => r() < 0.3).map((u) => ({ id: u, xp: 20 }));
         const jelly_earned = solo_xp.map((s) => ({ id: s.id, amount: 1 }));
-        const attendance = solo_xp.map((s) => ({ id: s.id, day: kstParts(new Date(now).toISOString()).day }));
+        const attendance = solo_xp.map((s) => ({ id: s.id, day: gameDay(now) }));
         await sync({ pair_xp, room_minutes, solo_xp, jelly_earned, attendance });
         // 모델
         for (const p of pair_xp)
@@ -161,7 +162,8 @@ it('시뮬: 동기화·탈퇴·재가입·칭찬·내 카드 열기를 섞어도
         };
         for (const rm of room_minutes) {
           const ms = Date.parse(rm.at);
-          const { day, hour } = kstParts(rm.at);
+          const { hour } = kstParts(rm.at);
+          const day = gameDay(ms); // 통화 일수·주말은 도감 하루(아침 6시) 기준
           const per = periodsOf(ms);
           const dow = new Date(`${day}T00:00:00Z`).getUTCDay();
           for (const u of room) {

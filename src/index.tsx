@@ -1154,7 +1154,7 @@ members.get('/gamble/:game', async (c) => {
   const db = c.env.DB;
   const now = new Date().toISOString();
   const expired = await expireHand(db, user, now);
-  // 다른 방에 먼저 들어와도 자정에 멈춘 카드 21 결과를 보여 줘요.
+  // 다른 방에 먼저 들어와도 아침 6시에 멈춘 카드 21 결과를 보여 줘요.
   if (expired && game !== 'cards') return c.redirect(gambleRoomUrl('cards', expired));
   const token = (game === 'cards' ? expired : null) ?? c.req.query('r');
   return gambleRoomPage(c, game, token, c.req.query('n'));

@@ -75,9 +75,10 @@ const T0 = new Date('2026-11-19T03:00:00Z'); // 한국 12시
 const solvedIt = (sql: DatabaseSync, id = FREE.id) => sql.prepare("INSERT INTO escape_rewards (user_id, case_id, run_id, claimed_at) VALUES ('me', ?, 'r', 'x')").run(id);
 
 describe('오늘의 사건 규칙', () => {
-  it('한국 날짜로 바뀌고, 날마다 섞은 판 번호가 달라요', () => {
-    expect(kstDay(new Date('2026-11-19T14:59:59Z'))).toBe('2026-11-19');
-    expect(kstDay(new Date('2026-11-19T15:00:00Z'))).toBe('2026-11-20');
+  it('한국 시간 아침 6시에 날짜가 바뀌고, 날마다 섞은 판 번호가 달라요', () => {
+    expect(kstDay(new Date('2026-11-19T15:00:00Z'))).toBe('2026-11-19'); // 한국 11/20 0시: 아직 19일
+    expect(kstDay(new Date('2026-11-19T20:59:59Z'))).toBe('2026-11-19');
+    expect(kstDay(new Date('2026-11-19T21:00:00Z'))).toBe('2026-11-20'); // 한국 11/20 6시
     expect(dailyVariant('2026-11-20')).toBe(dailyVariant('2026-11-19') + 1);
     expect(dailyVariant('2026-11-19')).toBeGreaterThan(1000);
   });
@@ -124,7 +125,7 @@ describe('오늘의 사건 DB', () => {
     expect(await beginDaily(db, 'me', T0)).toBe('played');
     const info = (await dailyInfo(db, 'me', T0))!;
     expect([info.today?.solved, info.days, info.streak]).toEqual([0, 0, 0]);
-    const next = await beginDaily(db, 'me', new Date('2026-11-19T15:00:01Z'));
+    const next = await beginDaily(db, 'me', new Date('2026-11-19T21:00:01Z'));
     expect(next).not.toBe('played');
     expect(next).not.toBeNull();
   });

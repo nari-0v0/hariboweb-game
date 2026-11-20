@@ -1,3 +1,4 @@
+import { gameDay } from './day';
 import type { BurnWindow } from './burning';
 import { awardEndedGambleSeasons } from './gamble-db';
 import { boosterStatements } from './booster';
@@ -251,7 +252,7 @@ async function afterReset(db: D1Database, p: SyncPayload, nowMs: number): Promis
     jelly_earned: p.jelly_earned.filter((x) => fresh(x.id, made)),
     room_minutes: p.room_minutes.map((r) => ({ ...r, members: r.members.filter((id) => fresh(id, Date.parse(r.at))) })).filter((r) => r.members.length >= 2),
     scrims: p.scrims.map((r) => ({ ...r, members: r.members.filter((id) => fresh(id, Date.parse(r.at))) })).filter((r) => r.members.length > 0),
-    attendance: p.attendance.filter((a) => !gone(a.id) && (!resets.has(a.id) || a.day >= new Date(resets.get(a.id)! + 9 * 3_600_000).toISOString().slice(0, 10))),
+    attendance: p.attendance.filter((a) => !gone(a.id) && (!resets.has(a.id) || a.day >= gameDay(resets.get(a.id)!))),
   } };
 }
 

@@ -1,3 +1,4 @@
+import { gameDay } from './day';
 import { REWARD_COUNT, REWARD_STEP, shopItem, decoItemId } from './shop';
 import { ALERT_KEEP_DAYS } from './alerts';
 import { MAX_LEVEL, XP_SCALE, levelFromXp, xpForLevel } from './levels';
@@ -775,9 +776,9 @@ export async function countOwnedCards(db: D1Database, userId: string): Promise<n
 
 // ── 디스코드 고정 패널 ─────────────────────────────────────
 
-// 한국 날짜(YYYY-MM-DD). 칭찬 횟수는 이 날짜로 세요.
+// 도감 날짜(YYYY-MM-DD, 한국 시간 아침 6시에 바뀌어요. src/day.ts). 칭찬 횟수·원정대 하루 보상은 이 날짜로 세요.
 export function kstDay(at: Date = new Date()): string {
-  return new Date(at.getTime() + 9 * 3_600_000).toISOString().slice(0, 10);
+  return gameDay(at);
 }
 
 export const PRAISE_PER_DAY = 3;

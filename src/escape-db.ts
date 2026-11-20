@@ -1,3 +1,4 @@
+import { dayStartMs } from './day';
 import { dogamProgress, escapeNeed, meets } from './unlock';
 import { DAILY_OPEN, dailyPick, dailyVariant, kstDay, prevDay, shownStreak } from './escape-daily';
 import { BOOSTER_DAILY_COINS, ESC_XP, escVariantOf, escapeUnlockIndex, actEscape, decodeEscape, escCase, escGrade, escJelly, startEscape, type EscAction, type EscCase, type EscGrade, type EscState } from './escape';
@@ -76,7 +77,7 @@ export async function beginEscape(
 // 힌트 동전 1개를 들고 시작해요. 재수사·오늘의 사건은 등급이 없어서 그대로예요.
 async function withBooster(db: D1Database, user: string, s: EscState, now: Date): Promise<EscState> {
   if (s.re) return s;
-  const dayStart = new Date(Date.parse(`${kstDay(now)}T00:00:00+09:00`)).toISOString();
+  const dayStart = new Date(dayStartMs(kstDay(now))).toISOString();
   const row = await db
     .prepare(
       `SELECT booster, EXISTS (SELECT 1 FROM escape_runs WHERE user_id = ?1 AND started_at >= ?2) AS played
