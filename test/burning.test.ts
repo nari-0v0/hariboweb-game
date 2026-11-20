@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { burnEndText, burnLength, burnWindow, burningUntil, markMaintenance, resetBurningCache } from '../src/burning';
+import { burnEndText, burnReply, burnWindow, burningUntil, resetBurningCache } from '../src/burning';
 import { bingoStatements } from '../src/bingo';
 import { actJourney, matOfferPrice, offerInfo, startJourney, stat, type JourneyState } from '../src/journey';
 import { MATERIALS } from '../src/journey';
@@ -25,49 +25,31 @@ function fakeD1() {
 const MIN = 60_000;
 const T0 = Date.parse('2026-11-21T01:00:00Z');
 
-// 점검을 minutes분 동안 1분마다 봤다고 쳐요
-async function maintain(db: D1Database, minutes: number, from = T0) {
-  for (let m = 0; m <= minutes; m++) {
-    resetBurningCache();
-    await markMaintenance(db, from + m * MIN);
-  }
-  resetBurningCache();
-}
-
 describe('버닝타임', () => {
   beforeEach(() => resetBurningCache());
 
-  it('점검 길이로 버닝타임 길이를 정해요', () => {
-    expect(burnLength(29 * MIN)).toBe(0);
-    expect(burnLength(30 * MIN)).toBe(60 * MIN);
-    expect(burnLength(60 * MIN)).toBe(60 * MIN);
-    expect(burnLength(61 * MIN)).toBe(120 * MIN);
-  });
-
-  it('1시간 넘는 점검이 끝나면 2시간 켜지고, 시간이 지나면 꺼져요', async () => {
-    const { db } = fakeD1();
+  it('적어 두기 전에는 꺼져 있고, 적은 기간에만 켜져요', async () => {
+    const { sql, db } = fakeD1();
     expect(await burningUntil(db, T0)).toBeNull();
-    await maintain(db, 90);
-    const end = T0 + 91 * MIN;
-    const until = await burningUntil(db, end);
-    expect(until).toBe(new Date(end + 120 * MIN).toISOString());
-    expect(burnEndText(until!)).toBe('13:31');
-    // 다시 읽어도 늘어나지 않아요
+    const until = new Date(T0 + 120 * MIN).toISOString();
+    sql.prepare('UPDATE burning SET started_at = ?, until = ? WHERE id = 1').run(new Date(T0).toISOString(), until);
     resetBurningCache();
-    expect(await burningUntil(db, end + 10 * MIN)).toBe(until);
+    expect(await burningUntil(db, T0 + MIN)).toBe(until);
+    expect(burnEndText(until)).toBe('12:00');
     resetBurningCache();
-    expect(await burningUntil(db, end + 121 * MIN)).toBeNull();
+    expect(await burningUntil(db, T0 + 121 * MIN)).toBeNull();
     // 끝난 버닝타임도 기간은 남아 있어요(늦게 온 봇 기록용)
-    expect(await burnWindow(db, end + 121 * MIN)).toEqual({ from: new Date(end).toISOString(), until });
+    expect(await burnWindow(db, T0 + 121 * MIN)).toEqual({ from: new Date(T0).toISOString(), until });
+    expect(burnReply(await burnWindow(db, T0 + MIN), T0 + MIN)).toEqual({ from: new Date(T0).toISOString(), until, card_xp: 1.5 });
+    expect(burnReply(await burnWindow(db, T0 + 121 * MIN), T0 + 121 * MIN)).toBeNull();
   });
 
-  it('짧은 점검은 켜지지 않아요', async () => {
-    const { db } = fakeD1();
-    await maintain(db, 10);
-    expect(await burningUntil(db, T0 + 11 * MIN)).toBeNull();
-    // 점검 기록은 비워서 다음 점검과 섞이지 않아요
-    await maintain(db, 40, T0 + 5 * 60 * MIN);
-    expect(await burningUntil(db, T0 + 6 * 60 * MIN)).not.toBeNull();
+  it('1분 동안은 다시 읽지 않아요', async () => {
+    const { sql, db } = fakeD1();
+    expect(await burningUntil(db, T0)).toBeNull();
+    sql.prepare('UPDATE burning SET started_at = ?, until = ? WHERE id = 1').run(new Date(T0).toISOString(), new Date(T0 + 60 * MIN).toISOString());
+    expect(await burningUntil(db, T0 + 30_000)).toBeNull();
+    expect(await burningUntil(db, T0 + MIN)).not.toBeNull();
   });
 
   it('빙고 통화 시간은 버닝타임 안에서만 2배예요', () => {

@@ -90,7 +90,7 @@ import { GAMBLE_LOCKED, gambleTester, isCoinSide } from './gamble';
 import { activeHand, betChips, betTooSoon, claimDaily, expireAllHands, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, moveHand, rescueChips, type Game } from './gamble-db';
 import { prefetchAllowed } from './prefetch';
 import { imageRequestAllowed } from './image-guard';
-import { BURN_CARD_XP, burnWindow, burningUntil, inWindow, markMaintenance } from './burning';
+import { burnReply, burnWindow, burningUntil } from './burning';
 import { dbLimitKind, maintenanceOn, maintenanceSkips, maintenanceWhen, type DbLimit } from './maintenance';
 import { EscapePage } from './views/escape';
 import { JourneyPage } from './views/journey';
@@ -132,16 +132,7 @@ export function originDownResponse(request: Request): Response {
   return new Response('<!doctype html>' + String(<ErrorPage retry={retry} />), { status: 503, headers });
 }
 app.use('*', async (c, next) => {
-  if (maintenanceOn(c.env.MAINTENANCE)) {
-    // 버닝타임: 점검을 본 시각을 남겨요(1분에 한 번). 점검이 끝나면 그 길이로 버닝타임이 켜져요.
-    const mark = markMaintenance(c.env.DB);
-    try {
-      c.executionCtx.waitUntil(mark);
-    } catch {
-      await mark;
-    }
-    if (!maintenanceSkips(c.req.path)) return troubleResponse(c, 'maintenance');
-  }
+  if (maintenanceOn(c.env.MAINTENANCE) && !maintenanceSkips(c.req.path)) return troubleResponse(c, 'maintenance');
   await next();
 });
 
@@ -277,7 +268,14 @@ app.post('/api/bot/sync', async (c) => {
     await giveStarterJelly(c.env.DB, ids);
   }
   // 버닝타임이면 봇이 짝 카드 통화 경험치를 1.5배로 세요(docs/bot-sync.md)
-  return c.json({ ok: true, result, burning: burn && inWindow(burn, now) ? { from: burn.from, until: burn.until, card_xp: BURN_CARD_XP } : null });
+  return c.json({ ok: true, result, burning: burnReply(burn, now) });
+});
+
+// 봇이 1분마다 버닝타임인지 물어봐요(통화 기록을 보낼 게 없어도 바로 알게요)
+app.get('/api/bot/burning', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  const now = Date.now();
+  return c.json({ ok: true, burning: burnReply(await burnWindow(c.env.DB, now), now) });
 });
 
 // 예전 봇은 겜블 지갑 결제를 하려고 이 주소를 물어봐요. 이제 상점은 도감 젤리로 웹에서 바로 결제해서 줄 게 없어요.

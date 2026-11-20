@@ -64,7 +64,8 @@ Content-Type: application/json
 - `200 {"ok":true,"result":"applied"}` 또는 `"duplicate"`
 - 응답에는 `"burning"`도 들어 있어요. 버닝타임이 아니면 `null`, 버닝타임이면 `{"from":"ISO","until":"ISO","card_xp":1.5}`(나리 2026-11-20).
   봇은 `from`~`until` 사이에 함께한 통화의 짝 카드 경험치를 `card_xp`배로 세고, 그 쌍의 하루 한도(180)도 같은 배수(270)로 늘려요.
-  버닝타임은 웹이 정해요: 큰 점검(`MAINTENANCE`)이 30분~1시간이면 끝난 뒤 1시간, 1시간 넘으면 2시간(src/burning.ts). 웹은 빙고 통화 시간(`room_minutes`)을 그 사이만 2배로 세요.
+  버닝타임은 나리가 "시작해줘" 하면 웹 D1 `burning` 표에 적어서 켜요(docs/burning.md). 웹은 빙고 통화 시간(`room_minutes`)을 그 사이만 2배로 세요.
+- `GET /api/bot/burning` → `{"ok":true,"burning":null|{"from","until","card_xp"}}`. 봇은 1분마다 물어봐요(보낼 통화 기록이 없을 때도 바로 알게요).
 - `200 {"ok":true,"result":"stale"}`: 묶음이 반영되지 않았어요. 같은 묶음은 다시 보내지 않고, 전체 멤버 동기화가 필요하면 새 묶음으로 보내요.
 - `400 {"error":"..."}` 형식이 틀림 (아무것도 반영되지 않음)
 - `401` 비밀 값이 틀림
