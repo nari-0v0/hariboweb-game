@@ -94,7 +94,7 @@ import { dbLimitKind, maintenanceOn, maintenanceSkips, maintenanceWhen, type DbL
 import { EscapePage } from './views/escape';
 import { JourneyPage } from './views/journey';
 import { NO_COINS, STALE_PICK, activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, journeyTop, quitJourney, sellMats, upgradeGear } from './journey-db';
-import { buyPet, equipPet, levelPet, parseTowerLast, towerAttempt, towerRanking } from './tower-db';
+import { buyPet, equipPet, levelPet, parseTowerLast, towerAttempt, towerAuto, towerRanking } from './tower-db';
 import { cleanBoosts } from './tower';
 import { isPetId } from './pets';
 import { TowerPage } from './views/tower';
@@ -1286,7 +1286,7 @@ members.post('/api/journey/pet', async (c) => {
   }
 });
 
-// 끝없는 탑(원정대 3장을 깨면 열려요): 층마다 한 번 싸워요. 자동으로 오르지 않아요.
+// 끝없는 탑(원정대 3장을 깨면 열려요): 층마다 한 번 싸워요. 자동 도전은 10층 단위 끝까지 이어서 올라요(나리 2026-11-21).
 members.get('/expedition/tower', async (c) => {
   const viewer = c.get('viewer');
   c.header('Cache-Control', 'no-store');
@@ -1307,6 +1307,19 @@ members.post('/api/tower/fight', async (c) => {
     return c.redirect(r === 'ok' ? '/expedition/tower?r=1#now' : `/expedition/tower?n=${r}#now`, 303);
   } catch (e) {
     console.error('탑 도전 실패', e);
+    return c.redirect('/expedition/tower?n=error#now', 303);
+  }
+});
+members.post('/api/tower/auto', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const body = await c.req.parseBody();
+  const floor = Number(body.floor);
+  if (!Number.isSafeInteger(floor) || floor < 1) return c.redirect('/expedition/tower?n=bad#now', 303);
+  try {
+    const r = await towerAuto(c.env.DB, c.get('viewer').user_id, floor, new Date(), typeof body.at === 'string' ? body.at : undefined);
+    return c.redirect(r === 'ok' ? '/expedition/tower?r=1#now' : `/expedition/tower?n=${r}#now`, 303);
+  } catch (e) {
+    console.error('탑 자동 도전 실패', e);
     return c.redirect('/expedition/tower?n=error#now', 303);
   }
 });

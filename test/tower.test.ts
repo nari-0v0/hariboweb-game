@@ -5,8 +5,8 @@ import { describe, expect, it } from 'vitest';
 import { beginJourney, activeJourney, journeyBank } from '../src/journey-db';
 import { MAX_CHAPTER } from '../src/journey-chapters';
 import { BAND_MAX, PETS, PET_IDS, petCap, petNeed, petPower } from '../src/pets';
-import { BOOST_IDS, TOWER_GAP_MS, boostCost, boostPrice, towerCoins, towerFight, towerFoe, towerMat } from '../src/tower';
-import { buyPet, equipPet, levelPet, towerAttempt, towerRanking, parseTowerLast } from '../src/tower-db';
+import { BOOST_IDS, TOWER_GAP_MS, boostCost, boostPrice, towerAutoEnd, towerCoins, towerFight, towerFoe, towerMat } from '../src/tower';
+import { buyPet, equipPet, levelPet, towerAttempt, towerAuto, towerRanking, parseTowerLast } from '../src/tower-db';
 import { NO_GEAR, NO_PERKS } from '../src/journey';
 
 function database() {
@@ -96,6 +96,32 @@ describe('끝없는 탑 규칙', () => {
 });
 
 describe('끝없는 탑 도전', () => {
+  it('자동 도전은 10층 단위 끝까지 오르고 멈춰요. 보상은 한 층씩 깬 것과 같아요', async () => {
+    expect([1, 9, 10, 11, 20, 21].map(towerAutoEnd)).toEqual([10, 10, 10, 20, 20, 30]);
+    const { sql, db } = database();
+    setup(sql, 'me', 3, { ...strong, tower: 3, coins: 0 });
+    expect(await towerAuto(db, 'me', 3, later(0))).toBe('stale');
+    expect(await towerAuto(db, 'me', 4, later(0))).toBe('ok');
+    const bank = await journeyBank(db, 'me');
+    expect(bank.tower).toBe(10);
+    expect(bank.coins).toBe([4, 5, 6, 7, 8, 9, 10].reduce((a, f) => a + towerCoins(f), 0));
+    expect(bank.mats[1]).toBe(2);
+    const last = parseTowerLast(bank.towerLast);
+    expect(last?.auto).toEqual({ from: 4, cleared: 7 });
+    expect(last?.floor).toBe(10);
+    expect(await towerAuto(db, 'me', 11, later(100))).toBe('fast');
+  });
+  it('자동 도전은 지면 그 층에서 멈춰요(물약 없이)', async () => {
+    const { sql, db } = database();
+    setup(sql, 'me', 3, { tower: 0, coins: 0 });
+    expect(await towerAuto(db, 'me', 1, later(0))).toBe('ok');
+    const bank = await journeyBank(db, 'me');
+    const last = parseTowerLast(bank.towerLast)!;
+    expect(last.won).toBe(false);
+    expect(bank.tower).toBe(last.auto!.cleared);
+    expect(last.floor).toBe(last.auto!.cleared + 1);
+    expect(last.cost).toBe(0);
+  });
   it('원정대 3장을 깨기 전에는 잠겨 있어요', async () => {
     const { sql, db } = database();
     setup(sql, 'me', 2, strong);

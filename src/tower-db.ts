@@ -2,10 +2,11 @@
 import { bankPet, journeyBank, journeyTop, matPath } from './journey-db';
 import { hasMats } from './journey';
 import { PETS, anyMatChapter, petCap, petNeed, type PetId } from './pets';
-import { TOWER_GAP_MS, TOWER_OPEN, boostCost, towerCoins, towerFight, towerMat, type BoostId, type TowerFight } from './tower';
+import { TOWER_GAP_MS, TOWER_OPEN, boostCost, towerAutoEnd, towerCoins, towerFight, towerMat, type BoostId, type TowerFight } from './tower';
 
 // 화면에 한 번 보여 줄 마지막 도전 결과(journey_bank.tower_last)
-export type TowerLast = { floor: number; won: boolean; fight: Pick<TowerFight, 'fx' | 'maxHp' | 'atk' | 'def'>; foe: { key: string; name: string }; boosts: BoostId[]; cost: number; coins: number; mat: { ch: number; n: number } | null; at: string };
+// auto = 자동 도전으로 올랐을 때: from층부터 몇 층(cleared)을 깼는지. 그때 coins·mat은 모두 더한 값이에요.
+export type TowerLast = { floor: number; won: boolean; fight: Pick<TowerFight, 'fx' | 'maxHp' | 'atk' | 'def'>; foe: { key: string; name: string }; boosts: BoostId[]; cost: number; coins: number; mat: { ch: number; n: number } | null; at: string; auto?: { from: number; cleared: number } };
 export function parseTowerLast(raw: string | null | undefined): TowerLast | null {
   try {
     const v = JSON.parse(raw || 'null') as TowerLast | null;
@@ -42,6 +43,45 @@ export async function towerAttempt(db: D1Database, user: string, seen: number, b
          AND EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)`,
     )
     .bind(user, floor - 1, cost, gain, f.won ? 1 : 0, t, JSON.stringify(last), mat?.n ?? 0, matPath(mat?.ch ?? 1), gapFrom, seenAt ?? null)
+    .run();
+  return (r.meta.changes ?? 0) > 0 ? 'ok' : 'stale';
+}
+
+// 자동 도전(나리 2026-11-21): 물약 없이 지금 층부터 10층 단위 끝까지 이어서 싸워요. 지면 그 층에서 멈춰요.
+// 보상은 손으로 한 층씩 깬 것과 똑같아요(층마다 젤코인, 10층마다 재료). 한 번에 저장해요.
+export async function towerAuto(db: D1Database, user: string, seen: number, now = new Date(), seenAt?: string): Promise<TowerResult> {
+  const [bank, top] = await Promise.all([journeyBank(db, user), journeyTop(db, user)]);
+  if (top < TOWER_OPEN) return 'locked';
+  const from = bank.tower + 1;
+  if (seen !== from || (seenAt !== undefined && seenAt !== (bank.towerAt ?? ''))) return 'stale';
+  if (bank.towerAt && now.getTime() - Date.parse(bank.towerAt) < TOWER_GAP_MS) return 'fast';
+  const end = towerAutoEnd(from);
+  const pet = bankPet(bank);
+  let gain = 0;
+  let mat: { ch: number; n: number } | null = null;
+  let cleared = 0;
+  let f = towerFight(user, from, bank, bank, pet, []);
+  for (let floor = from; ; floor++) {
+    if (floor > from) f = towerFight(user, floor, bank, bank, pet, []);
+    if (!f.won) break;
+    cleared++;
+    gain += towerCoins(floor);
+    const m = towerMat(floor, top);
+    if (m) mat = mat && mat.ch === m.ch ? { ch: m.ch, n: mat.n + m.n } : m;
+    if (floor >= end) break;
+  }
+  const t = now.toISOString();
+  const last: TowerLast = { floor: f.floor, won: f.won, fight: { fx: f.fx, maxHp: f.maxHp, atk: f.atk, def: f.def }, foe: { key: f.foe.key, name: f.foe.name }, boosts: [], cost: 0, coins: gain, mat, at: t, auto: { from, cleared } };
+  const gapFrom = new Date(now.getTime() - TOWER_GAP_MS).toISOString();
+  const r = await db
+    .prepare(
+      `UPDATE journey_bank SET coins = coins + ?3, tower = tower + ?4, tower_new = tower_new + ?4, tower_at = ?5, tower_last = ?6, updated_at = ?5,
+         tower_up_at = CASE WHEN ?4 > 0 THEN ?5 ELSE tower_up_at END,
+         mats = CASE WHEN ?7 > 0 THEN json_set(mats, ?8, COALESCE(json_extract(mats, ?8), 0) + ?7) ELSE mats END
+       WHERE user_id = ?1 AND tower = ?2 AND (tower_at IS NULL OR tower_at <= ?9) AND (?10 IS NULL OR COALESCE(tower_at, '') = ?10)
+         AND EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)`,
+    )
+    .bind(user, from - 1, gain, cleared, t, JSON.stringify(last), mat?.n ?? 0, matPath(mat?.ch ?? 1), gapFrom, seenAt ?? null)
     .run();
   return (r.meta.changes ?? 0) > 0 ? 'ok' : 'stale';
 }
