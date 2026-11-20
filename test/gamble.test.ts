@@ -141,6 +141,16 @@ describe('겜블장 배당', () => {
 });
 
 describe('칩과 판 기록', () => {
+  it('젤칩 이전·점검 보상으로 계정이 먼저 생긴 사람도 첫 방문에 시작 칩 1000을 더 받아요', async () => {
+    const { db, sql } = fixture();
+    sql.prepare('INSERT INTO gamble_accounts (user_id, chips) VALUES (?, 0)').run(USER);
+    sql.prepare('UPDATE gamble_accounts SET chips = chips + 2500 WHERE user_id = ?').run(USER);
+    expect(await claimDaily(db, USER, TODAY)).toBe(1000);
+    expect((await gambleAccount(db, USER))?.chips).toBe(3500);
+    expect(await claimDaily(db, USER, TODAY)).toBe(0);
+    expect(await claimDaily(db, USER, TOMORROW)).toBe(0);
+  });
+
   it('처음 오면 시작 칩 1000, 그 뒤로는 0개일 때만 한국 날짜마다 한 번 300개로 채워요', async () => {
     const { db, sql } = fixture();
     expect(await Promise.all([claimDaily(db, USER, TODAY), claimDaily(db, USER, TODAY)])).toEqual([1000, 0]);
