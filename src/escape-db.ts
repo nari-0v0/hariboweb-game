@@ -157,7 +157,8 @@ export async function actEscapeRun(db: D1Database, user: string, id: string, rev
       .run();
     return (r.meta.changes ?? 0) === 1 ? 'ok' : 'stale';
   }
-  const first = 'NOT EXISTS (SELECT 1 FROM escape_rewards WHERE user_id = ?2 AND case_id = ?9)';
+  // 첫 해결 보상은 한 번만: 게임 기록 초기화권으로 푼 기록을 지웠어도 이미 받은 보상(escape_paid)은 다시 주지 않아요
+  const first = 'NOT EXISTS (SELECT 1 FROM escape_rewards WHERE user_id = ?2 AND case_id = ?9) AND NOT EXISTS (SELECT 1 FROM escape_paid WHERE user_id = ?2 AND case_id = ?9)';
   const stmts = [
     db
       .prepare(
@@ -174,8 +175,9 @@ export async function actEscapeRun(db: D1Database, user: string, id: string, rev
     stmts.push(
       db
         .prepare(
+          // 푼 기록은 보상이 없어도(초기화 뒤 다시 푼 사건) 남겨요. 보통 판만 여기로 와요(재수사는 finishRe).
           `INSERT INTO escape_rewards (user_id, case_id, run_id, claimed_at)
-           SELECT user_id, case_id, id, ?3 FROM escape_runs WHERE id = ?1 AND mutation = ?2 AND xp > 0
+           SELECT user_id, case_id, id, ?3 FROM escape_runs WHERE id = ?1 AND mutation = ?2 AND status = 'done'
            ON CONFLICT (user_id, case_id) DO NOTHING`,
         )
         .bind(id, token, t),

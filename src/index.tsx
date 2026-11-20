@@ -8,6 +8,7 @@ import { authorizeUrl, exchangeCode, fetchGuildProfile, type LoginProfile } from
 import {
   assignCharacters,
   buyGenderChange,
+  buyReroll,
   chooseFirstGender,
   planCharacterPool,
   completion,
@@ -48,7 +49,8 @@ import {
   upsertLoginMember,
 } from './db';
 import { PRICES, canUse, usableDecos, canUseTheme, decoItemId, serviceItem, servicePrice, shopItem } from './shop';
-import { ChoosePage, GenderChangePage } from './views/choose';
+import { ChoosePage, GameResetPage, GenderChangePage, RerollPage } from './views/choose';
+import { buyGameReset } from './game-reset';
 import { CHARACTER_POOLS, characterUrl, isCharacterId, isCharacterPool, poolOf } from './character';
 import { applySync, parseSync } from './sync';
 import { levelName, progress, tierFor, tierLabel } from './levels';
@@ -911,6 +913,53 @@ members.post('/api/shop/gender', async (c) => {
   }
   if (result === 'changed') return c.redirect('/shop/gender?n=changed');
   return c.redirect(result === 'done' ? '/shop' : result === 'same' ? '/shop?n=gender_same' : '/shop?n=not_enough_jelly');
+});
+
+// 캐릭터 리롤권(나리 2026-11-20): 확인 화면 → 같은 성별 빈 캐릭터 중 무작위로 바로 확정
+members.get('/shop/reroll', async (c) => {
+  const viewer = c.get('viewer');
+  const profile = await getProfile(c.env.DB, viewer.user_id);
+  const pool = poolOf(profile.character_id);
+  if (!pool || !profile.character_id) return c.redirect('/shop?n=error');
+  return page(c, <RerollPage viewer={viewer} pool={pool} character={profile.character_id} jelly={profile.dogam_jelly} />);
+});
+
+members.post('/api/shop/reroll', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const viewer = c.get('viewer');
+  const body = await c.req.parseBody();
+  // 확인 화면에서 본 캐릭터가 지금과 다르면(다른 탭에서 바꿈) 사지 않아요
+  const profile = await getProfile(c.env.DB, viewer.user_id);
+  if (String(body.character ?? '') !== (profile.character_id ?? '')) return c.redirect('/shop?n=reroll_changed');
+  let result: Awaited<ReturnType<typeof buyReroll>>;
+  try {
+    result = await buyReroll(c.env.DB, viewer.user_id, PRICES.reroll);
+  } catch (e) {
+    console.error('캐릭터 리롤 실패', e);
+    return c.redirect('/shop?n=error');
+  }
+  return c.redirect(result === 'done' ? '/shop?n=rerolled' : result === 'none' ? '/shop?n=reroll_none' : result === 'changed' ? '/shop?n=reroll_changed' : '/shop?n=not_enough_jelly');
+});
+
+// 게임 기록 초기화권(나리 2026-11-20): 확인 화면(체크해야 사요) → 겜블장·원정대·사건파일 처음부터
+members.get('/shop/reset', async (c) => {
+  const viewer = c.get('viewer');
+  const [profile, gamble] = await Promise.all([getProfile(c.env.DB, viewer.user_id), gambleAccount(c.env.DB, viewer.user_id)]);
+  return page(c, <GameResetPage viewer={viewer} jelly={profile.dogam_jelly} chips={gamble?.chips ?? null} unchecked={c.req.query('n') === 'unchecked'} />);
+});
+
+members.post('/api/shop/reset', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const body = await c.req.parseBody();
+  if (body.ok !== '1') return c.redirect('/shop/reset?n=unchecked');
+  let result: Awaited<ReturnType<typeof buyGameReset>>;
+  try {
+    result = await buyGameReset(c.env.DB, c.get('viewer').user_id);
+  } catch (e) {
+    console.error('게임 기록 초기화 실패', e);
+    return c.redirect('/shop?n=error');
+  }
+  return c.redirect(result === 'done' ? '/shop?n=reset_done' : '/shop?n=not_enough_jelly');
 });
 
 // 벌점·경고 지우기, 닉네임 변경권: 도감 젤리를 빼고 봇이 디스코드 쪽에 적용해요

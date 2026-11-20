@@ -8,6 +8,8 @@ export const PRICES = {
   theme: 20, // 테마 시작값
   deco: 30, // 꾸밈 캐릭터 시작값
   gender: 30, // 성별 바꾸기(처음 한 번 고르는 건 무료)
+  reroll: 10, // 캐릭터 리롤권: 같은 성별 빈 캐릭터 중 무작위로 바로 확정(나리 2026-11-20)
+  reset: 20, // 게임 기록 초기화권: 겜블장·원정대·사건파일 처음부터(나리 2026-11-20)
 } as const;
 
 export const THEME_PRICES: Record<string, number> = {

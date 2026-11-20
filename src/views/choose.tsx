@@ -125,3 +125,77 @@ export function GenderChangePage(props: { viewer: Member; to: CharacterPool; cha
     </Layout>
   );
 }
+
+// 상점 "캐릭터 리롤권" 확인 화면(나리 2026-11-20): 무작위라 미리보기 없이, 지금 캐릭터만 보여 줘요
+export function RerollPage(props: { viewer: Member; pool: CharacterPool; character: string; jelly: number }) {
+  const { viewer } = props;
+  return (
+    <Layout title="캐릭터 리롤권" viewer={viewer} active="shop">
+      <section class="panel choose confirm">
+        <h1>기본 캐릭터를 새로 뽑으시겠습니까?</h1>
+        <p class="muted">아래는 지금 캐릭터예요.</p>
+        <div class="choose-one">
+          <Preview viewer={viewer} pool={props.pool} character={props.character} />
+        </div>
+        <p class="notice">
+          지금 캐릭터 대신 같은 성별의 빈 캐릭터 중 하나가 <b>무작위</b>로 정해지고 <b>바로 확정</b>돼요. 되돌릴 수 없고, 지금 캐릭터는 다른 멤버가 받을 수 있어요.
+        </p>
+        <p class="notice">
+          도감 젤리 {PRICES.reroll}개가 빠져요(지금 {props.jelly}개).
+        </p>
+        <div class="choose-actions">
+          <a class="btn btn-ghost" href="/shop">
+            그만두기
+          </a>
+          <form method="post" action="/api/shop/reroll">
+            <input type="hidden" name="character" value={props.character} />
+            <button class="btn btn-primary" type="submit">
+              🍬 {PRICES.reroll} 새로 뽑기
+            </button>
+          </form>
+        </div>
+      </section>
+    </Layout>
+  );
+}
+
+// 상점 "게임 기록 초기화권" 확인 화면(나리 2026-11-20). 되돌릴 수 없어서 체크해야 살 수 있어요.
+export function GameResetPage(props: { viewer: Member; jelly: number; chips: number | null; unchecked?: boolean }) {
+  const { viewer } = props;
+  return (
+    <Layout title="게임 기록 초기화권" viewer={viewer} active="shop">
+      <section class="panel confirm reset-confirm">
+        <h1>⚠️ 게임 기록을 처음으로 되돌릴까요?</h1>
+        <p class="notice">되돌릴 수 없어요. 아래 기록이 모두 처음 상태가 돼요.</p>
+        <ul class="reset-list">
+          <li>
+            🎰 <b>겜블장</b>: 젤칩이 시작 칩 1000개가 되고 판 기록이 사라져요
+            {props.chips !== null && props.chips > 1000 ? ` (지금 ${props.chips.toLocaleString('ko-KR')}개 → 1000개)` : ''}. 디스코드 겜블에서 옮겨 온 젤리도 사라져요.
+          </li>
+          <li>🧭 <b>원정대</b>: 깬 장, 장비, 재료, 훈련, 젤코인, 펫, 끝없는 탑 층이 모두 처음으로.</li>
+          <li>🔎 <b>사건파일</b>: 푼 사건, 재수사·오늘의 사건 기록이 모두 처음으로.</li>
+        </ul>
+        <p class="hint">그대로 남는 것: 도감 카드, 도감 젤리, 산 칭호·테마·꾸밈 캐릭터, 기본 캐릭터, 이미 받은 칭호. 처음 깼을 때 받았던 도감 젤리·경험치는 다시 깨도 또 받지 않아요.</p>
+        {props.unchecked && (
+          <p class="notice" role="alert">
+            "알겠어요"에 체크해야 살 수 있어요.
+          </p>
+        )}
+        <form method="post" action="/api/shop/reset" class="stack">
+          <label class="reset-check">
+            <input type="checkbox" name="ok" value="1" required /> 위 내용을 읽었고, 되돌릴 수 없다는 걸 알겠어요
+          </label>
+          <p class="notice">도감 젤리 {PRICES.reset}개가 빠져요(지금 {props.jelly}개).</p>
+          <div class="choose-actions">
+            <a class="btn btn-ghost" href="/shop">
+              그만두기
+            </a>
+            <button class="btn btn-primary" type="submit">
+              🍬 {PRICES.reset} 초기화하기
+            </button>
+          </div>
+        </form>
+      </section>
+    </Layout>
+  );
+}

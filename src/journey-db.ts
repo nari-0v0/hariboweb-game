@@ -222,17 +222,21 @@ export async function actJourneyRun(db: D1Database, user: string, id: string, re
   const s = actJourney(run.state, act);
   if (!s) return 'bad';
   let top = 0;
+  let jellyTop = 0;
   if (s.done) {
     // 아직 못 깬 장(도전 중)은 죽든 이기든 젤코인이 다 모여요.
     // 이미 대장을 깬 장을 다시 도는 판(파밍)만 그 장을 다시 돈 판 수(날짜와 상관없이)에 따라 줄어요.
     const r = await db
       .prepare(
         `SELECT COALESCE((SELECT chapter FROM journey_runs WHERE user_id = ?1 AND status = 'done' AND cleared = 1 ORDER BY chapter DESC LIMIT 1), 0) AS top,
-           COALESCE((SELECT json_extract(farmed, ?2) FROM journey_bank WHERE user_id = ?1), 0) AS farmed`,
+           COALESCE((SELECT json_extract(farmed, ?2) FROM journey_bank WHERE user_id = ?1), 0) AS farmed,
+           COALESCE((SELECT journey_jelly_top FROM game_resets WHERE user_id = ?1), 0) AS paid`,
       )
       .bind(user, matPath(s.ch ?? 1))
-      .first<{ top: number; farmed: number }>();
+      .first<{ top: number; farmed: number; paid: number }>();
     top = r?.top ?? 0;
+    // 게임 기록 초기화 전에 이미 받은 장 젤리는 다시 주지 않아요
+    jellyTop = Math.max(top, r?.paid ?? 0);
     s.farm = (s.ch ?? 1) <= top;
     s.bankPct = s.farm ? bankRate(r?.farmed ?? 0) : 100;
     s.banked = Math.floor((s.coins * s.bankPct) / 100);
@@ -267,7 +271,7 @@ export async function actJourneyRun(db: D1Database, user: string, id: string, re
          WHERE id = ?1 AND user_id = ?2 AND rev = ?12 AND status = 'going'
            AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)`,
       )
-      .bind(id, user, token, JSON.stringify(s), t, s.done ? 1 : 0, day, journeyXp(s.day, s.cleared, s.ch ?? 1), journeyJelly(s.cleared, s.ch ?? 1, top), s.day, s.cleared ? 1 : 0, rev),
+      .bind(id, user, token, JSON.stringify(s), t, s.done ? 1 : 0, day, journeyXp(s.day, s.cleared, s.ch ?? 1), journeyJelly(s.cleared, s.ch ?? 1, jellyTop), s.day, s.cleared ? 1 : 0, rev),
   ];
   if (s.done) {
     // 남은 동전(같은 장을 또 하면 줄어든 만큼)은 보상 횟수와 상관없이 강화 주머니로 (이번 저장이 성공했을 때만)
