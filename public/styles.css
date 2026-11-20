@@ -2449,3 +2449,5 @@ main.wide { max-width: 1320px; }
 /* 끝없는 탑 자동 도전(나리 2026-11-21) */
 .tw-auto { gap: 4px; }
 .tw-auto-hint { color: #d7e3f0; font-size: 0.85em; overflow-wrap: anywhere; }
+.jr-mat-hud { background: #e6f6dd; white-space: nowrap; }
+@media (max-width: 480px) { .jr-hud { flex-wrap: wrap; } }

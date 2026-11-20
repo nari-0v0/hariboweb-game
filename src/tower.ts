@@ -12,7 +12,7 @@ import { CHAPTERS, MAX_CHAPTER, type Monster } from './journey-chapters';
 import { releasedTop } from './unlock';
 // 탑의 기준 장: 준비 중이 아닌 가장 높은 장(지금 9장 = 180층). 장이 열리면 탑도 따라 늘어나요.
 const towerTop = () => Math.max(1, releasedTop(MAX_CHAPTER));
-import { GEAR_MAX, PERKS, battle, gearBonus, startJourney, stat, type BattleFx, type Boost, type Gear, type Line, type Perks } from './journey';
+import { GEAR_MAX, PERKS, battle, perkValue, gearBonus, startJourney, stat, type BattleFx, type Boost, type Gear, type Line, type Perks } from './journey';
 import type { PetId } from './pets';
 
 export const TOWER_OPEN = 3; // 이 장을 깨면 열려요
@@ -53,7 +53,7 @@ export function refStats(c: number) {
   const k = Math.max(0, Math.min(towerTop(), c));
   const perk = (id: keyof Perks) => {
     const max0 = PERKS[id].max;
-    return PERKS[id].per * (max0 + Math.floor(max0 * 0.3) * (Math.max(1, k) - 1));
+    return perkValue(id, max0 + Math.floor(max0 * 0.3) * (Math.max(1, k) - 1));
   };
   const gear = (id: keyof Gear) => {
     // 장 번호만큼 강화(소수점 층은 앞뒤 사이 값)

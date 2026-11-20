@@ -112,8 +112,11 @@ export const NO_PERKS: Perks = { atk: 0, hp: 0, def: 0 };
 export const PERKS: Record<PerkId, { name: string; icon: string; per: number; max: number; text: (l: number) => string }> = {
   atk: { name: '힘 훈련', icon: '🏋️', per: 1, max: 10, text: (l) => `시작 공격력 +${l}` },
   hp: { name: '체력 훈련', icon: '🏃', per: 10, max: 10, text: (l) => `시작 체력 +${l * 10}` },
-  def: { name: '맷집 훈련', icon: '🧱', per: 1, max: 5, text: (l) => `시작 방어력 +${l}` },
+  // 맷집도 힘·체력과 칸 수를 맞췄어요(나리 2026-11-21). 세기는 그대로라 2~3칸마다 방어력 +1(perkValue).
+  def: { name: '맷집 훈련', icon: '🧱', per: 0.4, max: 10, text: (l) => `시작 방어력 +${Math.max(0, Math.ceil(l * 0.4 - 1e-9))}` },
 };
+// 훈련 단계 → 실제로 오르는 능력치(맷집은 0.4씩 올림이라 2~3칸마다 +1)
+export const perkValue = (id: PerkId, lv: number) => (id === 'def' ? Math.max(0, Math.ceil(lv * PERKS.def.per - 1e-9)) : PERKS[id].per * lv);
 export const PERK_IDS = Object.keys(PERKS) as PerkId[];
 // 젤코인 파밍 막기(나리 2026-11-13): 아직 못 깬 장은 언제나 100%.
 // 이미 깬 장을 다시 돌면 그 장을 다시 돈 횟수에 따라 100% → 75% → 50% → 25% → 10%. 날이 바뀌어도 다시 오르지 않아요.
@@ -210,11 +213,11 @@ export const cleanKit = (v: unknown): KitId[] => {
 
 export function startJourney(seed: string, perks: Perks = NO_PERKS, ch = 1, gear: Partial<Gear> = NO_GEAR, kit: KitId[] = [], pet?: { id: PetId; lv: number } | null): JourneyState {
   const g = (id: GearId) => gearBonus(id, gear[id] ?? 0);
-  const maxHp = 100 + PERKS.hp.per * perks.hp + g('charm');
+  const maxHp = 100 + perkValue('hp', perks.hp) + g('charm');
   const packed = kit.length ? [{ icon: '🎒', text: `준비물: ${kit.map((id) => `${KIT[id].icon} ${KIT[id].name}`).join(', ')}` }] : [];
   const s: JourneyState = {
     ...(kit.length ? { kit, kitShield: kit.includes('shield') ? KIT_SHIELD_HITS : 0, potion: kit.includes('potion') ? 1 : 0 } : {}),
-    v: 1, seed, ch, day: 0, hp: maxHp, maxHp, atk: 12 + PERKS.atk.per * perks.atk + g('weapon'), def: 2 + PERKS.def.per * perks.def + g('armor'), lv: 1, xp: 0, coins: 10, skills: {}, pending: null, queuedLevels: 0,
+    v: 1, seed, ch, day: 0, hp: maxHp, maxHp, atk: 12 + perkValue('atk', perks.atk) + g('weapon'), def: 2 + perkValue('def', perks.def) + g('armor'), lv: 1, xp: 0, coins: 10, skills: {}, pending: null, queuedLevels: 0,
     today: [{ icon: '🎒', text: `${ch}장 ${chapterOf(ch).name}! 가방을 메고 출발해요. "다음 날"을 눌러 나아가요.` }, ...packed], journal: [], kills: 0, done: false, cleared: false,
   };
   if (pet && isPetId(pet.id) && pet.lv > 0) {

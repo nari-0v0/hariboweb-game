@@ -300,3 +300,14 @@ describe('아기 펭귄 회피와 방패', () => {
     expect(checked).toBeGreaterThan(0);
   });
 });
+
+describe('맷집 훈련 칸 수(나리 2026-11-21)', () => {
+  it('힘·체력과 같은 칸 수, 방어력은 0.4씩 올림이라 예전 세기와 거의 같아요', async () => {
+    const { perkMax, perkValue } = await import('../src/journey');
+    expect(perkMax('def', 7)).toBe(perkMax('atk', 7));
+    expect(perkValue('def', 28)).toBe(12);
+    expect([0, 1, 2, 3, 5, 25, 26].map((l) => perkValue('def', l))).toEqual([0, 1, 1, 2, 2, 10, 11]);
+    // 예전 n단계(방어력 n) → 새 단계 floor(2.5(n-1))+1: 방어력이 줄지 않아요
+    for (let n = 1; n <= 20; n++) expect(perkValue('def', Math.floor(((n - 1) * 5) / 2) + 1)).toBeGreaterThanOrEqual(n);
+  });
+});
