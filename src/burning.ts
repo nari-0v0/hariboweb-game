@@ -21,9 +21,10 @@ export const resetBurningCache = () => {
 
 // 가장 최근 버닝타임(이미 끝났을 수도 있어요).
 // 봇 묶음은 조금 늦게 오니까, 통화 기록은 지금이 아니라 그 시각이 이 안에 있는지로 봐요.
-export async function burnWindow(db: D1Database, nowMs = Date.now()): Promise<BurnWindow | null> {
+// fresh = 캐시를 쓰지 않고 새로 읽어요(봇 동기화 정산처럼 기록이 남는 곳)
+export async function burnWindow(db: D1Database, nowMs = Date.now(), fresh = false): Promise<BurnWindow | null> {
   let row: Row | null;
-  if (cache && nowMs - cache.at >= 0 && nowMs - cache.at < CACHE_MS) row = cache.row;
+  if (!fresh && cache && nowMs - cache.at >= 0 && nowMs - cache.at < CACHE_MS) row = cache.row;
   else {
     try {
       row = await db.prepare('SELECT started_at, until FROM burning WHERE id = 1').first<Row>();

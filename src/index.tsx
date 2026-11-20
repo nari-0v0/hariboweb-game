@@ -191,8 +191,14 @@ app.get('/', async (c) => {
 });
 
 // 사용설명서는 로그인하지 않아도 볼 수 있어요(디스코드 패널의 도움말 링크로도 들어와요).
-app.get('/guide', async (c) => page(c, <GuidePage viewer={await currentViewer(c)} />));
-app.get('/updates', async (c) => page(c, <UpdatesPage viewer={await currentViewer(c)} />));
+// 안내·업데이트는 로그인 없이도 보지만, 로그인했으면 버닝타임 띠도 똑같이 보여요
+async function viewerWithBurn(c: Context<AppEnv>) {
+  const viewer = await currentViewer(c);
+  if (viewer) viewer.burn_until = await burningUntil(c.env.DB);
+  return viewer;
+}
+app.get('/guide', async (c) => page(c, <GuidePage viewer={await viewerWithBurn(c)} />));
+app.get('/updates', async (c) => page(c, <UpdatesPage viewer={await viewerWithBurn(c)} />));
 
 app.get('/auth/login', (c) => {
   const state = randomToken();
@@ -259,7 +265,8 @@ app.post('/api/bot/sync', async (c) => {
   const parsed = parseSync(raw);
   if (!parsed.ok) return c.json({ error: parsed.error }, 400);
   const now = Date.now();
-  const burn = await burnWindow(c.env.DB, now);
+  // 보상 기록이라 화면용 1분 캐시를 쓰지 않고 새로 읽어요
+  const burn = await burnWindow(c.env.DB, now, true);
   const result = await applySync(c.env.DB, parsed.value, now, { scrimQuests: c.env.SCRIM_QUESTS === '1', burn });
   // 활동은 이미 반영됐어도 캐릭터나 첫 선물 저장에서 실패했을 수 있어요.
   if (result !== 'stale') {
@@ -275,7 +282,7 @@ app.post('/api/bot/sync', async (c) => {
 app.get('/api/bot/burning', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
   const now = Date.now();
-  return c.json({ ok: true, burning: burnReply(await burnWindow(c.env.DB, now), now) });
+  return c.json({ ok: true, burning: burnReply(await burnWindow(c.env.DB, now, true), now) });
 });
 
 // 예전 봇은 겜블 지갑 결제를 하려고 이 주소를 물어봐요. 이제 상점은 도감 젤리로 웹에서 바로 결제해서 줄 게 없어요.

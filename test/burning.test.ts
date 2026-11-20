@@ -52,6 +52,14 @@ describe('버닝타임', () => {
     expect(await burningUntil(db, T0 + MIN)).not.toBeNull();
   });
 
+  it('봇 동기화 정산은 캐시 없이 새로 읽어요', async () => {
+    const { sql, db } = fakeD1();
+    expect(await burnWindow(db, T0)).toBeNull();
+    sql.prepare('UPDATE burning SET started_at = ?, until = ? WHERE id = 1').run(new Date(T0).toISOString(), new Date(T0 + 60 * MIN).toISOString());
+    expect(await burnWindow(db, T0 + 1000)).toBeNull();
+    expect(await burnWindow(db, T0 + 1000, true)).not.toBeNull();
+  });
+
   it('빙고 통화 시간은 버닝타임 안에서만 2배예요', () => {
     const from = new Date(T0).toISOString();
     const until = new Date(T0 + 60 * MIN).toISOString();
