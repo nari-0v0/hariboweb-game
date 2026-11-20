@@ -1,0 +1,547 @@
+import type { BurnWindow } from './burning';
+import { awardEndedGambleSeasons } from './gamble-db';
+import { boosterStatements } from './booster';
+import { stripTitle } from './titles';
+import { MAX_LEVEL, xpForLevel } from './levels';
+import { ensureSeasonQuests, settleEnded } from './team';
+import { purgeAlerts } from './alerts';
+import { cardRewardStatements } from './card-rewards';
+import { isTestMember } from './test-accounts';
+import { bingoStatements, grantTouched, loadPeriods, prunePairDays, savePeriod, splitCycle } from './bingo';
+import { type Attendance, type RoomMinute, type ScrimRecord, type Season, ENDED_GRACE_MS, ensureSeason, evaluateSeason, seasonFrom, seasonStatements, seasonTargets } from './season';
+
+// 봇이 보내는 동기화 묶음을 검사하고 D1에 한 번에 반영해요. 자세한 형식은 docs/bot-sync.md
+const ID = /^\d{17,20}$/;
+const MAX_ITEMS = 5000;
+const MAX_XP = 100_000;
+const MAX_JELLY_EARNED = 100; // 한 묶음에서 한 사람이 받는 도감 젤리
+
+export type SyncPayload = {
+  batch_id: string;
+  members: { id: string; name: string; avatar_url: string | null; joined_at: string | null; is_newbie: boolean; green?: boolean; booster?: boolean; booster_since?: string | null; games?: string[] }[];
+  removed: string[];
+  pair_xp: { a: string; b: string; xp: number; voice_seconds: number; scrims: number; at: string }[];
+  solo_xp: { id: string; xp: number }[];
+  // 봇이 센 도감 젤리(출석, 하루 통화 등). 겜블 젤리와는 상관없어요.
+  jelly_earned: { id: string; amount: number }[];
+  // 시즌 모둠 퀘스트용(없어도 돼요)
+  room_minutes: RoomMinute[];
+  scrims: ScrimRecord[];
+  attendance: Attendance[];
+  season: Season | null;
+  // 서버 멤버 전부를 담은 묶음인지(시즌 모둠은 이런 묶음이 와야 만들어요)
+  full_members: boolean;
+};
+
+type Result = { ok: true; value: SyncPayload } | { ok: false; error: string };
+
+const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+const isCount = (v: unknown, max = MAX_XP): v is number => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= max;
+const isTime = (v: unknown): v is string => typeof v === 'string' && !Number.isNaN(Date.parse(v));
+// 2026-02-31처럼 없는 날짜는 Date가 3월로 넘겨 버려서, 다시 날짜로 바꿨을 때 그대로인지 봐요
+const isDay = (v: unknown): v is string =>
+  typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)) && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v;
+// 길이는 글자(코드 포인트) 수로 세요. 봇(파이썬)이 자르는 방식과 같아야 이모지가 든 이름에 묶음 전체가 거절되지 않아요.
+const isText = (v: unknown, max: number): v is string => typeof v === 'string' && v.length >= 1 && [...v].length <= max;
+const isIds = (v: unknown, min: number, max: number): v is string[] =>
+  Array.isArray(v) && v.length >= min && v.length <= max && v.every((x) => typeof x === 'string' && ID.test(x));
+
+function list(raw: Record<string, unknown>, key: string): unknown[] | string {
+  const v = raw[key] ?? [];
+  if (!Array.isArray(v)) return `${key}는 배열이어야 해요`;
+  if (v.length > MAX_ITEMS) return `${key}는 한 번에 ${MAX_ITEMS}개까지예요`;
+  return v;
+}
+
+export function parseSync(raw: unknown): Result {
+  if (!isObj(raw)) return { ok: false, error: '본문이 JSON 객체가 아니에요' };
+  const batch_id = raw.batch_id;
+  if (typeof batch_id !== 'string' || batch_id.length < 1 || batch_id.length > 100)
+    return { ok: false, error: 'batch_id가 필요해요' };
+
+  const lists = ['members', 'removed', 'pair_xp', 'solo_xp', 'jelly_earned', 'room_minutes', 'scrims', 'attendance'].map((k) => list(raw, k));
+  const bad = lists.find((l) => typeof l === 'string');
+  if (bad) return { ok: false, error: bad as string };
+  const [rawMembers, rawRemoved, rawPairs, rawSolo, rawJelly, rawRooms, rawScrims, rawAttend] = lists as unknown[][];
+
+  const members: SyncPayload['members'] = [];
+  for (const m of rawMembers!) {
+    if (!isObj(m) || typeof m.id !== 'string' || !ID.test(m.id)) return { ok: false, error: 'members.id가 잘못됐어요' };
+    if (!isText(m.name, 100))
+      return { ok: false, error: `members.name이 잘못됐어요 (${m.id})` };
+    const avatar = m.avatar_url ?? null;
+    if (avatar !== null && (typeof avatar !== 'string' || !avatar.startsWith('https://')))
+      return { ok: false, error: `members.avatar_url이 잘못됐어요 (${m.id})` };
+    const joined = m.joined_at ?? null;
+    if (joined !== null && !isTime(joined)) return { ok: false, error: `members.joined_at이 잘못됐어요 (${m.id})` };
+    // members[].jelly(예전 겜블 젤리 잔액)는 더 이상 쓰지 않아서 와도 무시해요
+    let games: string[] | undefined;
+    if (m.games !== undefined) {
+      if (!Array.isArray(m.games) || m.games.length > 30 || !m.games.every((g) => isText(g, 50)))
+        return { ok: false, error: `members.games가 잘못됐어요 (${m.id})` };
+      games = [...new Set(m.games as string[])];
+    }
+    // green: 초록하리보 역할이 있는지. 빼면(예전 봇) 웹에 있던 값을 그대로 둬요.
+    if (m.green !== undefined && typeof m.green !== 'boolean') return { ok: false, error: `members.green이 잘못됐어요 (${m.id})` };
+    const green = typeof m.green === 'boolean' ? { green: m.green } : {};
+    // booster: 디스코드 서버 부스트 중인지(나리 2026-11-21). 빼면(예전 봇) 웹에 있던 값을 그대로 둬요.
+    if (m.booster !== undefined && typeof m.booster !== 'boolean') return { ok: false, error: `members.booster가 잘못됐어요 (${m.id})` };
+    // booster_since: 부스트를 시작한 시각(디스코드 premium_since). 매달 그날 감사 젤리를 줘요. 없으면 달이 바뀔 때 줘요.
+    if (m.booster_since !== undefined && m.booster_since !== null && !isTime(m.booster_since))
+      return { ok: false, error: `members.booster_since가 잘못됐어요 (${m.id})` };
+    const booster = typeof m.booster === 'boolean'
+      ? { booster: m.booster, ...(m.booster && isTime(m.booster_since) ? { booster_since: new Date(m.booster_since).toISOString() } : {}) }
+      : {};
+    members.push({ id: m.id, name: stripTitle(m.name) || m.name, avatar_url: avatar, joined_at: joined, is_newbie: m.is_newbie === true, ...green, ...booster, ...(games ? { games } : {}) });
+  }
+
+  const removed: string[] = [];
+  for (const id of rawRemoved!) {
+    if (typeof id !== 'string' || !ID.test(id)) return { ok: false, error: 'removed에 잘못된 id가 있어요' };
+    removed.push(id);
+  }
+
+  const pair_xp: SyncPayload['pair_xp'] = [];
+  for (const p of rawPairs!) {
+    if (!isObj(p) || typeof p.a !== 'string' || typeof p.b !== 'string' || !ID.test(p.a) || !ID.test(p.b))
+      return { ok: false, error: 'pair_xp.a/b가 잘못됐어요' };
+    if (p.a === p.b) return { ok: false, error: 'pair_xp에 같은 사람끼리 짝이 있어요' };
+    const voice = p.voice_seconds ?? 0;
+    const scrims = p.scrims ?? 0;
+    if (!isCount(p.xp) || !isCount(voice, 86_400 * 31) || !isCount(scrims, 1000))
+      return { ok: false, error: `pair_xp 숫자가 잘못됐어요 (${p.a}, ${p.b})` };
+    if (!isTime(p.at)) return { ok: false, error: `pair_xp.at이 잘못됐어요 (${p.a}, ${p.b})` };
+    pair_xp.push({ a: p.a, b: p.b, xp: p.xp, voice_seconds: voice, scrims, at: new Date(p.at).toISOString() });
+  }
+
+  const solo_xp: SyncPayload['solo_xp'] = [];
+  for (const s of rawSolo!) {
+    if (!isObj(s) || typeof s.id !== 'string' || !ID.test(s.id) || !isCount(s.xp))
+      return { ok: false, error: 'solo_xp가 잘못됐어요' };
+    solo_xp.push({ id: s.id, xp: s.xp });
+  }
+
+  const jelly_earned: SyncPayload['jelly_earned'] = [];
+  for (const j of rawJelly!) {
+    if (!isObj(j) || typeof j.id !== 'string' || !ID.test(j.id) || !isCount(j.amount, MAX_JELLY_EARNED) || j.amount === 0)
+      return { ok: false, error: `jelly_earned가 잘못됐어요 (1~${MAX_JELLY_EARNED})` };
+    jelly_earned.push({ id: j.id, amount: j.amount });
+  }
+
+  const room_minutes: RoomMinute[] = [];
+  for (const r of rawRooms!) {
+    if (!isObj(r) || !isTime(r.at) || typeof r.room !== 'string' || !ID.test(r.room) || !isIds(r.members, 2, 99))
+      return { ok: false, error: 'room_minutes가 잘못됐어요' };
+    room_minutes.push({ at: new Date(r.at).toISOString(), room: r.room, members: r.members });
+  }
+
+  const scrims: ScrimRecord[] = [];
+  for (const x of rawScrims!) {
+    if (!isObj(x) || !isText(x.id, 100) || !isText(x.game, 50) || !isTime(x.at) || !isIds(x.members, 1, 100))
+      return { ok: false, error: 'scrims가 잘못됐어요' };
+    scrims.push({ id: x.id, game: x.game, at: new Date(x.at).toISOString(), members: x.members });
+  }
+
+  const attendance: Attendance[] = [];
+  for (const a of rawAttend!) {
+    if (!isObj(a) || typeof a.id !== 'string' || !ID.test(a.id) || !isDay(a.day)) return { ok: false, error: 'attendance가 잘못됐어요' };
+    attendance.push({ id: a.id, day: a.day });
+  }
+
+  let season: Season | null = null;
+  if (raw.season !== undefined && raw.season !== null) {
+    const x = raw.season;
+    if (!isObj(x) || !isTime(x.start) || !isTime(x.end)) return { ok: false, error: 'season이 잘못됐어요' };
+    const span = Date.parse(x.end) - Date.parse(x.start);
+    // 봇은 생존 주기를 1~90일까지 허용해요. 그보다 조금 넉넉히 받아야 묶음 전체가 거절되지 않아요.
+    if (span <= 0 || span > 92 * DAY_MS) return { ok: false, error: 'season 기간이 잘못됐어요' };
+    season = seasonFrom(x.start, x.end);
+  }
+
+  return {
+    ok: true,
+    value: { batch_id, members, removed, pair_xp, solo_xp, jelly_earned, room_minutes, scrims, attendance, season, full_members: raw.full_members === true },
+  };
+}
+
+// 카드가 10레벨을 넘길 때마다 그 카드 주인에게 도감 젤리 3개씩.
+// 카드마다 젤리를 준 레벨(jelly_level)을 적어 두고, 같은 트랜잭션 안에서 경험치를 올린 뒤
+// 카드 모습이 바뀌는 10레벨마다 젤리를 줘요. 동기화가 겹쳐도 단계마다 딱 한 번만 받아요.
+// (만렙 100이라 레벨마다 주면 젤리가 너무 많이 풀려요)
+export const LEVEL_STEP = 10;
+export const JELLY_PER_CARD_STEP = 3;
+
+// SQL 안에서 경험치 → 레벨(levels.ts의 levelFromXp와 같아요)
+export function levelSql(col: string): string {
+  const needs = Array.from({ length: MAX_LEVEL - 1 }, (_, i) => `(${xpForLevel(i + 2)})`).join(',');
+  return `(1 + (SELECT COUNT(*) FROM (VALUES ${needs}) WHERE column1 <= ${col}))`;
+}
+
+// 떠난 멤버(또는 아직 members에 없는 사람)의 경험치는 버려요. 그래서 봇은 경험치에 나오는 사람을 같은 묶음의 members에도 넣어요.
+// 모든 문장을 하나의 트랜잭션으로 실행해요. 같은 batch_id가 또 오면 첫 INSERT에서 막혀 아무것도 반영되지 않아요.
+// 같은 묶음이 두 번 반영되지 않게 batch_id를 적어 두는데, 끝없이 쌓이지 않게 30일 지난 기록은 지워요.
+// 대신 봇이 만든 지 25일이 넘은 묶음은 받지 않아요(기록이 지워진 뒤 옛 묶음이 다시 와서 두 번 반영되지 않게).
+export const SYNC_BATCH_KEEP_DAYS = 30;
+export const SYNC_BATCH_MAX_AGE_DAYS = 25;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// 봇의 batch_id는 "만든 시각-무작위"예요. 시각을 못 읽으면 null.
+export function batchTime(batchId: string): number | null {
+  const m = /^(\d{4}-\d{2}-\d{2}T[0-9:.]+(?:Z|[+-]\d{2}:\d{2}))/.exec(batchId);
+  if (!m) return null;
+  const ms = Date.parse(m[1]!);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+// 만든 시각이 없거나, 25일보다 오래됐거나, 하루 넘게 미래인 묶음은 받지 않아요.
+// (기록을 30일 뒤 지우니까, 시각을 모르는 묶음이 나중에 다시 오면 두 번 반영될 수 있어요)
+export function isStaleBatch(batchId: string, nowMs: number): boolean {
+  const ms = batchTime(batchId);
+  if (ms === null) return true;
+  return nowMs - ms > SYNC_BATCH_MAX_AGE_DAYS * DAY_MS || ms - nowMs > DAY_MS;
+}
+
+// 초기화·탈퇴 전에 만든 활동을 늦게 받더라도 개인 기록이 되살아나지 않게 해요.
+// 시각이 없는 혼자 경험치·젤리는 묶음을 만든 시각, 출석은 한국 날짜까지만 구분할 수 있어요.
+type ResetPlan = {
+  payload: SyncPayload;
+  rejoined: Map<string, string>;
+  removed: Map<string, string | null>;
+};
+
+async function afterReset(db: D1Database, p: SyncPayload, nowMs: number): Promise<ResetPlan> {
+  const { results } = await db.prepare('SELECT user_id, reset_at, active, updated_at FROM members WHERE reset_at IS NOT NULL OR active = 0')
+    .all<{ user_id: string; reset_at: string | null; active: number; updated_at: string }>();
+  const previous = new Map(results.map((r) => [r.user_id, r]));
+  const resets = new Map(results.filter((r) => r.reset_at !== null).map((r) => [r.user_id, Date.parse(r.reset_at!)]));
+  const members = new Map(p.members.map((m) => [m.id, m]));
+  const removedIds = new Set(p.removed);
+  const rejoined = new Map<string, string>();
+  const removed = new Map<string, string | null>();
+  const joinedTime = (id: string) => {
+    const ms = Date.parse(members.get(id)?.joined_at ?? '');
+    return Number.isFinite(ms) && ms <= nowMs ? ms : null;
+  };
+  const cutoff = (id: string, joined: number | null) => {
+    const ms = Math.max(resets.get(id) ?? -Infinity, joined ?? -Infinity);
+    return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+  };
+  for (const m of p.members) {
+    const old = previous.get(m.id);
+    if (old?.active !== 0 || removedIds.has(m.id)) continue;
+    // 실제 재가입 시각으로 새 활동을 구분하되, 정식 초기화 등 기존 기준은 앞당기지 않아요.
+    const receipt = Date.parse(old.updated_at);
+    const at = cutoff(m.id, joinedTime(m.id) ?? (Number.isFinite(receipt) ? receipt : nowMs))!;
+    rejoined.set(m.id, at);
+    resets.set(m.id, Date.parse(at));
+  }
+  for (const id of removedIds) {
+    // 반영이 늦었다고 그 사이의 새 활동까지 지우지 않아요. 가입 시각은 다음 재가입 때도 확인해요.
+    removed.set(id, cutoff(id, joinedTime(id)));
+  }
+  // 이미 나갔고 이번 묶음에서도 다시 들어오지 않은 사람의 활동은 빙고·시즌 기록에도 남기지 않아요.
+  // (늦게 도착한 탈퇴 전 통화가 재가입 뒤 본인 빙고로 되살아나지 않게)
+  const gone = (id: string) => previous.get(id)?.active === 0 && !rejoined.has(id);
+  const fresh = (id: string, ms: number) => !gone(id) && ms >= (resets.get(id) ?? -Infinity);
+  const made = batchTime(p.batch_id)!;
+  return { rejoined, removed, payload: {
+    ...p,
+    pair_xp: p.pair_xp.filter((x) => fresh(x.a, Date.parse(x.at)) && fresh(x.b, Date.parse(x.at))),
+    solo_xp: p.solo_xp.filter((x) => fresh(x.id, made)),
+    jelly_earned: p.jelly_earned.filter((x) => fresh(x.id, made)),
+    room_minutes: p.room_minutes.map((r) => ({ ...r, members: r.members.filter((id) => fresh(id, Date.parse(r.at))) })).filter((r) => r.members.length >= 2),
+    scrims: p.scrims.map((r) => ({ ...r, members: r.members.filter((id) => fresh(id, Date.parse(r.at))) })).filter((r) => r.members.length > 0),
+    attendance: p.attendance.filter((a) => !gone(a.id) && (!resets.has(a.id) || a.day >= new Date(resets.get(a.id)! + 9 * 3_600_000).toISOString().slice(0, 10))),
+  } };
+}
+
+// 테스트 계정(src/test-accounts.ts)은 멤버로는 남지만(로그인·테스트용) 함께한 경험치(카드)를 만들지 않고,
+// 신입이 아닌 것으로 받아요. 초록하리보 값은 봇이 보낸 때만 false로 바꿔요(안 보내는 예전 봇에서 이 계정만 값이 생기면
+// 시즌이 "역할 정보 있음"으로 잘못 판단해요). 시즌 팀에서 빼는 건 src/season.ts가 직접 해요.
+export function withoutTestMembers(p: SyncPayload): SyncPayload {
+  return {
+    ...p,
+    members: p.members.map((m) => (isTestMember(m.id) ? { ...m, is_newbie: false, ...(m.green === undefined ? {} : { green: false }) } : m)),
+    pair_xp: p.pair_xp.filter((x) => !isTestMember(x.a) && !isTestMember(x.b)),
+  };
+}
+
+// 부스트 여부가 온 사람마다 결제일 계산에 쓸 시작일. 이번 묶음에 시작일이 없으면 전에 적어 둔 값을 써요(Codex #299).
+async function boosterList(db: D1Database, members: SyncPayload['members']) {
+  const missing = members.filter((m) => m.booster === true && !m.booster_since).map((m) => m.id);
+  const saved = new Map<string, string | null>();
+  if (missing.length) {
+    const { results } = await db
+      .prepare('SELECT user_id, booster_since FROM members WHERE user_id IN (SELECT value FROM json_each(?))')
+      .bind(JSON.stringify(missing))
+      .all<{ user_id: string; booster_since: string | null }>();
+    for (const r of results) saved.set(r.user_id, r.booster_since);
+  }
+  return members.flatMap((m) =>
+    m.booster === undefined ? [] : [{ id: m.id, booster: m.booster, since: m.booster_since ?? saved.get(m.id) ?? null }],
+  );
+}
+
+// groupQuests: 예전 모둠 퀘스트 8개를 새 시즌에도 만들기(테스트용, 기본은 안 만들어요)
+export type SyncOptions = { scrimQuests?: boolean; groupQuests?: boolean; burn?: BurnWindow | null };
+
+export async function applySync(
+  db: D1Database,
+  p: SyncPayload,
+  nowMs = Date.now(),
+  opts: SyncOptions = {},
+): Promise<'applied' | 'duplicate' | 'stale'> {
+  const t = new Date(nowMs).toISOString();
+  if (isStaleBatch(p.batch_id, nowMs)) return 'stale';
+  const seen = await db.prepare('SELECT 1 FROM sync_batches WHERE batch_id = ?').bind(p.batch_id).first();
+  if (seen) return 'duplicate';
+  const reset = await afterReset(db, p, nowMs);
+  p = withoutTestMembers(reset.payload);
+
+  const upsertMember = db.prepare(
+    `INSERT INTO members (user_id, display_name, avatar_url, joined_at, is_newbie, active, updated_at, games, green, reset_at, booster, booster_since)
+     VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, COALESCE(?7, '[]'), ?8, ?9, COALESCE(?10, 0), CASE WHEN ?10 = 1 THEN ?11 END)
+     ON CONFLICT (user_id) DO UPDATE SET display_name = ?2, avatar_url = ?3,
+       joined_at = COALESCE(?4, joined_at), is_newbie = ?5, active = 1, updated_at = ?6, games = COALESCE(?7, games), green = COALESCE(?8, green),
+       booster = COALESCE(?10, booster),
+       -- 부스트를 끊으면 시작일도 지워요(다시 하면 새 시작일). 시작일을 빼고 보내면 적어 둔 값을 그대로 써요.
+       booster_since = CASE WHEN ?10 = 0 THEN NULL WHEN ?10 = 1 THEN COALESCE(?11, booster_since) ELSE booster_since END,
+       reset_at = CASE WHEN ?9 IS NULL THEN members.reset_at ELSE MAX(COALESCE(members.reset_at, ''), ?9) END`,
+  );
+  // 다시 들어온 사람과의 카드는 양쪽 모두 처음부터예요(나리 2026-11-19 "0쪽으로 맞춰줘").
+  // 다시 들어온 사람 쪽 카드는 나갈 때 지웠으니, 남아 있던 사람들이 가진 그 사람 카드("떠난 멤버")도 지워요.
+  // 멤버를 다시 활성으로 적는 것과 항상 같은 트랜잭션에 넣어요(활성만 먼저 저장되면 다음 묶음에서 재가입으로 안 보여서 영영 안 지워져요).
+  const rejoinStmts = [...reset.rejoined.keys()].map((id) => db.prepare('DELETE FROM cards WHERE target_id = ?').bind(id));
+  const memberStmts = p.members.map((m) =>
+    upsertMember.bind(m.id, m.name, m.avatar_url, m.joined_at, m.is_newbie ? 1 : 0, t, m.games ? JSON.stringify(m.games) : null, m.green === undefined ? null : m.green ? 1 : 0, reset.rejoined.get(m.id) ?? null,
+      m.booster === undefined ? null : m.booster ? 1 : 0, m.booster_since ?? null),
+  );
+
+  // 시즌 모둠: 서버 멤버 전부가 담긴 묶음이면 멤버(게임 역할)를 먼저 적고, 처음 보는 시즌이면 모둠을 만들어요.
+  // 멤버 적기는 덮어쓰기라 아래 묶음에서 한 번 더 해도 같아요.
+  if (p.season && p.full_members && Date.parse(p.season.start) <= nowMs && nowMs < Date.parse(p.season.end)) {
+    const exists = await db.prepare('SELECT 1 FROM seasons WHERE id = ?').bind(p.season.id).first();
+    if (!exists) {
+      if (memberStmts.length) await db.batch([...rejoinStmts, ...memberStmts]);
+      await ensureSeason(db, p.season, nowMs, { scrim: opts.scrimQuests, groupQuests: opts.groupQuests, exclude: p.removed });
+    }
+  }
+
+  const stmts: D1PreparedStatement[] = [
+    db.prepare('INSERT INTO sync_batches (batch_id, applied_at) VALUES (?, ?)').bind(p.batch_id, t),
+    db.prepare('DELETE FROM sync_batches WHERE applied_at < ?').bind(new Date(nowMs - SYNC_BATCH_KEEP_DAYS * DAY_MS).toISOString()),
+    // 15일 지난 알림(🔔)은 저절로 지워요
+    purgeAlerts(db, nowMs),
+    // 이번 묶음의 함께한 경험치는 아래에서 새 카드로 쌓여요(지우기가 먼저).
+    ...rejoinStmts,
+    ...memberStmts,
+    // 서버 부스터: 달마다 감사 젤리, 부스트를 끊으면 「부스터」 칭호 떼기(src/booster.ts)
+    ...boosterStatements(db, await boosterList(db, p.members), nowMs),
+  ];
+  // 시즌 모둠 기록(통화방 1분, 내전, 출석)도 같은 트랜잭션에. 묶음이 한 번만 반영되니까 두 번 세지 않아요.
+  // 경험치를 올리기 전에 넣어요: 시즌 중에 새로 들어온 사람의 시작 기준(스냅샷)에 이번 묶음 경험치가 섞이지 않게.
+  stmts.push(...(await seasonStatements(db, p, nowMs)));
+
+  const addPair = db.prepare(
+    `INSERT INTO cards (owner_id, target_id, xp, voice_seconds, scrims, first_met, updated_at)
+     SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
+     ON CONFLICT (owner_id, target_id) DO UPDATE SET xp = xp + ?3, voice_seconds = voice_seconds + ?4,
+       scrims = scrims + ?5, first_met = MIN(first_met, ?6), updated_at = ?7`,
+  );
+  for (const x of p.pair_xp) {
+    stmts.push(addPair.bind(x.a, x.b, x.xp, x.voice_seconds, x.scrims, x.at, t));
+    stmts.push(addPair.bind(x.b, x.a, x.xp, x.voice_seconds, x.scrims, x.at, t));
+  }
+
+  const addSolo = db.prepare(
+    `INSERT INTO profiles (user_id, solo_xp, updated_at)
+     SELECT ?1, ?2, ?3 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
+     ON CONFLICT (user_id) DO UPDATE SET solo_xp = solo_xp + ?2, updated_at = ?3`,
+  );
+  for (const s of p.solo_xp) stmts.push(addSolo.bind(s.id, s.xp, t));
+
+  // 도감 젤리: 봇이 센 것. 지금 서버에 있는 멤버만 받아요.
+  const addJelly = db.prepare(
+    `INSERT INTO profiles (user_id, dogam_jelly, updated_at)
+     SELECT ?1, ?2, ?3 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
+     ON CONFLICT (user_id) DO UPDATE SET dogam_jelly = dogam_jelly + ?2, updated_at = ?3`,
+  );
+  const earned = new Map<string, number>();
+  for (const j of p.jelly_earned) earned.set(j.id, (earned.get(j.id) ?? 0) + j.amount);
+  for (const [id, amount] of earned) stmts.push(addJelly.bind(id, amount, t));
+
+  // 도감 젤리: 카드 레벨업. 경험치를 올린 다음, 아직 젤리를 안 준 10레벨 단계만큼 주고 준 레벨을 적어요.
+  const level = levelSql('xp');
+  const steps = `(${level} / ${LEVEL_STEP} - jelly_level / ${LEVEL_STEP})`;
+  const levelUp = `(SELECT COALESCE(SUM(${steps}), 0) * ${JELLY_PER_CARD_STEP} FROM cards WHERE owner_id = ?1 AND ${level} > jelly_level)`;
+  const addLevelJelly = db.prepare(
+    `INSERT INTO profiles (user_id, dogam_jelly, updated_at)
+     SELECT ?1, ${levelUp}, ?2 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1) AND ${levelUp} > 0
+     ON CONFLICT (user_id) DO UPDATE SET dogam_jelly = dogam_jelly + excluded.dogam_jelly, updated_at = ?2`,
+  );
+  const markLevel = db.prepare(`UPDATE cards SET jelly_level = ${level} WHERE owner_id = ?1 AND ${level} > jelly_level`);
+  for (const owner of new Set(p.pair_xp.flatMap((x) => [x.a, x.b]))) {
+    stmts.push(addLevelJelly.bind(owner, t));
+    stmts.push(markLevel.bind(owner));
+  }
+
+  // 주간 빙고 기록(통화방 1분, 출석)도 같은 트랜잭션에.
+  // 나간 사람 처리보다 먼저 넣어요: 같은 묶음에 나가기 직전 기록이 있어도 아래에서 함께 지우고,
+  // 짝 통화 기준값(bingo_pair_reset)에도 그 분이 들어가게요.
+  // 빙고 기간 = 생명력 주기(봇이 보내는 season)의 절반. 이번 묶음의 주기를 먼저 적어 둬요.
+  const periods = await loadPeriods(db, nowMs);
+  if (p.season) {
+    for (const half of splitCycle(p.season.start, p.season.end)) {
+      stmts.push(savePeriod(db, half));
+      periods.unshift(half);
+    }
+    // 주기가 바뀌는 날 새벽(한국 0~6시) 출석은 그날 정오가 든 "다음 주기" 앞 절반 몫이에요. 봇은 6시가 지나야 새 주기를
+    // 보내서, 전에는 이 출석이 임시 주(w…)로 들어가 새 빙고판에서 빠졌어요. 같은 길이로 이어진다고 보고 그 기간 id로
+    // 적어 둬요(기간 자체는 저장하지 않아요. 봇이 새 주기를 보내면 같은 id라 그대로 이어지고, 시작 전 기간은 보상 확인도 안 해요).
+    const span = Date.parse(p.season.end) - Date.parse(p.season.start);
+    const next = splitCycle(p.season.end, new Date(Date.parse(p.season.end) + span).toISOString())[0];
+    if (next) periods.push(next);
+  }
+  const bingo = bingoStatements(db, p.room_minutes, p.attendance, periods, opts.burn ?? null);
+  stmts.push(...bingo.stmts, prunePairDays(db, nowMs));
+
+  // 나간 사람: 본인 카드와 도감은 지우고, 다른 사람이 가진 그 사람 카드는 흐리게 남겨요.
+  for (const id of p.removed) {
+    // 다시 들어오면 캐릭터를 새로 받으니 성별도 다시 골라요
+    stmts.push(db.prepare("UPDATE members SET active = 0, gender_chosen_at = NULL, reset_at = CASE WHEN ?1 IS NULL THEN reset_at ELSE MAX(COALESCE(reset_at, ''), ?1) END, updated_at = ?2 WHERE user_id = ?3").bind(reset.removed.get(id) ?? null, t, id));
+    stmts.push(db.prepare('DELETE FROM profiles WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM character_keep WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM cards WHERE owner_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM owned_items WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM exp_runs WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM exp_finds WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM case_runs WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM story_runs WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM escape_runs WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM escape_rewards WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM escape_re WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM escape_daily WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM escape_daily_stats WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM escape_paid WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM game_resets WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM journey_runs WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM journey_bank WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM story_marks WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM story_rewards WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM rooms WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM jellypi WHERE user_id = ?').bind(id));
+    // 빙고도 처음부터예요(같은 빙고 기간에 다시 들어와도 예전 칸·받은 줄이 남지 않게, 나리 2026-11-16).
+    // 다른 사람과 함께한 통화(bingo_pair)는 상대의 빙고 기록이기도 해서 남겨요.
+    // 대신 나갈 때까지 쌓인 분을 적어 두고, 다시 들어온 사람의 빙고에서는 그만큼 빼고 세요.
+    stmts.push(db.prepare('DELETE FROM bingo_pair_reset WHERE user_id = ?').bind(id));
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO bingo_pair_reset (week, user_id, other, minutes)
+           SELECT week, ?1, CASE WHEN a = ?1 THEN b ELSE a END, minutes FROM bingo_pair WHERE a = ?1 OR b = ?1`,
+        )
+        .bind(id),
+    );
+    // 시즌 팀 퀘스트·서버 퀘스트도 같은 방식이에요. 같은 시즌에 다시 들어오면 나가기 전 통화는 본인 판정에 세지 않아요.
+    // (남은 팀원·초록하리보 쪽 기록은 그대로예요) 이미 끝난 시즌은 건드리지 않아요: 끝난 뒤 정산 전에 나가도
+    // 그 시즌 팀 달성이 바뀌어 남은 팀원이 보상을 못 받는 일이 없게요.
+    const ongoing = 'season_id IN (SELECT id FROM seasons WHERE ends_at > ?2)';
+    stmts.push(db.prepare(`DELETE FROM season_pair_reset WHERE user_id = ?1 AND ${ongoing}`).bind(id, t));
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO season_pair_reset (season_id, kind, user_id, other, minutes)
+           SELECT season_id, 'team', ?1, CASE WHEN a = ?1 THEN b ELSE a END, SUM(minutes) FROM gq_pair
+           WHERE (a = ?1 OR b = ?1) AND ${ongoing} GROUP BY season_id, CASE WHEN a = ?1 THEN b ELSE a END`,
+        )
+        .bind(id, t),
+    );
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO season_pair_reset (season_id, kind, user_id, other, minutes)
+           SELECT season_id, 'kidnap', ?1, newbie_id, minutes FROM kidnap_min WHERE user_id = ?1 AND ${ongoing}
+           UNION ALL
+           SELECT season_id, 'kidnapped', ?1, user_id, minutes FROM kidnap_min WHERE newbie_id = ?1 AND ${ongoing}`,
+        )
+        .bind(id, t),
+    );
+    stmts.push(db.prepare('DELETE FROM bingo_day WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM bingo_flag WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM bingo_lines WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM room_likes WHERE from_id = ?1 OR to_id = ?1').bind(id));
+    // 같이 배정되지 않기 요청도(신청했든 받았든) 지워요. 사유가 채널에 새로 올라가지 않게요.
+    stmts.push(db.prepare('DELETE FROM assign_blocks WHERE from_id = ?1 OR to_id = ?1').bind(id));
+    // 받은 칭찬의 한마디는 지워요. 칭찬 기록 자체는 보낸 사람의 하루 횟수·빙고 집계에 쓰여서 남기고,
+    // 칭찬함은 reset_at 뒤에 받은 것만 보여 줘요(다시 들어와도 예전 칭찬은 안 보여요).
+    stmts.push(db.prepare('UPDATE praises SET note = NULL WHERE to_id = ?').bind(id));
+    // 산 기록(남은 닉네임 변경권, 벌점·경고 지우기 값)도 지워요. 다시 들어오면 처음부터예요.
+    // 겜블장 젤칩·판 기록은 members.active가 0이 될 때 DB 트리거(gamble_member_left)가 지워요.
+    stmts.push(db.prepare('DELETE FROM purchases WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM nick_jobs WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM alerts WHERE user_id = ?').bind(id));
+    // 젤리 지급 기록은 사유·개수를 지우고 번호만 남겨요. 봇이 응답을 못 받아 같은 번호로 다시 보내도
+    // 다시 들어온 사람에게 예전 젤리가 또 들어가지 않게요(아직 반영 안 된 기록은 지워요).
+    stmts.push(db.prepare('DELETE FROM jelly_grants WHERE user_id = ? AND applied_at IS NULL').bind(id));
+    stmts.push(db.prepare('UPDATE jelly_grants SET amount = 0, reason = NULL WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM card_count_rewards WHERE user_id = ?').bind(id));
+  }
+
+  // 도감 젤리: 카드 장수 단계(5·10·15…장)에 처음 닿으면 한 번(src/card-rewards.ts).
+  // 같은 묶음의 탈퇴를 먼저 반영하려고 나간 사람 처리 뒤에 둬요. 이번 묶음에 함께한 활동이 있는 사람만 살펴보고,
+  // 그 밖에 조건을 채운 사람(배포 전, 상대 재가입)은 내 카드·내 도감을 열 때 받아요(모두를 매 묶음 세면 D1 무료 한도를 넘어요).
+  for (const owner of new Set(p.pair_xp.flatMap((x) => [x.a, x.b]))) stmts.push(...cardRewardStatements(db, owner, p.batch_id, t));
+
+
+  try {
+    await db.batch(stmts);
+  } catch (e) {
+    if (String(e).includes('UNIQUE') && String(e).includes('sync_batches')) return 'duplicate';
+    throw e;
+  }
+  // 하리보 빙고 서버 퀘스트 목표(시즌마다 처음 한 번). 이 기능 전에 시작한 시즌도 여기서 정해요.
+  if (p.season && Date.parse(p.season.start) <= nowMs && nowMs < Date.parse(p.season.end)) {
+    try {
+      if (await db.prepare('SELECT 1 FROM seasons WHERE id = ?').bind(p.season.id).first()) await ensureSeasonQuests(db, p.season, nowMs);
+    } catch (e) {
+      console.error('팀·서버 퀘스트 만들기 실패', e);
+    }
+  }
+
+  // 다 채운 퀘스트 확인(실패해도 동기화는 끝났어요. 다음 묶음 때 다시 확인해요)
+  try {
+    const seen = new Set<string>();
+    for (const { season } of await seasonTargets(db, p)) {
+      seen.add(season.id);
+      await evaluateSeason(db, season.id, nowMs);
+    }
+    // 막 끝난 시즌(끝나고 ENDED_GRACE_MS 안)은 이번 묶음에 그 시즌 기록이 없어도 마지막으로 한 번 더 확인해요.
+    // 로그인·칭찬처럼 봇 기록이 아닌 활동으로 끝나기 직전에 채운 퀘스트를 놓치지 않게요.
+    const { results: justEnded } = await db
+      .prepare('SELECT id FROM seasons WHERE ends_at <= ?1 AND ends_at > ?2')
+      .bind(new Date(nowMs).toISOString(), new Date(nowMs - ENDED_GRACE_MS).toISOString())
+      .all<{ id: string }>();
+    for (const r of justEnded) if (!seen.has(r.id)) await evaluateSeason(db, r.id, nowMs);
+  } catch (e) {
+    console.error('시즌 퀘스트 확인 실패', e);
+  }
+  // 끝난 시즌의 겜블장 우승(시즌 마무리 확인을 놓쳤어도 여기서 다시 해요)
+  try {
+    await awardEndedGambleSeasons(db, nowMs);
+  } catch (e) {
+    console.error('겜블장 시즌 우승 정산 실패', e);
+  }
+  // 끝난 시즌의 팀·서버 퀘스트 보상(실패해도 다음 묶음 때 다시 해요)
+  try {
+    await settleEnded(db, nowMs);
+  } catch (e) {
+    console.error('팀·서버 퀘스트 보상 실패', e);
+  }
+  // 채운 빙고 줄 보상(실패해도 동기화는 끝났어요. 다음에 빙고를 보거나 다음 묶음 때 다시 확인해요)
+  try {
+    await grantTouched(db, bingo.touched, bingo.periods, nowMs);
+  } catch (e) {
+    console.error('빙고 보상 확인 실패', e);
+  }
+  return 'applied';
+}
