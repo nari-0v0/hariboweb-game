@@ -6,7 +6,7 @@ import type { Member } from './env';
 import { stripTitle } from './titles';
 import { notTestMember } from './test-accounts';
 import type { LoginProfile } from './discord';
-import { type CharacterPool, isCharacterId, pickCharacter, poolOf, shouldRepick } from './character';
+import { type CharacterPool, isCharacterId, pickCharacter, poolOf, rerollCharacter, shouldRepick } from './character';
 
 export type Profile = {
   user_id: string;
@@ -382,6 +382,62 @@ export async function buyGenderChange(
       .bind(plan.character, userId)
       .first();
     return keptByOther ? 'changed' : 'not_enough_jelly';
+  });
+}
+
+// 상점 "캐릭터 리롤권"(나리 2026-11-20): 도감 젤리를 빼고 같은 성별의 빈 캐릭터 중 무작위 하나로 바로 바꿔요.
+// 되돌리기는 없고, 예전 캐릭터는 맡겨 두지 않아요(다른 사람이 받을 수 있어요). 성별 바꾸기로 맡겨 둔 캐릭터는 그대로예요.
+export const REROLL_ITEM_ID = 'change:reroll';
+// expected: 확인 화면에서 본 캐릭터. 두 탭에서 같은 확인 화면으로 두 번 사지 않게 결제 조건에서도 비교해요.
+export async function buyReroll(
+  db: D1Database,
+  userId: string,
+  price: number,
+  expected: string,
+  rand: () => number = Math.random,
+): Promise<'done' | 'none' | 'not_enough_jelly' | 'changed'> {
+  return retrySigConflict(async () => {
+    const all = await readCharacters(db, [userId]);
+    const mine = all.find((r) => !r.kept && r.user_id === userId);
+    const before = mine?.character_id ?? null;
+    if (before !== expected) return 'changed';
+    const pool = poolOf(before);
+    if (!pool) return 'changed';
+    const { taken, forbidden } = takenSets(all, userId);
+    // 캐릭터가 모자랄 때 지문(sig) 없이 겹쳐 받은 사람도 있어요. 쓰는 중인 캐릭터는 모두 빼요.
+    const { results: used } = await db
+      .prepare('SELECT DISTINCT character_id AS c FROM profiles WHERE character_id IS NOT NULL AND user_id <> ?')
+      .bind(userId)
+      .all<{ c: string }>();
+    for (const r of used) taken.add(r.c);
+    const character = rerollCharacter(pool, before, taken, forbidden, rand);
+    if (!character) return 'none';
+    const id = crypto.randomUUID();
+    const t = now();
+    await db.batch([
+      db
+        .prepare(
+          `INSERT INTO purchases (id, user_id, item_id, price, status, created_at, settled_at)
+           SELECT ?1, ?2, ?3, ?4, 'done', ?5, ?5
+           WHERE EXISTS (SELECT 1 FROM profiles WHERE user_id = ?2 AND dogam_jelly >= ?4 AND character_id IS ?6)
+             AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1 AND gender_chosen_at IS NOT NULL)
+             AND NOT EXISTS (SELECT 1 FROM character_keep k WHERE k.character_id = ?7 AND k.user_id <> ?2)
+             AND NOT EXISTS (SELECT 1 FROM profiles p WHERE p.character_id = ?7 AND p.user_id <> ?2)`,
+        )
+        .bind(id, userId, REROLL_ITEM_ID, price, t, before, character),
+      db
+        .prepare(`UPDATE profiles SET dogam_jelly = dogam_jelly - ?3, character_id = ?4, character_sig = ?4, updated_at = ?5 WHERE user_id = ?2 AND EXISTS (SELECT 1 FROM purchases WHERE id = ?1)`)
+        .bind(id, userId, price, character, t),
+    ]);
+    if (await db.prepare('SELECT 1 FROM purchases WHERE id = ?').bind(id).first()) return 'done';
+    const cur = await db.prepare('SELECT character_id FROM profiles WHERE user_id = ?').bind(userId).first<{ character_id: string | null }>();
+    if ((cur?.character_id ?? null) !== before) return 'changed';
+    // 그 사이 다른 사람이 그 캐릭터를 받았으면 사지 않았어요(젤리 그대로). 다시 누르면 다른 캐릭터로 해요.
+    const takenNow = await db
+      .prepare('SELECT 1 FROM profiles WHERE character_id = ?1 AND user_id <> ?2 UNION ALL SELECT 1 FROM character_keep WHERE character_id = ?1 AND user_id <> ?2')
+      .bind(character, userId)
+      .first();
+    return takenNow ? 'changed' : 'not_enough_jelly';
   });
 }
 

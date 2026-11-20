@@ -34,6 +34,7 @@ async function balanceOf(db: D1Database, user: string): Promise<number> {
 }
 
 // 지금 서버에 있는 멤버에게만 줘요. 빼는 경우 0개 밑으로는 내려가지 않아요.
+// 기록에는 요청한 수가 아니라 실제로 바뀐 수를 남겨요(잔액 3개에서 -10이면 -3, 점검 W112).
 // 기록 저장·젤리 반영·반영 표시를 한 번에 해서, 같은 번호를 두 번 보내도 한 번만 반영돼요.
 // 대상 확인 뒤 초기화·탈퇴됐으면 기록도 잔액도 옛 요청으로 다시 만들지 않아요.
 export async function grantJelly(db: D1Database, g: JellyGrant, nowMs: number): Promise<GrantResult> {
@@ -46,7 +47,7 @@ export async function grantJelly(db: D1Database, g: JellyGrant, nowMs: number): 
   await db.batch([
     db
       .prepare(`INSERT OR IGNORE INTO jelly_grants (id, user_id, amount, reason, granted_by, created_at)
-        SELECT ?1, ?2, ?3, ?4, ?5, ?6 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1 AND COALESCE(reset_at, '') = ?7)`)
+        SELECT ?1, ?2, MAX(0, COALESCE((SELECT dogam_jelly FROM profiles WHERE user_id = ?2), 0) + ?3) - COALESCE((SELECT dogam_jelly FROM profiles WHERE user_id = ?2), 0), ?4, ?5, ?6 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1 AND COALESCE(reset_at, '') = ?7)`)
       .bind(g.id, g.user, g.amount, g.reason, g.by, t, member.reset_at ?? ''),
     db
       .prepare(

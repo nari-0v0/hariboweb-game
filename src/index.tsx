@@ -8,6 +8,7 @@ import { authorizeUrl, exchangeCode, fetchGuildProfile, type LoginProfile } from
 import {
   assignCharacters,
   buyGenderChange,
+  buyReroll,
   chooseFirstGender,
   planCharacterPool,
   completion,
@@ -48,7 +49,8 @@ import {
   upsertLoginMember,
 } from './db';
 import { PRICES, canUse, usableDecos, canUseTheme, decoItemId, serviceItem, servicePrice, shopItem } from './shop';
-import { ChoosePage, GenderChangePage } from './views/choose';
+import { ChoosePage, GameResetPage, GenderChangePage, RerollPage } from './views/choose';
+import { buyGameReset, resetCount } from './game-reset';
 import { CHARACTER_POOLS, characterUrl, isCharacterId, isCharacterPool, poolOf } from './character';
 import { applySync, parseSync } from './sync';
 import { levelName, progress, tierFor, tierLabel } from './levels';
@@ -90,11 +92,12 @@ import { GAMBLE_LOCKED, gambleTester, isCoinSide } from './gamble';
 import { activeHand, betChips, betTooSoon, claimDaily, expireAllHands, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, moveHand, rescueChips, type Game } from './gamble-db';
 import { prefetchAllowed } from './prefetch';
 import { imageRequestAllowed } from './image-guard';
+import { burnReply, burnWindow, burningUntil } from './burning';
 import { dbLimitKind, maintenanceOn, maintenanceSkips, maintenanceWhen, type DbLimit } from './maintenance';
 import { EscapePage } from './views/escape';
 import { JourneyPage } from './views/journey';
 import { NO_COINS, STALE_PICK, activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, journeyTop, quitJourney, sellMats, upgradeGear } from './journey-db';
-import { buyPet, equipPet, levelPet, parseTowerLast, towerAttempt, towerRanking } from './tower-db';
+import { buyPet, equipPet, levelPet, parseTowerLast, towerAttempt, towerAuto, towerRanking } from './tower-db';
 import { cleanBoosts } from './tower';
 import { isPetId } from './pets';
 import { TowerPage } from './views/tower';
@@ -190,8 +193,14 @@ app.get('/', async (c) => {
 });
 
 // 사용설명서는 로그인하지 않아도 볼 수 있어요(디스코드 패널의 도움말 링크로도 들어와요).
-app.get('/guide', async (c) => page(c, <GuidePage viewer={await currentViewer(c)} />));
-app.get('/updates', async (c) => page(c, <UpdatesPage viewer={await currentViewer(c)} />));
+// 안내·업데이트는 로그인 없이도 보지만, 로그인했으면 버닝타임 띠도 똑같이 보여요
+async function viewerWithBurn(c: Context<AppEnv>) {
+  const viewer = await currentViewer(c);
+  if (viewer) viewer.burn_until = await burningUntil(c.env.DB);
+  return viewer;
+}
+app.get('/guide', async (c) => page(c, <GuidePage viewer={await viewerWithBurn(c)} />));
+app.get('/updates', async (c) => page(c, <UpdatesPage viewer={await viewerWithBurn(c)} />));
 
 app.get('/auth/login', (c) => {
   const state = randomToken();
@@ -209,7 +218,8 @@ app.get('/auth/callback', async (c) => {
   const token = await exchangeCode(c.env, code, `${baseUrl(c)}/auth/callback`);
   if (!token) return page(c, <MessagePage title="로그인 실패" message="디스코드 확인에 실패했어요. 다시 시도해 주세요." />, 403);
   const profile = await fetchGuildProfile(c.env, token);
-  if (!profile) return c.redirect('/?error=not_member');
+  if (profile === 'not_member') return c.redirect('/?error=not_member');
+  if (!profile) return page(c, <MessagePage title="로그인 실패" message="디스코드 연결이 잠깐 끊겼어요. 다시 시도해 주세요." />, 403);
 
   await startSession(c, profile);
   return c.redirect('/me');
@@ -257,14 +267,25 @@ app.post('/api/bot/sync', async (c) => {
   }
   const parsed = parseSync(raw);
   if (!parsed.ok) return c.json({ error: parsed.error }, 400);
-  const result = await applySync(c.env.DB, parsed.value, Date.now(), { scrimQuests: c.env.SCRIM_QUESTS === '1' });
+  const now = Date.now();
+  // 보상 기록이라 화면용 1분 캐시를 쓰지 않고 새로 읽어요
+  const burn = await burnWindow(c.env.DB, now, true);
+  const result = await applySync(c.env.DB, parsed.value, now, { scrimQuests: c.env.SCRIM_QUESTS === '1', burn });
   // 활동은 이미 반영됐어도 캐릭터나 첫 선물 저장에서 실패했을 수 있어요.
   if (result !== 'stale') {
     const ids = parsed.value.members.map((m) => m.id);
     await assignCharacters(c.env.DB, ids);
     await giveStarterJelly(c.env.DB, ids);
   }
-  return c.json({ ok: true, result });
+  // 버닝타임이면 봇이 짝 카드 통화 경험치를 1.5배로 세요(docs/bot-sync.md)
+  return c.json({ ok: true, result, burning: burnReply(burn, now) });
+});
+
+// 봇이 1분마다 버닝타임인지 물어봐요(통화 기록을 보낼 게 없어도 바로 알게요)
+app.get('/api/bot/burning', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  const now = Date.now();
+  return c.json({ ok: true, burning: burnReply(await burnWindow(c.env.DB, now, true), now) });
 });
 
 // 예전 봇은 겜블 지갑 결제를 하려고 이 주소를 물어봐요. 이제 상점은 도감 젤리로 웹에서 바로 결제해서 줄 게 없어요.
@@ -700,6 +721,8 @@ members.use('*', async (c, next) => {
     if (c.req.method !== 'GET') return c.text('로그인이 필요해요', 401);
     return c.redirect('/');
   }
+  // 버닝타임이면 모든 화면 위에 띠를 보여요(1분에 한 번만 DB를 읽어요)
+  viewer.burn_until = await burningUntil(c.env.DB);
   c.set('viewer', viewer);
   // 브라우저가 미리 받기만 하는 요청은 읽기만 하는 화면에만 답해요(열기만 해도 기록이 바뀌는 화면은 실제로 열 때만)
   if (isPrefetch(c) && !prefetchAllowed(c.req.path)) return c.body(null, 503);
@@ -911,6 +934,55 @@ members.post('/api/shop/gender', async (c) => {
   }
   if (result === 'changed') return c.redirect('/shop/gender?n=changed');
   return c.redirect(result === 'done' ? '/shop' : result === 'same' ? '/shop?n=gender_same' : '/shop?n=not_enough_jelly');
+});
+
+// 캐릭터 리롤권(나리 2026-11-20): 확인 화면 → 같은 성별 빈 캐릭터 중 무작위로 바로 확정
+members.get('/shop/reroll', async (c) => {
+  const viewer = c.get('viewer');
+  const profile = await getProfile(c.env.DB, viewer.user_id);
+  const pool = poolOf(profile.character_id);
+  if (!pool || !profile.character_id) return c.redirect('/shop?n=error');
+  return page(c, <RerollPage viewer={viewer} pool={pool} character={profile.character_id} jelly={profile.dogam_jelly} />);
+});
+
+members.post('/api/shop/reroll', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const viewer = c.get('viewer');
+  const body = await c.req.parseBody();
+  // 확인 화면에서 본 캐릭터가 지금과 다르면(다른 탭에서 바꿈) 사지 않아요. 결제 조건에서도 한 번 더 비교해요.
+  const expected = String(body.character ?? '');
+  if (!expected) return c.redirect('/shop?n=reroll_changed');
+  let result: Awaited<ReturnType<typeof buyReroll>>;
+  try {
+    result = await buyReroll(c.env.DB, viewer.user_id, PRICES.reroll, expected);
+  } catch (e) {
+    console.error('캐릭터 리롤 실패', e);
+    return c.redirect('/shop?n=error');
+  }
+  return c.redirect(result === 'done' ? '/shop?n=rerolled' : result === 'none' ? '/shop?n=reroll_none' : result === 'changed' ? '/shop?n=reroll_changed' : '/shop?n=not_enough_jelly');
+});
+
+// 게임 기록 초기화권(나리 2026-11-20): 확인 화면(체크해야 사요) → 겜블장·원정대·사건파일 처음부터
+members.get('/shop/reset', async (c) => {
+  const viewer = c.get('viewer');
+  const [profile, gamble, gen] = await Promise.all([getProfile(c.env.DB, viewer.user_id), gambleAccount(c.env.DB, viewer.user_id), resetCount(c.env.DB, viewer.user_id)]);
+  return page(c, <GameResetPage viewer={viewer} jelly={profile.dogam_jelly} chips={gamble?.chips ?? null} gen={gen} unchecked={c.req.query('n') === 'unchecked'} />);
+});
+
+members.post('/api/shop/reset', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const body = await c.req.parseBody();
+  if (body.ok !== '1') return c.redirect('/shop/reset?n=unchecked');
+  const gen = Number(body.gen);
+  if (!Number.isSafeInteger(gen) || gen < 0 || String(body.gen ?? '') === '') return c.redirect('/shop?n=reset_changed');
+  let result: Awaited<ReturnType<typeof buyGameReset>>;
+  try {
+    result = await buyGameReset(c.env.DB, c.get('viewer').user_id, PRICES.reset, new Date(), gen);
+  } catch (e) {
+    console.error('게임 기록 초기화 실패', e);
+    return c.redirect('/shop?n=error');
+  }
+  return c.redirect(result === 'done' ? '/shop?n=reset_done' : result === 'changed' ? '/shop?n=reset_changed' : '/shop?n=not_enough_jelly');
 });
 
 // 벌점·경고 지우기, 닉네임 변경권: 도감 젤리를 빼고 봇이 디스코드 쪽에 적용해요
@@ -1196,7 +1268,7 @@ members.post('/api/journey/act', async (c) => {
   if (!JR_ID.test(id) || !Number.isSafeInteger(rev) || rev < 0 || !act) return c.redirect('/expedition/go?n=bad#now', 303);
   try {
     const user = c.get('viewer').user_id;
-    const r = await actJourneyRun(c.env.DB, user, id, rev, act);
+    const r = await actJourneyRun(c.env.DB, user, id, rev, act, new Date(), !!c.var.viewer.burn_until);
     if (r !== 'ok') return c.redirect(`/expedition/go?n=${r}#now`, 303);
     const after = await getJourney(c.env.DB, user, id);
     return c.redirect(after?.row.status === 'done' ? `/expedition/go?r=${id}#now` : '/expedition/go#now', 303);
@@ -1286,7 +1358,7 @@ members.post('/api/journey/pet', async (c) => {
   }
 });
 
-// 끝없는 탑(원정대 3장을 깨면 열려요): 층마다 한 번 싸워요. 자동으로 오르지 않아요.
+// 끝없는 탑(원정대 3장을 깨면 열려요): 층마다 한 번 싸워요. 자동 도전은 10층 단위 끝까지 이어서 올라요(나리 2026-11-21).
 members.get('/expedition/tower', async (c) => {
   const viewer = c.get('viewer');
   c.header('Cache-Control', 'no-store');
@@ -1307,6 +1379,19 @@ members.post('/api/tower/fight', async (c) => {
     return c.redirect(r === 'ok' ? '/expedition/tower?r=1#now' : `/expedition/tower?n=${r}#now`, 303);
   } catch (e) {
     console.error('탑 도전 실패', e);
+    return c.redirect('/expedition/tower?n=error#now', 303);
+  }
+});
+members.post('/api/tower/auto', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const body = await c.req.parseBody();
+  const floor = Number(body.floor);
+  if (!Number.isSafeInteger(floor) || floor < 1) return c.redirect('/expedition/tower?n=bad#now', 303);
+  try {
+    const r = await towerAuto(c.env.DB, c.get('viewer').user_id, floor, new Date(), typeof body.at === 'string' ? body.at : undefined);
+    return c.redirect(r === 'ok' ? '/expedition/tower?r=1#now' : `/expedition/tower?n=${r}#now`, 303);
+  } catch (e) {
+    console.error('탑 자동 도전 실패', e);
     return c.redirect('/expedition/tower?n=error#now', 303);
   }
 });
@@ -1391,7 +1476,7 @@ members.post('/api/escape/act', async (c) => {
   if (!ESC_ID.test(id) || !Number.isSafeInteger(rev) || rev < 0 || !act) return c.redirect('/cases/room?n=bad#now', 303);
   try {
     const user = c.get('viewer').user_id;
-    const r = await actEscapeRun(c.env.DB, user, id, rev, act);
+    const r = await actEscapeRun(c.env.DB, user, id, rev, act, new Date(), !!c.var.viewer.burn_until);
     if (r !== 'ok') return c.redirect(`/cases/room?n=${r}#now`, 303);
     // 다시 불러오기(리다이렉트) 없이 바로 화면을 그려 보내요. 한 번 왕복이 줄어서 빨라요.
     const [after, best, profile, dogam, re, daily] = await Promise.all([getEscape(c.env.DB, user, id), escapeRecord(c.env.DB, user), getProfile(c.env.DB, user), dogamProgress(c.env.DB, user), reRecord(c.env.DB, user), dailyInfo(c.env.DB, user)]);

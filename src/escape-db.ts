@@ -15,6 +15,16 @@ function decode(row: EscRow | null): EscRun | null {
 export async function activeEscape(db: D1Database, user: string): Promise<EscRun | null> {
   return decode(await db.prepare("SELECT * FROM escape_runs WHERE user_id = ? AND status = 'going'").bind(user).first<EscRow>());
 }
+// 진행 중인 사건 판이 깨졌거나(옛 형식) 없어진 사건이면 그 판만 그만둔 걸로 해요. 안 그러면 새 사건을
+// 시작할 수 없고 화면에도 안 보여요(점검 W197). 읽을 수 있는 판은 건드리지 않아요.
+async function dropBrokenEscape(db: D1Database, user: string, t: string): Promise<void> {
+  const row = await db.prepare("SELECT * FROM escape_runs WHERE user_id = ? AND status = 'going'").bind(user).first<EscRow>();
+  if (!row || decode(row)) return;
+  await db
+    .prepare("UPDATE escape_runs SET status = 'quit', updated_at = ?3, ended_at = ?3 WHERE id = ?1 AND user_id = ?2 AND status = 'going' AND rev = ?4")
+    .bind(row.id, user, t, row.rev)
+    .run();
+}
 export async function getEscape(db: D1Database, user: string, id: string): Promise<EscRun | null> {
   return decode(await db.prepare('SELECT * FROM escape_runs WHERE user_id = ? AND id = ?').bind(user, id).first<EscRow>());
 }
@@ -86,6 +96,7 @@ async function beginOnce(
 ): Promise<string | null | 'retry'> {
   const going = await activeEscape(db, user);
   if (going && !replace) return going.row.id;
+  if (!going && !replace) await dropBrokenEscape(db, user, now.toISOString());
   if (replace && (!going || going.row.id !== replace.id || going.row.rev !== replace.rev)) return null;
   // 같은 사건이라도 일반 판 ↔ 재수사 판(또는 오늘의 사건 판)을 바꿔 고르면 새 판으로 덮어요
   if (going?.row.case_id === caseId && !!going.state.re === re && !going.state.daily) return going.row.id;
@@ -137,10 +148,10 @@ export async function quitEscape(db: D1Database, user: string, id: string, rev?:
 
 // 행동 하나. rev = 화면에 보이던 판의 순번(옛 화면·두 번 누르기 막기).
 // 해결하면 사건마다 처음 한 번만 경험치·젤리를 주고, 판 저장과 보상은 한 번에(전부 되거나 전부 안 되게) 반영해요.
-export async function actEscapeRun(db: D1Database, user: string, id: string, rev: number, act: EscAction, now = new Date()): Promise<'ok' | 'stale' | 'bad'> {
+export async function actEscapeRun(db: D1Database, user: string, id: string, rev: number, act: EscAction, now = new Date(), burn = false): Promise<'ok' | 'stale' | 'bad'> {
   const run = await getEscape(db, user, id);
   if (!run || run.row.status !== 'going' || run.row.rev !== rev) return 'stale';
-  const s = actEscape(run.def, run.state, act);
+  const s = actEscape(run.def, run.state, act, burn);
   if (!s) return 'bad';
   const t = now.toISOString();
   const token = crypto.randomUUID();
@@ -158,7 +169,8 @@ export async function actEscapeRun(db: D1Database, user: string, id: string, rev
       .run();
     return (r.meta.changes ?? 0) === 1 ? 'ok' : 'stale';
   }
-  const first = 'NOT EXISTS (SELECT 1 FROM escape_rewards WHERE user_id = ?2 AND case_id = ?9)';
+  // 첫 해결 보상은 한 번만: 게임 기록 초기화권으로 푼 기록을 지웠어도 이미 받은 보상(escape_paid)은 다시 주지 않아요
+  const first = 'NOT EXISTS (SELECT 1 FROM escape_rewards WHERE user_id = ?2 AND case_id = ?9) AND NOT EXISTS (SELECT 1 FROM escape_paid WHERE user_id = ?2 AND case_id = ?9)';
   const stmts = [
     db
       .prepare(
@@ -175,8 +187,9 @@ export async function actEscapeRun(db: D1Database, user: string, id: string, rev
     stmts.push(
       db
         .prepare(
+          // 푼 기록은 보상이 없어도(초기화 뒤 다시 푼 사건) 남겨요. 보통 판만 여기로 와요(재수사는 finishRe).
           `INSERT INTO escape_rewards (user_id, case_id, run_id, claimed_at)
-           SELECT user_id, case_id, id, ?3 FROM escape_runs WHERE id = ?1 AND mutation = ?2 AND xp > 0
+           SELECT user_id, case_id, id, ?3 FROM escape_runs WHERE id = ?1 AND mutation = ?2 AND status = 'done'
            ON CONFLICT (user_id, case_id) DO NOTHING`,
         )
         .bind(id, token, t),

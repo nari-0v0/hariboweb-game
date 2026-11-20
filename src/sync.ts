@@ -1,4 +1,5 @@
 import { gameDay } from './day';
+import type { BurnWindow } from './burning';
 import { awardEndedGambleSeasons } from './gamble-db';
 import { boosterStatements } from './booster';
 import { stripTitle } from './titles';
@@ -283,7 +284,7 @@ async function boosterList(db: D1Database, members: SyncPayload['members']) {
 }
 
 // groupQuests: 예전 모둠 퀘스트 8개를 새 시즌에도 만들기(테스트용, 기본은 안 만들어요)
-export type SyncOptions = { scrimQuests?: boolean; groupQuests?: boolean };
+export type SyncOptions = { scrimQuests?: boolean; groupQuests?: boolean; burn?: BurnWindow | null };
 
 export async function applySync(
   db: D1Database,
@@ -402,7 +403,7 @@ export async function applySync(
     const next = splitCycle(p.season.end, new Date(Date.parse(p.season.end) + span).toISOString())[0];
     if (next) periods.push(next);
   }
-  const bingo = bingoStatements(db, p.room_minutes, p.attendance, periods);
+  const bingo = bingoStatements(db, p.room_minutes, p.attendance, periods, opts.burn ?? null);
   stmts.push(...bingo.stmts, prunePairDays(db, nowMs));
 
   // 나간 사람: 본인 카드와 도감은 지우고, 다른 사람이 가진 그 사람 카드는 흐리게 남겨요.
@@ -422,6 +423,8 @@ export async function applySync(
     stmts.push(db.prepare('DELETE FROM escape_re WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM escape_daily WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM escape_daily_stats WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM escape_paid WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM game_resets WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM journey_runs WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM journey_bank WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM story_marks WHERE user_id = ?').bind(id));

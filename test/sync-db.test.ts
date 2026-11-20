@@ -83,7 +83,7 @@ it('활동이 이미 반영된 묶음을 다시 받으면 빠진 첫 선물만 �
       headers: { Authorization: 'Bearer test', 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     }, env);
-    expect(await response.json()).toEqual({ ok: true, result: 'duplicate' });
+    expect(await response.json()).toEqual({ ok: true, result: 'duplicate', burning: null });
   }
   expect(sql.prepare('SELECT solo_xp, dogam_jelly FROM profiles WHERE user_id = ?').get(A)).toEqual({ solo_xp: 20, dogam_jelly: 5 });
 });

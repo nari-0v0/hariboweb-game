@@ -4,7 +4,8 @@ import { Layout } from './layout';
 
 const when = (iso: string) => {
   const d = new Date(Date.parse(iso) + 9 * 3_600_000);
-  return `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일`;
+  // 같은 날 여러 알림도 순서를 알 수 있게 시각까지(점검 W111)
+  return `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일 ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
 };
 
 // 알림 목록(오른쪽 위 🔔 팝업과 /alerts 화면이 같이 써요). fresh = 이번에 처음 본 알림.

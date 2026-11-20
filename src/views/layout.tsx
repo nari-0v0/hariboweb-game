@@ -2,7 +2,9 @@ import { GAMBLE_LOCKED } from '../gamble';
 import { OWNER_CONTACT_URL } from '../contact';
 import { PREFETCH_RULES } from '../prefetch';
 import { NOTICE_BAR } from '../maintenance';
+import { burnEndText } from '../burning';
 import { updatesMark } from '../updates';
+import { KAKAO_SCRIPT } from '../kakao';
 import type { Child } from 'hono/jsx';
 import type { Member } from '../env';
 
@@ -19,6 +21,7 @@ export function Layout(props: {
   preloadImages?: string[];
   children?: Child;
 }) {
+  const burn = props.viewer?.burn_until ?? null;
   const nav = (key: NavKey, href: string, label: string, icon: string) => (
     <a href={href} class={props.active === key ? 'on' : undefined} aria-current={props.active === key ? 'page' : undefined}>
       <span aria-hidden="true">{icon}</span> {label}
@@ -34,16 +37,24 @@ export function Layout(props: {
         <link rel="preload" href="/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin="" />
         {props.preloadImages?.map((href) => <link rel="preload" href={href} as="image" fetchpriority="high" />)}
         <link rel="icon" type="image/png" href="/char/deco/explorer.png" />
-        <link rel="stylesheet" href="/styles.css?v=coin-chmat-1120" />
-        <script src="/app.js?v=upd-1119" defer></script>
+        <link rel="stylesheet" href="/styles.css?v=deploy-0600-1121" />
+        <script src="/app.js?v=deploy-0600-1121" defer></script>
         {props.scripts?.map((script) => typeof script === 'string'
           ? <script src={script} defer></script>
           : <script src={script.src} type={script.type}></script>)}
         {props.viewer && <script type="speculationrules" dangerouslySetInnerHTML={{ __html: PREFETCH_RULES }} />}
       </head>
-      <body class={NOTICE_BAR ? 'has-notice' : undefined}>
+      <body class={NOTICE_BAR || burn ? 'has-notice' : undefined}>
+        {/* 카카오톡 속 브라우저면 기본 브라우저로 열어 보고 안내 띠를 띄워요(그 밖에는 아무것도 안 해요). kakao.ts */}
+        <script dangerouslySetInnerHTML={{ __html: KAKAO_SCRIPT }} />
+        {/* 버닝타임 띠가 점검 공지보다 먼저예요(점검이 끝난 뒤에 켜지니까요) */}
+        {burn ? (
+          <a class="notice-bar burn-bar" role="status" href="/guide#burning">
+            <span aria-hidden="true">🔥</span> 버닝타임 {burnEndText(burn)}까지! 카드 경험치·원정대 재료 1.5배, 힌트 동전·빙고 통화 2배
+          </a>
+        ) : null}
         {/* 메뉴 위에 고정되는 공지 띠. 끄려면 maintenance.ts의 NOTICE_BAR를 ''로 */}
-        {NOTICE_BAR && (
+        {!burn && NOTICE_BAR && (
           <div class="notice-bar" role="status">
             <span aria-hidden="true">📢</span> {NOTICE_BAR}
           </div>

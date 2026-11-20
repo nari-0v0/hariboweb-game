@@ -3,7 +3,7 @@ import type { JourneyBank } from '../journey-db';
 import { bankPet } from '../journey-db';
 import { material, startJourney, stat, type JourneyState } from '../journey';
 import { PETS, petText } from '../pets';
-import { BOOSTS, BOOST_IDS, TOWER_OPEN, boostPrice, isBossFloor, towerCoins, towerFoe, towerMat, towerMonster } from '../tower';
+import { BOOSTS, BOOST_IDS, TOWER_OPEN, boostPrice, isBossFloor, towerAutoEnd, towerCoins, towerFoe, towerMat, towerMonster } from '../tower';
 import type { TowerLast, TowerRank } from '../tower-db';
 import { Bar, Stage, fightPlan } from './journey';
 import { Layout } from './layout';
@@ -91,14 +91,19 @@ export function TowerPage(props: { viewer: Member; art: string; bank: JourneyBan
               <div class="jr-console">
                 {last && (
                   <ul class="jr-today jr-talk" role="status">
+                    {last.auto && (
+                      <li>
+                        🤖 자동 도전: {last.auto.cleared > 0 ? `${last.auto.from}층부터 ${last.auto.from + last.auto.cleared - 1}층까지 ${last.auto.cleared}개 층을 올랐어요.` : `${last.auto.from}층에서 바로 멈췄어요.`}
+                      </li>
+                    )}
                     {last.won ? (
                       <li class="tone-good">
-                        🎉 {last.floor}층 {jo(last.foe.name, '을', '를')} 물리쳤어요! 젤코인 +{last.coins}
+                        🎉 {last.floor}층 {jo(last.foe.name, '을', '를')} 물리쳤어요! {last.auto ? '모두 합쳐 ' : ''}젤코인 +{last.coins}
                         {last.mat ? `, ${material(last.mat.ch).icon} ${material(last.mat.ch).name} +${last.mat.n}` : ''}
                       </li>
                     ) : (
                       <li class="tone-bad">
-                        😵 {last.floor}층 {last.foe.name}에게 졌어요. 몬스터 체력이 {Math.max(0, last.fight.fx.left?.at(-1) ?? 0)} 남았어요. 원정 준비소에서 강해지거나, 잠깐 강해지기를 써 보세요.
+                        😵 {last.floor}층 {last.foe.name}에게 졌어요.{last.auto && last.coins > 0 ? ` (오른 층 젤코인 +${last.coins}${last.mat ? `, ${material(last.mat.ch).icon} ${material(last.mat.ch).name} +${last.mat.n}` : ''})` : ''} 몬스터 체력이 {Math.max(0, last.fight.fx.left?.at(-1) ?? 0)} 남았어요. 원정 준비소에서 강해지거나, 잠깐 강해지기를 써 보세요.
                       </li>
                     )}
                     {last.cost > 0 && <li>🧪 잠깐 강해지기에 젤코인 {last.cost}개를 썼어요.</li>}
@@ -133,6 +138,14 @@ export function TowerPage(props: { viewer: Member; art: string; bank: JourneyBan
                       🗼 {floor}층 도전
                     </button>
                   </form>
+                  <form method="post" action="/api/tower/auto" class="tw-form tw-auto">
+                    <input type="hidden" name="floor" value={String(floor)} />
+                    <input type="hidden" name="at" value={bank.towerAt ?? ''} />
+                    <button type="submit" class="btn btn-ghost">
+                      🤖 자동 도전 ({floor === towerAutoEnd(floor) ? `${floor}층` : `${floor}~${towerAutoEnd(floor)}층`})
+                    </button>
+                    <small class="tw-auto-hint">물약 없이 이어서 싸우고, 지거나 {towerAutoEnd(floor)}층을 깨면 멈춰요.</small>
+                  </form>
                 </div>
               </div>
             </div>
@@ -156,7 +169,7 @@ export function TowerPage(props: { viewer: Member; art: string; bank: JourneyBan
         <details class="panel tw-help">
           <summary>탑 규칙</summary>
           <ul>
-            <li>원정대 {TOWER_OPEN}장을 깨면 열려요. 층마다 몬스터 하나와 싸워요. 자동으로 오르지 않고, 층마다 직접 눌러요.</li>
+            <li>원정대 {TOWER_OPEN}장을 깨면 열려요. 층마다 몬스터 하나와 싸워요. 층마다 직접 누르거나, 「자동 도전」으로 물약 없이 10층 단위 끝(10·20·30층 …)까지 이어서 오를 수 있어요. 지면 그 층에서 멈춰요.</li>
             <li>깬 층은 저장돼요. 지면 그 층부터 다시 하고, 층마다 보상은 처음 깰 때 한 번만 받아요.</li>
             <li>층을 깨면 젤코인을 10층마다 1개부터 다시 세서 줘요(1층·11층·21층 1개, 2층·12층 2개 … 10층·20층 10개), 10층마다 강화 재료 2개를 받아요. 재료는 20층마다 다음 장 재료로 바뀌지만, 내가 깬 장까지만 나와요.</li>
             <li>싸움에는 원정 준비소의 훈련·장비와 데려간 펫이 들어가요. 같은 층에서 같은 능력이면 결과도 늘 같아서, 다시 누르기만 해서는 못 넘어요.</li>

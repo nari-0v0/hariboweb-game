@@ -1,7 +1,7 @@
 import { dayStartMs, gameDay } from './day';
 import { withBoosterMark } from './booster';
 import { characterUrl } from './character';
-import { BOOSTER_DAILY_CHIPS, cardScore, coinPayout, DAILY_CHIPS, flipCoin, isCoinSide, natural, type CoinSide, openingPayout, playHand, slotPayout, spinSlots, spinWheel, startHand, WHEEL, type CardMove, type Hand } from './gamble';
+import { BOOSTER_REFILL_CHIPS, REFILL_CHIPS, cardScore, coinPayout, DAILY_CHIPS, flipCoin, isCoinSide, natural, type CoinSide, openingPayout, playHand, slotPayout, spinSlots, spinWheel, startHand, WHEEL, type CardMove, type Hand } from './gamble';
 import { GAMBLE_TITLES, GAMBLE_WINNER_ID, stripTitle, titleById, titleItemId } from './titles';
 
 export type Game = 'slot' | 'roulette' | 'cards' | 'coinflip';
@@ -31,31 +31,37 @@ function awardMilestones(db: D1Database, user: string, now: string) {
     .bind(now, JSON.stringify(rules), user);
 }
 
-// 받은 하루 젤칩 수(이미 받았으면 0)
+// 받은 젤칩 수(못 받았으면 0). 겜블장에 처음 오면 시작 젤칩(DAILY_CHIPS)을 받고,
+// 그 뒤로는 젤칩이 0개 이하일 때만 하루 한 번 REFILL_CHIPS(부스터 BOOSTER_REFILL_CHIPS)로 채워요(나리 2026-11-21).
+// 시작 칩은 free_day가 비어 있는(한 번도 받지 않은) 계정이면 받아요. 젤칩 이전(0042)·점검 보상으로 계정이 먼저
+// 만들어진 사람도 첫 방문에 1000개가 더해져요(나리: 기본 1000 + 옮긴 젤칩).
+// 칩을 다 건 카드 21이 아직 안 끝났으면 진짜 0개가 아니라서 채우지 않아요.
 export async function claimDaily(db: D1Database, user: string, now: string): Promise<number> {
   const day = gambleDay(now);
+  const before = await db.prepare('SELECT chips, free_day FROM gamble_accounts WHERE user_id = ?').bind(user).first<{ chips: number; free_day: string | null }>();
   const [grant] = await db.batch([
-    // 서버 부스터는 하루 젤칩을 조금 더 받아요(나리 2026-11-21, BOOSTER_DAILY_CHIPS)
     db.prepare(`INSERT INTO gamble_accounts (user_id, chips, free_day)
-      SELECT ?1, CASE WHEN m.booster = 1 THEN ?4 ELSE ?2 END, ?3 FROM members m WHERE m.user_id = ?1 AND m.active = 1
-      ON CONFLICT(user_id) DO UPDATE SET chips = chips + excluded.chips, free_day = excluded.free_day
-      WHERE free_day IS NULL OR free_day < excluded.free_day`).bind(user, DAILY_CHIPS, day, BOOSTER_DAILY_CHIPS),
+      SELECT ?1, ?2, ?3 FROM members m WHERE m.user_id = ?1 AND m.active = 1
+      ON CONFLICT(user_id) DO UPDATE SET
+        chips = CASE WHEN gamble_accounts.free_day IS NULL THEN gamble_accounts.chips + ?2
+          WHEN (SELECT booster FROM members WHERE user_id = ?1) = 1 THEN ?5 ELSE ?4 END,
+        free_day = excluded.free_day
+      WHERE gamble_accounts.free_day IS NULL
+        OR (gamble_accounts.chips <= 0 AND gamble_accounts.free_day < excluded.free_day
+          AND NOT EXISTS (SELECT 1 FROM gamble_rounds WHERE user_id = ?1 AND settled_at IS NULL))`).bind(user, DAILY_CHIPS, day, REFILL_CHIPS, BOOSTER_REFILL_CHIPS),
     awardMilestones(db, user, now),
   ]);
   if (grant!.meta.changes !== 1) return 0;
-  const m = await db.prepare('SELECT booster FROM members WHERE user_id = ?').bind(user).first<{ booster: number }>();
-  return Number(m?.booster) === 1 ? BOOSTER_DAILY_CHIPS : DAILY_CHIPS;
+  if (!before || before.free_day === null) return DAILY_CHIPS;
+  const a = await db.prepare('SELECT chips FROM gamble_accounts WHERE user_id = ?').bind(user).first<{ chips: number }>();
+  return Number(a?.chips ?? 0);
 }
 
+// 예전 "다시 시작" 버튼(지금은 화면에 없어요): 위와 같은 하루 한 번 채우기예요.
 export async function rescueChips(db: D1Database, user: string, now: string): Promise<boolean> {
-  const day = gambleDay(now);
-  const result = await db.prepare(`UPDATE gamble_accounts SET chips = ?, rescue_day = ?
-    WHERE user_id = ? AND chips = 0 AND (rescue_day IS NULL OR rescue_day < ?)
-      AND EXISTS (SELECT 1 FROM members WHERE user_id = ? AND active = 1)
-      -- 칩을 다 건 카드 21이 아직 안 끝났으면 진짜 파산이 아니라서 구제하지 않아요.
-      AND NOT EXISTS (SELECT 1 FROM gamble_rounds WHERE user_id = ? AND settled_at IS NULL)`)
-    .bind(DAILY_CHIPS, day, user, day, user, user).run();
-  return result.meta.changes === 1;
+  const exists = await gambleAccount(db, user);
+  if (!exists) return false;
+  return (await claimDaily(db, user, now)) > 0;
 }
 
 export const gambleAccount = (db: D1Database, user: string) =>

@@ -1,5 +1,6 @@
 // 끝없는 탑(나리 2026-11-19): 원정대 3장을 깨면 열려요.
-// - 한 층 = 한 판 싸움. 자동 사냥은 없고, 층마다 '도전'을 직접 눌러요.
+// - 한 층 = 한 판 싸움. 층마다 '도전'을 직접 누르거나, '자동 도전'으로 10층 단위 끝(10·20·30층 …)까지 이어서 올라요(나리 2026-11-21).
+//   자동은 물약 없이 싸우고, 지면 그 층에서 멈춰요(같은 층·같은 능력이면 결과가 같아서 다시 해도 못 넘어요).
 // - 깬 층은 저장돼요. 지면 같은 층부터 다시 하고, 층마다 보상은 처음 깰 때 한 번만 받아요.
 // - 보상은 작게: 젤코인은 10층마다 1개부터 다시 세요(1·11·21층 1개, 10·20층 10개. 나리 2026-11-19). 10층마다 강화 재료 2개.
 //   재료 장은 20층마다 하나씩 올라가요(10·20층 = 1장, 30·40층 = 2장 …). 단, 내가 깬 장까지만 나와요.
@@ -11,7 +12,7 @@ import { CHAPTERS, MAX_CHAPTER, type Monster } from './journey-chapters';
 import { releasedTop } from './unlock';
 // 탑의 기준 장: 준비 중이 아닌 가장 높은 장(지금 9장 = 180층). 장이 열리면 탑도 따라 늘어나요.
 const towerTop = () => Math.max(1, releasedTop(MAX_CHAPTER));
-import { GEAR_MAX, PERKS, battle, gearBonus, startJourney, stat, type BattleFx, type Boost, type Gear, type Line, type Perks } from './journey';
+import { GEAR_MAX, PERKS, battle, perkValue, gearBonus, startJourney, stat, type BattleFx, type Boost, type Gear, type Line, type Perks } from './journey';
 import type { PetId } from './pets';
 
 export const TOWER_OPEN = 3; // 이 장을 깨면 열려요
@@ -20,6 +21,8 @@ export const MAT_EVERY = 10;
 export const MAT_COUNT = 2;
 export const TOWER_GAP_MS = 1500; // 도전 사이 최소 간격(버튼 연타·자동 누르기 막기)
 
+// 자동 도전이 멈추는 층: 지금 층이 들어 있는 10층 단위의 끝(1~10층이면 10층)
+export const towerAutoEnd = (floor: number) => Math.ceil(Math.max(1, floor) / MAT_EVERY) * MAT_EVERY;
 export const towerCoins = (floor: number) => (floor >= 1 ? ((Math.floor(floor) - 1) % 10) + 1 : 0);
 // 10층마다 재료: 그 층이 맞는 장(20층마다 하나씩)과 내가 깬 장 중 낮은 쪽
 export function towerMat(floor: number, top: number): { ch: number; n: number } | null {
@@ -50,7 +53,7 @@ export function refStats(c: number) {
   const k = Math.max(0, Math.min(towerTop(), c));
   const perk = (id: keyof Perks) => {
     const max0 = PERKS[id].max;
-    return PERKS[id].per * (max0 + Math.floor(max0 * 0.3) * (Math.max(1, k) - 1));
+    return perkValue(id, max0 + Math.floor(max0 * 0.3) * (Math.max(1, k) - 1));
   };
   const gear = (id: keyof Gear) => {
     // 장 번호만큼 강화(소수점 층은 앞뒤 사이 값)
