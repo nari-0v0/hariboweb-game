@@ -75,3 +75,28 @@ describe('작은 검사들', () => {
     expect(await verifySession('secret-key-for-test', `${t}.extra`)).toBeNull();
   });
 });
+
+describe('디스코드 로그인: 연결 실패와 서버 미가입을 구분해요(Codex #304)', () => {
+  const env = { GUILD_ID: '1' } as unknown as import('../src/env').Env;
+  const withFetch = async (impl: () => Promise<Response>, run: () => Promise<void>) => {
+    const original = globalThis.fetch;
+    globalThis.fetch = impl as typeof fetch;
+    try {
+      await run();
+    } finally {
+      globalThis.fetch = original;
+    }
+  };
+  it('404는 미가입, 끊김·500은 다시 시도(null)', async () => {
+    const { fetchGuildProfile } = await import('../src/discord');
+    await withFetch(async () => new Response('{}', { status: 404 }), async () => {
+      expect(await fetchGuildProfile(env, 't')).toBe('not_member');
+    });
+    await withFetch(async () => new Response('{}', { status: 500 }), async () => {
+      expect(await fetchGuildProfile(env, 't')).toBeNull();
+    });
+    await withFetch(async () => { throw new Error('timeout'); }, async () => {
+      expect(await fetchGuildProfile(env, 't')).toBeNull();
+    });
+  });
+});

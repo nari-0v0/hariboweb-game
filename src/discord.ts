@@ -50,11 +50,12 @@ type GuildMember = {
 
 export type LoginProfile = { id: string; name: string; avatar_url: string | null; joined_at: string | null };
 
-// 하리보 서버 멤버가 아니면 null
-export async function fetchGuildProfile(env: Env, accessToken: string): Promise<LoginProfile | null> {
+// 하리보 서버 멤버가 아니면(디스코드가 404) 'not_member', 연결이 끊기거나 다른 오류면 null(다시 시도 안내)
+export async function fetchGuildProfile(env: Env, accessToken: string): Promise<LoginProfile | 'not_member' | null> {
   const res = await call(`${API}/users/@me/guilds/${env.GUILD_ID}/member`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
+  if (res?.status === 404) return 'not_member';
   if (!res?.ok) return null;
   const m = (await res.json().catch(() => null)) as GuildMember | null;
   const u = m?.user;
