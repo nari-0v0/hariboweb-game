@@ -2,6 +2,7 @@
 // 도감 젤리를 한 번 줘요. 처음엔 빡빡하게(다 모아도 16개). 값은 여기서만 바꾸면 돼요.
 // 카드는 지금 서버에 있는 멤버 카드만 세요. 한 번 받은 단계는 카드 수가 줄어도 다시 주지 않아요.
 // 받는 때: 봇 동기화(src/sync.ts)에서 함께한 활동이 들어온 사람, 그리고 내 카드·내 도감을 열 때(settleCardRewards).
+import { notTestMember } from './test-accounts';
 import { titleName } from './titles';
 
 export const CARD_JELLY: [cards: number, jelly: number][] = [
@@ -29,7 +30,7 @@ export const CARD_JELLY_VALUES = `(VALUES ${CARD_JELLY.map(([n, j]) => `(${n}, $
 // batchId: 이번에 새로 적힌 것만 고르는 표시(동기화 묶음 번호, 또는 화면에서 연 번호).
 export function cardRewardStatements(db: D1Database, owner: string, batchId: string, t: string): D1PreparedStatement[] {
   const cardCount = `(SELECT COUNT(*) FROM cards c JOIN members m ON m.user_id = c.target_id AND m.active = 1
-     WHERE c.owner_id = ?1 AND c.target_id != c.owner_id)`;
+     WHERE c.owner_id = ?1 AND c.target_id != c.owner_id AND ${notTestMember('c.target_id')})`;
   const fresh = '(SELECT COALESCE(SUM(jelly), 0) FROM card_count_rewards WHERE batch_id = ?2 AND user_id = ?1)';
   return [
     db

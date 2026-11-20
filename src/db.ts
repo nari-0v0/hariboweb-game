@@ -3,6 +3,7 @@ import { ALERT_KEEP_DAYS } from './alerts';
 import { MAX_LEVEL, XP_SCALE, levelFromXp, xpForLevel } from './levels';
 import type { Member } from './env';
 import { stripTitle } from './titles';
+import { notTestMember } from './test-accounts';
 import type { LoginProfile } from './discord';
 import { type CharacterPool, isCharacterId, pickCharacter, poolOf, shouldRepick } from './character';
 
@@ -115,7 +116,7 @@ export async function listDogam(db: D1Database, ownerId: string): Promise<DogamE
   const { results } = await db
     .prepare(
       `${DOGAM_SELECT}
-       WHERE m.user_id != ?1 AND (m.active = 1 OR c.owner_id IS NOT NULL)
+       WHERE m.user_id != ?1 AND (m.active = 1 OR c.owner_id IS NOT NULL) AND ${notTestMember('m.user_id')}
        ORDER BY owned DESC, m.active DESC, xp DESC, m.display_name`,
     )
     .bind(ownerId)
@@ -683,9 +684,9 @@ export async function setDeco(db: D1Database, userId: string, decoId: string | n
   const rank = item?.rewardRank;
   // rewardNeed와 같은 식을 저장 문장 안에서 계산해요. 확인 뒤 카드·인원이 바뀌거나 초기화돼도
   // 지금 조건으로 열린 보상만 달아요(산 캐릭터는 소유권이 있으면 그대로).
-  const others = '(SELECT MAX(0, COUNT(*) - 1) FROM members WHERE active = 1)';
+  const others = `(SELECT MAX(0, COUNT(*) - 1) FROM members WHERE active = 1 AND ${notTestMember('user_id')})`;
   const need = rank == null ? null : `MIN(MAX(1, ${others}), MAX(${rank * REWARD_STEP}, CAST((${rank} * ${others} + ${REWARD_COUNT - 1}) / ${REWARD_COUNT} AS INTEGER)))`;
-  const reward = need === null ? '0' : `(SELECT COUNT(*) FROM cards c JOIN members m ON m.user_id = c.target_id AND m.active = 1 WHERE c.owner_id = ?1 AND c.target_id != ?1) >= ${need}`;
+  const reward = need === null ? '0' : `(SELECT COUNT(*) FROM cards c JOIN members m ON m.user_id = c.target_id AND m.active = 1 WHERE c.owner_id = ?1 AND c.target_id != ?1 AND ${notTestMember('c.target_id')}) >= ${need}`;
   const result = await db
     .prepare(
       `INSERT INTO profiles (user_id, deco_id, updated_at)
@@ -698,9 +699,9 @@ export async function setDeco(db: D1Database, userId: string, decoId: string | n
   return (result.meta.changes ?? 0) > 0;
 }
 
-// 지금 서버에 있는 멤버 수(떠난 멤버 빼고). 판타지 캐릭터 보상 기준에 써요.
+// 지금 서버에 있는 멤버 수(떠난 멤버·테스트 계정 빼고). 판타지 캐릭터 보상 기준에 써요.
 export async function countActiveMembers(db: D1Database): Promise<number> {
-  const row = await db.prepare('SELECT COUNT(*) AS n FROM members WHERE active = 1').first<{ n: number }>();
+  const row = await db.prepare(`SELECT COUNT(*) AS n FROM members WHERE active = 1 AND ${notTestMember('user_id')}`).first<{ n: number }>();
   return row?.n ?? 0;
 }
 
@@ -708,7 +709,7 @@ export async function countOwnedCards(db: D1Database, userId: string): Promise<n
   const row = await db
     .prepare(
       `SELECT COUNT(*) AS n FROM cards c JOIN members m ON m.user_id = c.target_id
-       WHERE c.owner_id = ? AND m.active = 1`,
+       WHERE c.owner_id = ? AND m.active = 1 AND ${notTestMember('c.target_id')}`,
     )
     .bind(userId)
     .first<{ n: number }>();

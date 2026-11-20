@@ -4,6 +4,7 @@ import { MAX_LEVEL, xpForLevel } from './levels';
 import { ensureSeasonQuests, settleEnded } from './team';
 import { purgeAlerts } from './alerts';
 import { cardRewardStatements } from './card-rewards';
+import { isTestMember } from './test-accounts';
 import { bingoStatements, grantTouched, loadPeriods, prunePairDays, savePeriod, splitCycle } from './bingo';
 import { type Attendance, type RoomMinute, type ScrimRecord, type Season, ENDED_GRACE_MS, ensureSeason, evaluateSeason, seasonFrom, seasonStatements, seasonTargets } from './season';
 
@@ -244,6 +245,16 @@ async function afterReset(db: D1Database, p: SyncPayload, nowMs: number): Promis
   } };
 }
 
+// 테스트 계정(src/test-accounts.ts)은 멤버로는 남지만(로그인·테스트용) 함께한 경험치(카드)를 만들지 않고,
+// 초록하리보·신입이 아닌 것으로 받아서 시즌 팀에 들어가지 않게(이미 들어가 있으면 빠지게) 해요.
+export function withoutTestMembers(p: SyncPayload): SyncPayload {
+  return {
+    ...p,
+    members: p.members.map((m) => (isTestMember(m.id) ? { ...m, green: false, is_newbie: false } : m)),
+    pair_xp: p.pair_xp.filter((x) => !isTestMember(x.a) && !isTestMember(x.b)),
+  };
+}
+
 // groupQuests: 예전 모둠 퀘스트 8개를 새 시즌에도 만들기(테스트용, 기본은 안 만들어요)
 export type SyncOptions = { scrimQuests?: boolean; groupQuests?: boolean };
 
@@ -258,7 +269,7 @@ export async function applySync(
   const seen = await db.prepare('SELECT 1 FROM sync_batches WHERE batch_id = ?').bind(p.batch_id).first();
   if (seen) return 'duplicate';
   const reset = await afterReset(db, p, nowMs);
-  p = reset.payload;
+  p = withoutTestMembers(reset.payload);
 
   const upsertMember = db.prepare(
     `INSERT INTO members (user_id, display_name, avatar_url, joined_at, is_newbie, active, updated_at, games, green, reset_at)
