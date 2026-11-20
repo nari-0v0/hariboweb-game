@@ -446,7 +446,7 @@ function MatHud(props: { s: JourneyState; bag: number; reveal: boolean }) {
   const { s } = props;
   const mt = material(s.ch ?? 1);
   const got = s.mats ?? 0;
-  const text = (n: number) => `${mt.icon} ${props.bag + n}${n > 0 ? ` (+${n})` : ''}`;
+  const text = (n: number) => `${mt.icon} 재료 ${props.bag + n}${n > 0 ? ` (+${n})` : ''}`;
   const dropped = props.reveal ? s.today.filter((l) => l.text.startsWith('강화 재료 ')).length : 0;
   const title = `${mt.name}: 가방 ${props.bag}개 + 이번 판 ${got}개`;
   return dropped > 0 ? (
@@ -501,10 +501,11 @@ function Play(props: { run: JourneyRun; art: string; name: string; preview?: boo
               <Bar now={s.xp} max={xpNeed(s.lv)} cls="xp" label={`⭐ Lv.${s.lv}`} />
             </div>
             <div class="jr-stats">
-              <span title="공격력">⚔️ {st.atk}</span>
-              <span title="방어력">🛡️ {st.def}</span>
-              <span title="물리친 적">💥 {s.kills}</span>
-              <span title="몬스터 레벨">👾 Lv.{((s.ch ?? 1) - 1) * DAYS + Math.max(1, s.day)}</span>
+              {/* 휴대폰에서는 마우스를 올릴 수 없어서 짧은 글자를 붙였어요(나리 2026-11-21) */}
+              <span title="공격력">⚔️<small class="jr-lab">공격</small> {st.atk}</span>
+              <span title="방어력">🛡️<small class="jr-lab">방어</small> {st.def}</span>
+              <span title="물리친 적">💥<small class="jr-lab">처치</small> {s.kills}</span>
+              <span title="몬스터 레벨">👾<small class="jr-lab">적</small> Lv.{((s.ch ?? 1) - 1) * DAYS + Math.max(1, s.day)}</span>
             </div>
           </div>
         </div>

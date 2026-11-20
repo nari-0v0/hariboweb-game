@@ -2451,3 +2451,5 @@ main.wide { max-width: 1320px; }
 .tw-auto-hint { color: #d7e3f0; font-size: 0.85em; overflow-wrap: anywhere; }
 .jr-mat-hud { background: #e6f6dd; white-space: nowrap; }
 @media (max-width: 480px) { .jr-hud { flex-wrap: wrap; } }
+.jr-lab { margin-left: 2px; font-size: .7em; font-weight: 400; opacity: .85; }
+@media (max-width: 480px) { .jr-hud .jr-hud-ch { flex: 1 1 100%; } }
