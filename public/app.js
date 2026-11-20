@@ -118,6 +118,25 @@ addEventListener('pageshow', (e) => {
   });
 })();
 
+// 꾸밈 캐릭터를 누르면 큰 내 카드 그림만 바꿔 끼워 봐요(저장·구매 전 미리보기). 잠긴 보상 캐릭터도 볼 수 있어요.
+(() => {
+  document.addEventListener('click', (e) => {
+    const pick = e.target instanceof Element && e.target.closest('[data-preview-deco]');
+    const img = pick && document.querySelector('.stage-wrap .card .c-avatar');
+    const id = pick && pick.dataset.previewDeco;
+    if (!img || !id || !/^[a-z0-9-]+$/.test(id)) return;
+    img.src = `/char/deco/${id}.png`;
+    const ax = Number(pick.dataset.ax) || 0;
+    if (ax) img.style.setProperty('--ax', `${ax}%`);
+    else img.style.removeProperty('--ax');
+    document.querySelectorAll('.deco-pick.previewing').forEach((x) => x.classList.remove('previewing'));
+    pick.classList.add('previewing');
+    const card = img.closest('.card');
+    const r = card.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > innerHeight) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+})();
+
 // 원정대 자동 선택(방치): 켜 두면 잠깐마다 "알아서 하기"를 보내고 화면 속 원정 부분만 바꿔 끼워요.
 (() => {
   const KEY = 'jr-auto';

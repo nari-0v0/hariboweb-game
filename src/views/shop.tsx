@@ -3,6 +3,7 @@ import type { NickJob, Profile, Purchase } from '../db';
 import type { Member } from '../env';
 import { PRICES, SERVICES, SHOP_ITEMS, canUse, shopOrder, rewardNeed, serviceItem, servicePrice, type ShopItem } from '../shop';
 import { poolOf } from '../character';
+import { CHAR_OFFSETS } from '../char-offsets';
 import { Card } from './card';
 import { titleName } from '../titles';
 import { Layout } from './layout';
@@ -104,6 +105,16 @@ function stateOf(item: ShopItem, p: { profile: Profile; owned: Set<string>; card
   if (usingNow) return 'using';
   if (canUse(item, p.owned, p.cards, p.members)) return 'usable';
   return item.price === null ? 'reward' : 'buy';
+}
+
+// 꾸밈 캐릭터를 누르면 큰 내 카드에 미리 끼워 봐요(사기 전, 잠긴 보상 캐릭터도). public/app.js가 처리해요.
+function DecoPick({ item }: { item: ShopItem }) {
+  const feet = CHAR_OFFSETS[`deco/${item.key}.png`] ?? 0;
+  return (
+    <button type="button" class="deco-pick" data-preview-deco={item.key} data-ax={String(feet)} aria-label={`${item.name} 미리 보기`}>
+      <img src={`/char/deco/${item.key}.png`} alt="" loading="lazy" />
+    </button>
+  );
 }
 
 function Action(props: { item: ShopItem; state: State; cards: number; members: number }) {
@@ -310,13 +321,13 @@ export function ShopPage(props: {
 
           <section class="panel">
             <h2>꾸밈 캐릭터</h2>
-            <p class="muted">구매한 캐릭터에서 ‘쓰기’를 누르면 내 카드 그림이 바뀌어요. 언제든 기본 캐릭터로 돌아갈 수 있어요.</p>
+            <p class="muted">캐릭터 그림을 누르면 내 카드에 미리 끼워 볼 수 있어요. 구매한 캐릭터에서 ‘쓰기’를 누르면 내 카드 그림이 바뀌어요. 언제든 기본 캐릭터로 돌아갈 수 있어요.</p>
             <div class="shop-grid deco">
               {decoBuy.map((item) => {
                 const state = stateOf(item, ctx);
                 return (
                   <div class={`shop-item ${state}`}>
-                    <img src={`/char/deco/${item.key}.png`} alt="" loading="lazy" />
+                    <DecoPick item={item} />
                     <span class="shop-name">{item.name}</span>
                     <Action item={item} state={state} cards={cards} members={members} />
                   </div>
@@ -333,7 +344,7 @@ export function ShopPage(props: {
                 const state = stateOf(item, ctx);
                 return (
                   <div class={`shop-item ${state}`}>
-                    <img src={`/char/deco/${item.key}.png`} alt="" loading="lazy" />
+                    <DecoPick item={item} />
                     <span class="shop-name">{item.name}</span>
                     <Action item={item} state={state} cards={cards} members={members} />
                   </div>
