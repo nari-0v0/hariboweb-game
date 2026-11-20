@@ -1,3 +1,4 @@
+import { BURN_BINGO_VOICE, inWindow, type BurnWindow } from './burning';
 // 빙고: 생명력(커뮤니티) 주기마다 멤버마다 3×3 빙고판. 활동하면 칸이 저절로 채워지고, 한 줄마다 젤리와 경험치를 받아요.
 // 신청이나 인증, 관리자 확인은 없어요. 알림도 보내지 않아요(고정 패널과 웹 /bingo에서만 보여요).
 import { kstParts, type RoomMinute, type Attendance } from './season';
@@ -229,6 +230,7 @@ export function bingoStatements(
   rooms: RoomMinute[],
   attendance: Attendance[],
   periods: Week[] = [],
+  burn: BurnWindow | null = null,
 ): { stmts: D1PreparedStatement[]; touched: Map<string, Set<string>>; periods: Map<string, Week> } {
   const used = new Map<string, Week>();
   const periodId = (ms: number) => {
@@ -248,17 +250,19 @@ export function bingoStatements(
     const { day: d, hour } = kstParts(r.at);
     const week = periodId(Date.parse(r.at));
     const night = hour >= 22 || hour < 2;
+    // 버닝타임에 한 통화는 빙고 통화 시간으로 2배 쳐요(칭찬용 오늘 통화한 사람은 그대로)
+    const w = inWindow(burn, Date.parse(r.at)) ? BURN_BINGO_VOICE : 1;
     for (const u of ids) {
       const row = dayRow(`${week}|${u}|${d}`);
-      row.minutes++;
-      if (ids.length >= 4) row.crowd++;
-      if (night) row.night++;
+      row.minutes += w;
+      if (ids.length >= 4) row.crowd += w;
+      if (night) row.night += w;
       touch(week, u);
     }
     for (let i = 0; i < ids.length; i++)
       for (let j = i + 1; j < ids.length; j++) {
         const k = `${week}|${ids[i]}|${ids[j]}`;
-        pairs.set(k, (pairs.get(k) ?? 0) + 1);
+        pairs.set(k, (pairs.get(k) ?? 0) + w);
         const dk = `${d}|${ids[i]}|${ids[j]}`;
         pairDays.set(dk, (pairDays.get(dk) ?? 0) + 1);
       }

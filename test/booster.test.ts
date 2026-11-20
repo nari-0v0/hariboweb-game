@@ -154,14 +154,17 @@ describe('동기화로 받는 부스터 혜택', () => {
     expect((await ownedTitles(db, A)).has('booster')).toBe(false);
   });
 
-  it('겜블장 하루 젤칩: 부스터 1100, 아니면 1000', async () => {
+  it('겜블장: 시작 칩은 누구나 1000, 0개일 때 채우기는 부스터 400·아니면 300', async () => {
     const { db } = fakeD1();
     const t0 = Date.now();
     await sync(db, t0, [{ id: A, name: 'a', booster: true }, { id: B, name: 'b', booster: false }]);
     const now = new Date().toISOString();
-    expect(await claimDaily(db, A, now)).toBe(1100);
+    expect(await claimDaily(db, A, now)).toBe(1000);
     expect(await claimDaily(db, B, now)).toBe(1000);
     expect(await claimDaily(db, A, now)).toBe(0);
+    await db.prepare("UPDATE gamble_accounts SET chips = 0, free_day = '2000-01-01'").run();
+    expect(await claimDaily(db, A, now)).toBe(400);
+    expect(await claimDaily(db, B, now)).toBe(300);
   });
 });
 

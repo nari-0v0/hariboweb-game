@@ -778,7 +778,7 @@ function Result(props: { run: EscRun; going: boolean; record?: ReRecord }) {
         <div>
           <b>{GRADE_TEXT[g]}</b>
           <p class="hint">
-            실수 {run.state.mistakes}번 · 동전 없이 본 힌트 {run.state.hints}번 · 찾은 힌트 동전 {run.state.coins?.length ?? 0}개
+            실수 {run.state.mistakes}번 · 동전 없이 본 힌트 {run.state.hints}번 · 찾은 힌트 동전 {(run.state.coins?.length ?? 0) + (run.state.bonus ?? 0)}개
             {run.state.gift ? ` · 💎 선물 동전 ${run.state.gift}개` : ''}
           </p>
           <p class="hint">등급: {gradeRule(run.state)}</p>

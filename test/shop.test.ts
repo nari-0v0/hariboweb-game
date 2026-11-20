@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DECO_CHARACTERS } from '../src/characters';
-import { DECO_PRICES, PRICES, REWARD_COUNT, REWARD_STEP, SHOP_ITEMS, canUse, canUseTheme, rewardNeed, shopItem } from '../src/shop';
+import { DECO_PRICES, PRICES, REWARD_COUNT, REWARD_STEP, SHOP_ITEMS, canUse, canUseTheme, rewardNeed, shopItem, shopOrder } from '../src/shop';
 import { THEMES } from '../src/themes';
 
 describe('jelly shop items', () => {
@@ -75,5 +75,19 @@ describe('shop popup text', async () => {
     expect(resultLines({ status: 'failed', reason: 'error' }, '장미').some((l) => l.contact)).toBe(true);
     expect(resultLines({ status: 'failed', reason: 'not_enough_jelly' }, '장미').some((l) => l.contact)).toBe(false);
     expect(OWNER_CONTACT_URL).toBe('https://open.kakao.com/o/sznz9sHg');
+  });
+});
+
+describe('shop order', () => {
+  it('shows cheaper items first and, at the same price, in 가나다 order', () => {
+    const list = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price !== null).sort(shopOrder);
+    for (let i = 1; i < list.length; i++) {
+      const [a, b] = [list[i - 1]!, list[i]!];
+      expect(a.price! <= b.price!, `${a.name} → ${b.name}`).toBe(true);
+      if (a.price === b.price) expect(a.name.localeCompare(b.name, 'ko') <= 0, `${a.name} → ${b.name}`).toBe(true);
+    }
+    const at35 = list.filter((i) => i.price === 35).map((i) => i.name);
+    expect(at35.indexOf('간호사')).toBeLessThan(at35.indexOf('건설공 소녀'));
+    expect(at35.indexOf('건설공 소녀')).toBeLessThan(at35.indexOf('건설공 소년'));
   });
 });

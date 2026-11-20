@@ -1,8 +1,8 @@
 import { comma } from '../num';
 import type { Member } from '../env';
 import { GAMBLE_ART, SLOT_ART } from '../gamble-art';
-import { CHERRY_PAIR, COIN_PAYOUT, DAILY_CHIPS, ROULETTE, SLOTS, payback, rankOf, type CoinFlip, type CoinSide } from '../gamble';
-import { gambleDay, publicHand, type GambleAccount, type Game, type Round } from '../gamble-db';
+import { BOOSTER_REFILL_CHIPS, CHERRY_PAIR, COIN_PAYOUT, DAILY_CHIPS, REFILL_CHIPS, ROULETTE, SLOTS, payback, rankOf, type CoinFlip, type CoinSide } from '../gamble';
+import { publicHand, type GambleAccount, type Game, type Round } from '../gamble-db';
 import { plainPodium } from '../rankings';
 import { Layout } from './layout';
 import { PodiumBoard } from './podium';
@@ -20,9 +20,9 @@ const NOTICES: Record<string, string> = {
   fast: '너무 빨라요. 잠깐 뒤에 다시 걸어 주세요.',
   stale: '다른 화면에서 이미 진행했어요. 지금 판을 보여 드려요.',
   pick: '곰이나 발바닥 중 하나를 골라 주세요.',
-  rescue: '다시 시작할 젤칩 1000개를 받았어요.',
+  rescue: '젤칩을 채워 드렸어요.',
   'rescue-day-changed': '날짜가 바뀌었어요. 지금 잔액을 확인한 뒤 다시 시도해 주세요.',
-  'no-rescue': '오늘 이미 다시 시작했거나, 아직 젤칩이나 진행 중인 카드 21이 있어요.',
+  'no-rescue': '오늘 이미 채워 받았거나, 아직 젤칩이나 진행 중인 카드 21이 있어요. 젤칩은 0개 이하일 때 하루 한 번 채워져요.',
 };
 const chips = (n: number) => comma(n);
 
@@ -31,6 +31,11 @@ function Art({ name }: { name: string }) {
   return art.image ? <img class="gb-art" src={art.image} alt={art.text} /> : <span>{art.text}</span>;
 }
 
+// 받은 젤칩 안내: 처음 시작(DAILY_CHIPS) 또는 0개일 때 하루 한 번 채우기
+const dailyText = (n: number) =>
+  n >= DAILY_CHIPS
+    ? `겜블장 시작 젤칩 ${n}개를 받았어요.`
+    : `젤칩이 다 떨어져서 ${n}개를 채워 드렸어요(0개 이하일 때 하루 한 번).${n >= BOOSTER_REFILL_CHIPS ? ` 💎 부스터 감사 +${BOOSTER_REFILL_CHIPS - REFILL_CHIPS}` : ''}`;
 const BET_STEPS = [1, 5, 10, 100, 1000, 10000];
 const CARD_RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 
@@ -301,14 +306,8 @@ export function GambleLobby(props: {
         <section class="gb-panel gb-lobby-intro">
           <h1>겜블장 <Art name="slot" /></h1>
           <ChipBalance balance={balance} />
-          {props.daily > 0 && <p role="status">오늘 젤칩 {props.daily}개 받았어요.{props.daily > DAILY_CHIPS ? ' (💎 부스터 감사 +' + (props.daily - DAILY_CHIPS) + ')' : ''}</p>}
+          {props.daily > 0 && <p role="status">{dailyText(props.daily)}</p>}
           {notice && <p role="status">{notice}</p>}
-          {balance === 0 && !props.inProgress && props.account?.rescue_day !== gambleDay(props.now) && (
-            <form method="post" action="/gamble/rescue">
-              <input type="hidden" name="day" value={gambleDay(props.now)} />
-              <button class="gb-button" type="submit">다시 시작</button>
-            </form>
-          )}
           <p>젤칩은 겜블장 전용이에요. 젤리로 바꾸거나 상점에서 쓸 수 없고, 순위와 칭호에만 쓰여요.</p>
         </section>
         <nav class="gb-games" aria-label="게임 고르기">
@@ -358,7 +357,7 @@ export function GambleRoom(props: {
           <a href="/gamble">← 겜블장</a>
           <ChipBalance balance={balance} />
           {game !== 'cards' && props.hand && <a class="gb-resume" href="/gamble/cards">진행 중인 카드 21로 가기</a>}
-          {props.daily > 0 && <p role="status">오늘 젤칩 {props.daily}개 받았어요.{props.daily > DAILY_CHIPS ? ' (💎 부스터 감사 +' + (props.daily - DAILY_CHIPS) + ')' : ''}</p>}
+          {props.daily > 0 && <p role="status">{dailyText(props.daily)}</p>}
         </div>
         <section class="gb-panel gb-room" aria-label={GAMES[game]} data-gb-settled={result ? 'yes' : undefined} data-gb-url={props.url} data-gb-prefetch={game === 'cards' ? ALL_CARD_IMAGES.join(' ') : undefined}
           data-gb-motion={motion?.game} data-gb-key={motion ? `${motion.token}:${motion.revision}:${result ? 'done' : 'active'}` : undefined}>
