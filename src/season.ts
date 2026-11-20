@@ -14,6 +14,7 @@ import {
 } from './quests';
 import { type Prior, kidnapStatements, loadPrior, slotOf } from './team';
 import { approvedBlocks, blockKey, separateBlocked } from './assign-block';
+import { isTestMember } from './test-accounts';
 
 export const GROUP_SIZE = 10;
 // 시즌 시작 전 이 기간 안에 활동한 사람만 모둠에 넣어요
@@ -171,11 +172,12 @@ export async function ensureSeason(db: D1Database, season: Season, nowMs: number
   const people: Person[] = [];
   // 팀은 초록하리보 역할이 있는 사람으로만 짜요(잠수하면 역할이 빠져요, 나리 2026-11-15).
   // 봇이 아직 초록하리보 여부를 안 보내면(모두 NULL) 예전처럼 지난 2주 활동으로 골라요.
-  const greenKnown = rows.some((r) => r.green !== null);
+  // 테스트 계정(src/test-accounts.ts)은 팀에 넣지 않고, 역할 정보가 있는지 판단할 때도 보지 않아요.
+  const greenKnown = rows.some((r) => r.green !== null && !isTestMember(r.user_id));
   // 같은 묶음에서 나간 사람은 아직 active라도 빼요(넣으면 팀 인원이 한 명 모자란 채로 시작해요)
   const exclude = new Set(opts.exclude ?? []);
   for (const r of rows) {
-    if (exclude.has(r.user_id)) continue;
+    if (exclude.has(r.user_id) || isTestMember(r.user_id)) continue;
     const activity = useRecent ? r.recent : r.fallback;
     const active = greenKnown ? r.green === 1 : activity > 0 || (r.profile_at ?? '') >= cutoffIso || (r.last_login_at ?? '') >= cutoffIso;
     if (active) people.push({ id: r.user_id, games: parseGames(r.games), activity, slot: prior.slot.get(r.user_id) });
@@ -368,6 +370,7 @@ async function groupStatements(
   // 초록하리보 여부(이번 묶음 정보가 먼저, 없으면 웹에 있던 값). undefined = 모름(예전 봇)
   const greenOf = new Map<string, boolean>();
   for (const m of p.members) if (typeof m.green === 'boolean') greenOf.set(m.id, m.green);
+  for (const u of [...group.keys(), ...p.members.map((m) => m.id)]) if (isTestMember(u)) greenOf.set(u, false); // 테스트 계정은 팀에서 빼요
 
   // 기록에 나오는 사람의 신입 여부·게임 역할(이번 묶음 정보가 먼저)
   const seen = new Set<string>();
@@ -421,7 +424,7 @@ async function groupStatements(
   for (const u of join ? [...seen].sort() : []) {
     if (removed.has(u) || !activeNow.has(u)) continue;
     const green = greenOf.get(u);
-    if (green === false) continue; // 초록하리보가 없으면 팀에 들어가지 않아요
+    if (green === false || isTestMember(u)) continue; // 초록하리보가 없거나 테스트 계정이면 팀에 들어가지 않아요
     // 나갔다가 다시 들어온 사람은 원래 모둠으로 돌아가요
     const back = departed.get(u);
     if (back !== undefined) {
