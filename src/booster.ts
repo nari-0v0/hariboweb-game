@@ -52,7 +52,12 @@ export function boosterStatements(db: D1Database, list: { id: string; booster: b
      SELECT ?1, ${BOOSTER_JELLY}, ?3 WHERE ${due} AND ?4 IS NOT NULL -- ?4는 알림과 같은 자리 맞추기용
      ON CONFLICT (user_id) DO UPDATE SET dogam_jelly = dogam_jelly + ${BOOSTER_JELLY}, updated_at = ?3`,
   );
-  const mark = db.prepare(`UPDATE members SET booster_gift_month = ?3 WHERE user_id = ?1 AND active = 1 AND booster = 1 AND COALESCE(booster_gift_month, '') < ?2`);
+  // 처음 줄 때는 이번 달(?3)을 적어서 같은 달에 결제일이 또 와도 두 번 주지 않고, 그다음부터는 결제일의 달(?2)을 적어요.
+  // (결제일 다음 날 동기화로 받아도 그 달 결제일 몫으로 남아서, 다음 결제일을 놓치지 않게. Codex #299)
+  const mark = db.prepare(
+    `UPDATE members SET booster_gift_month = CASE WHEN booster_gift_month IS NULL THEN ?3 ELSE ?2 END
+     WHERE user_id = ?1 AND active = 1 AND booster = 1 AND COALESCE(booster_gift_month, '') < ?2`,
+  );
   // 부스트를 끊었으면 고른 「부스터」 칭호를 떼요(봇이 닉네임에서도 떼요)
   const unequip = db.prepare(
     `UPDATE profiles SET title_id = NULL, title_note = NULL, updated_at = ?2 WHERE user_id = ?1 AND title_id = '${BOOSTER_TITLE_ID}'`,

@@ -93,6 +93,33 @@ describe('동기화로 받는 부스터 혜택', () => {
     expect(jelly(sql, A)).toBe(2);
   });
 
+  it('결제일 다음 날 받아도 다음 달 결제일을 놓치지 않아요(31일 시작)', async () => {
+    const { sql, db } = fakeD1();
+    const since = '2026-12-31T11:00:00Z'; // 한국 12월 31일 20시
+    const m = [{ id: A, name: 'a', booster: true, booster_since: since }];
+    await sync(db, at('2027-01-05T03:00:00Z'), m); // 처음 지급(1월)
+    expect(jelly(sql, A)).toBe(1);
+    await sync(db, at('2027-02-28T03:00:00Z'), m); // 2월 28일 정오: 결제일(20시) 전
+    expect(jelly(sql, A)).toBe(1);
+    await sync(db, at('2027-03-01T03:00:00Z'), m); // 3월 1일: 2월 몫
+    expect(jelly(sql, A)).toBe(2);
+    await sync(db, at('2027-03-31T12:00:00Z'), m); // 3월 31일 21시: 3월 몫
+    expect(jelly(sql, A)).toBe(3);
+  });
+
+  it('시작일을 빼고 보내면 적어 둔 결제일을 그대로 써요', async () => {
+    const { sql, db } = fakeD1();
+    await sync(db, at('2026-11-21T00:00:00Z'), [{ id: A, name: 'a', booster: true, booster_since: '2026-10-25T03:00:00Z' }]);
+    expect(jelly(sql, A)).toBe(1);
+    await sync(db, at('2026-12-01T03:00:00Z'), [{ id: A, name: 'a', booster: true }]);
+    expect(jelly(sql, A)).toBe(1);
+    await sync(db, at('2026-12-25T04:00:00Z'), [{ id: A, name: 'a', booster: true }]);
+    expect(jelly(sql, A)).toBe(2);
+    // 끊으면 시작일도 지워요
+    await sync(db, at('2026-12-26T00:00:00Z'), [{ id: A, name: 'a', booster: false }]);
+    expect(sql.prepare('SELECT booster_since FROM members WHERE user_id = ?').get(A)).toEqual({ booster_since: null });
+  });
+
   it('booster를 안 보내는 예전 봇 묶음은 값을 그대로 둬요', async () => {
     const { sql, db } = fakeD1();
     const t0 = at('2026-11-21T00:00:00Z');
