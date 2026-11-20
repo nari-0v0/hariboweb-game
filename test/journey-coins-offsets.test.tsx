@@ -1,0 +1,86 @@
+import { readFileSync } from 'node:fs';
+import { describe, expect, it, vi } from 'vitest';
+import { CHAR_OFFSETS } from '../src/char-offsets';
+import type { Member } from '../src/env';
+import { actJourney, startJourney, type JourneyState } from '../src/journey';
+import type { JourneyBank, JourneyRecord, JourneyRun } from '../src/journey-db';
+import { JourneyPage } from '../src/views/journey';
+
+vi.mock('../src/plaza-room', () => ({ PlazaRoom: class {} }));
+
+const VIEWER: Member = { user_id: '100000000000000001', display_name: '테스트', avatar_url: null, joined_at: null, is_newbie: 0, active: 1, gender_chosen_at: '2026-01-01' };
+const RECORD: JourneyRecord = { best: 0, clears: 0, rewardedToday: 0, farmed: {}, unlocked: 1, top: 0 };
+const BANK: JourneyBank = { coins: 0, atk: 0, hp: 0, def: 0, weapon: 0, armor: 0, charm: 0, mats: {}, pets: {}, pet: null, tower: 0, towerAt: null, towerLast: null };
+
+// 이긴 싸움이 있는 하루를 찾아요(싸우기 전 젤코인과 그 뒤 값을 같이 봐요).
+function wonFight(): { before: JourneyState; after: JourneyState } {
+  let s = startJourney('coin-reveal');
+  for (let i = 0; i < 200 && !s.done; i++) {
+    const next = actJourney(s, { a: 'idle' })!;
+    if (next.fx?.won && !next.done && next.coins > next.fx.c0!) return { before: s, after: next };
+    s = next;
+  }
+  throw new Error('이긴 싸움을 못 찾았어요');
+}
+
+const runOf = (state: JourneyState): JourneyRun => ({
+  row: { id: 'r1', user_id: VIEWER.user_id, state: '', rev: 1, status: 'going', day: state.day, cleared: 0, xp: 0, jelly: 0, reward_day: null },
+  state,
+});
+
+async function render(state: JourneyState) {
+  return String(await (<JourneyPage viewer={VIEWER} art="/a.png" run={runOf(state)} result={null} record={RECORD} bank={BANK} dogam={{ cards: 0, levels: [] }} />));
+}
+
+describe('원정대 싸움 중 젤코인 (슬금님 제보 2026-11-20)', () => {
+  it('싸움 기록에 싸우기 전 젤코인을 남겨요', () => {
+    const { after } = wonFight();
+    expect(after.fx!.c0).toBeLessThan(after.coins);
+  });
+
+  it('싸우는 동안은 싸우기 전 값, 모션이 끝나면 지금 값을 보여 줘요', async () => {
+    const { after } = wonFight();
+    const html = await render(after);
+    expect(html).toContain('jr-coins-swap');
+    expect(html).toContain(`<span class="jr-c0">🪙 ${after.fx!.c0}</span>`);
+    expect(html).toContain(`<span class="jr-c1">🪙 ${after.coins}</span>`);
+  });
+
+  it('싸움이 없는 날은 젤코인을 하나만 보여 줘요', async () => {
+    const { after } = wonFight();
+    const html = await render({ ...after, fx: undefined });
+    expect(html).not.toContain('jr-coins-swap');
+    expect(html).toContain(`<span class="jr-coins">🪙 ${after.coins}</span>`);
+  });
+
+  it('움직임 줄이기 설정에서는 처음부터 지금 값만 보여요', () => {
+    const css = readFileSync('public/styles.css', 'utf8');
+    // 기본(모션 없음): 싸우기 전 값은 숨겨요
+    expect(css).toContain('.jr-coins-swap .jr-c0 { opacity: 0; }');
+    // 바꾸는 모션은 prefers-reduced-motion: no-preference 안에만 있어요
+    const motion = css.slice(css.indexOf('@media (prefers-reduced-motion: no-preference) {\n  .jr-fighting .jr-today'));
+    const block = motion.slice(0, motion.indexOf('\n}\n'));
+    expect(block).toContain('.jr-fighting .jr-coins-swap .jr-c0 { opacity: 1; animation: jr-gone 0s var(--reveal, 0s) both; }');
+    expect(block).toContain('.jr-fighting .jr-coins-swap .jr-c1 { animation: jr-reveal 0s var(--reveal, 0s) both; }');
+  });
+});
+
+describe('꾸밈 캐릭터 가운데 맞추기 (멍쑤님 제보 2026-11-20)', () => {
+  it('꼬리가 발 높이에 있는 꾸밈 캐릭터는 꼬리 때문에 옮기지 않아요', () => {
+    // 드래곤: 몸 전체는 거의 가운데(1.0%)라 따로 옮기지 않아요(예전엔 꼬리 때문에 7.6%)
+    expect(CHAR_OFFSETS['deco/dragon.png']).toBeUndefined();
+    // 꼬리 달린 동물 옷들도 몸 전체 기준이라 예전(7~9%)보다 훨씬 덜 옮겨요
+    for (const k of ['deco/fox.png', 'deco/wolf.png', 'deco/dino.png', 'deco/tiger.png', 'deco/raccoon.png']) expect(Math.abs(CHAR_OFFSETS[k] ?? 0)).toBeLessThan(3);
+  });
+
+  it('멤버 기본 캐릭터 값은 그대로예요(포니테일은 발 기준)', () => {
+    expect(CHAR_OFFSETS['girl-36-0.png']).toBe(13.8);
+    expect(CHAR_OFFSETS['girl-43-0.png']).toBe(15.3);
+    expect(CHAR_OFFSETS['girl-08-0.png']).toBe(-8.6);
+  });
+
+  it('스크립트는 꾸밈 캐릭터에만 몸 전체 기준을 써요', () => {
+    const py = readFileSync('scripts/char_offsets.py', 'utf8');
+    expect(py).toContain('path.parent.name == "deco" and abs(feet) - abs(whole) > TAIL_GAP');
+  });
+});

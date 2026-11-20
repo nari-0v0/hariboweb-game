@@ -1165,6 +1165,9 @@ main.wide { max-width: 1320px; }
 .jr-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .jr-day { font-size: 1.1rem; }
 .jr-coins { padding: 0 10px; border: 3px solid var(--ink); background: var(--yellow); font-weight: 700; }
+.jr-coins-swap { display: inline-grid; }
+.jr-coins-swap > span { grid-area: 1 / 1; }
+.jr-coins-swap .jr-c0 { opacity: 0; }
 .jr-road { list-style: none; display: grid; grid-template-columns: repeat(20, 1fr); gap: 3px; margin: 10px 0; padding: 0; }
 .jr-step { aspect-ratio: 1; display: grid; place-items: center; min-width: 0; border: 2px solid var(--ink); background: #fff; font-size: .6rem; line-height: 1; overflow: hidden; }
 .jr-step.past { background: var(--mint); }
@@ -1221,6 +1224,8 @@ main.wide { max-width: 1320px; }
   .jr-fighting .jr-phase { display: block; animation: jr-gone 0s var(--off, var(--reveal, 0s)) both; }
   .jr-fighting .jr-phase > div { animation: jr-reveal 0s var(--on, 0s) both; }
   .jr-fighting .jr-bar .jr-after { animation: jr-reveal 0s var(--reveal, 0s) both; }
+  .jr-fighting .jr-coins-swap .jr-c1 { animation: jr-reveal 0s var(--reveal, 0s) both; }
+  .jr-fighting .jr-coins-swap .jr-c0 { opacity: 1; animation: jr-gone 0s var(--reveal, 0s) both; }
 }
 @keyframes jr-reveal { from { opacity: 0; visibility: hidden; } to { opacity: 1; visibility: visible; } }
 @keyframes jr-gone { to { opacity: 0; } }

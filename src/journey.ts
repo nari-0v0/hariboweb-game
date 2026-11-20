@@ -37,7 +37,8 @@ export type Line = { icon: string; text: string; tone?: 'good' | 'bad' };
 export type Hit = [who: 0 | 1, dmg: number, crit?: 1];
 // hp0: 싸우기 전 체력(결과는 모션이 끝난 뒤 보여요). mhp: 몬스터 처음 체력, left: hits 칸마다 그 뒤 남은 몬스터 체력(몬스터 체력 막대용)
 // php: hits 칸마다 그 뒤 남은 내 체력(맞을 때마다 내 체력 막대도 줄어들게, 슬금님 제보 2026-11-18)
-export type BattleFx = { foe: string; won: boolean; spark?: number; hits: Hit[]; hp0?: number; mhp?: number; left?: number[]; php?: number[] };
+// c0: 싸우기 전 젤코인(모션이 끝나기 전엔 이 값을 보여요, 슬금님 제보 2026-11-20)
+export type BattleFx = { foe: string; won: boolean; spark?: number; hits: Hit[]; hp0?: number; mhp?: number; left?: number[]; php?: number[]; c0?: number };
 // 예전엔 처음 6번만 남기고 마지막 칸에 끝난 순간을 덮어써서, 긴 싸움에선 중간 공격이 빠졌어요.
 // 그래서 체력이 '두 대 버틸 만큼' 남아 보이다가 한 대에 0이 되는 것처럼 보였어요(슬금님 제보 2026-11-18).
 // 싸움은 40턴(80번)을 넘지 않으니 이 한도는 안전장치일 뿐이에요.
@@ -280,7 +281,7 @@ export function battle(s: JourneyState, m: Monster, power: number, r: () => numb
     left[i] = Math.max(0, mhp);
     php[i] = Math.max(0, s.hp);
   };
-  const fx: BattleFx = { foe: m.key, won: false, hits, hp0: start, mhp, left, php };
+  const fx: BattleFx = { foe: m.key, won: false, hits, hp0: start, mhp, left, php, c0: s.coins };
   // 번개 선제(스킬)와 별무늬 고양이 별똥별(펫)은 싸움 시작에 한 번에 보여요
   const opener = 10 * sk(s, 'spark') + (pf.star > 0 ? Math.max(1, Math.round(mhp0 * pf.star)) : 0);
   if (opener > 0) {
