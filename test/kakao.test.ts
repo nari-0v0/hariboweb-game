@@ -2,20 +2,22 @@ import { describe, expect, it } from 'vitest';
 import { KAKAO_SCRIPT, kakaoExternalUrl } from '../src/kakao';
 
 // 아주 작은 가짜 화면으로 스크립트를 돌려 봐요.
-function run(ua: string, opts: { stored?: string | null; storageThrows?: boolean; replaceUrl?: string; loading?: boolean } = {}) {
+function run(ua: string, opts: { stored?: string | null; storageThrows?: boolean; replaceUrl?: string; loading?: boolean; hidden?: boolean } = {}) {
   const store = new Map<string, string>();
   if (opts.stored) store.set('kk-ext', opts.stored);
+  if (opts.hidden) store.set('kk-hide', '1');
   const made: any[] = [];
   const el = (tag: string): any => {
     const node: any = { tag, children: [] as any[], attrs: {} as Record<string, string>, style: {}, textContent: '' };
-    node.appendChild = (ch: any) => node.children.push(ch);
+    node.appendChild = (ch: any) => { node.children.push(ch); ch.parentNode = node; };
     node.setAttribute = (k: string, v: string) => (node.attrs[k] = v);
+    node.removeChild = (ch: any) => { node.children = node.children.filter((x: any) => x !== ch); ch.parentNode = null; };
     made.push(node);
     return node;
   };
   const body: any = el('body');
   body.firstChild = null;
-  body.insertBefore = (ch: any) => body.children.unshift(ch);
+  body.insertBefore = (ch: any) => { body.children.unshift(ch); ch.parentNode = body; };
   const location = { href: 'https://example.test/me?x=1#top' };
   const sessionStorage = opts.storageThrows
     ? { getItem: () => { throw new Error('no'); }, setItem: () => { throw new Error('no'); } }
@@ -91,6 +93,20 @@ describe('카카오톡 속 브라우저 안내', () => {
     // 클립보드가 없는 카톡 웹뷰 흉내: 스크립트 안의 navigator는 run에서 넘긴 것(clipboard 없음)
     btn.onclick();
     expect(btn.textContent).toBe('주소: https://example.test/me?x=1');
+  });
+
+  it('닫으면 띠와 아래 빈칸이 사라지고, 다음 화면부터 띠를 안 보여요', () => {
+    const r = run(KAKAO_ANDROID, { stored: '1' });
+    expect(r.document.body.children.some((n: any) => n.className === 'kk-space')).toBe(true);
+    r.made.find((n) => n.className === 'kk-x').onclick();
+    expect(r.document.body.children.length).toBe(0);
+    expect(r.store.get('kk-hide')).toBe('1');
+  });
+
+  it('띠를 닫아 둔 탭이라도 처음이면 자동으로 열어 봐요', () => {
+    const r = run(KAKAO_ANDROID, { hidden: true });
+    expect(r.bar).toBeUndefined();
+    expect(r.location.href).toBe(target);
   });
 
   it('스크립트 안에 </script>가 없어요', () => {

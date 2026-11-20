@@ -1,6 +1,6 @@
 // 카카오톡 안에서 열면(카톡 속 브라우저) 디스코드 로그인이 풀리거나 화면이 잘 안 맞아요.
 // 그래서 카톡 속 브라우저일 때만 (1) 처음 한 번 바로 기본 브라우저(크롬·사파리 등)로 열어 보고,
-// (2) 화면 맨 위에 "다른 브라우저로 열기" 띠를 보여 줘요. 다른 브라우저에서는 아무것도 하지 않아요.
+// (2) 화면 맨 아래에 고정으로 "다른 브라우저로 열기" 띠를 보여 줘요. 다른 브라우저에서는 아무것도 하지 않아요.
 // 카톡의 `kakaotalk://web/openExternal?url=` 주소는 안드로이드·아이폰 카톡 모두 기본 브라우저로 열어 줘요.
 // 안 되는 옛 카톡을 위해 띠에 직접 여는 방법과 주소 복사 버튼도 둬요.
 // 주소는 누르는 순간에 다시 읽어요(사건파일처럼 POST 뒤 app.js가 화면 주소를 바꾸는 경우).
@@ -18,6 +18,10 @@ var cur=function(){var u=location.href;try{var r=document.querySelector('[data-r
 var ext=function(){return 'kakaotalk://web/openExternal?url='+encodeURIComponent(cur());};
 var ios=/iPhone|iPad|iPod/i.test(ua);
 var tried=false;try{tried=sessionStorage.getItem('kk-ext')==='1';if(!tried)sessionStorage.setItem('kk-ext','1');}catch(e){tried=true;}
+var hidden=false;try{hidden=sessionStorage.getItem('kk-hide')==='1';}catch(e){}
+var go=function(){location.href=ext();};
+var later=function(f){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',f);else f();};
+if(hidden){if(!tried)later(go);return;}
 var bar=document.createElement('div');bar.className='kk-bar';bar.setAttribute('role','status');
 var t=document.createElement('p');t.className='kk-text';t.textContent='카카오톡 안에서는 로그인이 자주 풀려요. '+(ios?'사파리':'크롬')+' 같은 기본 브라우저로 열어 주세요.';
 var a=document.createElement('a');a.className='kk-open';a.href=ext();a.onclick=function(){a.href=ext();};a.textContent='🌐 기본 브라우저로 열기';
@@ -25,7 +29,12 @@ var c=document.createElement('button');c.type='button';c.className='kk-copy';c.t
 c.onclick=function(){var done=function(){c.textContent='✅ 복사했어요';};var here=cur();var show=function(){c.textContent='주소: '+here;};var fall=function(){try{var i=document.createElement('textarea');i.value=here;i.setAttribute('readonly','');i.style.position='fixed';i.style.opacity='0';document.body.appendChild(i);i.select();var ok=document.execCommand('copy');document.body.removeChild(i);if(ok)done();else show();}catch(e){show();}};try{navigator.clipboard.writeText(here).then(done,fall);}catch(e){fall();}};
 var h=document.createElement('p');h.className='kk-hint';h.textContent='안 열리면 '+(ios?'오른쪽 아래 공유(⋯)':'오른쪽 위 ⋮')+' 버튼 → 「다른 브라우저로 열기」를 눌러 주세요.';
 var row=document.createElement('div');row.className='kk-row';row.appendChild(a);row.appendChild(c);
-bar.appendChild(t);bar.appendChild(row);bar.appendChild(h);
+var x=document.createElement('button');x.type='button';x.className='kk-x';x.setAttribute('aria-label','안내 닫기');x.textContent='✕';
+var sp=document.createElement('div');sp.className='kk-space';sp.setAttribute('aria-hidden','true');
+var fit=function(){sp.style.height=(bar.offsetHeight||0)+'px';};
+x.onclick=function(){try{sessionStorage.setItem('kk-hide','1');}catch(e){}bar.parentNode&&bar.parentNode.removeChild(bar);sp.parentNode&&sp.parentNode.removeChild(sp);};
+bar.appendChild(x);bar.appendChild(t);bar.appendChild(row);bar.appendChild(h);
 document.body.insertBefore(bar,document.body.firstChild);
-if(!tried){var go=function(){location.href=ext();};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',go);else go();}
+later(function(){document.body.appendChild(sp);fit();try{window.addEventListener('resize',fit);}catch(e){}});
+if(!tried)later(go);
 }catch(e){}})();`;
