@@ -928,12 +928,12 @@ members.post('/api/shop/reroll', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
   const viewer = c.get('viewer');
   const body = await c.req.parseBody();
-  // 확인 화면에서 본 캐릭터가 지금과 다르면(다른 탭에서 바꿈) 사지 않아요
-  const profile = await getProfile(c.env.DB, viewer.user_id);
-  if (String(body.character ?? '') !== (profile.character_id ?? '')) return c.redirect('/shop?n=reroll_changed');
+  // 확인 화면에서 본 캐릭터가 지금과 다르면(다른 탭에서 바꿈) 사지 않아요. 결제 조건에서도 한 번 더 비교해요.
+  const expected = String(body.character ?? '');
+  if (!expected) return c.redirect('/shop?n=reroll_changed');
   let result: Awaited<ReturnType<typeof buyReroll>>;
   try {
-    result = await buyReroll(c.env.DB, viewer.user_id, PRICES.reroll);
+    result = await buyReroll(c.env.DB, viewer.user_id, PRICES.reroll, expected);
   } catch (e) {
     console.error('캐릭터 리롤 실패', e);
     return c.redirect('/shop?n=error');

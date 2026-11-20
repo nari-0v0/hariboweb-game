@@ -26,7 +26,8 @@ export async function journeyRecord(db: D1Database, user: string, day = kstDay()
   const r = await db
     .prepare(
       `SELECT COALESCE((SELECT chapter FROM journey_runs WHERE user_id = ?1 AND status = 'done' AND cleared = 1 ORDER BY chapter DESC LIMIT 1), 0) AS top,
-         (SELECT COUNT(*) FROM journey_runs WHERE user_id = ?1 AND status = 'done' AND reward_day = ?2 AND xp > 0) AS today,
+         (SELECT COUNT(*) FROM journey_runs WHERE user_id = ?1 AND status = 'done' AND reward_day = ?2 AND xp > 0)
+           + COALESCE((SELECT xp_used FROM game_resets WHERE user_id = ?1 AND xp_day = ?2), 0) AS today,
          (SELECT chapter FROM journey_runs WHERE user_id = ?1 AND status != 'going' ORDER BY started_at DESC LIMIT 1) AS last,
          b.best, b.clears, b.farmed
        FROM (SELECT 1) LEFT JOIN journey_bank b ON b.user_id = ?1`,
@@ -161,6 +162,8 @@ export async function beginJourney(db: D1Database, user: string, chapter = 1, no
   const ch = chapter;
   const id = crypto.randomUUID();
   const t = now.toISOString();
+  // 게임 기록 초기화 횟수(세대). 장비를 읽은 뒤 그 사이 초기화됐으면 옛 장비로 판을 만들지 않아요.
+  const gen = Number((await db.prepare('SELECT count FROM game_resets WHERE user_id = ?').bind(user).first<{ count: number }>())?.count ?? 0);
   const bank = await journeyBank(db, user);
   const cost = kitCost(kit, level);
   if (cost > 0 && cost > bank.coins) return NO_COINS; // 빚(마이너스)이 있어도 준비물 없이는 떠날 수 있어요
@@ -177,9 +180,10 @@ export async function beginJourney(db: D1Database, user: string, chapter = 1, no
     db
       .prepare(
         `INSERT OR IGNORE INTO journey_runs (id, user_id, state, started_at, updated_at, chapter)
-         SELECT ?1, ?2, ?3, ?4, ?4, ?5 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)${paid}`,
+         SELECT ?1, ?2, ?3, ?4, ?4, ?5 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)
+           AND COALESCE((SELECT count FROM game_resets WHERE user_id = ?2), 0) = ?6${paid}`,
       )
-      .bind(id, user, JSON.stringify(state), t, ch);
+      .bind(id, user, JSON.stringify(state), t, ch, gen);
   if (cost > 0) {
     // 젤코인이 넉넉할 때만 판을 만들고, 만들어진 판이 있을 때만 젤코인을 빼요(한 번에 처리).
     await db.batch([
@@ -246,7 +250,9 @@ export async function actJourneyRun(db: D1Database, user: string, id: string, re
   const t = now.toISOString();
   const token = crypto.randomUUID();
   const day = kstDay(now);
-  const room = `(SELECT COUNT(*) FROM journey_runs WHERE user_id = ?2 AND reward_day = ?7 AND xp > 0) < ${DAILY_REWARD_JOURNEYS}`;
+  // 오늘 게임 기록 초기화 전에 받은 판 수(game_resets.xp_used)도 하루 보상 판 수에 세요
+  const room = `((SELECT COUNT(*) FROM journey_runs WHERE user_id = ?2 AND reward_day = ?7 AND xp > 0)
+    + COALESCE((SELECT xp_used FROM game_resets WHERE user_id = ?2 AND xp_day = ?7), 0)) < ${DAILY_REWARD_JOURNEYS}`;
   // 아직 진행 중인 판은 진행 내용만 저장해요. 상태·보상 칸(색인에 들어 있는 칸)을 건드리지 않아서
   // DB 쓰기가 한 번에 4줄 → 1줄로 줄어요(무료 한도 하루 10만 줄).
   if (!s.done) {

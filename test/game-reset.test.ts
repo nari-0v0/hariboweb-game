@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buyReroll } from '../src/db';
 import { buyGameReset } from '../src/game-reset';
+import { journeyRecord } from '../src/journey-db';
+import { kstDay } from '../src/db';
 import { actEscape, ESCAPE_CASES } from '../src/escape';
 import { CHARACTERS, CHARACTER_VARIANTS } from '../src/characters';
 import { poolOf } from '../src/character';
@@ -106,10 +108,30 @@ describe('게임 기록 초기화권', () => {
   });
 });
 
+describe('초기화와 원정대 하루 경험치 판 수', () => {
+  it('오늘 이미 경험치를 받은 판 수는 초기화 뒤에도 이어서 세요', async () => {
+    const { sql, db } = setup(60);
+    const now = new Date();
+    const day = kstDay(now);
+    const add = (n: string) =>
+      sql
+        .prepare("INSERT INTO journey_runs (id, user_id, chapter, state, status, day, cleared, started_at, updated_at, reward_day, xp) VALUES (?, ?, 1, '{}', 'done', 5, 0, 'x', 'x', ?, 10)")
+        .run(n, A, day);
+    add('r1');
+    expect(await buyGameReset(db, A, 20, now)).toBe('done');
+    expect((await journeyRecord(db, A, day)).rewardedToday).toBe(1);
+    add('r2');
+    expect(await buyGameReset(db, A, 20, now)).toBe('done');
+    expect((await journeyRecord(db, A, day)).rewardedToday).toBe(2);
+    // 다음 날은 다시 0부터
+    expect((await journeyRecord(db, A, '2099-01-01')).rewardedToday).toBe(0);
+  });
+});
+
 describe('캐릭터 리롤권', () => {
   it('10젤리로 같은 성별의 빈 캐릭터로 바로 바꾸고, 예전 캐릭터는 풀려요', async () => {
     const { sql, db } = setup(15);
-    expect(await buyReroll(db, A, 10, () => 0)).toBe('done');
+    expect(await buyReroll(db, A, 10, 'girl-01-0', () => 0)).toBe('done');
     const p = sql.prepare('SELECT dogam_jelly, character_id, character_sig FROM profiles WHERE user_id = ?').get(A) as { dogam_jelly: number; character_id: string; character_sig: string };
     expect(p.dogam_jelly).toBe(5);
     expect(poolOf(p.character_id)).toBe('girl');
@@ -120,9 +142,32 @@ describe('캐릭터 리롤권', () => {
     expect(count(sql, 'character_keep')).toBe(0);
   });
 
+  it('같은 확인 화면으로 두 번 눌러도 한 번만 사요', async () => {
+    const { sql, db } = setup(30);
+    expect(await buyReroll(db, A, 10, 'girl-01-0', () => 0)).toBe('done');
+    expect(await buyReroll(db, A, 10, 'girl-01-0', () => 0)).toBe('changed');
+    expect((sql.prepare('SELECT dogam_jelly FROM profiles WHERE user_id = ?').get(A) as { dogam_jelly: number }).dogam_jelly).toBe(20);
+  });
+
+  it('지문 없이 겹쳐 받은 사람의 캐릭터도 뽑지 않아요', async () => {
+    const { sql, db } = setup(15);
+    const C = '300000000000000001';
+    sql.prepare("INSERT INTO members (user_id, display_name, active, updated_at) VALUES (?, 'c', 1, 'x')").run(C);
+    const girls0 = CHARACTERS.filter((c) => c.id.startsWith('girl-')).map((c) => `${c.id}-0`);
+    const free = girls0.filter((id) => id !== 'girl-01-0' && id !== 'girl-02-0');
+    // 마지막 하나만 남기고 원래 그림을 모두 지문 없이 C가 쓰는 걸로(같은 사람이 여러 개는 아니지만 쿼리만 확인)
+    for (const id of free.slice(0, -1)) {
+      const u = String(BigInt(C) + BigInt(free.indexOf(id) + 1));
+      sql.prepare("INSERT INTO members (user_id, display_name, active, updated_at) VALUES (?, 'x', 1, 'x')").run(u);
+      sql.prepare('INSERT INTO profiles (user_id, character_id, character_sig, updated_at) VALUES (?, ?, NULL, ?)').run(u, id, 'x');
+    }
+    expect(await buyReroll(db, A, 10, 'girl-01-0', () => 0)).toBe('done');
+    expect((sql.prepare('SELECT character_id FROM profiles WHERE user_id = ?').get(A) as { character_id: string }).character_id).toBe(free.at(-1));
+  });
+
   it('젤리가 모자라면 바뀌지 않아요', async () => {
     const { sql, db } = setup(9);
-    expect(await buyReroll(db, A, 10)).toBe('not_enough_jelly');
+    expect(await buyReroll(db, A, 10, 'girl-01-0')).toBe('not_enough_jelly');
     expect((sql.prepare('SELECT character_id FROM profiles WHERE user_id = ?').get(A) as { character_id: string }).character_id).toBe('girl-01-0');
   });
 
@@ -138,7 +183,7 @@ describe('캐릭터 리롤권', () => {
         sql.prepare("INSERT INTO members (user_id, display_name, active, updated_at) VALUES (?, 'x', 1, 'x')").run(u);
         sql.prepare('INSERT INTO profiles (user_id, character_id, character_sig, updated_at) VALUES (?, ?, ?, ?)').run(u, id, id, 'x');
       }
-    expect(await buyReroll(db, A, 10)).toBe('none');
+    expect(await buyReroll(db, A, 10, 'girl-01-0')).toBe('none');
     expect((sql.prepare('SELECT dogam_jelly FROM profiles WHERE user_id = ?').get(A) as { dogam_jelly: number }).dogam_jelly).toBe(50);
   });
 });

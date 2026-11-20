@@ -4,7 +4,9 @@ CREATE TABLE IF NOT EXISTS game_resets (
   user_id TEXT PRIMARY KEY,
   count INTEGER NOT NULL DEFAULT 0,
   last_at TEXT NOT NULL,
-  journey_jelly_top INTEGER NOT NULL DEFAULT 0 -- 원정대 장 젤리를 이 장까지 이미 받았어요
+  journey_jelly_top INTEGER NOT NULL DEFAULT 0, -- 원정대 장 젤리를 이 장까지 이미 받았어요
+  xp_day TEXT, -- 초기화한 날(한국 날짜)
+  xp_used INTEGER NOT NULL DEFAULT 0 -- 그날 초기화 전에 이미 경험치를 받은 원정 판 수(하루 보상 판 수 제한이 초기화로 풀리지 않게)
 );
 -- 사건마다 첫 해결 보상(경험치·젤리)을 이미 받은 기록. 초기화로 escape_rewards를 지워도 여기 남아요.
 CREATE TABLE IF NOT EXISTS escape_paid (
