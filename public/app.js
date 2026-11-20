@@ -124,17 +124,54 @@ addEventListener('pageshow', (e) => {
   // 저장 공간을 못 쓰는 브라우저에서도 이 탭에서는 켠 상태가 유지되게 메모리에도 들고 있어요.
   let mem = false;
   try { mem = localStorage.getItem(KEY) === '1'; } catch {}
+  // 켜 둔 채 자리를 비우지 않게 1시간마다 한 번 확인해요(나리 2026-11-21). 켠 시각을 기억해요.
+  const SINCE = 'jr-auto-since';
+  const HOUR = 60 * 60 * 1000;
+  let since = 0;
+  try { since = Number(localStorage.getItem(SINCE)) || 0; } catch {}
+  const mark = (t) => { since = t; try { t ? localStorage.setItem(SINCE, String(t)) : localStorage.removeItem(SINCE); } catch {} };
+  if (mem && (!since || since > Date.now())) mark(Date.now());
   const get = () => mem;
-  const set = (on) => { mem = !!on; try { on ? localStorage.setItem(KEY, '1') : localStorage.removeItem(KEY); } catch {} };
+  const set = (on) => {
+    if (on && !mem) mark(Date.now());
+    if (!on) mark(0);
+    mem = !!on;
+    try { on ? localStorage.setItem(KEY, '1') : localStorage.removeItem(KEY); } catch {}
+  };
   let timer = 0;
   let busy = false;
-  // 자동은 끌 때까지 계속 켜져 있어요(나리 2026-11-21, 처음처럼). 그만두기를 누르면 꺼져요.
+  // 자동은 끌 때까지 계속 켜져 있어요(나리 2026-11-21, 처음처럼). 그만두기를 누르면 꺼져요. 단, 켠 지 1시간이 지나면 판이 끝날 때 「계속하기」를 눌러야 이어져요.
   // 판이 끝나면 결과를 보여 주고 5초 기다린 뒤(남은 초를 보여 줘요) 같은 장으로 다시 떠나요. 준비물은 사지 않아요.
   if (new URLSearchParams(location.search).get('n') === 'quit') set(false);
   const again = document.querySelector('.jr-result form.jr-chapters');
   if (again && get()) {
     // 결과가 실제로 보이는 때부터 5초를 세요(움직임 줄이기면 결과가 바로 보여요. 아래 마지막 싸움 처리와 같은 규칙)
     const finalWait = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : Number(document.querySelector('[data-final-wait]')?.getAttribute('data-final-wait')) || 0;
+    const depart = () => {
+      again.querySelectorAll('input[name="kit"]').forEach((k) => { k.checked = false; });
+      again.requestSubmit ? again.requestSubmit() : again.submit();
+    };
+    // 켠 지 1시간이 지났으면 다시 떠나지 않고 「계속하기」를 눌러야 이어져요(누르면 다시 1시간).
+    if (Date.now() - since >= HOUR) {
+      setTimeout(() => {
+        if (!get()) return;
+        const ask = document.createElement('div');
+        ask.className = 'jr-autonext jr-autoask';
+        ask.setAttribute('role', 'alertdialog');
+        ask.setAttribute('aria-label', '자동 계속 확인');
+        ask.innerHTML = '<b>🤖 자동으로 1시간 돌았어요. 계속 돌릴까요?</b><button type="button" class="btn" data-go>계속하기</button><button type="button" class="btn btn-ghost" data-stop>그만하기</button>';
+        ask.querySelector('[data-stop]').addEventListener('click', () => { set(false); ask.remove(); });
+        ask.querySelector('[data-go]').addEventListener('click', () => {
+          if (!get()) { ask.remove(); return; }
+          mark(Date.now());
+          ask.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+          depart();
+        });
+        document.body.append(ask);
+        ask.querySelector('[data-go]').focus({ preventScroll: true });
+      }, finalWait);
+      return;
+    }
     const box = document.createElement('div');
     box.className = 'jr-autonext';
     box.setAttribute('role', 'status');
@@ -151,8 +188,7 @@ addEventListener('pageshow', (e) => {
         box.querySelector('[data-left]').textContent = String(Math.max(0, left));
         if (left > 0 || !get()) return;
         stop();
-        again.querySelectorAll('input[name="kit"]').forEach((k) => { k.checked = false; });
-        again.requestSubmit ? again.requestSubmit() : again.submit();
+        depart();
       }, 1000);
     }, finalWait);
   }

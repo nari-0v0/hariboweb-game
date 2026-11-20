@@ -557,7 +557,7 @@ function Play(props: { run: JourneyRun; art: string; name: string; preview?: boo
           <label class="jr-auto" hidden data-auto-toggle={preview ? undefined : ''}>
             <input type="checkbox" />
             <span>
-              <b>🤖 자동</b> 켜 두면 스킬·갈림길·상점까지 알아서 골라요. 끌 때까지 계속 켜져 있고, 한 판이 끝나면 5초 뒤 같은 장으로 다시 떠나요
+              <b>🤖 자동</b> 켜 두면 스킬·갈림길·상점까지 알아서 골라요. 끌 때까지 계속 켜져 있고, 한 판이 끝나면 5초 뒤 같은 장으로 다시 떠나요. 켠 지 1시간이 지나면 「계속하기」를 눌러야 이어져요
             </span>
           </label>
         </div>
@@ -632,7 +632,7 @@ export function ChapterPick(props: { unlocked: number; top: number; dogam: Dogam
         })}
       </div>
       <p class="jr-rate">
-        🪙 아직 못 깬 장은 젤코인이 다 모여요. 이미 깬 장을 다시 돌면 그 장을 돈 횟수만큼 줄어요: 100% → 75% → 50% → 25% → 10% (날이 바뀌어도 그대로예요).
+        🪙 아직 못 깬 장은 젤코인이 다 모여요. 이미 깬 장을 다시 돌면 그 장을 돈 횟수만큼 줄어요: 100% → 75% → 50% → 25% → 10% → 5% → 1% (날이 바뀌어도 그대로예요).
       </p>
       <fieldset class="jr-kit">
         <legend>🎒 출발 준비물 · 이번 판에만 써요</legend>

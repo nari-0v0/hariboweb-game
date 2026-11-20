@@ -2469,3 +2469,6 @@ main.wide { max-width: 1320px; }
 .jr-plus { margin: 0 2px; opacity: .7; }
 .jr-hud .jr-lab { margin-right: 3px; }
 @media (max-width: 480px) { .jr-hud { justify-content: flex-end; } }
+/* 자동 1시간 확인 칸(나리 2026-11-21): 버튼 둘이 휴대폰에서도 한 줄에 들어가요 */
+.jr-autoask b { flex-basis: 100%; text-align: center; }
+.jr-autoask .btn { flex: 1 1 120px; }
