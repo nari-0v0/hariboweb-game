@@ -1,4 +1,4 @@
-"""캐릭터 그림마다 몸 가운데가 그림 가운데에서 얼마나 벗어났는지 재서 src/char-offsets.ts 로 적어요.
+"""캐릭터 그림마다 얼굴(몸) 가운데가 그림 가운데에서 얼마나 벗어났는지 재서 src/char-offsets.ts 로 적어요.
 
 포니테일·소품처럼 한쪽으로 긴 그림은 그림 상자 가운데에 두면 몸이 옆으로 밀려 보이고
 그림자와 발이 어긋나요. 카드에서 이 값만큼 그림을 옮겨 발을 가운데(그림자 위)에 맞춰요.
@@ -9,23 +9,38 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
+from scipy import ndimage
 
 ROOT = Path(__file__).resolve().parent.parent
 CHAR = ROOT / "public" / "char"
 OUT = ROOT / "src" / "char-offsets.ts"
 
 
-def feet_offset(path: Path) -> float:
-    """몸 가운데가 그림 가운데에서 몇 % 벗어났는지(그림 너비 기준, 오른쪽이 +).
+def face_center(img: np.ndarray, alpha: np.ndarray, top: int, height: int) -> float | None:
+    """얼굴(살구색 피부) 덩어리의 가로 가운데. 얼굴이 안 보이는 그림(로봇, 창백한 피부)은 None."""
 
-    꼬리·지팡이·인형처럼 옆으로 튀어나온 소품에 끌려가지 않게, 얼굴~몸통 높이(위에서 25~60%)의
-    줄마다 가장 긴 덩어리(몸)의 가운데만 모아 그 중앙값을 써요(나리 2026-11-20: 여우가 왼쪽으로 쏠려 보임).
-    """
+    rgb = img[..., :3].astype(float) / 255
+    r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
+    mx, mn = rgb.max(-1), rgb.min(-1)
+    sat = np.where(mx > 0, (mx - mn) / np.maximum(mx, 1e-6), 0)
+    skin = alpha & (r > 0.8) & (r >= g) & (g >= b) & (sat > 0.06) & (sat < 0.4) & (r - b > 0.06)
+    # 얼굴은 위에서 12~62% 사이에 있어요(모자·발 쪽의 살구색 물건은 빼요)
+    skin[: top + int(height * 0.12)] = False
+    skin[top + int(height * 0.62) :] = False
+    lab, n = ndimage.label(skin)
+    if n == 0:
+        return None
+    sizes = ndimage.sum(skin, lab, range(1, n + 1))
+    k = int(np.argmax(sizes)) + 1
+    if sizes[k - 1] < 150:
+        return None
+    xs = np.where(lab == k)[1]
+    return (xs.min() + xs.max()) / 2
 
-    alpha = np.array(Image.open(path).convert("RGBA"))[:, :, 3] > 40
-    rows = np.where(alpha.any(1))[0]
-    top, bottom = rows[0], rows[-1]
-    height = bottom - top + 1
+
+def body_center(alpha: np.ndarray, top: int, height: int) -> float:
+    """얼굴~몸통 높이(위에서 25~60%) 줄마다 가장 긴 덩어리(몸)의 가운데를 모은 중앙값."""
+
     centers = []
     for y in range(top + int(height * 0.25), top + int(height * 0.6)):
         edge = np.diff(np.concatenate([[0], alpha[y].astype(int), [0]]))
@@ -33,7 +48,24 @@ def feet_offset(path: Path) -> float:
         if len(starts):
             k = int(np.argmax(ends - starts))
             centers.append((starts[k] + ends[k] - 1) / 2)
-    cx = float(np.median(centers))
+    return float(np.median(centers))
+
+
+def feet_offset(path: Path) -> float:
+    """캐릭터 가운데가 그림 가운데에서 몇 % 벗어났는지(그림 너비 기준, 오른쪽이 +).
+
+    꼬리·지팡이·마법진·인형처럼 옆으로 튀어나온 소품에 끌려가지 않게 얼굴 가운데를 기준으로 해요.
+    얼굴을 못 찾으면(로봇 등) 몸통 가운데를 써요(나리 2026-11-20: 여우·왕·소환사·해적이 쏠려 보임).
+    """
+
+    img = np.array(Image.open(path).convert("RGBA"))
+    alpha = img[:, :, 3] > 40
+    rows = np.where(alpha.any(1))[0]
+    top, bottom = rows[0], rows[-1]
+    height = bottom - top + 1
+    cx = face_center(img, alpha, top, height)
+    if cx is None:
+        cx = body_center(alpha, top, height)
     width = alpha.shape[1]
     off = (cx + 0.5 - width / 2) / width * 100
     # 옮겨도 그림이 카드 그림 칸 밖으로 잘리지 않을 만큼만 옮겨요(나리 2026-11-20: 로봇 칼이 잘림).
