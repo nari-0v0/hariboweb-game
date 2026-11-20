@@ -410,3 +410,14 @@ document.addEventListener('click', (e) => {
   const dot = btn && btn.querySelector('.upd-dot');
   if (dot) dot.hidden = !btn.getAttribute('data-upd') || btn.getAttribute('data-upd') === seen;
 })();
+
+// 주소 끝 #이름이 접힌 안내 칸(details)이면 펼쳐요(버닝타임 띠 → 안내 #burning)
+(() => {
+  const open = () => {
+    const id = decodeURIComponent(location.hash.slice(1));
+    const el = id && document.getElementById(id);
+    if (el && el.tagName === 'DETAILS') el.open = true;
+  };
+  open();
+  addEventListener('hashchange', open);
+})();

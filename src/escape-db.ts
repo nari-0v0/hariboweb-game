@@ -119,10 +119,10 @@ export async function quitEscape(db: D1Database, user: string, id: string, rev?:
 
 // 행동 하나. rev = 화면에 보이던 판의 순번(옛 화면·두 번 누르기 막기).
 // 해결하면 사건마다 처음 한 번만 경험치·젤리를 주고, 판 저장과 보상은 한 번에(전부 되거나 전부 안 되게) 반영해요.
-export async function actEscapeRun(db: D1Database, user: string, id: string, rev: number, act: EscAction, now = new Date()): Promise<'ok' | 'stale' | 'bad'> {
+export async function actEscapeRun(db: D1Database, user: string, id: string, rev: number, act: EscAction, now = new Date(), burn = false): Promise<'ok' | 'stale' | 'bad'> {
   const run = await getEscape(db, user, id);
   if (!run || run.row.status !== 'going' || run.row.rev !== rev) return 'stale';
-  const s = actEscape(run.def, run.state, act);
+  const s = actEscape(run.def, run.state, act, burn);
   if (!s) return 'bad';
   const t = now.toISOString();
   const token = crypto.randomUUID();

@@ -1,3 +1,4 @@
+import { BURN_FARM_MIN } from '../burning';
 import type { Member } from '../env';
 import type { JourneyBank, JourneyRecord, JourneyRun } from '../journey-db';
 import { BOSS_KEYS, CHAPTERS, chapterBg, chapterLevels, chapterOf } from '../journey-chapters';
@@ -7,6 +8,7 @@ import {
   ELITE_DAY,
   EVENTS,
   OFFERS,
+  offerInfo,
   PERKS,
   PERK_IDS,
   GEAR,
@@ -203,7 +205,7 @@ function Choice(props: { run: JourneyRun }) {
       <p class="hint">가진 젤코인 🪙 {s.coins}개. 여러 개 사도 돼요.</p>
       <div class="jr-cards">
         {p.offers.map((o, n) => {
-          const info = OFFERS[o.id];
+          const info = offerInfo(o.id, s.ch);
           return (
             <Act run={run} a="buy" n={n} cls="jr-card" disabled={s.coins < o.price}>
               <span class="jr-card-icon" aria-hidden="true">
@@ -544,7 +546,7 @@ function Play(props: { run: JourneyRun; art: string; name: string; preview?: boo
 
 // 장 고르기: 열린 장만 누를 수 있어요. 기본은 마지막으로 돈 장(아래 장 재료를 모으는 사람이 매번 다시 안 골라도 되게),
 // 처음이거나 그 장을 못 가면 가장 높은 장이에요. 앞 장 대장을 이겨야 하고, 4장부터는 도감 카드도 모아야 열려요(src/unlock.ts).
-export function ChapterPick(props: { unlocked: number; top: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number; last?: number; again?: boolean }) {
+export function ChapterPick(props: { unlocked: number; top: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number; last?: number; again?: boolean; burn?: boolean }) {
   const pick = Math.min(props.unlocked, journeyOpenTo(props.dogam));
   const chosen = props.last && props.last >= 1 && props.last <= pick ? props.last : pick;
   return (
@@ -572,8 +574,8 @@ export function ChapterPick(props: { unlocked: number; top: number; dogam: Dogam
                 {c.n <= pick ? `${material(c.n).icon} ${material(c.n).name}` : '❔ 재료'}
               </span>
               {open && c.n <= props.top && (
-                <span class="jr-farm" title="이미 깬 장을 다시 돌 때 모이는 젤코인">
-                  🪙 {bankRate(props.farmed[c.n] ?? 0)}%
+                <span class="jr-farm" title={props.burn ? '버닝타임: 다시 돌아도 젤코인 최소 50%' : '이미 깬 장을 다시 돌 때 모이는 젤코인'}>
+                  {props.burn ? '🔥' : '🪙'} {props.burn ? Math.max(BURN_FARM_MIN, bankRate(props.farmed[c.n] ?? 0)) : bankRate(props.farmed[c.n] ?? 0)}%
                 </span>
               )}
               {need.cards > 0 && (
@@ -617,7 +619,7 @@ export function ChapterPick(props: { unlocked: number; top: number; dogam: Dogam
   );
 }
 
-function Result(props: { run: JourneyRun; art: string; name: string; unlocked: number; top: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number; going: boolean }) {
+function Result(props: { run: JourneyRun; art: string; name: string; unlocked: number; top: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number; going: boolean; burn?: boolean }) {
   const { run } = props;
   const s = run.state;
   // 마지막 날 싸움이 있으면 먼저 평소 진행 화면 모양으로 싸움을 보여 주고(화면 길이로도 끝난 걸 알 수 없게),
@@ -659,7 +661,7 @@ function Result(props: { run: JourneyRun; art: string; name: string; unlocked: n
       </p>
       {props.going
         ? <a class="btn btn-primary" href="/expedition/go#now">진행 중인 원정 이어 하기</a>
-        : <ChapterPick unlocked={props.unlocked} top={props.top} dogam={props.dogam} farmed={props.farmed} coins={props.coins} last={s.ch ?? 1} again />}
+        : <ChapterPick unlocked={props.unlocked} top={props.top} dogam={props.dogam} farmed={props.farmed} coins={props.coins} last={s.ch ?? 1} again burn={props.burn} />}
     </section>
     </>
   );
@@ -1070,7 +1072,7 @@ export function JourneyPage(props: {
             </div>
           </details>
         </div>
-        {result ? <Result run={result} art={props.art} name={name} unlocked={record.unlocked} top={record.top} dogam={props.dogam} farmed={record.farmed} coins={props.bank.coins} going={!!run} /> : run ? <Play run={run} art={props.art} name={name} /> : null}
+        {result ? <Result run={result} art={props.art} name={name} unlocked={record.unlocked} top={record.top} dogam={props.dogam} farmed={record.farmed} coins={props.bank.coins} going={!!run} burn={!!props.viewer.burn_until} /> : run ? <Play run={run} art={props.art} name={name} /> : null}
         {!run && !result && (
           <section class="jr-game jr-lobby" id="now">
             <div class="jr-lobby-stage" style={`--jr-bg:url(/journey/bg/${zoneFor(1)}.webp)`}>
@@ -1088,7 +1090,7 @@ export function JourneyPage(props: {
               </div>
             </div>
             <h2 class="jr-pick-title">어느 장으로 떠날까요?</h2>
-            <ChapterPick unlocked={record.unlocked} top={record.top} dogam={props.dogam} farmed={record.farmed} coins={props.bank.coins} last={record.last} />
+            <ChapterPick unlocked={record.unlocked} top={record.top} dogam={props.dogam} farmed={record.farmed} coins={props.bank.coins} last={record.last} burn={!!props.viewer.burn_until} />
           </section>
         )}
         <TowerLink top={record.top} best={props.bank.tower} />

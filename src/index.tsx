@@ -90,6 +90,7 @@ import { GAMBLE_LOCKED, gambleTester, isCoinSide } from './gamble';
 import { activeHand, betChips, betTooSoon, claimDaily, expireAllHands, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, moveHand, rescueChips, type Game } from './gamble-db';
 import { prefetchAllowed } from './prefetch';
 import { imageRequestAllowed } from './image-guard';
+import { BURN_CARD_XP, burnWindow, burningUntil, inWindow, markMaintenance } from './burning';
 import { dbLimitKind, maintenanceOn, maintenanceSkips, maintenanceWhen, type DbLimit } from './maintenance';
 import { EscapePage } from './views/escape';
 import { JourneyPage } from './views/journey';
@@ -131,7 +132,16 @@ export function originDownResponse(request: Request): Response {
   return new Response('<!doctype html>' + String(<ErrorPage retry={retry} />), { status: 503, headers });
 }
 app.use('*', async (c, next) => {
-  if (maintenanceOn(c.env.MAINTENANCE) && !maintenanceSkips(c.req.path)) return troubleResponse(c, 'maintenance');
+  if (maintenanceOn(c.env.MAINTENANCE)) {
+    // 버닝타임: 점검을 본 시각을 남겨요(1분에 한 번). 점검이 끝나면 그 길이로 버닝타임이 켜져요.
+    const mark = markMaintenance(c.env.DB);
+    try {
+      c.executionCtx.waitUntil(mark);
+    } catch {
+      await mark;
+    }
+    if (!maintenanceSkips(c.req.path)) return troubleResponse(c, 'maintenance');
+  }
   await next();
 });
 
@@ -257,14 +267,17 @@ app.post('/api/bot/sync', async (c) => {
   }
   const parsed = parseSync(raw);
   if (!parsed.ok) return c.json({ error: parsed.error }, 400);
-  const result = await applySync(c.env.DB, parsed.value, Date.now(), { scrimQuests: c.env.SCRIM_QUESTS === '1' });
+  const now = Date.now();
+  const burn = await burnWindow(c.env.DB, now);
+  const result = await applySync(c.env.DB, parsed.value, now, { scrimQuests: c.env.SCRIM_QUESTS === '1', burn });
   // 활동은 이미 반영됐어도 캐릭터나 첫 선물 저장에서 실패했을 수 있어요.
   if (result !== 'stale') {
     const ids = parsed.value.members.map((m) => m.id);
     await assignCharacters(c.env.DB, ids);
     await giveStarterJelly(c.env.DB, ids);
   }
-  return c.json({ ok: true, result });
+  // 버닝타임이면 봇이 짝 카드 통화 경험치를 1.5배로 세요(docs/bot-sync.md)
+  return c.json({ ok: true, result, burning: burn && inWindow(burn, now) ? { from: burn.from, until: burn.until, card_xp: BURN_CARD_XP } : null });
 });
 
 // 예전 봇은 겜블 지갑 결제를 하려고 이 주소를 물어봐요. 이제 상점은 도감 젤리로 웹에서 바로 결제해서 줄 게 없어요.
@@ -697,6 +710,8 @@ members.use('*', async (c, next) => {
     if (c.req.method !== 'GET') return c.text('로그인이 필요해요', 401);
     return c.redirect('/');
   }
+  // 버닝타임이면 모든 화면 위에 띠를 보여요(1분에 한 번만 DB를 읽어요)
+  viewer.burn_until = await burningUntil(c.env.DB);
   c.set('viewer', viewer);
   // 브라우저가 미리 받기만 하는 요청은 읽기만 하는 화면에만 답해요(열기만 해도 기록이 바뀌는 화면은 실제로 열 때만)
   if (isPrefetch(c) && !prefetchAllowed(c.req.path)) return c.body(null, 503);
@@ -1193,7 +1208,7 @@ members.post('/api/journey/act', async (c) => {
   if (!JR_ID.test(id) || !Number.isSafeInteger(rev) || rev < 0 || !act) return c.redirect('/expedition/go?n=bad#now', 303);
   try {
     const user = c.get('viewer').user_id;
-    const r = await actJourneyRun(c.env.DB, user, id, rev, act);
+    const r = await actJourneyRun(c.env.DB, user, id, rev, act, new Date(), !!c.var.viewer.burn_until);
     if (r !== 'ok') return c.redirect(`/expedition/go?n=${r}#now`, 303);
     const after = await getJourney(c.env.DB, user, id);
     return c.redirect(after?.row.status === 'done' ? `/expedition/go?r=${id}#now` : '/expedition/go#now', 303);
@@ -1388,7 +1403,7 @@ members.post('/api/escape/act', async (c) => {
   if (!ESC_ID.test(id) || !Number.isSafeInteger(rev) || rev < 0 || !act) return c.redirect('/cases/room?n=bad#now', 303);
   try {
     const user = c.get('viewer').user_id;
-    const r = await actEscapeRun(c.env.DB, user, id, rev, act);
+    const r = await actEscapeRun(c.env.DB, user, id, rev, act, new Date(), !!c.var.viewer.burn_until);
     if (r !== 'ok') return c.redirect(`/cases/room?n=${r}#now`, 303);
     // 다시 불러오기(리다이렉트) 없이 바로 화면을 그려 보내요. 한 번 왕복이 줄어서 빨라요.
     const [after, best, profile, dogam, re, daily] = await Promise.all([getEscape(c.env.DB, user, id), escapeRecord(c.env.DB, user), getProfile(c.env.DB, user), dogamProgress(c.env.DB, user), reRecord(c.env.DB, user), dailyInfo(c.env.DB, user)]);

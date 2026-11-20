@@ -3,6 +3,7 @@
 // 레벨이 오르면 스킬 3개 중 하나를 고르고, 10일째 강한 적, 20일째 보스를 이기면 원정 성공이에요.
 // 모든 무작위는 판 씨앗(seed)과 날짜로 정해져서, 서버가 같은 입력에 늘 같은 결과를 내요.
 import { rng } from './rng';
+import { BURN_DROP } from './burning';
 import { MAX_CHAPTER, chapterAtk, chapterOf, chapterPower, type Monster } from './journey-chapters';
 import { isPetId, petFx, type PetId } from './pets';
 
@@ -43,18 +44,31 @@ export type BattleFx = { foe: string; won: boolean; spark?: number; hits: Hit[];
 // 그래서 체력이 '두 대 버틸 만큼' 남아 보이다가 한 대에 0이 되는 것처럼 보였어요(슬금님 제보 2026-11-18).
 // 싸움은 40턴(80번)을 넘지 않으니 이 한도는 안전장치일 뿐이에요.
 export const FX_HITS = 80;
-export type Offer = { id: 'potion' | 'sword' | 'armor' | 'heart' | 'scroll'; price: number };
+export type Offer = { id: 'potion' | 'sword' | 'armor' | 'heart' | 'scroll' | 'mat'; price: number };
 export const OFFERS: Record<Offer['id'], { name: string; icon: string; text: string; price: number }> = {
   potion: { name: '회복 물약', icon: '🧪', text: '체력 50 회복', price: 12 },
   sword: { name: '숫돌', icon: '🗡️', text: '공격력 +5', price: 20 },
   armor: { name: '헝겊 갑옷', icon: '🧥', text: '방어력 +3', price: 20 },
   heart: { name: '하트 구미', icon: '💗', text: '최대 체력 +30', price: 22 },
   scroll: { name: '스킬 두루마리', icon: '📜', text: '다음 날 스킬 하나 고르기', price: 30 },
+  mat: { name: '강화 재료', icon: '📦', text: '이 장의 강화 재료 1개', price: 50 },
+};
+// 상인이 가끔 이 장의 강화 재료를 비싸게 팔아요(지재님 제안, 나리 2026-11-20).
+// 처음엔 빡빡하게: 상인을 만날 때 5%, 값은 50 × 장 세기 + 날 수(1장 약 50, 9장 약 240, 15장 약 400).
+export const MAT_OFFER_CHANCE = 0.05;
+export const matOfferPrice = (ch: number | undefined, day: number) => Math.round(OFFERS.mat.price * chapterPower(ch)) + day;
+// 상인 물건 이름·그림(재료는 장마다 달라요)
+export const offerInfo = (id: Offer['id'], ch: number | undefined) => {
+  if (id !== 'mat') return OFFERS[id];
+  const m = material(ch ?? 1);
+  return { ...OFFERS.mat, name: m.name, icon: m.icon, text: '이 장의 강화 재료 1개(귀해요!)' };
 };
 export type Pending =
   | { kind: 'skill'; options: SkillId[] }
   | { kind: 'shop'; offers: Offer[] }
   | { kind: 'event'; id: EventId };
+export const SPRING_UP = 0.05; // 최대 체력의 5%
+export const SPRING_HURT = 0.1; // 최대 체력의 10%
 export type EventId = 'spring' | 'coin' | 'bear' | 'fork';
 export const EVENTS: Record<EventId, { icon: string; title: string; text: string; options: string[] }> = {
   spring: { icon: '⛲', title: '수상한 샘', text: '반짝이는 샘물이 보글보글 끓고 있어요.', options: ['한 모금 마신다', '그냥 지나간다'] },
@@ -95,6 +109,7 @@ export type JourneyState = {
   last?: string; // 어제 생긴 일(foe·chest·shop·camp·event:id·skill). 같은 일이 연달아 나오지 않게
   evs?: EventId[]; // 이번 판에 나온 이벤트
   pet?: { id: PetId; lv: number }; // 데려간 펫(떠날 때 레벨)
+  burn?: boolean; // 이 행동을 버닝타임에 했어요(재료 나올 확률 1.5배, 대장은 그대로)
   boost?: Boost; // 끝없는 탑에서 젤코인으로 산 잠깐 강해지기(그 층 싸움에만)
 };
 // 잠깐 강해지기: 공격력·최대 체력에 곱하는 몫(0.3 = +30%)
@@ -336,7 +351,7 @@ export function battle(s: JourneyState, m: Monster, power: number, r: () => numb
   s.kills += 1;
   const coins = gainCoins(s, Math.round((4 + s.day) * power * cp));
   lines.push({ icon: m.emoji, text: `${m.name}${obj(m.name)} ${turns}턴 만에 물리쳤어요! 체력 ${s.hp - start >= 0 ? '+' : ''}${s.hp - start}, 젤코인 +${coins}`, tone: 'good' });
-  if (drop > 0 && rng(`${s.seed}:${s.day}:drop`)() < (s.farm ? (drop >= 1 ? FARM_BOSS : drop * FARM_DROP) : drop) * (s.kit?.includes('clover') ? 1.5 : 1)) {
+  if (drop > 0 && rng(`${s.seed}:${s.day}:drop`)() < (s.farm ? (drop >= 1 ? FARM_BOSS : drop * FARM_DROP) : drop) * (s.kit?.includes('clover') ? 1.5 : 1) * (s.burn && drop < 1 ? BURN_DROP : 1)) {
     s.mats = (s.mats ?? 0) + 1;
     const mt = material(s.ch ?? 1);
     lines.push({ icon: mt.icon, text: `강화 재료 ${mt.name}${obj(mt.name)} 주웠어요!`, tone: 'good' });
@@ -442,12 +457,14 @@ function nextDay(s: JourneyState): Line[] {
     s.pending = { kind: 'event', id };
     lines.push({ icon: EVENTS[id].icon, text: `${EVENTS[id].title}! 어떻게 할까요?` });
   } else if (kind === 'shop') {
-    const ids = Object.keys(OFFERS) as Offer['id'][];
+    const ids = (Object.keys(OFFERS) as Offer['id'][]).filter((id) => id !== 'mat');
     const offers: Offer[] = [];
     while (offers.length < 3) {
       const id = ids.splice(Math.floor(r() * ids.length), 1)[0]!;
       offers.push({ id, price: OFFERS[id].price + Math.floor(s.day / 2) });
     }
+    // 재료 판매는 따로 굴려요(다른 물건 뽑기 순서를 바꾸지 않게)
+    if (rng(`${s.seed}:${s.day}:matshop`)() < MAT_OFFER_CHANCE) offers.push({ id: 'mat', price: matOfferPrice(s.ch, s.day) });
     s.pending = { kind: 'shop', offers };
     lines.push({ icon: '🛒', text: '떠돌이 상인을 만났어요. 젤코인으로 물건을 살 수 있어요.' });
   } else {
@@ -465,11 +482,14 @@ function resolveEvent(s: JourneyState, id: EventId, n: number, lines: Line[]) {
   if (id === 'spring') {
     if (n === 1) lines.push({ icon: '⛲', text: '샘을 지나쳤어요.' });
     else if (r() < 0.6) {
-      s.maxHp += 15;
+      // 장이 높아져도 의미 있게 %로 바꿨어요(슬금님 제안, 나리 2026-11-20): 성공 최대 체력 +5%, 실패 체력 -10%
+      // 펫·탑 강화는 곱으로 붙으니, 곱하기 전 체력의 5%를 더하면 보이는 최대 체력도 5% 늘어요
+      s.maxHp += Math.max(1, Math.round((s.maxHp + 25 * sk(s, 'vital')) * SPRING_UP));
+      const up = stat(s).maxHp - st.maxHp;
       s.hp = stat(s).maxHp;
-      lines.push({ icon: '⛲', text: '시원하다! 최대 체력 +15, 체력이 가득 찼어요.', tone: 'good' });
+      lines.push({ icon: '⛲', text: `시원하다! 최대 체력 +${up}, 체력이 가득 찼어요.`, tone: 'good' });
     } else {
-      const hurt = Math.min(s.hp - 1, 20);
+      const hurt = Math.min(s.hp - 1, Math.max(1, Math.round(st.maxHp * SPRING_HURT)));
       s.hp -= hurt;
       lines.push({ icon: '⛲', text: `으악, 배탈이 났어요. 체력 -${hurt}`, tone: 'bad' });
     }
@@ -522,7 +542,7 @@ export function autoChoice(s: JourneyState): JourneyAction | null {
     return { a: 'pick', n: yes ? 0 : 1 };
   }
   const can = (id: Offer['id']) => p.offers.findIndex((o) => o.id === id && o.price <= s.coins);
-  for (const id of (low ? ['potion', 'heart', 'scroll', 'sword', 'armor'] : ['scroll', 'sword', 'heart', 'armor']) as Offer['id'][]) {
+  for (const id of (low ? ['potion', 'heart', 'scroll', 'sword', 'armor', 'mat'] : ['scroll', 'sword', 'heart', 'armor', 'mat']) as Offer['id'][]) {
     const n = can(id);
     if (n >= 0) return { a: 'buy', n };
   }
@@ -574,15 +594,16 @@ export function actJourney(old: JourneyState, act: JourneyAction): JourneyState 
     const o = p.offers[act.n];
     if (!o || s.coins < o.price) return null;
     s.coins -= o.price;
-    const info = OFFERS[o.id];
-    if (o.id === 'potion') s.hp = Math.min(stat(s).maxHp, s.hp + 50);
+    const info = offerInfo(o.id, s.ch);
+    if (o.id === 'mat') s.mats = (s.mats ?? 0) + 1;
+    else if (o.id === 'potion') s.hp = Math.min(stat(s).maxHp, s.hp + 50);
     else if (o.id === 'sword') s.atk += 5;
     else if (o.id === 'armor') s.def += 3;
     else if (o.id === 'heart') {
       s.maxHp += 30;
       s.hp += 30;
     } else s.queuedLevels += 1;
-    lines.push({ icon: info.icon, text: `${info.name} 샀어요. ${info.text}`, tone: 'good' });
+    lines.push(o.id === 'mat' ? { icon: '🛒', text: `강화 재료 ${info.icon} ${info.name}${obj(info.name)} 샀어요!`, tone: 'good' } : { icon: info.icon, text: `${info.name} 샀어요. ${info.text}`, tone: 'good' });
     // 상인 곁에 남아 더 살 수 있어요(두루마리 스킬은 다음 날 골라요)
     const rest = p.offers.filter((_, i) => i !== act.n);
     if (rest.length) {

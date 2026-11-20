@@ -79,6 +79,17 @@ export function GuidePage(props: { viewer: Member | null }) {
             </ul>
           </details>
 
+          <details id="burning">
+            <summary>🔥 버닝타임</summary>
+            <p>큰 점검이 끝나면 자동으로 켜져요. 30분~1시간 점검이면 1시간, 1시간 넘는 점검이면 2시간이에요. 켜져 있으면 화면 맨 위에 🔥 띠가 보여요.</p>
+            <ul>
+              <li>짝 카드 통화 경험치 1.5배(하루 한도도 1.5배)</li>
+              <li>원정대 강화 재료 나올 확률 1.5배(대장은 그대로), 깬 장을 다시 돌아도 젤코인 최소 50%</li>
+              <li>사건파일 힌트 동전 하나를 찾으면 2개</li>
+              <li>빙고 통화 시간 2배</li>
+              <li>겜블장은 그대로예요.</li>
+            </ul>
+          </details>
           <details>
             <summary>🧭 원정대와 사건파일</summary>
             <h3>⚔️ 원정대</h3>
@@ -86,6 +97,7 @@ export function GuidePage(props: { viewer: Member | null }) {
             <ul>
               <li>전투와 레벨업으로 캐릭터 성장</li>
               <li>모닥불·이벤트·상자·상인 같은 일은 이틀 연달아 나오지 않고, 모닥불은 체력이 줄었을 때만 나와요.</li>
+              <li>떠돌이 상인이 아주 가끔 그 장의 강화 재료를 비싸게 팔아요.</li>
               <li>스킬 선택, 장비 강화, 훈련 가능</li>
               <li>대장을 처치하면 다음 장 해금</li>
               <li>최초 최종 클리어 시 특별 보상 지급</li>

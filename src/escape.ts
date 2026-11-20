@@ -1,3 +1,4 @@
+import { BURN_HINT_COINS } from './burning';
 // 하리보 사건파일 (방탈출판): 방 그림 속 물건을 눌러 살피고, 찾은 물건으로 잠긴 곳을 열고,
 // 비밀번호를 풀어 단서를 모은 뒤 범인을 맞혀요. 사건 내용은 이 파일에 고정돼 있고, 진행 상태만 DB에 저장해요.
 // 등장인물은 모두 가상 인물이에요(실제 멤버와 관계없어요).
@@ -355,6 +356,7 @@ export type EscState = {
   tone: 'info' | 'good' | 'bad';
   done: boolean;
   coins?: string[]; // 방에서 찾은 힌트 동전(<방 id>:<번호>)
+  bonus?: number; // 버닝타임에 동전을 찾아 하나씩 더 받은 동전(나리 2026-11-20)
   spent?: number; // 힌트에 쓴 동전
   bigHints?: string[]; // 「더 쉬운 힌트」를 본 수수께끼 물건 id
   seenHints?: number[]; // 이미 본 힌트(c.hints 번호). 계속 보여 주고, 다시 봐도 동전·감점 없어요
@@ -471,7 +473,7 @@ export function coinSpots(c: EscCase, scene: string): { k: number; x: number; y:
   }
   return out;
 }
-export const coinsLeft = (s: EscState) => (s.coins?.length ?? 0) - (s.spent ?? 0);
+export const coinsLeft = (s: EscState) => (s.coins?.length ?? 0) + (s.bonus ?? 0) - (s.spent ?? 0);
 // 수수께끼 번호: 비밀번호로 여는 곳마다 사건 안에서 1번부터
 export const puzzleNo = (c: EscCase, id: string) => c.objects.filter((o) => o.lock?.kind === 'code').findIndex((o) => o.id === id) + 1;
 
@@ -490,9 +492,10 @@ function gain(s: EscState, o: EscObject) {
 
 // 상태 전이(순수 함수). 할 수 없는 입력이면 null이고 원래 상태는 그대로예요.
 // 재수사 판은 힌트를 볼 수 없고, 답을 RE_LIVES번 틀리면 그 자리에서 실패로 끝나요.
-export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState | null {
+// burn = 지금 버닝타임(힌트 동전 2배)
+export function actEscape(c: EscCase, old: EscState, act: EscAction, burn = false): EscState | null {
   if (old.re && (act.a === 'hint' || act.a === 'hint2')) return null;
-  const s = actEscapeBase(c, old, act);
+  const s = actEscapeBase(c, old, act, burn);
   if (s?.re && !s.done && s.mistakes >= RE_LIVES) {
     s.done = true;
     s.failed = 1;
@@ -501,7 +504,7 @@ export function actEscape(c: EscCase, old: EscState, act: EscAction): EscState |
   }
   return s;
 }
-function actEscapeBase(c: EscCase, old: EscState, act: EscAction): EscState | null {
+function actEscapeBase(c: EscCase, old: EscState, act: EscAction, burn = false): EscState | null {
   if (old.done) return null;
   const s: EscState = structuredClone(old);
   delete s.fx;
@@ -549,8 +552,11 @@ function actEscapeBase(c: EscCase, old: EscState, act: EscAction): EscState | nu
     const id = `${s.scene}:${act.k}`;
     if (!spot || s.coins?.includes(id)) return null;
     s.coins = [...(s.coins ?? []), id];
+    // 버닝타임엔 동전 하나를 찾으면 두 개를 받아요
+    const extra = burn ? BURN_HINT_COINS - 1 : 0;
+    if (extra > 0) s.bonus = (s.bonus ?? 0) + extra;
     s.focus = null;
-    s.msg = `반짝! 힌트 동전을 찾았어요. (가진 동전 ${coinsLeft(s)}개) 동전으로 힌트를 보면 등급이 깎이지 않아요.`;
+    s.msg = `반짝! ${extra > 0 ? `🔥 버닝타임이라 힌트 동전을 ${1 + extra}개 받았어요` : '힌트 동전을 찾았어요'}. (가진 동전 ${coinsLeft(s)}개) 동전으로 힌트를 보면 등급이 깎이지 않아요.`;
     s.tone = 'good';
     s.fx = 'coin';
     return s;
@@ -686,6 +692,7 @@ export function decodeEscape(c: EscCase, json: string): EscState | null {
     if ((s.seenHints !== undefined && !(Array.isArray(s.seenHints) && s.seenHints.every((k) => Number.isSafeInteger(k) && k >= 0 && k < c.hints.length)))) return null;
     if (s.bigHints !== undefined && !strs(s.bigHints)) return null;
     if ((s.coins !== undefined && !strs(s.coins)) || (s.spent !== undefined && !(Number.isSafeInteger(s.spent) && s.spent >= 0))) return null;
+    if (s.bonus !== undefined && !(Number.isSafeInteger(s.bonus) && s.bonus >= 0)) return null;
     return s;
   } catch {
     return null;

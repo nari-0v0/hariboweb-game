@@ -1,3 +1,4 @@
+import type { BurnWindow } from './burning';
 import { awardEndedGambleSeasons } from './gamble-db';
 import { stripTitle } from './titles';
 import { MAX_LEVEL, xpForLevel } from './levels';
@@ -257,7 +258,7 @@ export function withoutTestMembers(p: SyncPayload): SyncPayload {
 }
 
 // groupQuests: 예전 모둠 퀘스트 8개를 새 시즌에도 만들기(테스트용, 기본은 안 만들어요)
-export type SyncOptions = { scrimQuests?: boolean; groupQuests?: boolean };
+export type SyncOptions = { scrimQuests?: boolean; groupQuests?: boolean; burn?: BurnWindow | null };
 
 export async function applySync(
   db: D1Database,
@@ -370,7 +371,7 @@ export async function applySync(
     const next = splitCycle(p.season.end, new Date(Date.parse(p.season.end) + span).toISOString())[0];
     if (next) periods.push(next);
   }
-  const bingo = bingoStatements(db, p.room_minutes, p.attendance, periods);
+  const bingo = bingoStatements(db, p.room_minutes, p.attendance, periods, opts.burn ?? null);
   stmts.push(...bingo.stmts, prunePairDays(db, nowMs));
 
   // 나간 사람: 본인 카드와 도감은 지우고, 다른 사람이 가진 그 사람 카드는 흐리게 남겨요.

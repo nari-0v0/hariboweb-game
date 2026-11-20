@@ -2394,6 +2394,9 @@ main.wide { max-width: 1320px; }
   font-size: .86rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 @media (max-width: 380px) { .notice-bar { font-size: .76rem; padding: 0 8px; } }
+/* 버닝타임 띠(2026-11-20): 누르면 안내로 가요 */
+.burn-bar { display: block; background: #ffb38a; text-decoration: none; }
+.burn-bar:hover { background: #ffc4a3; }
 
 /* 펫(원정 준비소 🐾 칸, 2026-11-19) */
 .jp-pets { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }

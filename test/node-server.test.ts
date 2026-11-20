@@ -91,6 +91,6 @@ it('Node 서버가 문지기 비밀을 확인하고 앱과 봇 동기화를 처�
     }),
   });
   expect(synced.status).toBe(200);
-  expect(await synced.json()).toEqual({ ok: true, result: 'applied' });
+  expect(await synced.json()).toEqual({ ok: true, result: 'applied', burning: null });
   expect(await active.database.prepare('SELECT display_name FROM members').first()).toEqual({ display_name: '노드테스트' });
 });

@@ -1,5 +1,6 @@
 import { kstDay } from './db';
 import { MAX_CHAPTER } from './journey-chapters';
+import { BURN_FARM_MIN } from './burning';
 import { dogamProgress, journeyOpenTo, releasedTop } from './unlock';
 import { isPetId, parsePets, type PetBag, type PetId } from './pets';
 import { DAILY_REWARD_JOURNEYS, FIRST_CLEAR_BONUS, GEAR_MAX, NO_GEAR, gearNeed, hasMats, canSellMat, matSellLevel, matSellPrice, type Gear, type GearId, NO_PERKS, PERKS, perkMax, actJourney, bankRate, decodeJourney, journeyJelly, journeyXp, perkCost, startJourney, kitCost, type KitId, type JourneyAction, type JourneyState, type PerkId, type Perks } from './journey';
@@ -213,10 +214,14 @@ export async function quitJourney(db: D1Database, user: string, id: string, rev?
 
 // 행동 하나. rev = 화면에 보이던 판의 순번(옛 화면·두 번 누르기 막기).
 // 원정이 끝나면 한국 날짜로 하루 첫 몇 판만 경험치·젤리를 주고, 판 저장과 보상은 한 번에 반영해요.
-export async function actJourneyRun(db: D1Database, user: string, id: string, rev: number, act: JourneyAction, now = new Date()): Promise<'ok' | 'stale' | 'bad'> {
+// burn = 지금 버닝타임(재료 나올 확률 1.5배, 깬 장 다시 돌아도 젤코인 최소 50%)
+export async function actJourneyRun(db: D1Database, user: string, id: string, rev: number, act: JourneyAction, now = new Date(), burn = false): Promise<'ok' | 'stale' | 'bad'> {
   const run = await getJourney(db, user, id);
   if (!run || run.row.status !== 'going' || run.row.rev !== rev) return 'stale';
-  const s = actJourney(run.state, act);
+  const before = { ...run.state };
+  if (burn) before.burn = true;
+  else delete before.burn;
+  const s = actJourney(before, act);
   if (!s) return 'bad';
   let top = 0;
   if (s.done) {
@@ -232,6 +237,7 @@ export async function actJourneyRun(db: D1Database, user: string, id: string, re
     top = r?.top ?? 0;
     s.farm = (s.ch ?? 1) <= top;
     s.bankPct = s.farm ? bankRate(r?.farmed ?? 0) : 100;
+    if (burn && s.bankPct < BURN_FARM_MIN) s.bankPct = BURN_FARM_MIN;
     s.banked = Math.floor((s.coins * s.bankPct) / 100);
     // 재료: 젤코인과 달리 깬 장을 몇 판 돌아도 그대로 모여요(다음 장을 기다리는 동안 장비를 채우게, 나리 2026-11-13). 처음 대장을 깨면 2개 더.
     s.matsBanked = (s.mats ?? 0) + (s.cleared && !s.farm ? FIRST_CLEAR_BONUS : 0);
