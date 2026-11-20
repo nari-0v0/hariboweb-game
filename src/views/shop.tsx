@@ -113,10 +113,15 @@ function DecoPick({ item }: { item: ShopItem }) {
   const feet = CHAR_OFFSETS[`deco/${item.key}.png`] ?? 0;
   // 목록 그림도 몸이 칸 가운데에 오게 옮겨요(높이 84px에 맞춘 그림 너비 기준)
   const size = DECO_CHARACTERS.find((d) => d.id === item.key);
-  const shift = size && feet ? Math.round((feet / 100) * (size.w / size.h) * 84 * 10) / 10 : 0;
+  // 칸(테두리)은 그대로 두고 그 안에서 그림만 옮겨요(object-position). 칸이 가장 좁을 때(92px)도
+  // 그림이 잘리지 않을 만큼만 옮겨요.
+  const drawn = size ? (size.w / size.h) * 84 : 0;
+  const room = Math.max(0, (92 - drawn) / 2);
+  const raw = feet ? (feet / 100) * drawn : 0;
+  const shift = Math.round(Math.max(-room, Math.min(room, raw)) * 10) / 10;
   return (
     <button type="button" class="deco-pick" data-preview-deco={item.key} data-ax={String(feet)} aria-label={`${item.name} 미리 보기`}>
-      <img src={`/char/deco/${item.key}.png`} alt="" loading="lazy" style={shift ? `translate: ${-shift}px 0` : undefined} />
+      <img src={`/char/deco/${item.key}.png`} alt="" loading="lazy" style={shift ? `object-position: calc(50% - ${shift}px) 50%` : undefined} />
     </button>
   );
 }
