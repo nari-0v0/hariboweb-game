@@ -4,6 +4,7 @@ import { PREFETCH_RULES } from '../prefetch';
 import { NOTICE_BAR } from '../maintenance';
 import { burnEndText } from '../burning';
 import { updatesMark } from '../updates';
+import { KAKAO_SCRIPT } from '../kakao';
 import type { Child } from 'hono/jsx';
 import type { Member } from '../env';
 
@@ -44,6 +45,8 @@ export function Layout(props: {
         {props.viewer && <script type="speculationrules" dangerouslySetInnerHTML={{ __html: PREFETCH_RULES }} />}
       </head>
       <body class={NOTICE_BAR || burn ? 'has-notice' : undefined}>
+        {/* 카카오톡 속 브라우저면 기본 브라우저로 열어 보고 안내 띠를 띄워요(그 밖에는 아무것도 안 해요). kakao.ts */}
+        <script dangerouslySetInnerHTML={{ __html: KAKAO_SCRIPT }} />
         {/* 버닝타임 띠가 점검 공지보다 먼저예요(점검이 끝난 뒤에 켜지니까요) */}
         {burn ? (
           <a class="notice-bar burn-bar" role="status" href="/guide#burning">
