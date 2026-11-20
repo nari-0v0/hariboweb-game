@@ -215,7 +215,7 @@ export const CHAR_OFFSETS: Record<string, number> = {
   'deco/shark.png': 3.1,
   'deco/skater.png': 7.5,
   'deco/soccer.png': -9.1,
-  'deco/star-mage.png': -1.5,
+  'deco/star-mage.png': 1.0,
   'deco/streamer.png': -1.7,
   'deco/student.png': 4.9,
   'deco/summoner.png': 3.6,

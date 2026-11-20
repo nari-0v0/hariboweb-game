@@ -79,7 +79,7 @@ def feet_offset(path: Path) -> float:
 
 # 자동으로 잰 값이 눈으로 보기에 어색할 때 나리가 직접 고른 값(그림 이름 → %). 자동 값 대신 써요.
 MANUAL: dict[str, float] = {
-    "deco/star-mage.png": -1.5,  # 나리 2026-11-21: 조금 더 오른쪽으로
+    "deco/star-mage.png": 1.0,  # 나리 2026-11-21: 3.3은 너무 왼쪽, -1.5는 너무 오른쪽
     "deco/angel.png": 0.0,  # 나리 2026-11-21: 조금 더 오른쪽으로
 }
 
@@ -89,7 +89,7 @@ def main() -> None:
     for path in sorted(CHAR.glob("*.png")) + sorted((CHAR / "deco").glob("*.png")):
         key = path.relative_to(CHAR).as_posix()
         off = MANUAL[key] if key in MANUAL else feet_offset(path)
-        if abs(off) >= 1.5:
+        if abs(off) >= 1.5 or (key in MANUAL and off):
             rows.append(f"  '{key}': {off},")
     OUT.write_text(
         "// scripts/char_offsets.py 가 만든 파일이에요. 손으로 고치지 마세요.\n"
