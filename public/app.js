@@ -137,7 +137,7 @@ addEventListener('pageshow', (e) => {
     const box = document.createElement('div');
     box.className = 'jr-autonext';
     box.setAttribute('role', 'status');
-    box.innerHTML = '<span class="jr-autonext-spin" aria-hidden="true"></span><b>🤖 자동: <span data-left>5</span>초 뒤 같은 장으로 다시 떠나요</b><button type="button" class="btn btn-ghost">자동 끄기</button>';
+    box.innerHTML = '<span class="jr-autonext-spin" aria-hidden="true"></span><b>🤖 자동: <span data-left>5</span>초 뒤 같은 장으로 다시 떠나요</b><button type="button" class="btn btn-ghost">그만하기</button>';
     let left = 5;
     let t = 0;
     const stop = () => { clearInterval(t); box.remove(); };
