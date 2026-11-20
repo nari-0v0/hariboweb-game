@@ -93,6 +93,13 @@ describe('게임 기록 초기화권', () => {
     expect(count(sql, 'game_resets')).toBe(0);
   });
 
+  it('첫 방문 전(free_day 없음)에 초기화하면 오늘 시작 칩을 받은 걸로 적어요(밤샘 점검 #308)', async () => {
+    const { sql, db } = setup(20);
+    sql.prepare('INSERT INTO gamble_accounts (user_id, chips, free_day) VALUES (?, 3000, NULL)').run(A);
+    expect(await buyGameReset(db, A, 20, new Date('2026-11-21T03:00:00Z'))).toBe('done');
+    expect(sql.prepare('SELECT chips, free_day FROM gamble_accounts WHERE user_id = ?').get(A)).toEqual({ chips: 1000, free_day: '2026-11-21' });
+  });
+
   it('겜블장 계정이 없던 사람은 계정을 새로 만들지 않아요(하루 무료 칩을 그대로 받게)', async () => {
     const { sql, db } = setup(20);
     expect(await buyGameReset(db, A)).toBe('done');

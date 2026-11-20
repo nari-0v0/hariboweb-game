@@ -6,6 +6,7 @@
 // - 처음 깼을 때 주던 도감 젤리·경험치는 다시 깨도 또 주지 않아요(game_resets.journey_jelly_top, escape_paid).
 // - 원정대 하루 경험치 판 수도 그날은 이어서 세요(game_resets.xp_day, xp_used). 장비를 읽은 뒤 초기화되면 그 판은 떠나지 않아요(count = 세대).
 import { DAILY_CHIPS } from './gamble';
+import { gambleDay } from './gamble-db';
 import { kstDay } from './db';
 import { PRICES } from './shop';
 
@@ -55,10 +56,12 @@ export async function buyGameReset(db: D1Database, userId: string, price = RESET
     del('gamble_rounds'),
     db
       .prepare(
-        `UPDATE gamble_accounts SET chips = ?3, won = 0, best_win = 0, all_in_wins = 0, plays = 0, jackpots = 0, naturals = 0
+        // 첫 방문 전(free_day가 비어 있음)에 초기화해도 첫 방문 시작 칩을 또 받지 않게 오늘 받은 걸로 적어요(밤샘 점검 #308).
+        `UPDATE gamble_accounts SET chips = ?3, won = 0, best_win = 0, all_in_wins = 0, plays = 0, jackpots = 0, naturals = 0,
+           free_day = COALESCE(free_day, ?4)
          WHERE user_id = ?2 AND ${won}`,
       )
-      .bind(id, userId, DAILY_CHIPS),
+      .bind(id, userId, DAILY_CHIPS, gambleDay(t)),
   ]);
   if (await db.prepare('SELECT 1 FROM purchases WHERE id = ?').bind(id).first()) return 'done';
   return gen !== undefined && (await resetCount(db, userId)) !== gen ? 'changed' : 'not_enough_jelly';
