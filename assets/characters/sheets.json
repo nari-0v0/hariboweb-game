@@ -1174,6 +1174,58 @@
      "인형술사 소년"
     ]
    ]
+  },
+  {
+   "file": "deco/jobs2/firefighter-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "firefighter-girl",
+     "소방관 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/firefighter-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "firefighter-boy",
+     "소방관 소년"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/glassblower-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "glassblower-girl",
+     "유리공예가 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/glassblower-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "glassblower-boy",
+     "유리공예가 소년"
+    ]
+   ]
   }
  ]
 }

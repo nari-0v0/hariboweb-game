@@ -229,4 +229,8 @@ export const DECO_CHARACTERS = [
   { id: 'lighthouse-keeper-boy', name: '등대지기 소년', w: 161, h: 242 },
   { id: 'puppeteer-girl', name: '인형술사 소녀', w: 196, h: 238 },
   { id: 'puppeteer-boy', name: '인형술사 소년', w: 171, h: 237 },
+  { id: 'firefighter-girl', name: '소방관 소녀', w: 200, h: 242 },
+  { id: 'firefighter-boy', name: '소방관 소년', w: 173, h: 240 },
+  { id: 'glassblower-girl', name: '유리공예가 소녀', w: 178, h: 221 },
+  { id: 'glassblower-boy', name: '유리공예가 소년', w: 160, h: 242 },
 ] as const;
