@@ -14,6 +14,16 @@ function decode(row: EscRow | null): EscRun | null {
 export async function activeEscape(db: D1Database, user: string): Promise<EscRun | null> {
   return decode(await db.prepare("SELECT * FROM escape_runs WHERE user_id = ? AND status = 'going'").bind(user).first<EscRow>());
 }
+// 진행 중인 사건 판이 깨졌거나(옛 형식) 없어진 사건이면 그 판만 그만둔 걸로 해요. 안 그러면 새 사건을
+// 시작할 수 없고 화면에도 안 보여요(점검 W197). 읽을 수 있는 판은 건드리지 않아요.
+async function dropBrokenEscape(db: D1Database, user: string, t: string): Promise<void> {
+  const row = await db.prepare("SELECT * FROM escape_runs WHERE user_id = ? AND status = 'going'").bind(user).first<EscRow>();
+  if (!row || decode(row)) return;
+  await db
+    .prepare("UPDATE escape_runs SET status = 'quit', updated_at = ?3, ended_at = ?3 WHERE id = ?1 AND user_id = ?2 AND status = 'going' AND rev = ?4")
+    .bind(row.id, user, t, row.rev)
+    .run();
+}
 export async function getEscape(db: D1Database, user: string, id: string): Promise<EscRun | null> {
   return decode(await db.prepare('SELECT * FROM escape_runs WHERE user_id = ? AND id = ?').bind(user, id).first<EscRow>());
 }
@@ -85,6 +95,7 @@ async function beginOnce(
 ): Promise<string | null | 'retry'> {
   const going = await activeEscape(db, user);
   if (going && !replace) return going.row.id;
+  if (!going && !replace) await dropBrokenEscape(db, user, now.toISOString());
   if (replace && (!going || going.row.id !== replace.id || going.row.rev !== replace.rev)) return null;
   // 같은 사건이라도 일반 판 ↔ 재수사 판(또는 오늘의 사건 판)을 바꿔 고르면 새 판으로 덮어요
   if (going?.row.case_id === caseId && !!going.state.re === re && !going.state.daily) return going.row.id;

@@ -218,7 +218,8 @@ app.get('/auth/callback', async (c) => {
   const token = await exchangeCode(c.env, code, `${baseUrl(c)}/auth/callback`);
   if (!token) return page(c, <MessagePage title="로그인 실패" message="디스코드 확인에 실패했어요. 다시 시도해 주세요." />, 403);
   const profile = await fetchGuildProfile(c.env, token);
-  if (!profile) return c.redirect('/?error=not_member');
+  if (profile === 'not_member') return c.redirect('/?error=not_member');
+  if (!profile) return page(c, <MessagePage title="로그인 실패" message="디스코드 연결이 잠깐 끊겼어요. 다시 시도해 주세요." />, 403);
 
   await startSession(c, profile);
   return c.redirect('/me');

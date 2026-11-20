@@ -16,6 +16,16 @@ function decode(row: JourneyRow | null): JourneyRun | null {
 export async function activeJourney(db: D1Database, user: string): Promise<JourneyRun | null> {
   return decode(await db.prepare("SELECT * FROM journey_runs WHERE user_id = ? AND status = 'going'").bind(user).first<JourneyRow>());
 }
+// 진행 중인 판이 깨져서(옛 형식 등) 읽을 수 없으면 그 판만 그만둔 걸로 해요. 안 그러면 새 판도 못 만들고
+// 화면에도 안 보여서 혼자서는 빠져나올 수 없어요(점검 W196). 읽을 수 있는 판은 건드리지 않아요.
+async function dropBrokenJourney(db: D1Database, user: string, t: string): Promise<void> {
+  const row = await db.prepare("SELECT * FROM journey_runs WHERE user_id = ? AND status = 'going'").bind(user).first<JourneyRow>();
+  if (!row || decode(row)) return;
+  await db
+    .prepare("UPDATE journey_runs SET status = 'quit', updated_at = ?3, ended_at = ?3 WHERE id = ?1 AND user_id = ?2 AND status = 'going' AND rev = ?4")
+    .bind(row.id, user, t, row.rev)
+    .run();
+}
 export async function getJourney(db: D1Database, user: string, id: string): Promise<JourneyRun | null> {
   return decode(await db.prepare('SELECT * FROM journey_runs WHERE user_id = ? AND id = ?').bind(user, id).first<JourneyRow>());
 }
@@ -154,6 +164,7 @@ const SLIM_AFTER_MS = 3 * 86_400_000;
 export async function beginJourney(db: D1Database, user: string, chapter = 1, now = new Date(), kit: KitId[] = [], shownLevel?: number): Promise<string | null> {
   const going = await activeJourney(db, user);
   if (going) return going.row.id;
+  await dropBrokenJourney(db, user, now.toISOString());
   // 앞 장을 깼고(unlocked), 도감 조건도 채운 장까지만 떠날 수 있어요.
   const [top, dogam] = await Promise.all([journeyTop(db, user), dogamProgress(db, user)]);
   const unlocked = unlockedFrom(top);

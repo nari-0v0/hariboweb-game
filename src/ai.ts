@@ -20,17 +20,30 @@ export function aiErrorText(e: unknown): string {
   }
 }
 
+export const AI_TIMEOUT_MS = 15_000;
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  const timer = new Promise<never>((_, reject) => {
+    t = setTimeout(() => reject(new Error(`시간 초과(${ms}ms)`)), ms);
+  });
+  return Promise.race([p, timer]).finally(() => clearTimeout(t));
+}
+
 export async function askAi(ai: Ai | undefined, system: string, user: string, maxTokens: number, label: string): Promise<string> {
   if (!ai) return '';
   for (const model of [AI_MODEL, AI_FALLBACK_MODEL]) {
     try {
-      const out = (await ai.run(model as Parameters<Ai['run']>[0], {
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: user },
-        ],
-        max_tokens: maxTokens,
-      } as never)) as { response?: unknown };
+      // 답이 멈추면 15초에서 포기하고 다음 모델로 가요(점검 W154)
+      const out = (await withTimeout(
+        ai.run(model as Parameters<Ai['run']>[0], {
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: user },
+          ],
+          max_tokens: maxTokens,
+        } as never),
+        AI_TIMEOUT_MS,
+      )) as { response?: unknown };
       const response = out?.response;
       if (typeof response === 'string') return response;
       // 답이 JSON 모양이면 Workers AI가 글 대신 이미 풀어 둔 객체로 줄 때가 있어요. 다시 글로 바꿔 넘겨요.

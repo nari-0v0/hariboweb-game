@@ -31,7 +31,10 @@ export async function signSession(secret: string, session: Session): Promise<str
 }
 
 export async function verifySession(secret: string, token: string, now = Date.now()): Promise<Session | null> {
-  const [body, sig] = token.split('.');
+  const parts = token.split('.');
+  // 정확히 "본문.서명" 두 조각만 받아요(점검 W192)
+  if (parts.length !== 2) return null;
+  const [body, sig] = parts;
   if (!body || !sig) return null;
   const sigBytes = fromBase64Url(sig);
   if (!sigBytes) return null;
