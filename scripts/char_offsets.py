@@ -15,17 +15,30 @@ CHAR = ROOT / "public" / "char"
 OUT = ROOT / "src" / "char-offsets.ts"
 
 
+# 발 쪽이 몸 전체보다 이만큼(%) 넘게 더 치우치면 꼬리·공·소품이 발 높이에 있는 그림이에요.
+# 그때는 발 대신 몸 전체 무게중심으로 맞춰요(드래곤 꼬리를 발로 재서 카드에서 밀려 보였어요, 멍쑤 2026-11-20).
+# 꾸밈 캐릭터(deco)에만 써요. 멤버 기본 캐릭터는 그대로 둬요(포니테일 그림은 발 기준이 맞아요).
+TAIL_GAP = 4.0
+
+
+def center_offset(mask: np.ndarray, width: int) -> float:
+    cols = mask.sum(0)
+    cx = (cols * np.arange(len(cols))).sum() / cols.sum()
+    return float((cx + 0.5 - width / 2) / width * 100)
+
+
 def feet_offset(path: Path) -> float:
     """발 쪽(아래 15%) 그림 무게중심이 가운데에서 몇 % 벗어났는지(그림 너비 기준, 오른쪽이 +)."""
 
     alpha = np.array(Image.open(path).convert("RGBA"))[:, :, 3] > 40
     rows = np.where(alpha.any(1))[0]
     top, bottom = rows[0], rows[-1]
-    band = alpha[bottom - int((bottom - top + 1) * 0.15) : bottom + 1]
-    cols = band.sum(0)
-    cx = (cols * np.arange(len(cols))).sum() / cols.sum()
     width = alpha.shape[1]
-    return round(float((cx + 0.5 - width / 2) / width * 100), 1)
+    feet = center_offset(alpha[bottom - int((bottom - top + 1) * 0.15) : bottom + 1], width)
+    whole = center_offset(alpha, width)
+    if path.parent.name == "deco" and abs(feet) - abs(whole) > TAIL_GAP:
+        return round(whole, 1)
+    return round(feet, 1)
 
 
 def main() -> None:

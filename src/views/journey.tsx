@@ -461,7 +461,15 @@ function Play(props: { run: JourneyRun; art: string; name: string; preview?: boo
               📅 {s.day}
               <small>/{DAYS}일</small>
             </b>
-            <span class="jr-coins">🪙 {s.coins}</span>
+            {/* 싸우는 동안은 싸우기 전 젤코인을 보여 주고, 모션이 끝나면(--reveal) 지금 값으로 바꿔요 */}
+            {reveal && s.fx?.c0 !== undefined && s.fx.c0 !== s.coins ? (
+              <span class="jr-coins jr-coins-swap">
+                <span class="jr-c0">🪙 {s.fx.c0}</span>
+                <span class="jr-c1">🪙 {s.coins}</span>
+              </span>
+            ) : (
+              <span class="jr-coins">🪙 {s.coins}</span>
+            )}
           </header>
           <Road s={s} />
           <div class="jr-screen">
