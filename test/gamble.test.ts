@@ -143,7 +143,7 @@ describe('겜블장 배당', () => {
 describe('칩과 판 기록', () => {
   it('한국 날짜마다 무료 칩은 한 번, 구제는 잔액이 0일 때 별도로 한 번', async () => {
     const { db, sql } = fixture();
-    expect(await Promise.all([claimDaily(db, USER, TODAY), claimDaily(db, USER, TODAY)])).toEqual([true, false]);
+    expect(await Promise.all([claimDaily(db, USER, TODAY), claimDaily(db, USER, TODAY)])).toEqual([1000, 0]);
     expect(await rescueChips(db, USER, TODAY)).toBe(false);
     roll(0);
     await betChips(db, USER, 'roulette', 1000, 'lose', TODAY);
@@ -151,7 +151,7 @@ describe('칩과 판 기록', () => {
     expect(await Promise.all([rescueChips(db, USER, TODAY), rescueChips(db, USER, TODAY)])).toEqual([true, false]);
     await betChips(db, USER, 'roulette', 1000, 'lose2', LATER(2));
     expect(await rescueChips(db, USER, TODAY)).toBe(false);
-    expect(await claimDaily(db, USER, TOMORROW)).toBe(true);
+    expect(await claimDaily(db, USER, TOMORROW)).toBe(1000);
     expect((await gambleAccount(db, USER))?.chips).toBe(1000);
     expect(sql.prepare('SELECT dogam_jelly FROM profiles').get()).toMatchObject({ dogam_jelly: 0 });
   });

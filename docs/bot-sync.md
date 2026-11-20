@@ -53,6 +53,9 @@ Content-Type: application/json
 - `full_members`: 이 묶음의 `members`가 서버 멤버 전부일 때 `true`. 웹은 처음 보는 시즌을 이런 묶음에서만 만들어요(게임 역할을 다 알아야 해서). 봇은 시즌이 바뀌면 바로 멤버 전부를 보내요.
 - `members[].games`: 그 사람이 가진 게임 역할 이름. 빼면 웹에 있던 값을 그대로 둬요.
 - `members[].green`(선택): 초록하리보 역할이 있는지(레벨 역할과 상관없이). 시즌 팀은 이 값이 `true`인 사람으로만 짜요. 시즌 중에 `false`가 오면 팀에서 빠지고(기록은 남아요), `true`가 되면 사람이 제일 적은 팀에 들어가요(같으면 랜덤, 같은 시즌에 빠졌던 사람은 원래 팀). 빼면 웹에 있던 값을 그대로 두고, 한 번도 안 왔으면 예전처럼 지난 2주 활동으로 팀을 골라요.
+- `members[].booster`(선택): 디스코드 서버 부스트 중인지(`premium_since`가 있으면 `true`). `members[].booster_since`(선택): 그 `premium_since`(UTC ISO). 빼면 웹에 있던 값을 그대로 둬요(시작일도 적어 둔 값을 써요. `booster: false`면 시작일을 지워요)(나리 2026-11-21).
+  - 부스터 혜택: 칭호 「부스터」(부스트 중에만, `false`가 오면 고른 칭호를 떼요), 도감·순위 이름 옆 💎, 겜블장 하루 젤칩 1100개, 원정대 재료 확률 1.2배, 사건파일 등급 1번 넉넉 + 그날 첫 사건 힌트 동전 1개.
+  - 감사 젤리: 처음 받는 달에는 지금 부스터 모두 도감 젤리 1개, 그다음부터는 `booster_since`의 날짜가 달마다 돌아올 때(결제일) 1개예요. 🔔 알림만 가고 DM·축하 글은 없어요. 하루 한 번 전체 멤버 묶음에 넣으면 충분해요.
 - `room_minutes`: 1분마다 2명 이상 있던 통화방(잠수방·헤드셋 끈 사람 빼고). 팀 퀘스트(같이 통화한 팀원), 서버 퀘스트(초록하리보와 통화한 시간), 빙고 칸을 여기서 세요.
 - `scrims`: 열린 내전과 참가자(참가만 세요). 내전 퀘스트는 웹 설정 `SCRIM_QUESTS=1`일 때만 뽑아요(기본은 꺼짐).
 - `attendance`: 출석한 사람과 한국 날짜.
@@ -184,14 +187,14 @@ Content-Type: application/json
 - `GET /api/bot/team/<디스코드 ID>` → 고정 패널 "우리 팀".
   ```json
   { "season": { "start": "…", "end": "…" },
-    "team": { "no": 3, "members": [{ "id": "ID", "name": "닉네임" }], "target": 4,
+    "team": { "no": 3, "members": [{ "id": "ID", "name": "닉네임", "mates": 2 }], "target": 4,
               "achievers": [{ "id": "ID", "name": "닉네임" }], "complete": false, "bonus": false, "me": "todo",
               "need": 5, "my_mates": 2 },
     "server": { "target": 10, "kidnapped": 4, "met": false, "joined": true },
     "rules": { "goal_min": 30, "kidnap_min": 30, "team_jelly": 3, "server_jelly": 5 },
     "page_url": "https://.../bingo" }
   ```
-  `team`이 `null`이면 이번 시즌 팀이 없어요. `me`: `done`(나는 달성), `todo`(아직), `team-done`(팀 완료, 나는 아직), `bonus`(보너스 칸). `need`는 내가 달성하려면 30분 이상 함께해야 하는 팀원 수, `my_mates`는 지금까지 30분 이상 함께한 팀원 수예요.
+  `team`이 `null`이면 이번 시즌 팀이 없어요. `me`: `done`(나는 달성), `todo`(아직), `team-done`(팀 완료, 나는 아직), `bonus`(보너스 칸). `need`는 내가 달성하려면 30분 이상 함께해야 하는 팀원 수, `my_mates`는 지금까지 30분 이상 함께한 팀원 수예요. `members[].mates`는 그 팀원이 30분 이상 함께한 팀원 수(`need` 이상이면 그 사람은 달성)예요.
 - `GET /api/bot/teams` → 고정 패널 본문 "팀 순위" 그림용. `{"season": {...}, "ranking": [{"no","rank","done","total","size","complete","bonus"}], "server": {"target","kidnapped","met"}, "page_url": "..."}`. `done`/`total`은 팀 퀘스트 달성 수/목표. 팀 목표를 채운 팀 → 달성 비율 → 달성 수 순이고 보너스 칸 팀은 맨 뒤예요. 시즌이나 팀이 없으면 `"ranking": null`.
 - 예전 `GET /api/bot/group/<ID>`, `GET /api/bot/ranking`(모둠 퀘스트용)은 옛 봇을 위해 남아 있지만 새 봇은 쓰지 않아요.
 - 알림(DM·채팅)은 보내지 않아요. 고정 패널과 웹 `/bingo`에서만 보여요.

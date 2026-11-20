@@ -461,7 +461,15 @@ function Play(props: { run: JourneyRun; art: string; name: string; preview?: boo
               📅 {s.day}
               <small>/{DAYS}일</small>
             </b>
-            <span class="jr-coins">🪙 {s.coins}</span>
+            {/* 싸우는 동안은 싸우기 전 젤코인을 보여 주고, 모션이 끝나면(--reveal) 지금 값으로 바꿔요 */}
+            {reveal && s.fx?.c0 !== undefined && s.fx.c0 !== s.coins ? (
+              <span class="jr-coins jr-coins-swap">
+                <span class="jr-c0">🪙 {s.fx.c0}</span>
+                <span class="jr-c1">🪙 {s.coins}</span>
+              </span>
+            ) : (
+              <span class="jr-coins">🪙 {s.coins}</span>
+            )}
           </header>
           <Road s={s} />
           <div class="jr-screen">
@@ -560,6 +568,9 @@ export function ChapterPick(props: { unlocked: number; top: number; dogam: Dogam
               <b>{c.n}장</b>
               <span class="jr-chapter-name">{open ? c.name : !released ? `🚧 ${releaseText(c.n)}` : c.n > props.unlocked ? '잠겨 있어요' : dogamOk ? '📖 앞 장 도감 조건부터' : '📖 도감이 필요해요'}</span>
               <span class="hint">{chapterLevels(c.n)}</span>
+              <span class="jr-mat" title="이 장에서 나오는 강화 재료">
+                {c.n <= pick ? `${material(c.n).icon} ${material(c.n).name}` : '❔ 재료'}
+              </span>
               {open && c.n <= props.top && (
                 <span class="jr-farm" title="이미 깬 장을 다시 돌 때 모이는 젤코인">
                   🪙 {bankRate(props.farmed[c.n] ?? 0)}%

@@ -1,5 +1,6 @@
 import { comma } from './num';
 import { levelFromXp, xpForLevel } from './levels';
+import { BOOSTER_TITLE_ID } from './booster';
 
 // 도감 칭호. 고르면 하리보봇이 디스코드 닉네임 앞에 `「칭호」 `로 붙여요(닉네임·생년과는 따로).
 // 디스코드 서버 태그처럼 4글자까지예요. 이름·조건·값은 여기서만 바꾸면 돼요.
@@ -24,7 +25,8 @@ export type TitleRule =
   | { kind: 'praiseGot'; count: number }
   | { kind: 'praiseGave'; count: number }
   | { kind: 'voiceHours'; hours: number } // 같이 통화한 시간(카드마다 더해서)
-  | { kind: 'journeyTop'; chapter: number }; // 원정대 이 장 대장을 깸
+  | { kind: 'journeyTop'; chapter: number } // 원정대 이 장 대장을 깸
+  | { kind: 'booster' }; // 디스코드 서버 부스트 중에만(얻은 기록으로 남지 않아요)
 
 // retired: 지금은 얻을 수 없는 칭호(예전 모둠 퀘스트 8개). 이미 얻은 사람에게만 보여요.
 export type Title = { id: string; name: string; group: string; rule: TitleRule; retired?: boolean };
@@ -46,6 +48,8 @@ const SHOP_GROUPS: [string, number, string][] = [
   ["게임 스타일", 20, "겜잘알 겜알못 원챔 선픽 막픽 리폿 픽밴 버스기사 즐겜러 빡겜러 솔랭러 칼바람 샷콜러 멘탈갑 숨은캐리 팀플러"],
   ["게임 명장면", 50, "펜타킬 쿼드라 클러치 헤드샷 원탭 치킨각 역전승 퍼블 솔킬 갓픽 노데스 에이스"],
   ["게임 티어", 50, "언랭 아이언 브론즈 실버 골드 플레 다이아 챌린저 레디언트"],
+  // 2026-11-20 해치님 제안: 유행어 묶음에 더해요(id가 밀리지 않게 맨 뒤에 따로 적어요. 화면에서는 유행어 묶음에 같이 보여요)
+  ["유행어", 30, "늙크크 딸피"],
 ];
 
 // ── 활동으로 얻는 칭호: 단계마다 [조건 값, 이름] ─────────────
@@ -117,13 +121,27 @@ export const GAMBLE_TITLES: Title[] = [
 // 원정대 칭호(2026-11-19): 마지막 장(15장) 대장을 처음 깨면 얻어요.
 export const JOURNEY_TITLES: Title[] = [{ id: 'journey-15', name: '시간정복', group: '원정대', rule: { kind: 'journeyTop', chapter: 15 } }];
 
+// 더 팔지 않는 상점 칭호(나리 2026-11-21: 자음만 있는 칭호는 빼요). id가 밀리지 않게 목록에는 남기고,
+// 이미 산 사람에게만 보여요(산 사람이 없으면 아무에게도 안 보여요).
+const RETIRED_SHOP = new Set(['ㄱㄱ', 'ㅇㅈ', 'ㄹㅇ']);
+
+// 서버 부스터 칭호(나리 2026-11-21): 부스트 중에만 쓸 수 있어요. 끊으면 떼지고, 다시 하면 또 쓸 수 있어요.
+export const BOOSTER_TITLES: Title[] = [{ id: BOOSTER_TITLE_ID, name: '부스터', group: '서버 부스터', rule: { kind: 'booster' } }];
+
 let shopNo = 0;
 export const TITLES: Title[] = [
   ...SHOP_GROUPS.flatMap(([group, price, names]) =>
-    names.split(' ').map((name): Title => ({ id: `shop-${++shopNo}`, name, group, rule: { kind: 'shop', price } })),
+    names.split(' ').map((name): Title => ({
+      id: `shop-${++shopNo}`,
+      name,
+      group,
+      rule: { kind: 'shop', price },
+      ...(RETIRED_SHOP.has(name) ? { retired: true } : {}),
+    })),
   ),
   ...GAMBLE_TITLES,
   ...JOURNEY_TITLES,
+  ...BOOSTER_TITLES,
   ...LADDERS.flatMap((l) => l.steps.map(([v, name]): Title => ({ id: `${l.id}-${v}`, name, group: l.group, rule: l.rule(v), ...(l.retired ? { retired: true } : {}) }))),
 ];
 
@@ -151,6 +169,7 @@ export type TitleStats = {
   praiseGave: number;
   voiceSeconds: number;
   journeyTop?: number; // 원정대 대장을 깬 가장 높은 장
+  booster?: boolean; // 지금 디스코드 서버 부스트 중
 };
 
 export type TitleProgress = { ok: boolean; text: string; now?: string };
@@ -214,6 +233,8 @@ export function titleProgress(t: Title, s: TitleStats): TitleProgress {
       return count(s.praiseGave, r.count, `칭찬 ${r.count}번 하기`, '번');
     case 'voiceHours':
       return count(Math.floor(s.voiceSeconds / 3600), r.hours, `같이 통화 ${r.hours}시간`, '시간');
+    case 'booster':
+      return { ok: s.booster === true, text: '디스코드 서버 부스트 중에만 쓸 수 있어요', now: s.booster ? '💎 부스트 중' : '부스트 안 함' };
     case 'journeyTop': {
       const top = s.journeyTop ?? 0;
       return { ok: top >= r.chapter, text: `원정대 ${r.chapter}장 대장 물리치기`, now: `${top}장까지 깸` };

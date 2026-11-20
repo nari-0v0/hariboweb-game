@@ -37,7 +37,8 @@ export type Line = { icon: string; text: string; tone?: 'good' | 'bad' };
 export type Hit = [who: 0 | 1, dmg: number, crit?: 1];
 // hp0: 싸우기 전 체력(결과는 모션이 끝난 뒤 보여요). mhp: 몬스터 처음 체력, left: hits 칸마다 그 뒤 남은 몬스터 체력(몬스터 체력 막대용)
 // php: hits 칸마다 그 뒤 남은 내 체력(맞을 때마다 내 체력 막대도 줄어들게, 슬금님 제보 2026-11-18)
-export type BattleFx = { foe: string; won: boolean; spark?: number; hits: Hit[]; hp0?: number; mhp?: number; left?: number[]; php?: number[] };
+// c0: 싸우기 전 젤코인(모션이 끝나기 전엔 이 값을 보여요, 슬금님 제보 2026-11-20)
+export type BattleFx = { foe: string; won: boolean; spark?: number; hits: Hit[]; hp0?: number; mhp?: number; left?: number[]; php?: number[]; c0?: number };
 // 예전엔 처음 6번만 남기고 마지막 칸에 끝난 순간을 덮어써서, 긴 싸움에선 중간 공격이 빠졌어요.
 // 그래서 체력이 '두 대 버틸 만큼' 남아 보이다가 한 대에 0이 되는 것처럼 보였어요(슬금님 제보 2026-11-18).
 // 싸움은 40턴(80번)을 넘지 않으니 이 한도는 안전장치일 뿐이에요.
@@ -95,6 +96,7 @@ export type JourneyState = {
   evs?: EventId[]; // 이번 판에 나온 이벤트
   pet?: { id: PetId; lv: number }; // 데려간 펫(떠날 때 레벨)
   boost?: Boost; // 끝없는 탑에서 젤코인으로 산 잠깐 강해지기(그 층 싸움에만)
+  bst?: boolean; // 서버 부스터로 떠난 판: 강화 재료 나올 확률 BOOSTER_DROP배
 };
 // 잠깐 강해지기: 공격력·최대 체력에 곱하는 몫(0.3 = +30%)
 export type Boost = { atk?: number; hp?: number };
@@ -184,6 +186,8 @@ export const FIRST_CLEAR_BONUS = 2;
 // 이미 깬 장을 다시 돌면 재료는 하루 제한 없이 모이지만, 나올 확률은 이만큼으로 줄어요(나리 2026-11-13).
 export const FARM_DROP = 0.6; // 2026-11-18 나리: 0.4 → 0.6. 2026-11-19 나리: 0.45로 내렸다가 다시 0.6
 export const FARM_BOSS = 0.5; // 다시 돌 때 대장이 재료를 줄 확률(나리 2026-11-19)
+// 디스코드 서버 부스터는 재료 나올 확률이 조금 높아요(나리 2026-11-21 "소폭"): 5% → 6%, 다시 돌 때 대장 50% → 60%
+export const BOOSTER_DROP = 1.2;
 // 열린 장이 늘수록 훈련 한도가 늘어요(열린 장 하나마다 처음 한도의 절반씩). 열린 장 = 앞 장을 깼고 도감 조건도 채운 장.
 export const perkMax = (id: PerkId, unlocked: number) => PERKS[id].max + Math.floor(PERKS[id].max * 0.3) * (Math.max(1, unlocked) - 1);
 
@@ -280,7 +284,7 @@ export function battle(s: JourneyState, m: Monster, power: number, r: () => numb
     left[i] = Math.max(0, mhp);
     php[i] = Math.max(0, s.hp);
   };
-  const fx: BattleFx = { foe: m.key, won: false, hits, hp0: start, mhp, left, php };
+  const fx: BattleFx = { foe: m.key, won: false, hits, hp0: start, mhp, left, php, c0: s.coins };
   // 번개 선제(스킬)와 별무늬 고양이 별똥별(펫)은 싸움 시작에 한 번에 보여요
   const opener = 10 * sk(s, 'spark') + (pf.star > 0 ? Math.max(1, Math.round(mhp0 * pf.star)) : 0);
   if (opener > 0) {
@@ -335,7 +339,7 @@ export function battle(s: JourneyState, m: Monster, power: number, r: () => numb
   s.kills += 1;
   const coins = gainCoins(s, Math.round((4 + s.day) * power * cp));
   lines.push({ icon: m.emoji, text: `${m.name}${obj(m.name)} ${turns}턴 만에 물리쳤어요! 체력 ${s.hp - start >= 0 ? '+' : ''}${s.hp - start}, 젤코인 +${coins}`, tone: 'good' });
-  if (drop > 0 && rng(`${s.seed}:${s.day}:drop`)() < (s.farm ? (drop >= 1 ? FARM_BOSS : drop * FARM_DROP) : drop) * (s.kit?.includes('clover') ? 1.5 : 1)) {
+  if (drop > 0 && rng(`${s.seed}:${s.day}:drop`)() < (s.farm ? (drop >= 1 ? FARM_BOSS : drop * FARM_DROP) : drop) * (s.kit?.includes('clover') ? 1.5 : 1) * (s.bst ? BOOSTER_DROP : 1)) {
     s.mats = (s.mats ?? 0) + 1;
     const mt = material(s.ch ?? 1);
     lines.push({ icon: mt.icon, text: `강화 재료 ${mt.name}${obj(mt.name)} 주웠어요!`, tone: 'good' });

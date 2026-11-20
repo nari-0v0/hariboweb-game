@@ -1,5 +1,6 @@
 import { byCode, comma } from '../num';
 import { titleName } from '../titles';
+import { withBoosterMark } from '../booster';
 import { nextCardReward } from '../card-rewards';
 import type { Member } from '../env';
 import type { DogamEntry, Profile } from '../db';
@@ -390,6 +391,10 @@ export function DogamPage(props: {
               지금 서버 멤버 {props.total}명 중 <b>{props.owned}명</b>의 카드를 모았어요.
             </p>
             {mine && props.claimed && <CardGoal owned={props.owned} claimed={props.claimed} />}
+            <p class="hint">
+              🆙 카드 레벨 올리는 법: 같은 통화방에 1분 넘게 함께 있으면 1분마다 두 사람 카드 모두 경험치 +1이에요. 한 사람과 하루 180까지(3시간)이고,
+              같은 내전에 함께 참가하면 +30이에요.
+            </p>
             <p class="hint">캐릭터의 성별은 본인이 고른 것이라 실제 성별과 다를 수 있어요.</p>
             <div class="filters" role="radiogroup" aria-label="보기">
               {filter('f-all', '전체', props.entries.length, true)}
@@ -433,7 +438,7 @@ export function DogamPage(props: {
                   no={dexNo.get(e.user_id)}
                   kind={e.owned ? 'pair' : 'unknown'}
                   faded={!e.active}
-                  name={e.display_name}
+                  name={e.active ? withBoosterMark(e.display_name, e.booster) : e.display_name}
                   title={e.active ? titleName(e.title_id) : null}
                   theme={e.theme_id}
                   intro={e.intro}
