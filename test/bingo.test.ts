@@ -428,3 +428,24 @@ it('전체 초기화 뒤 새 통화에는 초기화 전 빙고 차감 기준을 
   expect([stats.get(A)!.partners, stats.get(A)!.bestPair]).toEqual([1, 10]);
   expect([stats.get(B)!.partners, stats.get(B)!.bestPair]).toEqual([1, 10]);
 });
+
+describe('빙고 통화 일수·칭찬 짝은 도감 하루(아침 6시) 기준', () => {
+  it('새벽 1시 통화는 전날 도감 날짜로 쌓여요', async () => {
+    const { bingoStatements } = await import('../src/bingo');
+    const { db, sql } = fakeD1();
+    // 한국 시간 11/03 01:00(=11/02 16:00Z)과 11/03 07:00(=11/02 22:00Z)
+    const rooms = [
+      { at: '2026-11-02T16:00:00Z', room: ROOM, members: [A, B] },
+      { at: '2026-11-02T22:00:00Z', room: ROOM, members: [A, B] },
+    ];
+    const { stmts } = bingoStatements(db, rooms, []);
+    await db.batch(stmts);
+    expect(sql.prepare('SELECT day, minutes FROM pair_day ORDER BY day').all()).toEqual([
+      { day: '2026-11-02', minutes: 1 },
+      { day: '2026-11-03', minutes: 1 },
+    ]);
+    expect(await todayPartners(db, A, '2026-11-02')).toEqual([{ id: B, minutes: 1 }]);
+    const days = sql.prepare('SELECT DISTINCT day FROM bingo_day WHERE user_id = ? ORDER BY day').all(A) as { day: string }[];
+    expect(days.map((d) => d.day)).toEqual(['2026-11-02', '2026-11-03']);
+  });
+});
