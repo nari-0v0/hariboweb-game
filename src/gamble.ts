@@ -6,8 +6,13 @@ export const GAMBLE_LOCKED = true;
 export const gambleTester = (testers: string | undefined, userId: string) =>
   (testers ?? '').split(',').map((s) => s.trim()).filter(Boolean).includes(userId);
 
+// 처음 겜블장에 들어오면 받는 시작 젤칩(게임 기록 초기화 뒤에도 이만큼)
 export const DAILY_CHIPS = 1000;
-export const BOOSTER_DAILY_CHIPS = 1100; // 디스코드 서버 부스터(나리 2026-11-21)
+// 2026-11-21 나리: 매일 주던 젤칩은 없애고, 젤칩이 0개 이하일 때만 하루 한 번 300개로 채워 줘요(부스터 400개).
+export const REFILL_CHIPS = 300;
+export const BOOSTER_REFILL_CHIPS = 400; // 디스코드 서버 부스터(나리 2026-11-21)
+/** @deprecated 예전 이름. 부스터 채워 주기 양이에요. */
+export const BOOSTER_DAILY_CHIPS = BOOSTER_REFILL_CHIPS;
 // 2026-11-18 나리: 점검 보고서 W34–W38(평균이 100%를 넘어 계속 하면 칩이 불어남)을 고쳐 달라고 함.
 // 배수는 그대로 두고 나올 확률만 바꿔 평균을 100%보다 조금 낮게(약 99.3%) 맞췄어요(예전 약 103.4%).
 export const SLOTS = [

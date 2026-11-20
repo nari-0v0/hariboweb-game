@@ -128,8 +128,35 @@ addEventListener('pageshow', (e) => {
   const set = (on) => { mem = !!on; try { on ? localStorage.setItem(KEY, '1') : localStorage.removeItem(KEY); } catch {} };
   let timer = 0;
   let busy = false;
-  // 원정 한 판이 끝나면(결과 화면이나 그만두기) 자동은 꺼져요. 다음 판은 직접 켜야 해요(슬금님 제안, 2026-11-18).
-  if (document.querySelector('.jr-result') || new URLSearchParams(location.search).get('n') === 'quit') set(false);
+  let fails = 0; // 연결이 잠깐 끊긴 횟수(이어서). 3번이면 멈추고 알려 줘요(점검 W166)
+  // 자동은 끌 때까지 계속 켜져 있어요(나리 2026-11-21, 처음처럼). 그만두기를 누르면 꺼져요.
+  // 판이 끝나면 결과를 보여 주고 5초 기다린 뒤(남은 초를 보여 줘요) 같은 장으로 다시 떠나요. 준비물은 사지 않아요.
+  if (new URLSearchParams(location.search).get('n') === 'quit') set(false);
+  const again = document.querySelector('.jr-result form.jr-chapters');
+  if (again && get()) {
+    // 결과가 실제로 보이는 때부터 5초를 세요(움직임 줄이기면 결과가 바로 보여요. 아래 마지막 싸움 처리와 같은 규칙)
+    const finalWait = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : Number(document.querySelector('[data-final-wait]')?.getAttribute('data-final-wait')) || 0;
+    const box = document.createElement('div');
+    box.className = 'jr-autonext';
+    box.setAttribute('role', 'status');
+    box.innerHTML = '<span class="jr-autonext-spin" aria-hidden="true"></span><b>🤖 자동: <span data-left>5</span>초 뒤 같은 장으로 다시 떠나요</b><button type="button" class="btn btn-ghost">그만하기</button>';
+    let left = 5;
+    let t = 0;
+    const stop = () => { clearInterval(t); box.remove(); };
+    box.querySelector('button').addEventListener('click', () => { set(false); stop(); });
+    setTimeout(() => {
+      if (!get()) return;
+      document.body.append(box);
+      t = setInterval(() => {
+        left -= 1;
+        box.querySelector('[data-left]').textContent = String(Math.max(0, left));
+        if (left > 0 || !get()) return;
+        stop();
+        again.querySelectorAll('input[name="kit"]').forEach((k) => { k.checked = false; });
+        again.requestSubmit ? again.requestSubmit() : again.submit();
+      }, 1000);
+    }, finalWait);
+  }
   const sync = () => {
     const box = document.querySelector('[data-auto-toggle]');
     if (!box) return;
@@ -141,7 +168,7 @@ addEventListener('pageshow', (e) => {
     clearTimeout(timer);
     // 싸움 모션이 있으면 다 보여 준 뒤에 다음으로 넘어가요. 싸움 없는 날은 0.5초만 쉬어요(나리 2026-11-15, 예전 1.3초).
     const wait = Number(document.querySelector('[data-wait]')?.getAttribute('data-wait')) || 0;
-    if (on) timer = setTimeout(tick, Math.max(500, wait));
+    if (on) timer = setTimeout(tick, Math.max(500, wait, fails * 3000)); // 연결이 끊겼으면 3초·6초 뒤 다시 해 봐요
   };
   async function tick() {
     const form = document.querySelector('form[data-idle]');
@@ -160,8 +187,7 @@ addEventListener('pageshow', (e) => {
       const next = doc.getElementById('journey');
       const cur = document.getElementById('journey');
       if (!next || !cur || url.searchParams.has('r')) {
-        if (url.searchParams.has('r')) set(false);
-        location.href = res.url; // 원정이 끝나면 결과 화면으로
+        location.href = res.url; // 원정이 끝나면 결과 화면으로(자동은 켜진 채로, 결과 화면에서 5초 뒤 다시 떠나요)
         return;
       }
       const open = cur.querySelector('details')?.open;
@@ -171,8 +197,15 @@ addEventListener('pageshow', (e) => {
       const mine = document.querySelector('.jr-quit input[name="rev"]');
       if (rev && mine) mine.value = rev.value;
       if (open) next.querySelector('details')?.setAttribute('open', '');
+      fails = 0;
     } catch {
-      set(false);
+      fails += 1;
+      if (fails >= 3) {
+        set(false);
+        fails = 0;
+        const box = document.querySelector('[data-auto-toggle]');
+        if (box && !box.querySelector('.jr-auto-err')) box.insertAdjacentHTML('beforeend', '<small class="jr-auto-err">연결이 끊겨서 자동을 멈췄어요. 다시 켜 주세요.</small>');
+      }
     } finally {
       busy = false;
       sync();
@@ -181,6 +214,7 @@ addEventListener('pageshow', (e) => {
   document.addEventListener('change', (e) => {
     const box = e.target instanceof Element && e.target.closest('[data-auto-toggle]');
     if (!box) return;
+    box.querySelector('.jr-auto-err')?.remove();
     set(e.target.checked);
     sync();
   });

@@ -11,6 +11,7 @@ import {
   offerInfo,
   PERKS,
   PERK_IDS,
+  perkValue,
   GEAR,
   GEAR_IDS,
   GEAR_MAX,
@@ -443,7 +444,41 @@ function Log(props: { lines: JourneyState['today'] }) {
 
 // 게임 화면: 위는 무대(체력·레벨은 무대 위에 겹쳐요), 아래는 대화창과 큰 버튼.
 // preview: 원정이 끝난 날의 마지막 싸움을 평소 진행 화면 모양 그대로 보여 줄 때(결과 화면 앞). 누를 수 없고 자동 진행도 안 걸려요.
-function Play(props: { run: JourneyRun; art: string; name: string; preview?: boolean }) {
+function MatHud(props: { s: JourneyState; bag: number; reveal: boolean }) {
+  const { s } = props;
+  const mt = material(s.ch ?? 1);
+  const got = s.mats ?? 0;
+  // 재료 칸: 🍃 재료 [보유 N] + [얻음 k]. 작은 글자는 숫자 위에 얹어서 칸 높이는 날짜 칸과 같아요(나리 2026-11-21)
+  const text = (n: number) => (
+    <>
+      {mt.icon}
+      <small class="jr-lab">재료</small>
+      <span class="jr-stk">
+        <small>보유</small>
+        {props.bag}
+      </span>
+      <span class="jr-plus">+</span>
+      <span class="jr-stk">
+        <small>얻음</small>
+        {n}
+      </span>
+    </>
+  );
+  const dropped = props.reveal ? s.today.filter((l) => l.text.startsWith('강화 재료 ')).length : 0;
+  const title = `${mt.name}: 가방 ${props.bag}개 + 이번 판 ${got}개`;
+  return dropped > 0 ? (
+    <span class="jr-coins jr-mat-hud jr-coins-swap" title={title}>
+      <span class="jr-c0">{text(got - dropped)}</span>
+      <span class="jr-c1">{text(got)}</span>
+    </span>
+  ) : (
+    <span class="jr-coins jr-mat-hud" title={title}>
+      <span>{text(got)}</span>
+    </span>
+  );
+}
+
+function Play(props: { run: JourneyRun; art: string; name: string; preview?: boolean; bag?: number }) {
   const { run, preview } = props;
   const s = run.state;
   const st = stat(s);
@@ -466,12 +501,22 @@ function Play(props: { run: JourneyRun; art: string; name: string; preview?: boo
             {/* 싸우는 동안은 싸우기 전 젤코인을 보여 주고, 모션이 끝나면(--reveal) 지금 값으로 바꿔요 */}
             {reveal && s.fx?.c0 !== undefined && s.fx.c0 !== s.coins ? (
               <span class="jr-coins jr-coins-swap">
-                <span class="jr-c0">🪙 {s.fx.c0}</span>
-                <span class="jr-c1">🪙 {s.coins}</span>
+                <span class="jr-c0">
+                  🪙<small class="jr-lab">얻음</small> {s.fx.c0}
+                </span>
+                <span class="jr-c1">
+                  🪙<small class="jr-lab">얻음</small> {s.coins}
+                </span>
               </span>
             ) : (
-              <span class="jr-coins">🪙 {s.coins}</span>
+              <span class="jr-coins">
+                <span>
+                  🪙<small class="jr-lab">얻음</small> {s.coins}
+                </span>
+              </span>
             )}
+            {/* 이 장 강화 재료: 가방에 있는 개수 + 이번 판에 주운 개수(슬금님 제안, 나리 2026-11-21). 싸우는 동안은 싸우기 전 값 */}
+            {props.bag !== undefined && <MatHud s={s} bag={props.bag} reveal={!!reveal} />}
           </header>
           <Road s={s} />
           <div class="jr-screen">
@@ -481,10 +526,11 @@ function Play(props: { run: JourneyRun; art: string; name: string; preview?: boo
               <Bar now={s.xp} max={xpNeed(s.lv)} cls="xp" label={`⭐ Lv.${s.lv}`} />
             </div>
             <div class="jr-stats">
-              <span title="공격력">⚔️ {st.atk}</span>
-              <span title="방어력">🛡️ {st.def}</span>
-              <span title="물리친 적">💥 {s.kills}</span>
-              <span title="몬스터 레벨">👾 Lv.{((s.ch ?? 1) - 1) * DAYS + Math.max(1, s.day)}</span>
+              {/* 휴대폰에서는 마우스를 올릴 수 없어서 짧은 글자를 붙였어요(나리 2026-11-21) */}
+              <span title="공격력">⚔️<small class="jr-lab">공격력</small> {st.atk}</span>
+              <span title="방어력">🛡️<small class="jr-lab">방어력</small> {st.def}</span>
+              <span title="물리친 적">💥<small class="jr-lab">처치</small> {s.kills}</span>
+              <span title="몬스터 레벨">👾<small class="jr-lab">적</small> Lv.{((s.ch ?? 1) - 1) * DAYS + Math.max(1, s.day)}</span>
             </div>
           </div>
         </div>
@@ -513,7 +559,7 @@ function Play(props: { run: JourneyRun; art: string; name: string; preview?: boo
           <label class="jr-auto" hidden data-auto-toggle={preview ? undefined : ''}>
             <input type="checkbox" />
             <span>
-              <b>🤖 자동</b> 켜 두면 스킬·갈림길·상점까지 알아서 골라요. 이번 원정이 끝나면 꺼져요
+              <b>🤖 자동</b> 켜 두면 스킬·갈림길·상점까지 알아서 골라요. 끌 때까지 계속 켜져 있고, 한 판이 끝나면 5초 뒤 같은 장으로 다시 떠나요
             </span>
           </label>
         </div>
@@ -619,7 +665,7 @@ export function ChapterPick(props: { unlocked: number; top: number; dogam: Dogam
   );
 }
 
-function Result(props: { run: JourneyRun; art: string; name: string; unlocked: number; top: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number; going: boolean; burn?: boolean }) {
+function Result(props: { run: JourneyRun; art: string; name: string; unlocked: number; top: number; dogam: DogamProgress; farmed: Record<number, number>; coins: number; going: boolean; burn?: boolean; bag?: number }) {
   const { run } = props;
   const s = run.state;
   // 마지막 날 싸움이 있으면 먼저 평소 진행 화면 모양으로 싸움을 보여 주고(화면 길이로도 끝난 걸 알 수 없게),
@@ -627,7 +673,8 @@ function Result(props: { run: JourneyRun; art: string; name: string; unlocked: n
   const reveal = s.fx ? fightPlan(s.fx).reveal : 0;
   return (
     <>
-      {reveal > 0 && <Play run={run} art={props.art} name={props.name} preview />}
+      {/* 마지막 싸움에도 재료 칸을 보여 줘요. 이번 판 재료는 이미 가방에 넣었으니 그만큼 빼서 정산 전 보유량으로 보여 줘요 */}
+      {reveal > 0 && <Play run={run} art={props.art} name={props.name} preview bag={props.bag === undefined ? undefined : Math.max(0, props.bag - (run.state.matsBanked ?? 0))} />}
       {reveal > 0 && <noscript><style>{'.jr-final-fight { display: none !important; } .jr-result[hidden] { display: block !important; }'}</style></noscript>}
     <section class="jr-game jr-result" id={reveal > 0 ? undefined : 'now'} hidden={reveal > 0} data-final-wait={reveal > 0 ? String(reveal) : undefined}>
       <span class="eyebrow">{s.cleared ? '원정 성공' : '원정 끝'}</span>
@@ -843,7 +890,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
         </div>
         <ul class="jp-stats">
           {STAT_ROWS.map((r) => {
-            const perk = PERKS[r.perk].per * bank[r.perk];
+            const perk = perkValue(r.perk, bank[r.perk]);
             const g = gearBonus(r.gear, bank[r.gear]);
             return (
               <li>
@@ -1072,7 +1119,7 @@ export function JourneyPage(props: {
             </div>
           </details>
         </div>
-        {result ? <Result run={result} art={props.art} name={name} unlocked={record.unlocked} top={record.top} dogam={props.dogam} farmed={record.farmed} coins={props.bank.coins} going={!!run} burn={!!props.viewer.burn_until} /> : run ? <Play run={run} art={props.art} name={name} /> : null}
+        {result ? <Result run={result} art={props.art} name={name} unlocked={record.unlocked} top={record.top} dogam={props.dogam} farmed={record.farmed} coins={props.bank.coins} going={!!run} burn={!!props.viewer.burn_until} bag={props.bank.mats[result.state.ch ?? 1] ?? 0} /> : run ? <Play run={run} art={props.art} name={name} bag={props.bank.mats[run.state.ch ?? 1] ?? 0} /> : null}
         {!run && !result && (
           <section class="jr-game jr-lobby" id="now">
             <div class="jr-lobby-stage" style={`--jr-bg:url(/journey/bg/${zoneFor(1)}.webp)`}>
