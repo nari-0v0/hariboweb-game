@@ -24,6 +24,7 @@ export type DogamEntry = {
   joined_at: string | null;
   active: number;
   is_newbie: number;
+  booster?: number; // 서버 부스터면 1(도감에서 이름 옆 💎)
   owned: number;
   xp: number;
   voice_seconds: number;
@@ -102,7 +103,7 @@ export async function saveProfile(db: D1Database, id: string, intro: string, the
   return (result.meta.changes ?? 0) > 0;
 }
 
-const DOGAM_SELECT = `SELECT m.user_id, m.display_name, m.joined_at, m.active, m.is_newbie,
+const DOGAM_SELECT = `SELECT m.user_id, m.display_name, m.joined_at, m.active, m.is_newbie, m.booster,
               (c.owner_id IS NOT NULL) AS owned,
               COALESCE(c.xp, 0) AS xp, COALESCE(c.voice_seconds, 0) AS voice_seconds,
               COALESCE(c.scrims, 0) AS scrims, c.first_met,

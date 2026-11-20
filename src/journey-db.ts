@@ -166,6 +166,9 @@ export async function beginJourney(db: D1Database, user: string, chapter = 1, no
   const cost = kitCost(kit, level);
   if (cost > 0 && cost > bank.coins) return NO_COINS; // 빚(마이너스)이 있어도 준비물 없이는 떠날 수 있어요
   const state = startJourney(id, bank, ch, bank, kit, bankPet(bank));
+  // 서버 부스터면 이번 판 재료 확률이 조금 높아요(떠날 때 정해져요)
+  const booster = await db.prepare('SELECT booster FROM members WHERE user_id = ?').bind(user).first<{ booster: number }>();
+  if (Number(booster?.booster) === 1) state.bst = true;
   // 이미 깬 장(재료가 덜 나와요). 마지막 장을 깨도 unlocked는 더 올라가지 않아요.
   state.farm = ch < unlocked || (ch === MAX_CHAPTER && !!await db
     .prepare("SELECT 1 FROM journey_runs WHERE user_id = ? AND chapter = ? AND status = 'done' AND cleared = 1 LIMIT 1")

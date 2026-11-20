@@ -111,6 +111,7 @@ export type JourneyState = {
   pet?: { id: PetId; lv: number }; // 데려간 펫(떠날 때 레벨)
   burn?: boolean; // 이 행동을 버닝타임에 했어요(재료 나올 확률 1.5배, 대장은 그대로)
   boost?: Boost; // 끝없는 탑에서 젤코인으로 산 잠깐 강해지기(그 층 싸움에만)
+  bst?: boolean; // 서버 부스터로 떠난 판: 강화 재료 나올 확률 BOOSTER_DROP배
 };
 // 잠깐 강해지기: 공격력·최대 체력에 곱하는 몫(0.3 = +30%)
 export type Boost = { atk?: number; hp?: number };
@@ -200,6 +201,8 @@ export const FIRST_CLEAR_BONUS = 2;
 // 이미 깬 장을 다시 돌면 재료는 하루 제한 없이 모이지만, 나올 확률은 이만큼으로 줄어요(나리 2026-11-13).
 export const FARM_DROP = 0.6; // 2026-11-18 나리: 0.4 → 0.6. 2026-11-19 나리: 0.45로 내렸다가 다시 0.6
 export const FARM_BOSS = 0.5; // 다시 돌 때 대장이 재료를 줄 확률(나리 2026-11-19)
+// 디스코드 서버 부스터는 재료 나올 확률이 조금 높아요(나리 2026-11-21 "소폭"): 5% → 6%, 다시 돌 때 대장 50% → 60%
+export const BOOSTER_DROP = 1.2;
 // 열린 장이 늘수록 훈련 한도가 늘어요(열린 장 하나마다 처음 한도의 절반씩). 열린 장 = 앞 장을 깼고 도감 조건도 채운 장.
 export const perkMax = (id: PerkId, unlocked: number) => PERKS[id].max + Math.floor(PERKS[id].max * 0.3) * (Math.max(1, unlocked) - 1);
 
@@ -351,7 +354,7 @@ export function battle(s: JourneyState, m: Monster, power: number, r: () => numb
   s.kills += 1;
   const coins = gainCoins(s, Math.round((4 + s.day) * power * cp));
   lines.push({ icon: m.emoji, text: `${m.name}${obj(m.name)} ${turns}턴 만에 물리쳤어요! 체력 ${s.hp - start >= 0 ? '+' : ''}${s.hp - start}, 젤코인 +${coins}`, tone: 'good' });
-  if (drop > 0 && rng(`${s.seed}:${s.day}:drop`)() < (s.farm ? (drop >= 1 ? FARM_BOSS : drop * FARM_DROP) : drop) * (s.kit?.includes('clover') ? 1.5 : 1) * (s.burn && drop < 1 ? BURN_DROP : 1)) {
+  if (drop > 0 && rng(`${s.seed}:${s.day}:drop`)() < (s.farm ? (drop >= 1 ? FARM_BOSS : drop * FARM_DROP) : drop) * (s.kit?.includes('clover') ? 1.5 : 1) * (s.burn && drop < 1 ? BURN_DROP : 1) * (s.bst ? BOOSTER_DROP : 1)) {
     s.mats = (s.mats ?? 0) + 1;
     const mt = material(s.ch ?? 1);
     lines.push({ icon: mt.icon, text: `강화 재료 ${mt.name}${obj(mt.name)} 주웠어요!`, tone: 'good' });

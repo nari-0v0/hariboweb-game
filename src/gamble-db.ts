@@ -1,5 +1,6 @@
+import { withBoosterMark } from './booster';
 import { characterUrl } from './character';
-import { cardScore, coinPayout, DAILY_CHIPS, flipCoin, isCoinSide, natural, type CoinSide, openingPayout, playHand, slotPayout, spinSlots, spinWheel, startHand, WHEEL, type CardMove, type Hand } from './gamble';
+import { BOOSTER_DAILY_CHIPS, cardScore, coinPayout, DAILY_CHIPS, flipCoin, isCoinSide, natural, type CoinSide, openingPayout, playHand, slotPayout, spinSlots, spinWheel, startHand, WHEEL, type CardMove, type Hand } from './gamble';
 import { GAMBLE_TITLES, GAMBLE_WINNER_ID, stripTitle, titleById, titleItemId } from './titles';
 
 export type Game = 'slot' | 'roulette' | 'cards' | 'coinflip';
@@ -28,16 +29,20 @@ function awardMilestones(db: D1Database, user: string, now: string) {
     .bind(now, JSON.stringify(rules), user);
 }
 
-export async function claimDaily(db: D1Database, user: string, now: string): Promise<boolean> {
+// 받은 하루 젤칩 수(이미 받았으면 0)
+export async function claimDaily(db: D1Database, user: string, now: string): Promise<number> {
   const day = gambleDay(now);
   const [grant] = await db.batch([
+    // 서버 부스터는 하루 젤칩을 조금 더 받아요(나리 2026-11-21, BOOSTER_DAILY_CHIPS)
     db.prepare(`INSERT INTO gamble_accounts (user_id, chips, free_day)
-      SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ? AND active = 1)
+      SELECT ?1, CASE WHEN m.booster = 1 THEN ?4 ELSE ?2 END, ?3 FROM members m WHERE m.user_id = ?1 AND m.active = 1
       ON CONFLICT(user_id) DO UPDATE SET chips = chips + excluded.chips, free_day = excluded.free_day
-      WHERE free_day IS NULL OR free_day < excluded.free_day`).bind(user, DAILY_CHIPS, day, user),
+      WHERE free_day IS NULL OR free_day < excluded.free_day`).bind(user, DAILY_CHIPS, day, BOOSTER_DAILY_CHIPS),
     awardMilestones(db, user, now),
   ]);
-  return grant!.meta.changes === 1;
+  if (grant!.meta.changes !== 1) return 0;
+  const m = await db.prepare('SELECT booster FROM members WHERE user_id = ?').bind(user).first<{ booster: number }>();
+  return Number(m?.booster) === 1 ? BOOSTER_DAILY_CHIPS : DAILY_CHIPS;
 }
 
 export async function rescueChips(db: D1Database, user: string, now: string): Promise<boolean> {
@@ -150,12 +155,12 @@ export function publicHand(round: Round) {
   return { player, dealer: round.multiplier === null ? dealer.slice(0, 1) : dealer, score: cardScore(player) };
 }
 
-type RankRow = { user_id: string; name: string; value: number; title_id: string | null; character_id: string | null; deco_id: string | null };
+type RankRow = { user_id: string; name: string; booster: number; value: number; title_id: string | null; character_id: string | null; deco_id: string | null };
 const RANK_FIELDS = ['chips', 'best_win', 'all_in_wins'] as const;
 
 export async function gambleMyRanks(db: D1Database, user: string) {
   const result = await db.batch(RANK_FIELDS.map((field) => db.prepare(
-    `SELECT m.display_name AS name, a.${field} AS value, p.character_id, p.deco_id,
+    `SELECT m.display_name AS name, m.booster, a.${field} AS value, p.character_id, p.deco_id,
        1 + (SELECT COUNT(*) FROM gamble_accounts other JOIN members active ON active.user_id = other.user_id AND active.active = 1
             WHERE other.${field} > a.${field}) AS rank
      FROM gamble_accounts a JOIN members m ON m.user_id = a.user_id AND m.active = 1
@@ -163,17 +168,17 @@ export async function gambleMyRanks(db: D1Database, user: string) {
      WHERE a.user_id = ? AND a.${field} > 0`).bind(user)));
   return result.map(({ results }) => {
     const row = results[0] as (RankRow & { rank: number }) | undefined;
-    return row ? { rank: row.rank, name: stripTitle(row.name), value: row.value, char: characterUrl(row.character_id, user, row.deco_id) } : null;
+    return row ? { rank: row.rank, name: withBoosterMark(stripTitle(row.name), row.booster), value: row.value, char: characterUrl(row.character_id, user, row.deco_id) } : null;
   });
 }
 
 export async function gambleRanks(db: D1Database, now: string) {
   const ranks = await db.batch([
-    ...RANK_FIELDS.map((field) => db.prepare(`SELECT a.user_id, m.display_name AS name, a.${field} AS value, p.title_id, p.character_id, p.deco_id
+    ...RANK_FIELDS.map((field) => db.prepare(`SELECT a.user_id, m.display_name AS name, m.booster, a.${field} AS value, p.title_id, p.character_id, p.deco_id
       FROM gamble_accounts a JOIN members m ON m.user_id = a.user_id AND m.active = 1
       LEFT JOIN profiles p ON p.user_id = a.user_id
       WHERE a.${field} > 0 ORDER BY a.${field} DESC, a.user_id LIMIT 10`)),
-    db.prepare(`SELECT r.user_id, m.display_name AS name, SUM((r.bet * CAST(ROUND(r.multiplier * 100) AS INTEGER) / 100) - r.bet) AS value, p.title_id, p.character_id, p.deco_id
+    db.prepare(`SELECT r.user_id, m.display_name AS name, m.booster, SUM((r.bet * CAST(ROUND(r.multiplier * 100) AS INTEGER) / 100) - r.bet) AS value, p.title_id, p.character_id, p.deco_id
       FROM gamble_rounds r JOIN members m ON m.user_id = r.user_id AND m.active = 1
       LEFT JOIN profiles p ON p.user_id = r.user_id
       JOIN seasons s ON s.id = (SELECT id FROM seasons WHERE starts_at <= ? AND ends_at > ? ORDER BY id DESC LIMIT 1)
@@ -181,9 +186,9 @@ export async function gambleRanks(db: D1Database, now: string) {
       GROUP BY r.user_id ORDER BY value DESC, r.user_id LIMIT 1`).bind(now, now),
   ]);
   // 디스코드는 방장 닉네임을 못 바꾸니, 고른 칭호는 닉네임 대신 여기서 「칭호」로 붙여 보여 줘요.
-  return ranks.map(({ results }) => (results as RankRow[]).map(({ user_id, name, value, title_id, character_id, deco_id }) => {
+  return ranks.map(({ results }) => (results as RankRow[]).map(({ user_id, name, booster, value, title_id, character_id, deco_id }) => {
     const title = titleById(title_id);
-    return { value, name: (title ? `「${title.name}」 ` : '') + stripTitle(name), char: characterUrl(character_id, user_id, deco_id) };
+    return { value, name: (title ? `「${title.name}」 ` : '') + withBoosterMark(stripTitle(name), booster), char: characterUrl(character_id, user_id, deco_id) };
   }));
 }
 

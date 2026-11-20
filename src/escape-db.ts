@@ -1,6 +1,6 @@
 import { dogamProgress, escapeNeed, meets } from './unlock';
 import { DAILY_OPEN, dailyPick, dailyVariant, kstDay, prevDay, shownStreak } from './escape-daily';
-import { ESC_XP, escVariantOf, escapeUnlockIndex, actEscape, decodeEscape, escCase, escGrade, escJelly, startEscape, type EscAction, type EscCase, type EscGrade, type EscState } from './escape';
+import { BOOSTER_DAILY_COINS, ESC_XP, escVariantOf, escapeUnlockIndex, actEscape, decodeEscape, escCase, escGrade, escJelly, startEscape, type EscAction, type EscCase, type EscGrade, type EscState } from './escape';
 
 export type EscRow = { id: string; user_id: string; case_id: string; state: string; rev: number; status: string; grade: string | null; xp: number; jelly: number; started_at?: string; ended_at?: string | null };
 export type EscRun = { row: EscRow; def: EscCase; state: EscState };
@@ -62,6 +62,23 @@ export async function beginEscape(
   return null;
 }
 
+// 서버 부스터(나리 2026-11-21): 보통 판은 등급 기준이 1번 넉넉하고(bst), 그날(한국 날짜) 처음 시작한 사건은
+// 힌트 동전 1개를 들고 시작해요. 재수사·오늘의 사건은 등급이 없어서 그대로예요.
+async function withBooster(db: D1Database, user: string, s: EscState, now: Date): Promise<EscState> {
+  if (s.re) return s;
+  const dayStart = new Date(Date.parse(`${kstDay(now)}T00:00:00+09:00`)).toISOString();
+  const row = await db
+    .prepare(
+      `SELECT booster, EXISTS (SELECT 1 FROM escape_runs WHERE user_id = ?1 AND started_at >= ?2) AS played
+       FROM members WHERE user_id = ?1 AND active = 1`,
+    )
+    .bind(user, dayStart)
+    .first<{ booster: number; played: number }>();
+  if (Number(row?.booster) !== 1) return s;
+  if (Number(row?.played)) return { ...s, bst: 1 };
+  return { ...s, bst: 1, gift: BOOSTER_DAILY_COINS, msg: `💎 부스터 선물: 오늘 첫 사건이라 힌트 동전 ${BOOSTER_DAILY_COINS}개를 들고 시작해요. ${s.msg}` };
+}
+
 const TRIED = 'SELECT COUNT(*) FROM escape_runs WHERE user_id = ?2 AND case_id = ?7';
 async function beginOnce(
   db: D1Database, user: string, caseId: string, now: Date, replace?: { id: string; rev: number }, re = false,
@@ -76,7 +93,7 @@ async function beginOnce(
   const def = escCase(caseId, tried)!;
   const id = crypto.randomUUID();
   const t = now.toISOString();
-  const state = JSON.stringify(startEscape(def, re));
+  const state = JSON.stringify(await withBooster(db, user, startEscape(def, re), now));
   if (replace) {
     const [quit] = await db.batch([
       db.prepare(`UPDATE escape_runs SET status = 'quit', updated_at = ?3, ended_at = ?3, mutation = ?5
