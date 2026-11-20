@@ -81,6 +81,7 @@ def feet_offset(path: Path) -> float:
 MANUAL: dict[str, float] = {
     "deco/star-mage.png": 1.0,  # 나리 2026-11-21: 3.3은 너무 왼쪽, -1.5는 너무 오른쪽
     "deco/angel.png": 0.0,  # 나리 2026-11-21: 조금 더 오른쪽으로
+    "deco/reaper.png": -2.5,  # 나리 2026-11-21: 살짝 왼쪽으로(-4.3에서)
 }
 
 
