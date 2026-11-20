@@ -1,4 +1,5 @@
 import { awardEndedGambleSeasons } from './gamble-db';
+import { boosterStatements } from './booster';
 import { stripTitle } from './titles';
 import { MAX_LEVEL, xpForLevel } from './levels';
 import { ensureSeasonQuests, settleEnded } from './team';
@@ -16,7 +17,7 @@ const MAX_JELLY_EARNED = 100; // 한 묶음에서 한 사람이 받는 도감 �
 
 export type SyncPayload = {
   batch_id: string;
-  members: { id: string; name: string; avatar_url: string | null; joined_at: string | null; is_newbie: boolean; green?: boolean; games?: string[] }[];
+  members: { id: string; name: string; avatar_url: string | null; joined_at: string | null; is_newbie: boolean; green?: boolean; booster?: boolean; booster_since?: string | null; games?: string[] }[];
   removed: string[];
   pair_xp: { a: string; b: string; xp: number; voice_seconds: number; scrims: number; at: string }[];
   solo_xp: { id: string; xp: number }[];
@@ -82,7 +83,15 @@ export function parseSync(raw: unknown): Result {
     // green: 초록하리보 역할이 있는지. 빼면(예전 봇) 웹에 있던 값을 그대로 둬요.
     if (m.green !== undefined && typeof m.green !== 'boolean') return { ok: false, error: `members.green이 잘못됐어요 (${m.id})` };
     const green = typeof m.green === 'boolean' ? { green: m.green } : {};
-    members.push({ id: m.id, name: stripTitle(m.name) || m.name, avatar_url: avatar, joined_at: joined, is_newbie: m.is_newbie === true, ...green, ...(games ? { games } : {}) });
+    // booster: 디스코드 서버 부스트 중인지(나리 2026-11-21). 빼면(예전 봇) 웹에 있던 값을 그대로 둬요.
+    if (m.booster !== undefined && typeof m.booster !== 'boolean') return { ok: false, error: `members.booster가 잘못됐어요 (${m.id})` };
+    // booster_since: 부스트를 시작한 시각(디스코드 premium_since). 매달 그날 감사 젤리를 줘요. 없으면 달이 바뀔 때 줘요.
+    if (m.booster_since !== undefined && m.booster_since !== null && !isTime(m.booster_since))
+      return { ok: false, error: `members.booster_since가 잘못됐어요 (${m.id})` };
+    const booster = typeof m.booster === 'boolean'
+      ? { booster: m.booster, booster_since: m.booster && isTime(m.booster_since) ? new Date(m.booster_since).toISOString() : null }
+      : {};
+    members.push({ id: m.id, name: stripTitle(m.name) || m.name, avatar_url: avatar, joined_at: joined, is_newbie: m.is_newbie === true, ...green, ...booster, ...(games ? { games } : {}) });
   }
 
   const removed: string[] = [];
@@ -273,10 +282,11 @@ export async function applySync(
   p = withoutTestMembers(reset.payload);
 
   const upsertMember = db.prepare(
-    `INSERT INTO members (user_id, display_name, avatar_url, joined_at, is_newbie, active, updated_at, games, green, reset_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, COALESCE(?7, '[]'), ?8, ?9)
+    `INSERT INTO members (user_id, display_name, avatar_url, joined_at, is_newbie, active, updated_at, games, green, reset_at, booster)
+     VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, COALESCE(?7, '[]'), ?8, ?9, COALESCE(?10, 0))
      ON CONFLICT (user_id) DO UPDATE SET display_name = ?2, avatar_url = ?3,
        joined_at = COALESCE(?4, joined_at), is_newbie = ?5, active = 1, updated_at = ?6, games = COALESCE(?7, games), green = COALESCE(?8, green),
+       booster = COALESCE(?10, booster),
        reset_at = CASE WHEN ?9 IS NULL THEN members.reset_at ELSE MAX(COALESCE(members.reset_at, ''), ?9) END`,
   );
   // 다시 들어온 사람과의 카드는 양쪽 모두 처음부터예요(나리 2026-11-19 "0쪽으로 맞춰줘").
@@ -284,7 +294,8 @@ export async function applySync(
   // 멤버를 다시 활성으로 적는 것과 항상 같은 트랜잭션에 넣어요(활성만 먼저 저장되면 다음 묶음에서 재가입으로 안 보여서 영영 안 지워져요).
   const rejoinStmts = [...reset.rejoined.keys()].map((id) => db.prepare('DELETE FROM cards WHERE target_id = ?').bind(id));
   const memberStmts = p.members.map((m) =>
-    upsertMember.bind(m.id, m.name, m.avatar_url, m.joined_at, m.is_newbie ? 1 : 0, t, m.games ? JSON.stringify(m.games) : null, m.green === undefined ? null : m.green ? 1 : 0, reset.rejoined.get(m.id) ?? null),
+    upsertMember.bind(m.id, m.name, m.avatar_url, m.joined_at, m.is_newbie ? 1 : 0, t, m.games ? JSON.stringify(m.games) : null, m.green === undefined ? null : m.green ? 1 : 0, reset.rejoined.get(m.id) ?? null,
+      m.booster === undefined ? null : m.booster ? 1 : 0),
   );
 
   // 시즌 모둠: 서버 멤버 전부가 담긴 묶음이면 멤버(게임 역할)를 먼저 적고, 처음 보는 시즌이면 모둠을 만들어요.
@@ -305,6 +316,8 @@ export async function applySync(
     // 이번 묶음의 함께한 경험치는 아래에서 새 카드로 쌓여요(지우기가 먼저).
     ...rejoinStmts,
     ...memberStmts,
+    // 서버 부스터: 달마다 감사 젤리, 부스트를 끊으면 「부스터」 칭호 떼기(src/booster.ts)
+    ...boosterStatements(db, p.members.flatMap((m) => (m.booster === undefined ? [] : [{ id: m.id, booster: m.booster, since: m.booster_since }])), nowMs),
   ];
   // 시즌 모둠 기록(통화방 1분, 내전, 출석)도 같은 트랜잭션에. 묶음이 한 번만 반영되니까 두 번 세지 않아요.
   // 경험치를 올리기 전에 넣어요: 시즌 중에 새로 들어온 사람의 시작 기준(스냅샷)에 이번 묶음 경험치가 섞이지 않게.

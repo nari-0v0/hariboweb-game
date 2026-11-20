@@ -20,7 +20,7 @@ vi.mock('../src/gamble-db', async (original) => ({
   activeHand: vi.fn(),
   betChips: vi.fn(),
   betTooSoon: async () => false,
-  claimDaily: async () => true,
+  claimDaily: async () => 1000,
   expireAllHands: async () => {},
   expireHand: vi.fn(async () => null as string | null),
   gambleAccount: async () => ({ chips: 15 }),

@@ -1,3 +1,4 @@
+import { boosterNameSql } from './booster';
 import { characterUrl } from './character';
 import { expireAllHands, gambleMyRanks, gambleRanks } from './gamble-db';
 import { xpForLevel } from './levels';
@@ -85,7 +86,8 @@ export function levelPodium(list: Raw[], userId: string, size = PODIUM_SIZE): Po
   return { top: ranked.slice(0, size).map(strip), me: mine ? strip(mine) : null };
 }
 
-const WHO = `m.display_name AS name, p.character_id, p.deco_id`;
+// 서버 부스터는 이름 옆에 💎(src/booster.ts)
+const WHO = `${boosterNameSql('m')} AS name, p.character_id, p.deco_id`;
 
 export type Rankings = {
   dogam: Podium; // 모은 도감 카드 수(지금 있는 멤버 카드만)

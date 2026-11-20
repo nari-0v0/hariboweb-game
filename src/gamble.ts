@@ -7,6 +7,7 @@ export const gambleTester = (testers: string | undefined, userId: string) =>
   (testers ?? '').split(',').map((s) => s.trim()).filter(Boolean).includes(userId);
 
 export const DAILY_CHIPS = 1000;
+export const BOOSTER_DAILY_CHIPS = 1100; // 디스코드 서버 부스터(나리 2026-11-21)
 // 2026-11-18 나리: 점검 보고서 W34–W38(평균이 100%를 넘어 계속 하면 칩이 불어남)을 고쳐 달라고 함.
 // 배수는 그대로 두고 나올 확률만 바꿔 평균을 100%보다 조금 낮게(약 99.3%) 맞췄어요(예전 약 103.4%).
 export const SLOTS = [

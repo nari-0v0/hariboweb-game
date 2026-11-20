@@ -363,6 +363,8 @@ export type EscState = {
   re?: 1; // 재수사 판(힌트 없음, 답을 RE_LIVES번 틀리면 실패)
   failed?: 1; // 재수사에 실패해서 끝난 판
   daily?: string; // 오늘의 사건 판(한국 날짜). 재수사 규칙(re: 1)과 같이 써요
+  bst?: 1; // 서버 부스터로 시작한 판: 등급 기준이 실수·힌트 1번씩 넉넉해요(나리 2026-11-21)
+  gift?: number; // 부스터 하루 첫 사건 선물 힌트 동전(방에서 찾은 동전과 따로 세요)
 };
 // 재수사(나리 2026-11-19): 해결한 사건을 힌트 없이 다시. 답을 3번 틀리면 실패예요.
 // 실수로 세는 건 답을 낸 경우뿐이에요(비밀번호·암호, 장치 '확인', 범인 고르기). 합치기·물건 대 보기는 세지 않아요.
@@ -406,8 +408,13 @@ function textUnitOk(lk: Extract<Lock, { kind: 'code' }>, v: string): boolean {
 export const isLocked = (s: EscState, o: EscObject) => !!o.lock && !s.opened.includes(o.id);
 // 등급: 실수+동전 없이 본 힌트 0~1번 S, 2~3번 A, 4~6번 B, 그 넘으면 C(나리 2026-11-19: 규칙은 그대로, 화면에 기준만 보여 줘요).
 export const GRADE_RULE = 'S 실수·힌트 합쳐 1번까지 · A 2~3번 · B 4~6번 · C 7번 이상';
+// 서버 부스터(나리 2026-11-21): 실수·힌트를 1번 더 봐줘요
+export const GRADE_RULE_BOOSTER = 'S 실수·힌트 합쳐 2번까지 · A 3~4번 · B 5~7번 · C 8번 이상 (💎 부스터)';
+export const BOOSTER_GRADE_SPARE = 1;
+export const BOOSTER_DAILY_COINS = 1;
+export const gradeRule = (s: Pick<EscState, 'bst'>) => (s.bst ? GRADE_RULE_BOOSTER : GRADE_RULE);
 export const escGrade = (s: EscState): EscGrade => {
-  const p = s.mistakes + s.hints;
+  const p = s.mistakes + s.hints - (s.bst ? BOOSTER_GRADE_SPARE : 0);
   return p <= 1 ? 'S' : p <= 3 ? 'A' : p <= 6 ? 'B' : 'C';
 };
 export const canAnswer = (c: EscCase, s: EscState) => c.question.needs.every((n) => s.clues.includes(n));
@@ -471,7 +478,7 @@ export function coinSpots(c: EscCase, scene: string): { k: number; x: number; y:
   }
   return out;
 }
-export const coinsLeft = (s: EscState) => (s.coins?.length ?? 0) - (s.spent ?? 0);
+export const coinsLeft = (s: EscState) => (s.coins?.length ?? 0) + (s.gift ?? 0) - (s.spent ?? 0);
 // 수수께끼 번호: 비밀번호로 여는 곳마다 사건 안에서 1번부터
 export const puzzleNo = (c: EscCase, id: string) => c.objects.filter((o) => o.lock?.kind === 'code').findIndex((o) => o.id === id) + 1;
 
@@ -686,6 +693,7 @@ export function decodeEscape(c: EscCase, json: string): EscState | null {
     if ((s.seenHints !== undefined && !(Array.isArray(s.seenHints) && s.seenHints.every((k) => Number.isSafeInteger(k) && k >= 0 && k < c.hints.length)))) return null;
     if (s.bigHints !== undefined && !strs(s.bigHints)) return null;
     if ((s.coins !== undefined && !strs(s.coins)) || (s.spent !== undefined && !(Number.isSafeInteger(s.spent) && s.spent >= 0))) return null;
+    if ((s.gift !== undefined && !(Number.isSafeInteger(s.gift) && s.gift >= 0 && s.gift <= BOOSTER_DAILY_COINS)) || (s.bst !== undefined && s.bst !== 1)) return null;
     return s;
   } catch {
     return null;

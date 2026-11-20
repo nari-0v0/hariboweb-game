@@ -1,5 +1,6 @@
 import { byCode, comma } from '../num';
 import { titleName } from '../titles';
+import { withBoosterMark } from '../booster';
 import { nextCardReward } from '../card-rewards';
 import type { Member } from '../env';
 import type { DogamEntry, Profile } from '../db';
@@ -433,7 +434,7 @@ export function DogamPage(props: {
                   no={dexNo.get(e.user_id)}
                   kind={e.owned ? 'pair' : 'unknown'}
                   faded={!e.active}
-                  name={e.display_name}
+                  name={e.active ? withBoosterMark(e.display_name, e.booster) : e.display_name}
                   title={e.active ? titleName(e.title_id) : null}
                   theme={e.theme_id}
                   intro={e.intro}
