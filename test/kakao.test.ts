@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { KAKAO_SCRIPT, kakaoExternalUrl } from '../src/kakao';
 
 // 아주 작은 가짜 화면으로 스크립트를 돌려 봐요.
-function run(ua: string, opts: { stored?: string | null; storageThrows?: boolean } = {}) {
+function run(ua: string, opts: { stored?: string | null; storageThrows?: boolean; replaceUrl?: string; loading?: boolean } = {}) {
   const store = new Map<string, string>();
   if (opts.stored) store.set('kk-ext', opts.stored);
   const made: any[] = [];
@@ -20,10 +20,17 @@ function run(ua: string, opts: { stored?: string | null; storageThrows?: boolean
   const sessionStorage = opts.storageThrows
     ? { getItem: () => { throw new Error('no'); }, setItem: () => { throw new Error('no'); } }
     : { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v) };
-  const document = { body, createElement: el };
+  const listeners: Record<string, () => void> = {};
+  const replaceEl = opts.replaceUrl ? { getAttribute: () => opts.replaceUrl } : null;
+  const document: any = {
+    body, createElement: el, readyState: opts.loading ? 'loading' : 'complete',
+    querySelector: (q: string) => (q === '[data-replace-url]' ? replaceEl : null),
+    addEventListener: (k: string, f: () => void) => (listeners[k] = f),
+    execCommand: () => false,
+  };
   new Function('navigator', 'location', 'document', 'sessionStorage', KAKAO_SCRIPT)({ userAgent: ua }, location, document, sessionStorage);
   const bar = body.children[0];
-  return { location, bar, store, made };
+  return { location, bar, store, made, listeners, document };
 }
 
 const KAKAO_ANDROID = 'Mozilla/5.0 (Linux; Android 14; SM-S918N) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36 KAKAOTALK/25.9.1';
@@ -63,6 +70,27 @@ describe('카카오톡 속 브라우저 안내', () => {
     const r = run(KAKAO_ANDROID, { storageThrows: true });
     expect(r.location.href).toBe('https://example.test/me?x=1#top');
     expect(r.bar.className).toBe('kk-bar');
+  });
+
+  it('화면을 다 읽은 뒤에 자동으로 열어요', () => {
+    const r = run(KAKAO_ANDROID, { loading: true });
+    expect(r.location.href).toBe('https://example.test/me?x=1#top');
+    r.listeners.DOMContentLoaded!();
+    expect(r.location.href).toBe(target);
+  });
+
+  it('POST 뒤 화면 주소가 바뀌면(사건파일) 바뀐 주소로 열어요', () => {
+    const r = run(KAKAO_ANDROID, { stored: '1', replaceUrl: '/cases/room#now' });
+    const link = r.made.find((n) => n.className === 'kk-open');
+    expect(link.href).toBe(kakaoExternalUrl('https://example.test/cases/room'));
+  });
+
+  it('복사가 안 되면 복사했다고 하지 않고 주소를 보여 줘요', () => {
+    const r = run(KAKAO_ANDROID, { stored: '1' });
+    const btn = r.made.find((n) => n.className === 'kk-copy');
+    // 클립보드가 없는 카톡 웹뷰 흉내: 스크립트 안의 navigator는 run에서 넘긴 것(clipboard 없음)
+    btn.onclick();
+    expect(btn.textContent).toBe('주소: https://example.test/me?x=1');
   });
 
   it('스크립트 안에 </script>가 없어요', () => {
