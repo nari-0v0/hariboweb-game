@@ -446,7 +446,22 @@ function MatHud(props: { s: JourneyState; bag: number; reveal: boolean }) {
   const { s } = props;
   const mt = material(s.ch ?? 1);
   const got = s.mats ?? 0;
-  const text = (n: number) => `${mt.icon} 재료 ${props.bag + n}${n > 0 ? ` (+${n})` : ''}`;
+  // 재료 칸: 🍃 재료 [보유 N] + [얻음 k]. 작은 글자는 숫자 위에 얹어서 칸 높이는 날짜 칸과 같아요(나리 2026-11-21)
+  const text = (n: number) => (
+    <>
+      {mt.icon}
+      <small class="jr-lab">재료</small>
+      <span class="jr-stk">
+        <small>보유</small>
+        {props.bag}
+      </span>
+      <span class="jr-plus">+</span>
+      <span class="jr-stk">
+        <small>얻음</small>
+        {n}
+      </span>
+    </>
+  );
   const dropped = props.reveal ? s.today.filter((l) => l.text.startsWith('강화 재료 ')).length : 0;
   const title = `${mt.name}: 가방 ${props.bag}개 + 이번 판 ${got}개`;
   return dropped > 0 ? (
@@ -456,7 +471,7 @@ function MatHud(props: { s: JourneyState; bag: number; reveal: boolean }) {
     </span>
   ) : (
     <span class="jr-coins jr-mat-hud" title={title}>
-      {text(got)}
+      <span>{text(got)}</span>
     </span>
   );
 }
@@ -484,11 +499,19 @@ function Play(props: { run: JourneyRun; art: string; name: string; preview?: boo
             {/* 싸우는 동안은 싸우기 전 젤코인을 보여 주고, 모션이 끝나면(--reveal) 지금 값으로 바꿔요 */}
             {reveal && s.fx?.c0 !== undefined && s.fx.c0 !== s.coins ? (
               <span class="jr-coins jr-coins-swap">
-                <span class="jr-c0">🪙 {s.fx.c0}</span>
-                <span class="jr-c1">🪙 {s.coins}</span>
+                <span class="jr-c0">
+                  🪙<small class="jr-lab">얻음</small> {s.fx.c0}
+                </span>
+                <span class="jr-c1">
+                  🪙<small class="jr-lab">얻음</small> {s.coins}
+                </span>
               </span>
             ) : (
-              <span class="jr-coins">🪙 {s.coins}</span>
+              <span class="jr-coins">
+                <span>
+                  🪙<small class="jr-lab">얻음</small> {s.coins}
+                </span>
+              </span>
             )}
             {/* 이 장 강화 재료: 가방에 있는 개수 + 이번 판에 주운 개수(슬금님 제안, 나리 2026-11-21). 싸우는 동안은 싸우기 전 값 */}
             {props.bag !== undefined && <MatHud s={s} bag={props.bag} reveal={!!reveal} />}
@@ -502,8 +525,8 @@ function Play(props: { run: JourneyRun; art: string; name: string; preview?: boo
             </div>
             <div class="jr-stats">
               {/* 휴대폰에서는 마우스를 올릴 수 없어서 짧은 글자를 붙였어요(나리 2026-11-21) */}
-              <span title="공격력">⚔️<small class="jr-lab">공격</small> {st.atk}</span>
-              <span title="방어력">🛡️<small class="jr-lab">방어</small> {st.def}</span>
+              <span title="공격력">⚔️<small class="jr-lab">공격력</small> {st.atk}</span>
+              <span title="방어력">🛡️<small class="jr-lab">방어력</small> {st.def}</span>
               <span title="물리친 적">💥<small class="jr-lab">처치</small> {s.kills}</span>
               <span title="몬스터 레벨">👾<small class="jr-lab">적</small> Lv.{((s.ch ?? 1) - 1) * DAYS + Math.max(1, s.day)}</span>
             </div>
@@ -534,7 +557,7 @@ function Play(props: { run: JourneyRun; art: string; name: string; preview?: boo
           <label class="jr-auto" hidden data-auto-toggle={preview ? undefined : ''}>
             <input type="checkbox" />
             <span>
-              <b>🤖 자동</b> 켜 두면 스킬·갈림길·상점까지 알아서 골라요. 이번 원정이 끝나면 꺼져요
+              <b>🤖 자동</b> 켜 두면 스킬·갈림길·상점까지 알아서 골라요. 끌 때까지 계속 켜져 있고, 한 판이 끝나면 5초 뒤 같은 장으로 다시 떠나요
             </span>
           </label>
         </div>

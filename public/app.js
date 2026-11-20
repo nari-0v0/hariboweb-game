@@ -128,8 +128,33 @@ addEventListener('pageshow', (e) => {
   const set = (on) => { mem = !!on; try { on ? localStorage.setItem(KEY, '1') : localStorage.removeItem(KEY); } catch {} };
   let timer = 0;
   let busy = false;
-  // 원정 한 판이 끝나면(결과 화면이나 그만두기) 자동은 꺼져요. 다음 판은 직접 켜야 해요(슬금님 제안, 2026-11-18).
-  if (document.querySelector('.jr-result') || new URLSearchParams(location.search).get('n') === 'quit') set(false);
+  // 자동은 끌 때까지 계속 켜져 있어요(나리 2026-11-21, 처음처럼). 그만두기를 누르면 꺼져요.
+  // 판이 끝나면 결과를 보여 주고 5초 기다린 뒤(남은 초를 보여 줘요) 같은 장으로 다시 떠나요. 준비물은 사지 않아요.
+  if (new URLSearchParams(location.search).get('n') === 'quit') set(false);
+  const again = document.querySelector('.jr-result form.jr-chapters');
+  if (again && get()) {
+    const finalWait = Number(document.querySelector('[data-final-wait]')?.getAttribute('data-final-wait')) || 0;
+    const box = document.createElement('div');
+    box.className = 'jr-autonext';
+    box.setAttribute('role', 'status');
+    box.innerHTML = '<span class="jr-autonext-spin" aria-hidden="true"></span><b>🤖 자동: <span data-left>5</span>초 뒤 같은 장으로 다시 떠나요</b><button type="button" class="btn btn-ghost">자동 끄기</button>';
+    let left = 5;
+    let t = 0;
+    const stop = () => { clearInterval(t); box.remove(); };
+    box.querySelector('button').addEventListener('click', () => { set(false); stop(); });
+    setTimeout(() => {
+      if (!get()) return;
+      document.body.append(box);
+      t = setInterval(() => {
+        left -= 1;
+        box.querySelector('[data-left]').textContent = String(Math.max(0, left));
+        if (left > 0 || !get()) return;
+        stop();
+        again.querySelectorAll('input[name="kit"]').forEach((k) => { k.checked = false; });
+        again.requestSubmit ? again.requestSubmit() : again.submit();
+      }, 1000);
+    }, finalWait);
+  }
   const sync = () => {
     const box = document.querySelector('[data-auto-toggle]');
     if (!box) return;
@@ -160,8 +185,7 @@ addEventListener('pageshow', (e) => {
       const next = doc.getElementById('journey');
       const cur = document.getElementById('journey');
       if (!next || !cur || url.searchParams.has('r')) {
-        if (url.searchParams.has('r')) set(false);
-        location.href = res.url; // 원정이 끝나면 결과 화면으로
+        location.href = res.url; // 원정이 끝나면 결과 화면으로(자동은 켜진 채로, 결과 화면에서 5초 뒤 다시 떠나요)
         return;
       }
       const open = cur.querySelector('details')?.open;

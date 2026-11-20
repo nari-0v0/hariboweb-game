@@ -42,15 +42,15 @@ describe('원정대 싸움 중 젤코인 (슬금님 제보 2026-11-20)', () => {
     const { after } = wonFight();
     const html = await render(after);
     expect(html).toContain('jr-coins-swap');
-    expect(html).toContain(`<span class="jr-c0">🪙 ${after.fx!.c0}</span>`);
-    expect(html).toContain(`<span class="jr-c1">🪙 ${after.coins}</span>`);
+    expect(html).toContain(`<span class="jr-c0">🪙<small class="jr-lab">얻음</small> ${after.fx!.c0}</span>`);
+    expect(html).toContain(`<span class="jr-c1">🪙<small class="jr-lab">얻음</small> ${after.coins}</span>`);
   });
 
   it('싸움이 없는 날은 젤코인을 하나만 보여 줘요', async () => {
     const { after } = wonFight();
     const html = await render({ ...after, fx: undefined });
     expect(html).not.toContain('jr-coins-swap');
-    expect(html).toContain(`<span class="jr-coins">🪙 ${after.coins}</span>`);
+    expect(html).toContain(`<span class="jr-coins"><span>🪙<small class="jr-lab">얻음</small> ${after.coins}</span></span>`);
   });
 
   it('움직임 줄이기 설정에서는 처음부터 지금 값만 보여요', () => {
