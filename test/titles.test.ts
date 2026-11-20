@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { TITLES, TITLE_GROUPS, TITLE_MAX, stripTitle, titleById, titleProgress, type TitleStats } from '../src/titles';
+import { TITLES, TITLE_GROUPS, TITLE_MAX, visibleTitles, stripTitle, titleById, titleProgress, type TitleStats } from '../src/titles';
 import { buyTitle, equipTitle, listTitleJobs, loadTitleStats, ownedTitles, recordEarnedTitles, settleTitle, titleState } from '../src/title-db';
 import { xpForLevel } from '../src/levels';
 
@@ -67,6 +67,16 @@ describe('도감 칭호', () => {
     expect(titleById('shop-1')?.name).toBe('MOOD');
     expect(byName('레디언트').id).toBe(`shop-${TITLES.filter((t) => t.rule.kind === 'shop').length - 2}`);
     expect(TITLE_GROUPS.filter((g) => g === '유행어')).toHaveLength(1);
+  });
+
+  it('자음만 있는 상점 칭호(ㄱㄱ·ㅇㅈ·ㄹㅇ)는 더 팔지 않고, id는 그대로예요', async () => {
+    const jamo = TITLES.filter((t) => t.rule.kind === 'shop' && /^[\u3131-\u314E]+$/.test(t.name));
+    expect(jamo.map((t) => [t.id, t.name])).toEqual([['shop-156', 'ㄱㄱ'], ['shop-157', 'ㅇㅈ'], ['shop-161', 'ㄹㅇ']]);
+    expect(jamo.every((t) => t.retired)).toBe(true);
+    expect(visibleTitles(new Set()).some((t) => jamo.includes(t))).toBe(false);
+    expect(visibleTitles(new Set(['shop-156'])).some((t) => t.id === 'shop-156')).toBe(true);
+    const f = setup(100);
+    expect(await buyTitle(f.db, A, jamo[0]!)).toBe('not_for_sale');
   });
 
   it('닉네임에서 칭호와 왕관 떼기', () => {
