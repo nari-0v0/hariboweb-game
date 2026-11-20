@@ -504,24 +504,18 @@ function resolveEvent(s: JourneyState, id: EventId, n: number, lines: Line[]) {
   finish(s, lines);
 }
 
-// 자동 선택: 무난하고 안전한 쪽을 골라요. 사람이 고르면 더 잘할 수 있어요.
-const SKILL_ORDER: SkillId[] = ['power', 'crit', 'leech', 'vital', 'guard', 'spark', 'shield', 'mend', 'thorn', 'lucky'];
-const HURT_ORDER: SkillId[] = ['leech', 'vital', 'mend', 'guard', 'shield', 'power', 'crit', 'spark', 'thorn', 'lucky'];
+// 자동 선택: 스킬은 무작위, 동전 던지기는 반반, 나머지는 무난하고 안전한 쪽을 골라요. 사람이 고르면 더 잘할 수 있어요.
 export function autoChoice(s: JourneyState): JourneyAction | null {
   const p = s.pending;
   if (!p) return null;
   const low = s.hp < stat(s).maxHp * 0.5;
-  if (p.kind === 'skill') {
-    const order = low ? HURT_ORDER : SKILL_ORDER;
-    let best = 0;
-    p.options.forEach((id, n) => {
-      if (order.indexOf(id) < order.indexOf(p.options[best]!)) best = n;
-    });
-    return { a: 'pick', n: best };
-  }
+  // 스킬은 무작위로 골라요(나리 2026-11-21). 같은 판·같은 날이면 늘 같은 걸 골라요(다시 눌러도 바뀌지 않게).
+  if (p.kind === 'skill') return { a: 'pick', n: Math.floor(rng(`${s.seed}:${s.day}:${s.journal.length}:autoskill`)() * p.options.length) };
   if (p.kind === 'event') {
     const hp = s.hp / stat(s).maxHp;
-    const yes = p.id === 'spring' ? hp > 0.4 : p.id === 'coin' ? false : p.id === 'bear' ? s.coins >= 10 : hp > 0.6;
+    // 동전 던지기는 반반 확률로 던지거나 사양해요(나리 2026-11-21, 예전에는 늘 사양)
+    const coin = () => rng(`${s.seed}:${s.day}:${s.journal.length}:autocoin`)() < 0.5;
+    const yes = p.id === 'spring' ? hp > 0.4 : p.id === 'coin' ? coin() : p.id === 'bear' ? s.coins >= 10 : hp > 0.6;
     return { a: 'pick', n: yes ? 0 : 1 };
   }
   const can = (id: Offer['id']) => p.offers.findIndex((o) => o.id === id && o.price <= s.coins);

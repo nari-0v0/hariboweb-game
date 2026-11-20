@@ -2449,8 +2449,3 @@ main.wide { max-width: 1320px; }
 /* 끝없는 탑 자동 도전(나리 2026-11-21) */
 .tw-auto { gap: 4px; }
 .tw-auto-hint { color: #d7e3f0; font-size: 0.85em; overflow-wrap: anywhere; }
-/* 원정대 출발 전 자동 켜기(나리 2026-11-21) */
-.jr-auto-pre { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border: 2px dashed #9bb8d3; background: #f4f9ff; color: #24324a; overflow-wrap: anywhere; }
-.jr-auto-pre[hidden] { display: none; }
-.jr-auto-pre.on { border-style: solid; border-color: #4a8fd1; background: #e3f0fd; }
-.jr-auto-pre input { margin-top: 3px; flex: none; }
