@@ -79,7 +79,7 @@ export function LandingPage(props: { error?: string; notMember?: boolean; devLog
         <div class="step">
           <span class="step-no">1</span>
           <h3>같이 놀기</h3>
-          <p>같은 통화방에 1분 이상 같이 있거나 같은 내전에 나가면 서로의 카드 경험치가 올라요.</p>
+          <p>같은 통화방에서 마이크를 켜고 5분 이상 연달아 같이 있거나 같은 내전에 나가면 서로의 카드 경험치가 올라요.</p>
         </div>
         <div class="step">
           <span class="step-no">2</span>
@@ -392,7 +392,7 @@ export function DogamPage(props: {
             </p>
             {mine && props.claimed && <CardGoal owned={props.owned} claimed={props.claimed} />}
             <p class="hint">
-              🆙 카드 레벨 올리는 법: 같은 통화방에 1분 넘게 함께 있으면 1분마다 두 사람 카드 모두 경험치 +1이에요. 한 사람과 하루 180까지(3시간)이고,
+              🆙 카드 레벨 올리는 법: 같은 통화방에서 둘 다 마이크를 켜고 5분 넘게 연달아 함께 있으면 카드가 모이고, 1분마다 두 사람 카드 모두 경험치 +1이에요(처음 5분도 포함). 한 사람과 하루 180까지(3시간)이고,
               같은 내전에 함께 참가하면 +30이에요.
             </p>
             <p class="hint">캐릭터의 성별은 본인이 고른 것이라 실제 성별과 다를 수 있어요.</p>
