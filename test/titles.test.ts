@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { TITLES, TITLE_MAX, stripTitle, titleById, titleProgress, type TitleStats } from '../src/titles';
+import { TITLES, TITLE_GROUPS, TITLE_MAX, stripTitle, titleById, titleProgress, type TitleStats } from '../src/titles';
 import { buyTitle, equipTitle, listTitleJobs, loadTitleStats, ownedTitles, recordEarnedTitles, settleTitle, titleState } from '../src/title-db';
 import { xpForLevel } from '../src/levels';
 
@@ -60,6 +60,13 @@ describe('도감 칭호', () => {
     expect(new Set(TITLES.map((t) => t.id)).size).toBe(TITLES.length);
     expect(TITLES.every((t) => /^[a-z0-9-]{1,32}$/.test(t.id))).toBe(true);
     expect(TITLES.some((t) => /하리보|곰돌/.test(t.name))).toBe(false);
+  });
+
+  it('늙크크·딸피는 유행어 묶음(30젤리)에 있고, 예전 상점 칭호 id는 그대로예요', () => {
+    for (const name of ['늙크크', '딸피']) expect(byName(name)).toMatchObject({ group: '유행어', rule: { kind: 'shop', price: 30 } });
+    expect(titleById('shop-1')?.name).toBe('MOOD');
+    expect(byName('레디언트').id).toBe(`shop-${TITLES.filter((t) => t.rule.kind === 'shop').length - 2}`);
+    expect(TITLE_GROUPS.filter((g) => g === '유행어')).toHaveLength(1);
   });
 
   it('닉네임에서 칭호와 왕관 떼기', () => {
