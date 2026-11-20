@@ -1311,6 +1311,9 @@ main.wide { max-width: 1320px; }
 .esc-coin { display: block; width: max(22px, 4.4cqw); height: max(22px, 4.4cqw); padding: 0; border: 0; background: radial-gradient(circle, rgba(255, 255, 255, .55) 0 18%, transparent 19%); cursor: pointer; border-radius: 50%; }
 .esc-spot.esc-coin-spot { z-index: 4; }
 .esc-coin:focus-visible { outline: 3px solid var(--pink); }
+/* 반짝이는 곳은 작게 보이되, 손가락으로 누르는 범위는 44px쯤으로 넓혀요 */
+.esc-coin { position: relative; }
+.esc-coin::after { content: ''; position: absolute; inset: -11px; border-radius: 50%; }
 .esc-stamp { position: absolute; left: 50%; top: 42%; z-index: 5; translate: -50% -50%; padding: .4cqw 3cqw; border: 1cqw solid currentColor; font-size: 9cqw; line-height: 1.2; white-space: nowrap; pointer-events: none; rotate: -12deg; background: rgba(255, 250, 242, .85); }
 .esc-stamp.right { color: #e2486e; }
 .esc-stamp.wrong { color: #5b6bd6; }

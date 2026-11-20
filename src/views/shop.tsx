@@ -28,6 +28,7 @@ const NOTICES: Record<string, PopupLine[]> = {
   reset_unchecked: [{ title: '알림', text: '안내를 읽고 "알겠어요"에 체크해 주세요.', bad: true }],
   price_changed: [{ title: '알림', text: '그 사이 값이 바뀌었어요. 새 값을 확인하고 다시 사 주세요.' }],
   nick_pending: [{ title: '변경 신청 완료', text: '하리보봇이 곧 디스코드 닉네임을 바꿔요(5분 안쪽). 칭호와 생년은 그대로예요.' }],
+  nick_have: [{ title: '알림', text: '아직 쓰지 않은 닉네임 변경권이 있어요. 그 변경권을 먼저 써 주세요.' }],
   nick_none: [{ title: '알림', text: '닉네임 변경권이 없거나, 앞서 신청한 변경을 아직 적용하는 중이에요.' }],
   nick_bad: [{ title: '알림', text: '닉네임은 띄어쓰기 없이 16자 안으로 적어 주세요. 「」는 쓸 수 없어요.', bad: true }],
   service_busy: [{ title: '알림', text: '앞서 산 것을 하리보봇이 아직 적용하는 중이에요. 끝나면 다시 살 수 있어요.' }],

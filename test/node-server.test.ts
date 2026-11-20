@@ -55,6 +55,13 @@ it('Node 서버가 문지기 비밀을 확인하고 앱과 봇 동기화를 처�
     headers: { 'X-Origin-Secret': 'origin-test-secret', 'Sec-Fetch-Dest': 'document', Referer: 'https://evil.example/' },
   });
   expect(encoded.status).not.toBe(200);
+  // 다른 폴더를 거쳐 ..%2F로 그림 폴더에 들어가도 공개 파일로 주지 않아요.
+  for (const sneaky of ['/x/..%2Fchar/girl-14-0.png', '/x/..%5Cchar/girl-14-0.png', '/styles.css/..%2F..%2Fchar/girl-14-0.png']) {
+    const res = await fetch(`${url}${sneaky}`, {
+      headers: { 'X-Origin-Secret': 'origin-test-secret', 'Sec-Fetch-Dest': 'document', Referer: 'https://evil.example/' },
+    });
+    expect(res.headers.get('Content-Type') ?? '', sneaky).not.toContain('image');
+  }
 
   // 문지기 뒤에서도 실제 주소(PUBLIC_URL) 기준으로 같은 사이트 요청을 알아봐요(내부 주소로 비교하면 모든 POST가 막혀요).
   const sameSite = await fetch(`${url}/auth/logout`, {

@@ -474,3 +474,23 @@ document.addEventListener('click', (e) => {
   open();
   addEventListener('hashchange', open);
 })();
+
+// 상점 결과 알림 창: '확인'을 키보드(Enter·스페이스·Esc)로도 닫아요. 열리면 '확인'에 초점을 둬요.
+(() => {
+  const box = document.getElementById('popup-close');
+  const ok = document.querySelector('label[for="popup-close"]');
+  if (!box || !ok) return;
+  const close = () => {
+    box.checked = true;
+  };
+  ok.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      close();
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !box.checked) close();
+  });
+  if (!box.checked) ok.focus({ preventScroll: true });
+})();
