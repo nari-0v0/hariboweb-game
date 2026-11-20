@@ -2,7 +2,7 @@ import { kstDay } from './db';
 import { MAX_CHAPTER } from './journey-chapters';
 import { dogamProgress, journeyOpenTo, releasedTop } from './unlock';
 import { isPetId, parsePets, type PetBag, type PetId } from './pets';
-import { DAILY_REWARD_JOURNEYS, FIRST_CLEAR_BONUS, GEAR_MAX, NO_GEAR, gearNeed, hasMats, canSellMat, matSellLevel, matSellPrice, type Gear, type GearId, NO_PERKS, PERKS, perkMax, actJourney, bankRate, decodeJourney, journeyJelly, journeyXp, perkCost, startJourney, kitCost, type KitId, type JourneyAction, type JourneyState, type PerkId, type Perks } from './journey';
+import { DAILY_RUN_CAP, DAILY_REWARD_JOURNEYS, FIRST_CLEAR_BONUS, GEAR_MAX, NO_GEAR, gearNeed, hasMats, canSellMat, matSellLevel, matSellPrice, type Gear, type GearId, NO_PERKS, PERKS, perkMax, actJourney, bankRate, decodeJourney, journeyJelly, journeyXp, perkCost, startJourney, kitCost, type KitId, type JourneyAction, type JourneyState, type PerkId, type Perks } from './journey';
 
 export type JourneyRow = { id: string; user_id: string; state: string; rev: number; status: string; day: number; cleared: number; xp: number; jelly: number; reward_day: string | null };
 export type JourneyRun = { row: JourneyRow; state: JourneyState };
@@ -148,6 +148,16 @@ export async function buyPerk(db: D1Database, user: string, id: PerkId, now = ne
 export const NO_COINS = 'nocoins';
 // 화면을 연 뒤 고른 장이 잠겼거나 준비물 값이 바뀌었으면(STALE) 떠나지 않고 새 화면을 보여 줘요.
 export const STALE_PICK = 'stalepick';
+// 오늘(한국 날짜) 이미 DAILY_RUN_CAP판을 떠났으면 새 원정을 만들지 않아요. 하던 판은 끝까지 할 수 있어요.
+export const DAY_CAP = 'daycap';
+const kstDayStart = (now: Date) => new Date(Date.parse(`${kstDay(now)}T00:00:00+09:00`)).toISOString();
+export async function runsToday(db: D1Database, user: string, now = new Date()): Promise<number> {
+  const r = await db
+    .prepare('SELECT COUNT(*) AS n FROM journey_runs WHERE user_id = ? AND started_at >= ?')
+    .bind(user, kstDayStart(now))
+    .first<{ n: number }>();
+  return Number(r?.n ?? 0);
+}
 const SLIM_AFTER_MS = 3 * 86_400_000;
 export async function beginJourney(db: D1Database, user: string, chapter = 1, now = new Date(), kit: KitId[] = [], shownLevel?: number): Promise<string | null> {
   const going = await activeJourney(db, user);
@@ -158,6 +168,8 @@ export async function beginJourney(db: D1Database, user: string, chapter = 1, no
   const level = Math.min(unlocked, journeyOpenTo(dogam, now));
   if (!Number.isSafeInteger(chapter) || chapter < 1) return null;
   if (chapter > level || (kit.length > 0 && shownLevel !== undefined && shownLevel !== level)) return STALE_PICK;
+  const dayStart = kstDayStart(now);
+  if (await runsToday(db, user, now) >= DAILY_RUN_CAP) return DAY_CAP;
   const ch = chapter;
   const id = crypto.randomUUID();
   const t = now.toISOString();
@@ -177,9 +189,10 @@ export async function beginJourney(db: D1Database, user: string, chapter = 1, no
     db
       .prepare(
         `INSERT OR IGNORE INTO journey_runs (id, user_id, state, started_at, updated_at, chapter)
-         SELECT ?1, ?2, ?3, ?4, ?4, ?5 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)${paid}`,
+         SELECT ?1, ?2, ?3, ?4, ?4, ?5 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)
+           AND (SELECT COUNT(*) FROM journey_runs WHERE user_id = ?2 AND started_at >= ?6) < ${DAILY_RUN_CAP}${paid}`,
       )
-      .bind(id, user, JSON.stringify(state), t, ch);
+      .bind(id, user, JSON.stringify(state), t, ch, dayStart);
   if (cost > 0) {
     // 젤코인이 넉넉할 때만 판을 만들고, 만들어진 판이 있을 때만 젤코인을 빼요(한 번에 처리).
     await db.batch([
@@ -200,6 +213,7 @@ export async function beginJourney(db: D1Database, user: string, chapter = 1, no
     .run()
     .catch((e) => console.error('지난 원정 기록 줄이기 실패', e));
   const now2 = await activeJourney(db, user);
+  if (!now2 && await runsToday(db, user, now) >= DAILY_RUN_CAP) return DAY_CAP;
   if (!now2 && cost > 0) return NO_COINS;
   return now2?.row.id ?? null;
 }

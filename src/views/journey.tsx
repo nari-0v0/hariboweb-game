@@ -28,6 +28,7 @@ import {
   perkCost,
   perkMax,
   bankRate,
+  DAILY_RUN_CAP,
   KIT,
   KIT_IDS,
   kitPrice,
@@ -65,6 +66,7 @@ const NOTICES: Record<string, PopupLine[]> = {
   sold: [{ title: '재료를 팔았어요', text: '젤코인으로 바꿨어요.' }],
   nosell: [{ title: '알림', text: '지금은 그 재료를 팔 수 없어요. 다른 화면에서 개수가 바뀌었을 수 있어요.' }],
   kitcoins: [{ title: '알림', text: '젤코인이 모자라서 준비물을 살 수 없어요.' }],
+  daycap: [{ title: '오늘 원정 끝!', text: `원정은 하루 ${DAILY_RUN_CAP}판까지 떠날 수 있어요. 한국 시간 밤 12시가 지나면 다시 떠날 수 있어요. 끝없는 탑은 그대로 할 수 있어요.` }],
   petbuy: [{ title: '새 펫!', text: '펫을 샀어요. 처음 산 펫이면 바로 데려가요. 다른 펫을 데려가는 중이면 \'데려가기\'를 눌러 바꿔요.' }],
   nopet: [{ title: '알림', text: '젤코인이 모자라거나 아직 상점에 없는 펫이에요.' }],
   petup: [{ title: '펫이 컸어요!', text: '다음 원정부터 더 강해져요.' }],
@@ -632,7 +634,7 @@ export function ChapterPick(props: { unlocked: number; top: number; dogam: Dogam
         })}
       </div>
       <p class="jr-rate">
-        🪙 아직 못 깬 장은 젤코인이 다 모여요. 이미 깬 장을 다시 돌면 그 장을 돈 횟수만큼 줄어요: 100% → 75% → 50% → 25% → 10% → 5% → 1% (날이 바뀌어도 그대로예요).
+        🪙 아직 못 깬 장은 젤코인이 다 모여요. 이미 깬 장을 다시 돌면 그 장을 돈 횟수만큼 줄어요: 100% → 75% → 50% → 25% → 10% → 5% → 1% (날이 바뀌어도 그대로예요). 원정은 하루 {DAILY_RUN_CAP}판까지 떠날 수 있어요.
       </p>
       <fieldset class="jr-kit">
         <legend>🎒 출발 준비물 · 이번 판에만 써요</legend>

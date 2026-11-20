@@ -9,6 +9,8 @@ import { isPetId, petFx, type PetId } from './pets';
 export const DAYS = 20;
 export const ELITE_DAY = 10;
 export const DAILY_REWARD_JOURNEYS = 2; // 하루 첫 2판만 보상
+// 하루에 떠날 수 있는 원정 판 수(한국 날짜, 모든 장 합쳐서). 자동을 켜 둔 채 끝없이 도는 파밍과 서버 부담을 막아요(나리 2026-11-21).
+export const DAILY_RUN_CAP = 100;
 export const journeyXp = (day: number, cleared: boolean, ch = 1) => (cleared ? 12 + 3 * (ch - 1) : Math.min(10, 2 + Math.floor(day / 2)) + (ch - 1));
 // 도감 젤리는 9장 대장을 처음 깼을 때 10개(나리 2026-11-13), 15장(마지막 장) 대장을 처음 깼을 때 10개 더 줘요. 다른 장은 없어요.
 export const JOURNEY_FINISH_JELLY = 10;

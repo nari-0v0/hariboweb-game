@@ -142,7 +142,7 @@ addEventListener('pageshow', (e) => {
   let busy = false;
   // 자동은 끌 때까지 계속 켜져 있어요(나리 2026-11-21, 처음처럼). 그만두기를 누르면 꺼져요. 단, 켠 지 1시간이 지나면 판이 끝날 때 「계속하기」를 눌러야 이어져요.
   // 판이 끝나면 결과를 보여 주고 5초 기다린 뒤(남은 초를 보여 줘요) 같은 장으로 다시 떠나요. 준비물은 사지 않아요.
-  if (new URLSearchParams(location.search).get('n') === 'quit') set(false);
+  if (['quit', 'daycap'].includes(new URLSearchParams(location.search).get('n') ?? '')) set(false);
   const again = document.querySelector('.jr-result form.jr-chapters');
   if (again && get()) {
     // 결과가 실제로 보이는 때부터 5초를 세요(움직임 줄이기면 결과가 바로 보여요. 아래 마지막 싸움 처리와 같은 규칙)

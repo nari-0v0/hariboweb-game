@@ -2,8 +2,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DAYS, journeyJelly, KIT_SHIELD_HITS, kitCost, actJourney, autoChoice, decodeJourney, journeyXp, perkMax, gearBonus, gearNeed, hasMats, GEAR_MAX, LOWER_MATS, FIRST_CLEAR_BONUS, FARM_DROP, FARM_BOSS, DROP, FX_HITS, startJourney, stat, type JourneyState } from '../src/journey';
-import { NO_COINS, STALE_PICK, actJourneyRun, activeJourney, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from '../src/journey-db';
+import { DAILY_RUN_CAP, DAYS, journeyJelly, KIT_SHIELD_HITS, kitCost, actJourney, autoChoice, decodeJourney, journeyXp, perkMax, gearBonus, gearNeed, hasMats, GEAR_MAX, LOWER_MATS, FIRST_CLEAR_BONUS, FARM_DROP, FARM_BOSS, DROP, FX_HITS, startJourney, stat, type JourneyState } from '../src/journey';
+import { DAY_CAP, NO_COINS, STALE_PICK, actJourneyRun, runsToday, activeJourney, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, quitJourney, upgradeGear } from '../src/journey-db';
 
 function database() {
   const sql = new DatabaseSync(':memory:');
@@ -617,5 +617,24 @@ describe('남는 재료 팔기(나리 2026-11-19)', () => {
     expect(await sellMats(db, 'me', 99, 1)).toBe(0);
     bank = await journeyBank(db, 'me');
     expect(bank.coins).toBe(-65);
+  });
+});
+
+describe('하루 원정 판 수 제한 (나리 2026-11-21)', () => {
+  it('한국 날짜로 하루 100판까지 떠나고, 다음 날 다시 떠날 수 있어요', async () => {
+    const { db, sql } = database();
+    const now = new Date('2026-11-21T05:00:00Z'); // 한국 14시
+    const ins = sql.prepare("INSERT INTO journey_runs (id, user_id, state, started_at, updated_at, chapter, status) VALUES (?, 'me', '{}', ?, ?, 1, 'done')");
+    // 한국 날짜로 어제(11/20 23:59)에 떠난 판은 세지 않아요
+    ins.run('old', '2026-11-20T14:59:00.000Z', '2026-11-20T14:59:00.000Z');
+    for (let i = 0; i < DAILY_RUN_CAP - 1; i++) ins.run(`r${i}`, '2026-11-20T15:00:00.000Z', '2026-11-20T15:00:00.000Z');
+    expect(await runsToday(db, 'me', now)).toBe(DAILY_RUN_CAP - 1);
+    const id = await beginJourney(db, 'me', 1, now);
+    expect(id && id !== DAY_CAP).toBeTruthy();
+    expect(await quitJourney(db, 'me', id!)).toBe(true);
+    expect(await beginJourney(db, 'me', 1, now)).toBe(DAY_CAP);
+    // 다음 날(한국 0시 뒤)
+    const next = await beginJourney(db, 'me', 1, new Date('2026-11-21T15:00:01Z'));
+    expect(next && next !== DAY_CAP).toBeTruthy();
   });
 });
