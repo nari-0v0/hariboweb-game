@@ -160,7 +160,7 @@ export function RerollPage(props: { viewer: Member; pool: CharacterPool; charact
 }
 
 // 상점 "게임 기록 초기화권" 확인 화면(나리 2026-11-20). 되돌릴 수 없어서 체크해야 살 수 있어요.
-export function GameResetPage(props: { viewer: Member; jelly: number; chips: number | null; unchecked?: boolean }) {
+export function GameResetPage(props: { viewer: Member; jelly: number; chips: number | null; gen: number; unchecked?: boolean }) {
   const { viewer } = props;
   return (
     <Layout title="게임 기록 초기화권" viewer={viewer} active="shop">
@@ -175,13 +175,15 @@ export function GameResetPage(props: { viewer: Member; jelly: number; chips: num
           <li>🧭 <b>원정대</b>: 깬 장, 장비, 재료, 훈련, 젤코인, 펫, 끝없는 탑 층이 모두 처음으로.</li>
           <li>🔎 <b>사건파일</b>: 푼 사건, 재수사·오늘의 사건 기록이 모두 처음으로.</li>
         </ul>
-        <p class="hint">그대로 남는 것: 도감 카드, 도감 젤리, 산 칭호·테마·꾸밈 캐릭터, 기본 캐릭터, 이미 받은 칭호. 처음 깼을 때 받았던 도감 젤리·경험치는 다시 깨도 또 받지 않아요.</p>
+        <p class="hint">그대로 남는 것: 도감 카드, 도감 젤리, 산 칭호·테마·꾸밈 캐릭터, 기본 캐릭터, 이미 받은 칭호.</p>
+        <p class="hint">사건파일은 이미 푼 사건을 다시 풀어도 경험치·도감 젤리를 또 받지 않아요. 원정대는 이미 깬 장의 도감 젤리를 또 받지 않고, 하루 경험치는 평소처럼(오늘 받은 판 수는 이어서) 받아요.</p>
         {props.unchecked && (
           <p class="notice" role="alert">
             "알겠어요"에 체크해야 살 수 있어요.
           </p>
         )}
         <form method="post" action="/api/shop/reset" class="stack">
+          <input type="hidden" name="gen" value={String(props.gen)} />
           <label class="reset-check">
             <input type="checkbox" name="ok" value="1" required /> 위 내용을 읽었고, 되돌릴 수 없다는 걸 알겠어요
           </label>

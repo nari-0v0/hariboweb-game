@@ -12,7 +12,8 @@ import { PRICES } from './shop';
 export const RESET_ITEM_ID = 'reset:games';
 export const RESET_PRICE = PRICES.reset;
 
-export async function buyGameReset(db: D1Database, userId: string, price = RESET_PRICE, now = new Date()): Promise<'done' | 'not_enough_jelly'> {
+// gen = 확인 화면을 열 때의 초기화 횟수. 같은 확인 화면을 두 번 내도(두 탭, 다시 보내기) 한 번만 사요.
+export async function buyGameReset(db: D1Database, userId: string, price = RESET_PRICE, now = new Date(), gen?: number): Promise<'done' | 'not_enough_jelly' | 'changed'> {
   const id = crypto.randomUUID();
   const t = now.toISOString();
   const won = 'EXISTS (SELECT 1 FROM purchases WHERE id = ?1)';
@@ -23,9 +24,10 @@ export async function buyGameReset(db: D1Database, userId: string, price = RESET
         `INSERT INTO purchases (id, user_id, item_id, price, status, created_at, settled_at)
          SELECT ?1, ?2, ?3, ?4, 'done', ?5, ?5
          WHERE EXISTS (SELECT 1 FROM profiles WHERE user_id = ?2 AND dogam_jelly >= ?4)
-           AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)`,
+           AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)
+           AND (?6 IS NULL OR COALESCE((SELECT count FROM game_resets WHERE user_id = ?2), 0) = ?6)`,
       )
-      .bind(id, userId, RESET_ITEM_ID, price, t),
+      .bind(id, userId, RESET_ITEM_ID, price, t, gen ?? null),
     db.prepare(`UPDATE profiles SET dogam_jelly = dogam_jelly - ?3, updated_at = ?4 WHERE user_id = ?2 AND ${won}`).bind(id, userId, price, t),
     // 이미 받은 첫 클리어 보상을 적어 둬요(지우기 전에)
     db
@@ -58,7 +60,14 @@ export async function buyGameReset(db: D1Database, userId: string, price = RESET
       )
       .bind(id, userId, DAILY_CHIPS),
   ]);
-  return (await db.prepare('SELECT 1 FROM purchases WHERE id = ?').bind(id).first()) ? 'done' : 'not_enough_jelly';
+  if (await db.prepare('SELECT 1 FROM purchases WHERE id = ?').bind(id).first()) return 'done';
+  return gen !== undefined && (await resetCount(db, userId)) !== gen ? 'changed' : 'not_enough_jelly';
+}
+
+// 지금까지 게임 기록을 초기화한 횟수(확인 화면에 숨겨 두고 살 때 비교해요)
+export async function resetCount(db: D1Database, userId: string): Promise<number> {
+  const r = await db.prepare('SELECT count AS n FROM game_resets WHERE user_id = ?').bind(userId).first<{ n: number }>();
+  return Number(r?.n ?? 0);
 }
 
 // 원정대 장 젤리를 이미 받은 장(초기화 전 기록)

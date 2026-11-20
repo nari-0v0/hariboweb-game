@@ -50,7 +50,7 @@ import {
 } from './db';
 import { PRICES, canUse, usableDecos, canUseTheme, decoItemId, serviceItem, servicePrice, shopItem } from './shop';
 import { ChoosePage, GameResetPage, GenderChangePage, RerollPage } from './views/choose';
-import { buyGameReset } from './game-reset';
+import { buyGameReset, resetCount } from './game-reset';
 import { CHARACTER_POOLS, characterUrl, isCharacterId, isCharacterPool, poolOf } from './character';
 import { applySync, parseSync } from './sync';
 import { levelName, progress, tierFor, tierLabel } from './levels';
@@ -944,22 +944,24 @@ members.post('/api/shop/reroll', async (c) => {
 // 게임 기록 초기화권(나리 2026-11-20): 확인 화면(체크해야 사요) → 겜블장·원정대·사건파일 처음부터
 members.get('/shop/reset', async (c) => {
   const viewer = c.get('viewer');
-  const [profile, gamble] = await Promise.all([getProfile(c.env.DB, viewer.user_id), gambleAccount(c.env.DB, viewer.user_id)]);
-  return page(c, <GameResetPage viewer={viewer} jelly={profile.dogam_jelly} chips={gamble?.chips ?? null} unchecked={c.req.query('n') === 'unchecked'} />);
+  const [profile, gamble, gen] = await Promise.all([getProfile(c.env.DB, viewer.user_id), gambleAccount(c.env.DB, viewer.user_id), resetCount(c.env.DB, viewer.user_id)]);
+  return page(c, <GameResetPage viewer={viewer} jelly={profile.dogam_jelly} chips={gamble?.chips ?? null} gen={gen} unchecked={c.req.query('n') === 'unchecked'} />);
 });
 
 members.post('/api/shop/reset', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
   const body = await c.req.parseBody();
   if (body.ok !== '1') return c.redirect('/shop/reset?n=unchecked');
+  const gen = Number(body.gen);
+  if (!Number.isSafeInteger(gen) || gen < 0 || String(body.gen ?? '') === '') return c.redirect('/shop?n=reset_changed');
   let result: Awaited<ReturnType<typeof buyGameReset>>;
   try {
-    result = await buyGameReset(c.env.DB, c.get('viewer').user_id);
+    result = await buyGameReset(c.env.DB, c.get('viewer').user_id, PRICES.reset, new Date(), gen);
   } catch (e) {
     console.error('게임 기록 초기화 실패', e);
     return c.redirect('/shop?n=error');
   }
-  return c.redirect(result === 'done' ? '/shop?n=reset_done' : '/shop?n=not_enough_jelly');
+  return c.redirect(result === 'done' ? '/shop?n=reset_done' : result === 'changed' ? '/shop?n=reset_changed' : '/shop?n=not_enough_jelly');
 });
 
 // 벌점·경고 지우기, 닉네임 변경권: 도감 젤리를 빼고 봇이 디스코드 쪽에 적용해요

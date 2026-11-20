@@ -108,6 +108,16 @@ describe('게임 기록 초기화권', () => {
   });
 });
 
+describe('같은 확인 화면으로 두 번 초기화', () => {
+  it('확인 화면을 연 뒤 이미 초기화했으면 또 사지 않아요', async () => {
+    const { sql, db } = setup(60);
+    expect(await buyGameReset(db, A, 20, new Date(), 0)).toBe('done');
+    expect(await buyGameReset(db, A, 20, new Date(), 0)).toBe('changed');
+    expect((sql.prepare('SELECT dogam_jelly FROM profiles WHERE user_id = ?').get(A) as { dogam_jelly: number }).dogam_jelly).toBe(40);
+    expect(await buyGameReset(db, A, 20, new Date(), 1)).toBe('done');
+  });
+});
+
 describe('초기화와 원정대 하루 경험치 판 수', () => {
   it('오늘 이미 경험치를 받은 판 수는 초기화 뒤에도 이어서 세요', async () => {
     const { sql, db } = setup(60);

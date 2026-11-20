@@ -22,6 +22,7 @@ const NOTICES: Record<string, PopupLine[]> = {
   reroll_none: [{ title: '알림', text: '지금은 바꿀 수 있는 빈 캐릭터가 없어요. 도감 젤리는 그대로예요.' }],
   reroll_changed: [{ title: '알림', text: '그 사이 캐릭터가 바뀌었어요. 도감 젤리는 그대로예요. 다시 눌러 주세요.' }],
   reset_done: [{ title: '초기화 완료', text: '겜블장·원정대·사건파일을 처음부터 다시 할 수 있어요.' }],
+  reset_changed: [{ title: '알림', text: '다른 화면에서 이미 초기화했어요. 도감 젤리는 또 빠지지 않았어요.' }],
   reset_unchecked: [{ title: '알림', text: '안내를 읽고 "알겠어요"에 체크해 주세요.', bad: true }],
   price_changed: [{ title: '알림', text: '그 사이 값이 바뀌었어요. 새 값을 확인하고 다시 사 주세요.' }],
   nick_pending: [{ title: '변경 신청 완료', text: '하리보봇이 곧 디스코드 닉네임을 바꿔요(5분 안쪽). 칭호와 생년은 그대로예요.' }],
