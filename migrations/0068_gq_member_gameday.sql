@@ -8,3 +8,7 @@ CREATE TABLE gq_member_gameday (
   minutes INTEGER NOT NULL,
   PRIMARY KEY (season_id, group_no, user_id, day)
 );
+
+-- 배포하는 11/21 하루만: 오늘 이미 쌓인 분을 옮겨 둬요(0~6시 분이 섞이지만, 비워 두면 오늘의 활약이 텅 비어요).
+INSERT OR IGNORE INTO gq_member_gameday (season_id, group_no, user_id, day, minutes)
+  SELECT season_id, group_no, user_id, day, minutes FROM gq_member_day WHERE day = '2026-11-21';
