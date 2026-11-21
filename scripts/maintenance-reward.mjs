@@ -10,7 +10,13 @@
 //   - 젤칩: 겜블장 계정에 더해요. 겜블장에 처음 올 때 받는 시작 1,000개는 따로 그대로 받아요(매일 주는 칩은 없어요).
 //   - 🔔 알림 하나.
 // "이미 받음" 표시는 지워지지 않는 jelly_grants 기록(id maint-2026-11-21:<멤버>)이에요. 알림은 멤버가 지우거나
-// 15일 뒤 저절로 지워지니까 표시로 쓰지 않아요(Codex 리뷰). 그래서 같은 파일을 언제 다시 실행해도 한 번만 들어가요.
+// 15일 뒤 저절로 지워지니까 표시로 쓰지 않아요(Codex 리뷰).
+//
+// 중간에 끊겨도 두 번 주지 않게(2026-11-21 점검): D1은 파일의 문장을 하나씩 실행해서, 예전처럼 "주기 → 마지막에 표시"로
+// 나누면 중간에 끊긴 뒤 다시 돌릴 때 앞에서 이미 준 것을 또 줬어요. 그래서 보상 전부를 jelly_grants에 표시를 넣는
+// 순간 도는 트리거 안에 넣었어요. 표시 넣기(INSERT OR IGNORE) 한 문장 = 표시 + 젤리·재료·젤칩·알림이라 함께 되거나
+// 함께 안 되고, 이미 표시가 있는 사람은 OR IGNORE로 트리거가 돌지 않아요. 트리거는 끝에서 지워요(남아도 이 표시
+// 번호가 아니면 아무 일도 안 해요). 그래서 같은 파일을 언제, 어디서 끊겨 다시 실행해도 한 사람에게 한 번만 들어가요.
 import { pathToFileURL } from 'node:url';
 
 export const REF = 'maint-2026-11-21';
@@ -36,38 +42,45 @@ const fmt = (n) => n.toLocaleString('en-US');
 
 export function buildRewardSql(hours, now = new Date().toISOString()) {
   const t = tierFor(hours);
-  const fresh = `user_id IN (SELECT user_id FROM members WHERE active = 1)
-    AND NOT EXISTS (SELECT 1 FROM jelly_grants g WHERE g.id = '${REF}:' || %T.user_id)`;
-  const who = (table) => fresh.replaceAll('%T', table);
+  const trigger = `maint_reward_${REF.replace(/\W/g, '_')}`;
+  // 트리거 안에서 NEW.user_id = 표시를 넣은 멤버
   const top = `COALESCE((SELECT MAX(CAST(key AS INTEGER)) FROM json_each(journey_bank.mats) WHERE CAST(key AS INTEGER) BETWEEN 1 AND ${MAX_CH}), 1)`;
+  const body = [
+    // 1) 도감 젤리
+    `INSERT OR IGNORE INTO profiles (user_id, dogam_jelly, updated_at) VALUES (NEW.user_id, 0, '${now}');`,
+    `UPDATE profiles SET dogam_jelly = dogam_jelly + ${t.jelly}, updated_at = '${now}' WHERE user_id = NEW.user_id;`,
+    // 2) 원정대 재료
+    `INSERT OR IGNORE INTO journey_bank (user_id, mats, updated_at) VALUES (NEW.user_id, '{}', '${now}');`,
+  ];
+  for (let ch = 1; ch <= MAX_CH; ch++) {
+    body.push(`UPDATE journey_bank SET mats = json_set(mats, '$."${ch}"', COALESCE(json_extract(mats, '$."${ch}"'), 0) + ${t.mats}), updated_at = '${now}'
+    WHERE user_id = NEW.user_id AND ${top} >= ${ch};`);
+  }
+  body.push(
+    // 3) 젤칩
+    `INSERT OR IGNORE INTO gamble_accounts (user_id, chips) VALUES (NEW.user_id, 0);`,
+    `UPDATE gamble_accounts SET chips = chips + ${t.chips} WHERE user_id = NEW.user_id;`,
+    // 4) 알림
+    `INSERT OR IGNORE INTO alerts (user_id, ref, title, body, created_at)
+    VALUES (NEW.user_id, '${REF}', '🎁 11/21 점검 보상', '점검 동안 기다려 줘서 고마워요! 도감 젤리 ${t.jelly}개, 원정대 재료(열린 장마다 ${t.mats}개씩), 젤칩 ${fmt(t.chips)}개를 넣었어요.', '${now}');`,
+  );
   const lines = [
     `-- 11/21 점검 보상: 점검 ${hours}시간 → ${t.label} 칸 (도감 젤리 ${t.jelly}, 원정대 재료 장마다 ${t.mats}, 젤칩 ${t.chips}), 만든 때 ${now}`,
     '-- 겜블장 젤리 이전이 끝나지 않았으면 여기서 멈춰요(먼저 주면 겜블장 초기화 때 젤칩이 지워져요).',
     `SELECT CASE WHEN EXISTS (SELECT 1 FROM gamble_jelly_moves WHERE moved_at IS NOT NULL) THEN 1 ELSE json('STOP: gamble jelly move not done yet') END;`,
-    // 1) 도감 젤리
-    `INSERT INTO profiles (user_id, dogam_jelly, updated_at)
-  SELECT user_id, ${t.jelly}, '${now}' FROM members m WHERE ${who('m')}
-  ON CONFLICT (user_id) DO UPDATE SET dogam_jelly = dogam_jelly + excluded.dogam_jelly, updated_at = excluded.updated_at;`,
-    // 2) 원정대 재료
-    `INSERT OR IGNORE INTO journey_bank (user_id, mats, updated_at)
-  SELECT user_id, '{}', '${now}' FROM members m WHERE ${who('m')};`,
-  ];
-  for (let ch = 1; ch <= MAX_CH; ch++) {
-    lines.push(`UPDATE journey_bank SET mats = json_set(mats, '$."${ch}"', COALESCE(json_extract(mats, '$."${ch}"'), 0) + ${t.mats}), updated_at = '${now}'
-  WHERE ${who('journey_bank')} AND ${top} >= ${ch};`);
-  }
-  lines.push(
-    // 3) 젤칩
-    `INSERT OR IGNORE INTO gamble_accounts (user_id, chips) SELECT user_id, 0 FROM members m WHERE ${who('m')};`,
-    `UPDATE gamble_accounts SET chips = chips + ${t.chips} WHERE ${who('gamble_accounts')};`,
-    // 4) 알림
-    `INSERT OR IGNORE INTO alerts (user_id, ref, title, body, created_at)
-  SELECT user_id, '${REF}', '🎁 11/21 점검 보상', '점검 동안 기다려 줘서 고마워요! 도감 젤리 ${t.jelly}개, 원정대 재료(열린 장마다 ${t.mats}개씩), 젤칩 ${fmt(t.chips)}개를 넣었어요.', '${now}'
-  FROM members m WHERE ${who('m')};`,
-    // 5) 지급 기록 = 받음 표시. 반드시 마지막이에요.
+    '-- 앞에서 끊겼다 다시 돌리는 거라면 남은 트리거를 이 파일 것으로 바꿔요.',
+    `DROP TRIGGER IF EXISTS ${trigger};`,
+    `CREATE TRIGGER ${trigger} AFTER INSERT ON jelly_grants
+WHEN NEW.id = '${REF}:' || NEW.user_id
+BEGIN
+  ${body.join('\n  ')}
+END;`,
+    '-- 받음 표시 넣기 = 보상 주기(한 문장). 이미 받은 사람은 건너뛰어요.',
     `INSERT OR IGNORE INTO jelly_grants (id, user_id, amount, reason, granted_by, created_at, applied_at)
-  SELECT '${REF}:' || user_id, user_id, ${t.jelly}, '11/21 점검 보상', '${GRANTED_BY}', '${now}', '${now}' FROM members m WHERE ${who('m')};`,
-  );
+  SELECT '${REF}:' || user_id, user_id, ${t.jelly}, '11/21 점검 보상', '${GRANTED_BY}', '${now}', '${now}'
+  FROM members WHERE active = 1;`,
+    `DROP TRIGGER IF EXISTS ${trigger};`,
+  ];
   return lines.join('\n') + '\n';
 }
 

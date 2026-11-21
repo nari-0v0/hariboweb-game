@@ -37,8 +37,8 @@ export function Layout(props: {
         <link rel="preload" href="/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin="" />
         {props.preloadImages?.map((href) => <link rel="preload" href={href} as="image" fetchpriority="high" />)}
         <link rel="icon" type="image/png" href="/char/deco/explorer.png" />
-        <link rel="stylesheet" href="/styles.css?v=autoask2-1121" />
-        <script src="/app.js?v=autotab5-1121" defer></script>
+        <link rel="stylesheet" href="/styles.css?v=webfix1-1121" />
+        <script src="/app.js?v=webfix1-1121" defer></script>
         {props.scripts?.map((script) => typeof script === 'string'
           ? <script src={script} defer></script>
           : <script src={script.src} type={script.type}></script>)}
@@ -50,7 +50,7 @@ export function Layout(props: {
         {/* 버닝타임 띠가 점검 공지보다 먼저예요(점검이 끝난 뒤에 켜지니까요) */}
         {burn ? (
           <a class="notice-bar burn-bar" role="status" href="/guide#burning">
-            <span aria-hidden="true">🔥</span> 버닝타임 {burnEndText(burn)}까지! 카드 경험치·원정대 재료 1.5배, 힌트 동전·빙고 통화 2배
+            <span aria-hidden="true">🔥</span> 버닝타임 {burnEndText(burn)}까지! 통화 카드 경험치·원정대 재료 확률 1.5배, 힌트 동전·빙고 통화 2배
           </a>
         ) : null}
         {/* 메뉴 위에 고정되는 공지 띠. 끄려면 maintenance.ts의 NOTICE_BAR를 ''로 */}

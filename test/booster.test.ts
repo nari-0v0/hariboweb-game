@@ -103,8 +103,11 @@ describe('동기화로 받는 부스터 혜택', () => {
     expect(jelly(sql, A)).toBe(1);
     await sync(db, at('2027-03-01T03:00:00Z'), m); // 3월 1일: 2월 몫
     expect(jelly(sql, A)).toBe(2);
+    // 알림 번호는 젤리를 준 달(결제일 몫)과 같아요. 3월 1일에 받은 2월 몫이 3월 번호를 쓰면 3월 몫 알림과 겹쳐요(2026-11-21 점검).
+    expect(sql.prepare("SELECT ref FROM alerts WHERE user_id = ? AND ref LIKE 'booster-%' ORDER BY created_at DESC LIMIT 1").get(A)).toEqual({ ref: 'booster-2027-02' });
     await sync(db, at('2027-03-31T12:00:00Z'), m); // 3월 31일 21시: 3월 몫
     expect(jelly(sql, A)).toBe(3);
+    expect(sql.prepare("SELECT ref FROM alerts WHERE user_id = ? AND ref = 'booster-2027-03'").all(A)).toHaveLength(1);
   });
 
   it('시작일을 빼고 보내면 적어 둔 결제일을 그대로 써요', async () => {
@@ -181,5 +184,24 @@ describe('사건파일 부스터', () => {
   it('선물 동전도 힌트에 쓸 수 있어요', () => {
     expect(coinsLeft(st({ gift: 1 }))).toBe(1);
     expect(coinsLeft(st({ gift: 1, spent: 1 }))).toBe(0);
+  });
+});
+
+describe('사건파일 부스터 첫 사건 동전', () => {
+  it('재수사·오늘의 사건을 먼저 해도 그날 첫 보통 사건은 동전을 받아요', async () => {
+    const { sql, db } = fakeD1();
+    const now = new Date();
+    await sync(db, now.getTime(), [{ id: A, name: 'a', booster: true }]);
+    const { beginEscape, getEscape } = await import('../src/escape-db');
+    // 오늘 이미 끝낸 오늘의 사건(재수사 규칙 판)
+    sql.prepare(`INSERT INTO escape_runs (id, user_id, case_id, state, status, started_at, updated_at)
+      VALUES ('d1', ?, ?, '{"re":1,"daily":"x"}', 'done', ?, ?)`).run(A, ESCAPE_CASES[0]!.id, now.toISOString(), now.toISOString());
+    const id = await beginEscape(db, A, ESCAPE_CASES[0]!.id, now);
+    expect(id).toBeTruthy();
+    expect((await getEscape(db, A, id!))?.state.gift).toBe(1);
+    // 보통 판을 한 번 했으면 그다음 판은 동전이 없어요
+    sql.prepare(`UPDATE escape_runs SET status = 'quit' WHERE id = ?`).run(id);
+    const second = await beginEscape(db, A, ESCAPE_CASES[1]!.id, now);
+    expect((await getEscape(db, A, second!))?.state.gift).toBeUndefined();
   });
 });

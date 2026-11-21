@@ -81,6 +81,25 @@ addEventListener('pageshow', (e) => {
   addEventListener('pagehide', hide);
 })();
 
+// 두 번 누르기 막기(원정대·끝없는 탑·훈련·장비·펫 등 /api/journey/*·/api/tower/* 폼): 한 번 보내면 새 화면이 뜰 때까지
+// 다음 제출은 무시해요(public/escape.js와 같은 방식, 2026-11-21 점검). 다른 리스너가 막은 제출(그만두기 대기 등)은 세지 않아요.
+(() => {
+  let sending = false;
+  addEventListener('submit', (e) => {
+    const f = e.target;
+    if (!(f instanceof HTMLFormElement) || e.defaultPrevented || f.target) return;
+    if (!/^\/api\/(?:journey|tower)\//.test(new URL(f.action, location.href).pathname)) return;
+    if (sending) {
+      e.preventDefault();
+      return;
+    }
+    sending = true;
+  });
+  addEventListener('pageshow', () => {
+    sending = false;
+  });
+})();
+
 // 메뉴를 열면 메뉴 속 화면(읽기만 하는 화면)을 바로 미리 받아 둬요. 누르면 거의 바로 열려요.
 (() => {
   const toggle = document.getElementById('menu-toggle');

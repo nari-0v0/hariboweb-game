@@ -3,6 +3,8 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 import { levelPodium, loadRankings, plainPodium, toPodium } from '../src/rankings';
+import { TEST_MEMBER_IDS } from '../src/test-accounts';
+import { towerRanking } from '../src/tower-db';
 
 const ids = Array.from({ length: 6 }, (_, i) => `${i + 1}`.repeat(18));
 const [A, B, C, D] = ids as [string, string, string, string];
@@ -110,5 +112,24 @@ describe('순위 메뉴', () => {
     expect(r.dogamLevel.top).toEqual([]);
     expect(r.escape.top.map((x) => x.name)).toEqual(['m3']);
     expect(r.journey.top).toEqual([]);
+  });
+
+  it('원정대는 모아 둔 최고 기록(journey_bank.best)으로 세고, 테스트 계정은 빙고·원정대·사건파일·탑 순위에서 빠져요', async () => {
+    const { sql, db } = fakeD1();
+    const TESTER = TEST_MEMBER_IDS[0]!;
+    sql.prepare("INSERT INTO members (user_id, display_name, active, updated_at) VALUES (?, '실험', 1, 'x')").run(TESTER);
+    const bank = sql.prepare("INSERT INTO journey_bank (user_id, best, clears, tower, updated_at) VALUES (?, ?, ?, ?, 'x')");
+    bank.run(A, 30, 1, 5);
+    bank.run(C, 30, 3, 0);
+    bank.run(TESTER, 99, 9, 50);
+    const reward = sql.prepare("INSERT INTO escape_rewards (user_id, case_id, run_id, claimed_at) VALUES (?, ?, 'r', 'x')");
+    reward.run(TESTER, 'c1');
+    reward.run(B, 'c1');
+    sql.prepare("INSERT INTO jellypi (user_id, season_id, source, ref, amount, created_at) VALUES (?, 's', 'line', '1', 50, 'x'), (?, 's', 'line', '1', 5, 'x')").run(TESTER, D);
+    const r = await loadRankings(db, A, NOW);
+    expect(r.journey.top.map((x) => [x.name, x.value])).toEqual([['m3', 30], ['m1', 30]]); // 같은 레벨이면 대장 깬 횟수 순
+    expect(r.escape.top.map((x) => x.name)).toEqual(['m2']);
+    expect(r.jellypiAll.top.map((x) => x.name)).toEqual(['m4']);
+    expect((await towerRanking(db)).map((x) => x.user_id)).toEqual([A]);
   });
 });

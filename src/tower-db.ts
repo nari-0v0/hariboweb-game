@@ -1,4 +1,5 @@
 // 끝없는 탑 도전과 펫 상점·키우기를 DB에 반영해요. 모두 원정 준비소 줄(journey_bank) 하나만 바꿔요.
+import { notTestMember } from './test-accounts';
 import { bankPet, journeyBank, journeyTop, matPath } from './journey-db';
 import { hasMats } from './journey';
 import { PETS, anyMatChapter, petCap, petNeed, type PetId } from './pets';
@@ -91,7 +92,7 @@ export async function towerRanking(db: D1Database, limit = 10): Promise<TowerRan
   const { results } = await db
     .prepare(
       `SELECT b.user_id, m.display_name, b.tower FROM journey_bank b JOIN members m ON m.user_id = b.user_id AND m.active = 1
-       WHERE b.tower > 0 ORDER BY b.tower DESC, b.tower_up_at ASC LIMIT ?`,
+       WHERE b.tower > 0 AND ${notTestMember('b.user_id')} ORDER BY b.tower DESC, b.tower_up_at ASC LIMIT ?`,
     )
     .bind(limit)
     .all<TowerRank>();

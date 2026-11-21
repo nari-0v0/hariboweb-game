@@ -17,6 +17,8 @@ DELETE FROM alerts;
 DELETE FROM jelly_grants;
 DELETE FROM card_count_rewards;
 DELETE FROM praises;
+-- 칭찬 한마디의 AI 판단 기록(원래 글이 남아 있어요)도 칭찬과 같이 지워요.
+DELETE FROM ai_logs;
 DELETE FROM bingo_lines;
 DELETE FROM bingo_day;
 DELETE FROM bingo_pair;
@@ -77,6 +79,8 @@ UPDATE profiles SET
 -- 서버를 나간 멤버(active = 0)는 목록에서 아예 지워요(나리 2026-11-15). 다른 사람 도감 속 카드도 위에서 다 지워졌어요.
 -- 겜블장 기록은 나갈 때 이미 지워져요(gamble_member_left 트리거). 다시 들어오면 새 멤버로 처음부터 시작해요.
 DELETE FROM members WHERE active = 0;
+-- 지운 멤버가 맡겨 둔 캐릭터(성별 바꾸기 전 캐릭터)도 지워요. 남은 멤버의 맡긴 캐릭터는 캐릭터처럼 그대로 둬요.
+DELETE FROM character_keep WHERE user_id NOT IN (SELECT user_id FROM members);
 
 -- 성별 고르기도 처음부터 다시 해요(다음에 들어올 때 다시 골라요). 서버 주인 나리(하리 98)는 빼요(나리 2026-11-16).
 UPDATE members SET gender_chosen_at = NULL WHERE user_id <> '323412514224209921';
