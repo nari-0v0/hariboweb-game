@@ -778,7 +778,7 @@ function Result(props: { run: EscRun; going: boolean; record?: ReRecord }) {
         <div>
           <b>{GRADE_TEXT[g]}</b>
           <p class="hint">
-            실수 {run.state.mistakes}번 · 동전 없이 본 힌트 {run.state.hints}번 · 찾은 힌트 동전 {run.state.coins?.length ?? 0}개
+            실수 {run.state.mistakes}번 · 동전 없이 본 힌트 {run.state.hints}번 · 찾은 힌트 동전 {(run.state.coins?.length ?? 0) + (run.state.bonus ?? 0)}개
             {run.state.gift ? ` · 💎 선물 동전 ${run.state.gift}개` : ''}
           </p>
           <p class="hint">등급: {gradeRule(run.state)}</p>
@@ -813,7 +813,7 @@ export function EscapePage(props: {
 }) {
   const { run, result } = props;
   return (
-    <Layout title="하리보 사건파일" viewer={props.viewer} active="cases" scripts={run ? ['/escape.js?v=once-1', '/escape-ui.js?v=10'] : undefined}>
+    <Layout title="하리보 사건파일" viewer={props.viewer} active="cases" scripts={run ? ['/escape.js?v=once-1', '/escape-ui.js?v=11'] : undefined}>
       {props.url && <i hidden data-replace-url={props.url} />}
       <Popup lines={props.notice && Object.hasOwn(NOTICES, props.notice) ? NOTICES[props.notice] ?? [] : []} />
       <div class="stack esc" data-fresh>

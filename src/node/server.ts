@@ -149,7 +149,9 @@ export async function createNodeRuntime(options: NodeRuntimeOptions = {}): Promi
       } catch {
         // 잘못된 %표기는 아래 파일 조회에서도 404가 돼요.
       }
-      if (!workerHandlesPath(plainPath) && (request.method === 'GET' || request.method === 'HEAD')) {
+      // ..%2Fchar/ 처럼 풀어 쓰면 상위 폴더로 가는 경로는 그림 보호 검사를 건너뛸 수 있어 공개 파일로 주지 않아요.
+      const sneaky = /(?:^|[/\\])\.\.(?:[/\\]|$)|\\/.test(plainPath);
+      if (!sneaky && !workerHandlesPath(plainPath) && (request.method === 'GET' || request.method === 'HEAD')) {
         const asset = await env.ASSETS.fetch(request);
         if (asset.status !== 404) return asset;
       }

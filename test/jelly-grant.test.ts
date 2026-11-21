@@ -74,10 +74,11 @@ describe('나리 전용 도감 젤리 지급', () => {
     expect(jellyOf()).toBe(3);
   });
 
-  it('빼기는 0개 밑으로 내려가지 않아요', async () => {
-    const { db, jellyOf } = setup(4);
+  it('빼기는 0개 밑으로 내려가지 않고, 기록에는 실제로 뺀 수만 남아요(점검 W112)', async () => {
+    const { db, jellyOf, grants } = setup(4);
     expect(await grantJelly(db, grant({ amount: -10 }), T)).toEqual({ result: 'applied', balance: 0 });
     expect(jellyOf()).toBe(0);
+    expect((grants() as { amount: number }[])[0]!.amount).toBe(-4);
   });
 
   it('서버에 없는 사람에게는 주지 않고 기록도 반영 안 됨으로 남아요', async () => {

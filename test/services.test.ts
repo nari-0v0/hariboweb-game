@@ -95,10 +95,22 @@ describe('도감 닉네임 변경권(겜블장 변경권과 따로)', () => {
   it('사면 바로 도감에 1장 생기고 봇 목록엔 안 가요', async () => {
     const { db, jellyOf } = setup(20);
     expect(await requestService(db, A, 'svc:nickname', 5, 0, true)).toBe('done');
-    expect(await requestService(db, A, 'svc:nickname', 5, 1, true)).toBe('done');
-    expect(jellyOf()).toBe(10);
+    expect(jellyOf()).toBe(15);
     expect(await listPendingServices(db)).toEqual([]);
-    expect((await nickState(db, A)).left).toBe(2);
+    expect((await nickState(db, A)).left).toBe(1);
+  });
+  it('안 쓴 변경권이 있으면 또 사지 않아요(두 번 눌러도 1장)', async () => {
+    const { db, jellyOf } = setup(20);
+    expect(await requestService(db, A, 'svc:nickname', 5, 0, true)).toBe('done');
+    expect(await requestService(db, A, 'svc:nickname', 5, 1, true)).toBe('has_ticket');
+    expect(jellyOf()).toBe(15);
+    expect((await nickState(db, A)).left).toBe(1);
+    // 쓰고 나면(적용 끝) 다시 살 수 있어요
+    await useNickTicket(db, A, '하리');
+    const [job] = await listNickJobs(db);
+    await settleNickJob(db, job!.id, true, null);
+    expect(await requestService(db, A, 'svc:nickname', 5, 1, true)).toBe('done');
+    expect((await nickState(db, A)).left).toBe(1);
   });
   it('쓰면 봇이 가져가고, 실패하면 변경권이 그대로 남아요', async () => {
     const { db } = setup(20);

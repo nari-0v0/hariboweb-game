@@ -1,3 +1,4 @@
+import { gameDay } from './day';
 import { REWARD_COUNT, REWARD_STEP, shopItem, decoItemId } from './shop';
 import { ALERT_KEEP_DAYS } from './alerts';
 import { MAX_LEVEL, XP_SCALE, levelFromXp, xpForLevel } from './levels';
@@ -5,7 +6,7 @@ import type { Member } from './env';
 import { stripTitle } from './titles';
 import { notTestMember } from './test-accounts';
 import type { LoginProfile } from './discord';
-import { type CharacterPool, isCharacterId, pickCharacter, poolOf, shouldRepick } from './character';
+import { type CharacterPool, isCharacterId, pickCharacter, poolOf, rerollCharacter, shouldRepick } from './character';
 
 export type Profile = {
   user_id: string;
@@ -384,6 +385,62 @@ export async function buyGenderChange(
   });
 }
 
+// 상점 "캐릭터 리롤권"(나리 2026-11-20): 도감 젤리를 빼고 같은 성별의 빈 캐릭터 중 무작위 하나로 바로 바꿔요.
+// 되돌리기는 없고, 예전 캐릭터는 맡겨 두지 않아요(다른 사람이 받을 수 있어요). 성별 바꾸기로 맡겨 둔 캐릭터는 그대로예요.
+export const REROLL_ITEM_ID = 'change:reroll';
+// expected: 확인 화면에서 본 캐릭터. 두 탭에서 같은 확인 화면으로 두 번 사지 않게 결제 조건에서도 비교해요.
+export async function buyReroll(
+  db: D1Database,
+  userId: string,
+  price: number,
+  expected: string,
+  rand: () => number = Math.random,
+): Promise<'done' | 'none' | 'not_enough_jelly' | 'changed'> {
+  return retrySigConflict(async () => {
+    const all = await readCharacters(db, [userId]);
+    const mine = all.find((r) => !r.kept && r.user_id === userId);
+    const before = mine?.character_id ?? null;
+    if (before !== expected) return 'changed';
+    const pool = poolOf(before);
+    if (!pool) return 'changed';
+    const { taken, forbidden } = takenSets(all, userId);
+    // 캐릭터가 모자랄 때 지문(sig) 없이 겹쳐 받은 사람도 있어요. 쓰는 중인 캐릭터는 모두 빼요.
+    const { results: used } = await db
+      .prepare('SELECT DISTINCT character_id AS c FROM profiles WHERE character_id IS NOT NULL AND user_id <> ?')
+      .bind(userId)
+      .all<{ c: string }>();
+    for (const r of used) taken.add(r.c);
+    const character = rerollCharacter(pool, before, taken, forbidden, rand);
+    if (!character) return 'none';
+    const id = crypto.randomUUID();
+    const t = now();
+    await db.batch([
+      db
+        .prepare(
+          `INSERT INTO purchases (id, user_id, item_id, price, status, created_at, settled_at)
+           SELECT ?1, ?2, ?3, ?4, 'done', ?5, ?5
+           WHERE EXISTS (SELECT 1 FROM profiles WHERE user_id = ?2 AND dogam_jelly >= ?4 AND character_id IS ?6)
+             AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1 AND gender_chosen_at IS NOT NULL)
+             AND NOT EXISTS (SELECT 1 FROM character_keep k WHERE k.character_id = ?7 AND k.user_id <> ?2)
+             AND NOT EXISTS (SELECT 1 FROM profiles p WHERE p.character_id = ?7 AND p.user_id <> ?2)`,
+        )
+        .bind(id, userId, REROLL_ITEM_ID, price, t, before, character),
+      db
+        .prepare(`UPDATE profiles SET dogam_jelly = dogam_jelly - ?3, character_id = ?4, character_sig = ?4, updated_at = ?5 WHERE user_id = ?2 AND EXISTS (SELECT 1 FROM purchases WHERE id = ?1)`)
+        .bind(id, userId, price, character, t),
+    ]);
+    if (await db.prepare('SELECT 1 FROM purchases WHERE id = ?').bind(id).first()) return 'done';
+    const cur = await db.prepare('SELECT character_id FROM profiles WHERE user_id = ?').bind(userId).first<{ character_id: string | null }>();
+    if ((cur?.character_id ?? null) !== before) return 'changed';
+    // 그 사이 다른 사람이 그 캐릭터를 받았으면 사지 않았어요(젤리 그대로). 다시 누르면 다른 캐릭터로 해요.
+    const takenNow = await db
+      .prepare('SELECT 1 FROM profiles WHERE character_id = ?1 AND user_id <> ?2 UNION ALL SELECT 1 FROM character_keep WHERE character_id = ?1 AND user_id <> ?2')
+      .bind(character, userId)
+      .first();
+    return takenNow ? 'changed' : 'not_enough_jelly';
+  });
+}
+
 // ── 젤리 상점 ─────────────────────────────────────────────
 
 export type Purchase = {
@@ -499,7 +556,7 @@ export async function requestService(
   price: number,
   bought: number,
   instant = false, // 도감 안에서 끝나는 물건(닉네임 변경권)은 봇 없이 바로 완료
-): Promise<'pending' | 'done' | 'busy' | 'not_enough_jelly' | 'changed'> {
+): Promise<'pending' | 'done' | 'busy' | 'not_enough_jelly' | 'changed' | 'has_ticket'> {
   const id = crypto.randomUUID();
   const t = now();
   await db.batch([
@@ -510,7 +567,9 @@ export async function requestService(
          WHERE EXISTS (SELECT 1 FROM profiles WHERE user_id = ?2 AND dogam_jelly >= ?4)
            AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)
            AND NOT EXISTS (SELECT 1 FROM purchases WHERE user_id = ?2 AND item_id = ?3 AND status = 'pending')
-           AND (SELECT COUNT(*) FROM purchases WHERE user_id = ?2 AND item_id = ?3 AND status = 'done') = ?6`,
+           AND (SELECT COUNT(*) FROM purchases WHERE user_id = ?2 AND item_id = ?3 AND status = 'done') = ?6
+           -- 닉네임 변경권은 남은 장이 있으면 더 사지 않아요(두 번 눌러 두 장 사는 일 막기)
+           AND NOT (?3 = 'svc:nickname' AND ${NICK_LEFT.replaceAll('?1', '?2')} > 0)`,
       )
       .bind(id, userId, itemId, price, t, bought, instant ? 'done' : 'pending'),
     db
@@ -520,6 +579,7 @@ export async function requestService(
   if (await db.prepare('SELECT 1 FROM purchases WHERE id = ?').bind(id).first()) return instant ? 'done' : 'pending';
   const busy = await db.prepare("SELECT 1 FROM purchases WHERE user_id = ? AND item_id = ? AND status = 'pending'").bind(userId, itemId).first();
   if (busy) return 'busy';
+  if (itemId === 'svc:nickname' && ((await db.prepare(`SELECT ${NICK_LEFT} AS n`).bind(userId).first<{ n: number }>())?.n ?? 0) > 0) return 'has_ticket';
   // 값을 계산한 뒤에 봇이 앞 구매를 끝냈으면 값이 올랐어요. 새 값으로 다시 계산하게 알려요.
   const done = await db
     .prepare("SELECT COUNT(*) AS n FROM purchases WHERE user_id = ? AND item_id = ? AND status = 'done'")
@@ -719,9 +779,9 @@ export async function countOwnedCards(db: D1Database, userId: string): Promise<n
 
 // ── 디스코드 고정 패널 ─────────────────────────────────────
 
-// 한국 날짜(YYYY-MM-DD). 칭찬 횟수는 이 날짜로 세요.
+// 도감 날짜(YYYY-MM-DD, 한국 시간 아침 6시에 바뀌어요. src/day.ts). 칭찬 횟수·원정대 하루 보상은 이 날짜로 세요.
 export function kstDay(at: Date = new Date()): string {
-  return new Date(at.getTime() + 9 * 3_600_000).toISOString().slice(0, 10);
+  return gameDay(at);
 }
 
 export const PRAISE_PER_DAY = 3;

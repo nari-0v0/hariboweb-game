@@ -62,10 +62,10 @@ describe('도감 칭호', () => {
     expect(TITLES.some((t) => /하리보|곰돌/.test(t.name))).toBe(false);
   });
 
-  it('늙크크·딸피는 유행어 묶음(30젤리)에 있고, 예전 상점 칭호 id는 그대로예요', () => {
-    for (const name of ['늙크크', '딸피']) expect(byName(name)).toMatchObject({ group: '유행어', rule: { kind: 'shop', price: 30 } });
+  it('늙크크·딸피·영크크는 유행어 묶음(30젤리)에 있고, 예전 상점 칭호 id는 그대로예요', () => {
+    for (const name of ['늙크크', '딸피', '영크크']) expect(byName(name)).toMatchObject({ group: '유행어', rule: { kind: 'shop', price: 30 } });
     expect(titleById('shop-1')?.name).toBe('MOOD');
-    expect(byName('레디언트').id).toBe(`shop-${TITLES.filter((t) => t.rule.kind === 'shop').length - 2}`);
+    expect(byName('레디언트').id).toBe(`shop-${TITLES.filter((t) => t.rule.kind === 'shop').length - 3}`);
     expect(TITLE_GROUPS.filter((g) => g === '유행어')).toHaveLength(1);
   });
 

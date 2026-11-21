@@ -515,7 +515,7 @@ describe('원정대 도감 젤리', () => {
     const ins = sql.prepare("INSERT INTO journey_runs (id, user_id, state, started_at, updated_at, chapter, status, cleared, reward_day, xp) VALUES (?, 'me', '{}', 'x', 'x', ?, 'done', 1, ?, ?)");
     for (let ch = 1; ch <= 8; ch++) ins.run(`c${ch}`, ch, '2000-01-01', 0);
     // 오늘 보상 2판은 이미 받았어요
-    const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+    const today = new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 10); // 도감 날짜(한국 아침 6시 기준)
     ins.run('t1', 1, today, 5);
     ins.run('t2', 1, today, 5);
     const s = startJourney('final', { atk: 200, hp: 200, def: 100 }, 9, {});
@@ -623,18 +623,28 @@ describe('남는 재료 팔기(나리 2026-11-19)', () => {
 describe('하루 원정 판 수 제한 (나리 2026-11-21)', () => {
   it('한국 날짜로 하루 100판까지 떠나고, 다음 날 다시 떠날 수 있어요', async () => {
     const { db, sql } = database();
-    const now = new Date('2026-11-21T05:00:00Z'); // 한국 14시
+    const now = new Date('2026-11-21T05:00:00Z'); // 한국 14시(도감 날짜 11/21은 한국 11/21 6시부터)
     const ins = sql.prepare("INSERT INTO journey_runs (id, user_id, state, started_at, updated_at, chapter, status) VALUES (?, 'me', '{}', ?, ?, 1, 'done')");
-    // 한국 날짜로 어제(11/20 23:59)에 떠난 판은 세지 않아요
-    ins.run('old', '2026-11-20T14:59:00.000Z', '2026-11-20T14:59:00.000Z');
-    for (let i = 0; i < DAILY_RUN_CAP - 1; i++) ins.run(`r${i}`, '2026-11-20T15:00:00.000Z', '2026-11-20T15:00:00.000Z');
+    // 도감 날짜로 어제(한국 11/21 5:59)에 떠난 판은 세지 않아요
+    ins.run('old', '2026-11-20T20:59:00.000Z', '2026-11-20T20:59:00.000Z');
+    for (let i = 0; i < DAILY_RUN_CAP - 1; i++) ins.run(`r${i}`, '2026-11-20T21:00:00.000Z', '2026-11-20T21:00:00.000Z');
     expect(await runsToday(db, 'me', now)).toBe(DAILY_RUN_CAP - 1);
     const id = await beginJourney(db, 'me', 1, now);
     expect(id && id !== DAY_CAP).toBeTruthy();
     expect(await quitJourney(db, 'me', id!)).toBe(true);
     expect(await beginJourney(db, 'me', 1, now)).toBe(DAY_CAP);
-    // 다음 날(한국 0시 뒤)
-    const next = await beginJourney(db, 'me', 1, new Date('2026-11-21T15:00:01Z'));
+    // 다음 날(한국 아침 6시 뒤)
+    const next = await beginJourney(db, 'me', 1, new Date('2026-11-21T21:00:01Z'));
     expect(next && next !== DAY_CAP).toBeTruthy();
+  });
+});
+
+describe('2026-11-21 Codex 전체 점검', () => {
+  it('난수 씨앗은 화면에 보이는 판 번호와 달라요(동전 던지기·샘을 미리 계산하지 못하게)', async () => {
+    const { db } = database();
+    const id = (await beginJourney(db, 'me'))!;
+    const run = (await getJourney(db, 'me', id))!;
+    expect(run.state.seed).not.toBe(id);
+    expect(run.state.seed).toMatch(/^[0-9a-f-]{36}$/);
   });
 });

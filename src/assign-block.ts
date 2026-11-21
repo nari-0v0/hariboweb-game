@@ -31,7 +31,7 @@ export function isEmptyReason(raw: string): boolean {
   const core = raw
     .replace(/[\sㅋㅎㅠㅜ.,!?~…·\-_'"^]/g, '')
     .replace(/^ㅇㅇ$/, '');
-  if (core.length <= 2) return true;
+  if ([...core].length <= 2) return true; // 이모지도 한 글자로 세요(점검 W140)
   return EMPTY_WORDS.includes(core);
 }
 
@@ -80,7 +80,7 @@ export async function requestBlock(
   nowMs: number,
 ): Promise<BlockResult> {
   if (fromId === toId) return 'self';
-  const reason = rawReason.trim().slice(0, BLOCK_REASON_MAX);
+  const reason = [...rawReason.trim()].slice(0, BLOCK_REASON_MAX).join(''); // 이모지 중간에서 자르지 않게(점검 W139)
   const [people, mine] = await Promise.all([
     db.prepare('SELECT user_id, reset_at FROM members WHERE user_id IN (?, ?) AND active = 1').bind(fromId, toId).all<{ user_id: string; reset_at: string | null }>(),
     db

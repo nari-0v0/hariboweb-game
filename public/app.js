@@ -118,6 +118,25 @@ addEventListener('pageshow', (e) => {
   });
 })();
 
+// 꾸밈 캐릭터를 누르면 큰 내 카드 그림만 바꿔 끼워 봐요(저장·구매 전 미리보기). 잠긴 보상 캐릭터도 볼 수 있어요.
+(() => {
+  document.addEventListener('click', (e) => {
+    const pick = e.target instanceof Element && e.target.closest('[data-preview-deco]');
+    const img = pick && document.querySelector('.stage-wrap .card .c-avatar');
+    const id = pick && pick.dataset.previewDeco;
+    if (!img || !id || !/^[a-z0-9-]+$/.test(id)) return;
+    img.src = `/char/deco/${id}.png`;
+    const ax = Number(pick.dataset.ax) || 0;
+    if (ax) img.style.setProperty('--ax', `${ax}%`);
+    else img.style.removeProperty('--ax');
+    document.querySelectorAll('.deco-pick.previewing').forEach((x) => x.classList.remove('previewing'));
+    pick.classList.add('previewing');
+    const card = img.closest('.card');
+    const r = card.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > innerHeight) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+})();
+
 // 원정대 자동 선택(방치): 켜 두면 잠깐마다 "알아서 하기"를 보내고 화면 속 원정 부분만 바꿔 끼워요.
 (() => {
   const KEY = 'jr-auto';
@@ -140,9 +159,25 @@ addEventListener('pageshow', (e) => {
   };
   let timer = 0;
   let busy = false;
+  let fails = 0; // 연결이 잠깐 끊긴 횟수(이어서). 3번이면 멈추고 알려 줘요(점검 W166)
   // 자동은 끌 때까지 계속 켜져 있어요(나리 2026-11-21, 처음처럼). 그만두기를 누르면 꺼져요. 단, 켠 지 1시간이 지나면 판이 끝날 때 「계속하기」를 눌러야 이어져요.
   // 판이 끝나면 결과를 보여 주고 5초 기다린 뒤(남은 초를 보여 줘요) 같은 장으로 다시 떠나요. 준비물은 사지 않아요.
   if (['quit', 'daycap'].includes(new URLSearchParams(location.search).get('n') ?? '')) set(false);
+  // 그만두기를 누르면 바로 자동을 꺼요. 자동 요청이 가는 중이면 끝나길 기다렸다가 새 순번으로 그만둬요(Codex 전체 점검).
+  document.addEventListener('submit', (e) => {
+    const f = e.target;
+    if (!(f instanceof HTMLFormElement) || !f.matches('form.jr-quit')) return;
+    set(false);
+    clearTimeout(timer);
+    if (!busy) return;
+    e.preventDefault();
+    const wait = setInterval(() => {
+      if (busy) return;
+      clearInterval(wait);
+      const latest = document.querySelector('form.jr-quit');
+      if (latest) latest.submit();
+    }, 100);
+  }, true);
   const again = document.querySelector('.jr-result form.jr-chapters');
   if (again && get()) {
     // 결과가 실제로 보이는 때부터 5초를 세요(움직임 줄이기면 결과가 바로 보여요. 아래 마지막 싸움 처리와 같은 규칙)
@@ -203,7 +238,7 @@ addEventListener('pageshow', (e) => {
     clearTimeout(timer);
     // 싸움 모션이 있으면 다 보여 준 뒤에 다음으로 넘어가요. 싸움 없는 날은 0.5초만 쉬어요(나리 2026-11-15, 예전 1.3초).
     const wait = Number(document.querySelector('[data-wait]')?.getAttribute('data-wait')) || 0;
-    if (on) timer = setTimeout(tick, Math.max(500, wait));
+    if (on) timer = setTimeout(tick, Math.max(500, wait, fails * 3000)); // 연결이 끊겼으면 3초·6초 뒤 다시 해 봐요
   };
   async function tick() {
     const form = document.querySelector('form[data-idle]');
@@ -215,14 +250,18 @@ addEventListener('pageshow', (e) => {
       if (!res.ok || url.searchParams.has('n') && url.searchParams.get('n') !== 'stale') {
         // 멈춘 이유(오류 안내 등)를 볼 수 있게 그 화면으로 가요.
         set(false);
-        location.href = res.url;
+        // 리다이렉트 없이 오류(500·503)면 res.url은 POST 전용 주소라, 그 대신 지금 화면을 다시 열어요.
+        if (res.redirected) location.href = res.url;
+        else location.reload();
         return;
       }
       const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
       const next = doc.getElementById('journey');
       const cur = document.getElementById('journey');
       if (!next || !cur || url.searchParams.has('r')) {
-        location.href = res.url; // 원정이 끝나면 결과 화면으로(자동은 켜진 채로, 결과 화면에서 5초 뒤 다시 떠나요)
+        // 원정이 끝나면 결과 화면으로(자동은 켜진 채로, 결과 화면에서 5초 뒤 다시 떠나요). POST 주소면 지금 화면을 다시 열어요.
+        if (res.redirected) location.href = res.url;
+        else location.reload();
         return;
       }
       const open = cur.querySelector('details')?.open;
@@ -232,8 +271,15 @@ addEventListener('pageshow', (e) => {
       const mine = document.querySelector('.jr-quit input[name="rev"]');
       if (rev && mine) mine.value = rev.value;
       if (open) next.querySelector('details')?.setAttribute('open', '');
+      fails = 0;
     } catch {
-      set(false);
+      fails += 1;
+      if (fails >= 3) {
+        set(false);
+        fails = 0;
+        const box = document.querySelector('[data-auto-toggle]');
+        if (box && !box.querySelector('.jr-auto-err')) box.insertAdjacentHTML('beforeend', '<small class="jr-auto-err">연결이 끊겨서 자동을 멈췄어요. 다시 켜 주세요.</small>');
+      }
     } finally {
       busy = false;
       sync();
@@ -242,6 +288,7 @@ addEventListener('pageshow', (e) => {
   document.addEventListener('change', (e) => {
     const box = e.target instanceof Element && e.target.closest('[data-auto-toggle]');
     if (!box) return;
+    box.querySelector('.jr-auto-err')?.remove();
     set(e.target.checked);
     sync();
   });
@@ -470,4 +517,35 @@ document.addEventListener('click', (e) => {
   const btn = document.querySelector('[data-upd]');
   const dot = btn && btn.querySelector('.upd-dot');
   if (dot) dot.hidden = !btn.getAttribute('data-upd') || btn.getAttribute('data-upd') === seen;
+})();
+
+// 주소 끝 #이름이 접힌 안내 칸(details)이면 펼쳐요(버닝타임 띠 → 안내 #burning)
+(() => {
+  const open = () => {
+    const id = decodeURIComponent(location.hash.slice(1));
+    const el = id && document.getElementById(id);
+    if (el && el.tagName === 'DETAILS') el.open = true;
+  };
+  open();
+  addEventListener('hashchange', open);
+})();
+
+// 상점 결과 알림 창: '확인'을 키보드(Enter·스페이스·Esc)로도 닫아요. 열리면 '확인'에 초점을 둬요.
+(() => {
+  const box = document.getElementById('popup-close');
+  const ok = document.querySelector('label[for="popup-close"]');
+  if (!box || !ok) return;
+  const close = () => {
+    box.checked = true;
+  };
+  ok.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      close();
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !box.checked) close();
+  });
+  if (!box.checked) ok.focus({ preventScroll: true });
 })();

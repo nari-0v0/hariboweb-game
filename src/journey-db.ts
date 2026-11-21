@@ -1,5 +1,7 @@
 import { kstDay } from './db';
+import { dayStartMs } from './day';
 import { MAX_CHAPTER } from './journey-chapters';
+import { BURN_FARM_MIN } from './burning';
 import { dogamProgress, journeyOpenTo, releasedTop } from './unlock';
 import { isPetId, parsePets, type PetBag, type PetId } from './pets';
 import { DAILY_RUN_CAP, DAILY_REWARD_JOURNEYS, FIRST_CLEAR_BONUS, GEAR_MAX, NO_GEAR, gearNeed, hasMats, canSellMat, matSellLevel, matSellPrice, type Gear, type GearId, NO_PERKS, PERKS, perkMax, actJourney, bankRate, decodeJourney, journeyJelly, journeyXp, perkCost, startJourney, kitCost, type KitId, type JourneyAction, type JourneyState, type PerkId, type Perks } from './journey';
@@ -15,6 +17,16 @@ function decode(row: JourneyRow | null): JourneyRun | null {
 export async function activeJourney(db: D1Database, user: string): Promise<JourneyRun | null> {
   return decode(await db.prepare("SELECT * FROM journey_runs WHERE user_id = ? AND status = 'going'").bind(user).first<JourneyRow>());
 }
+// 진행 중인 판이 깨져서(옛 형식 등) 읽을 수 없으면 그 판만 그만둔 걸로 해요. 안 그러면 새 판도 못 만들고
+// 화면에도 안 보여서 혼자서는 빠져나올 수 없어요(점검 W196). 읽을 수 있는 판은 건드리지 않아요.
+async function dropBrokenJourney(db: D1Database, user: string, t: string): Promise<void> {
+  const row = await db.prepare("SELECT * FROM journey_runs WHERE user_id = ? AND status = 'going'").bind(user).first<JourneyRow>();
+  if (!row || decode(row)) return;
+  await db
+    .prepare("UPDATE journey_runs SET status = 'quit', updated_at = ?3, ended_at = ?3 WHERE id = ?1 AND user_id = ?2 AND status = 'going' AND rev = ?4")
+    .bind(row.id, user, t, row.rev)
+    .run();
+}
 export async function getJourney(db: D1Database, user: string, id: string): Promise<JourneyRun | null> {
   return decode(await db.prepare('SELECT * FROM journey_runs WHERE user_id = ? AND id = ?').bind(user, id).first<JourneyRow>());
 }
@@ -26,7 +38,8 @@ export async function journeyRecord(db: D1Database, user: string, day = kstDay()
   const r = await db
     .prepare(
       `SELECT COALESCE((SELECT chapter FROM journey_runs WHERE user_id = ?1 AND status = 'done' AND cleared = 1 ORDER BY chapter DESC LIMIT 1), 0) AS top,
-         (SELECT COUNT(*) FROM journey_runs WHERE user_id = ?1 AND status = 'done' AND reward_day = ?2 AND xp > 0) AS today,
+         (SELECT COUNT(*) FROM journey_runs WHERE user_id = ?1 AND status = 'done' AND reward_day = ?2 AND xp > 0)
+           + COALESCE((SELECT xp_used FROM game_resets WHERE user_id = ?1 AND xp_day = ?2), 0) AS today,
          (SELECT chapter FROM journey_runs WHERE user_id = ?1 AND status != 'going' ORDER BY started_at DESC LIMIT 1) AS last,
          b.best, b.clears, b.farmed
        FROM (SELECT 1) LEFT JOIN journey_bank b ON b.user_id = ?1`,
@@ -148,9 +161,9 @@ export async function buyPerk(db: D1Database, user: string, id: PerkId, now = ne
 export const NO_COINS = 'nocoins';
 // 화면을 연 뒤 고른 장이 잠겼거나 준비물 값이 바뀌었으면(STALE) 떠나지 않고 새 화면을 보여 줘요.
 export const STALE_PICK = 'stalepick';
-// 오늘(한국 날짜) 이미 DAILY_RUN_CAP판을 떠났으면 새 원정을 만들지 않아요. 하던 판은 끝까지 할 수 있어요.
+// 오늘(도감 날짜, 한국 아침 6시에 바뀌어요) 이미 DAILY_RUN_CAP판을 떠났으면 새 원정을 만들지 않아요. 하던 판은 끝까지 할 수 있어요.
 export const DAY_CAP = 'daycap';
-const kstDayStart = (now: Date) => new Date(Date.parse(`${kstDay(now)}T00:00:00+09:00`)).toISOString();
+const kstDayStart = (now: Date) => new Date(dayStartMs(kstDay(now))).toISOString();
 export async function runsToday(db: D1Database, user: string, now = new Date()): Promise<number> {
   const r = await db
     .prepare('SELECT COUNT(*) AS n FROM journey_runs WHERE user_id = ? AND started_at >= ?')
@@ -162,6 +175,7 @@ const SLIM_AFTER_MS = 3 * 86_400_000;
 export async function beginJourney(db: D1Database, user: string, chapter = 1, now = new Date(), kit: KitId[] = [], shownLevel?: number): Promise<string | null> {
   const going = await activeJourney(db, user);
   if (going) return going.row.id;
+  await dropBrokenJourney(db, user, now.toISOString());
   // 앞 장을 깼고(unlocked), 도감 조건도 채운 장까지만 떠날 수 있어요.
   const [top, dogam] = await Promise.all([journeyTop(db, user), dogamProgress(db, user)]);
   const unlocked = unlockedFrom(top);
@@ -173,10 +187,13 @@ export async function beginJourney(db: D1Database, user: string, chapter = 1, no
   const ch = chapter;
   const id = crypto.randomUUID();
   const t = now.toISOString();
+  // 게임 기록 초기화 횟수(세대). 장비를 읽은 뒤 그 사이 초기화됐으면 옛 장비로 판을 만들지 않아요.
+  const gen = Number((await db.prepare('SELECT count FROM game_resets WHERE user_id = ?').bind(user).first<{ count: number }>())?.count ?? 0);
   const bank = await journeyBank(db, user);
   const cost = kitCost(kit, level);
   if (cost > 0 && cost > bank.coins) return NO_COINS; // 빚(마이너스)이 있어도 준비물 없이는 떠날 수 있어요
-  const state = startJourney(id, bank, ch, bank, kit, bankPet(bank));
+  // 난수 씨앗은 화면 폼에 보이는 판 번호(id)와 따로 서버에만 둬요(판 번호로 동전 던지기·샘 결과를 미리 계산하지 못하게).
+  const state = startJourney(crypto.randomUUID(), bank, ch, bank, kit, bankPet(bank));
   // 서버 부스터면 이번 판 재료 확률이 조금 높아요(떠날 때 정해져요)
   const booster = await db.prepare('SELECT booster FROM members WHERE user_id = ?').bind(user).first<{ booster: number }>();
   if (Number(booster?.booster) === 1) state.bst = true;
@@ -190,9 +207,10 @@ export async function beginJourney(db: D1Database, user: string, chapter = 1, no
       .prepare(
         `INSERT OR IGNORE INTO journey_runs (id, user_id, state, started_at, updated_at, chapter)
          SELECT ?1, ?2, ?3, ?4, ?4, ?5 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)
-           AND (SELECT COUNT(*) FROM journey_runs WHERE user_id = ?2 AND started_at >= ?6) < ${DAILY_RUN_CAP}${paid}`,
+           AND COALESCE((SELECT count FROM game_resets WHERE user_id = ?2), 0) = ?6
+           AND (SELECT COUNT(*) FROM journey_runs WHERE user_id = ?2 AND started_at >= ?7) < ${DAILY_RUN_CAP}${paid}`,
       )
-      .bind(id, user, JSON.stringify(state), t, ch, dayStart);
+      .bind(id, user, JSON.stringify(state), t, ch, gen, dayStart);
   if (cost > 0) {
     // 젤코인이 넉넉할 때만 판을 만들고, 만들어진 판이 있을 때만 젤코인을 빼요(한 번에 처리).
     await db.batch([
@@ -230,25 +248,34 @@ export async function quitJourney(db: D1Database, user: string, id: string, rev?
 
 // 행동 하나. rev = 화면에 보이던 판의 순번(옛 화면·두 번 누르기 막기).
 // 원정이 끝나면 한국 날짜로 하루 첫 몇 판만 경험치·젤리를 주고, 판 저장과 보상은 한 번에 반영해요.
-export async function actJourneyRun(db: D1Database, user: string, id: string, rev: number, act: JourneyAction, now = new Date()): Promise<'ok' | 'stale' | 'bad'> {
+// burn = 지금 버닝타임(재료 나올 확률 1.5배, 깬 장 다시 돌아도 젤코인 최소 50%)
+export async function actJourneyRun(db: D1Database, user: string, id: string, rev: number, act: JourneyAction, now = new Date(), burn = false): Promise<'ok' | 'stale' | 'bad'> {
   const run = await getJourney(db, user, id);
   if (!run || run.row.status !== 'going' || run.row.rev !== rev) return 'stale';
-  const s = actJourney(run.state, act);
+  const before = { ...run.state };
+  if (burn) before.burn = true;
+  else delete before.burn;
+  const s = actJourney(before, act);
   if (!s) return 'bad';
   let top = 0;
+  let jellyTop = 0;
   if (s.done) {
     // 아직 못 깬 장(도전 중)은 죽든 이기든 젤코인이 다 모여요.
     // 이미 대장을 깬 장을 다시 도는 판(파밍)만 그 장을 다시 돈 판 수(날짜와 상관없이)에 따라 줄어요.
     const r = await db
       .prepare(
         `SELECT COALESCE((SELECT chapter FROM journey_runs WHERE user_id = ?1 AND status = 'done' AND cleared = 1 ORDER BY chapter DESC LIMIT 1), 0) AS top,
-           COALESCE((SELECT json_extract(farmed, ?2) FROM journey_bank WHERE user_id = ?1), 0) AS farmed`,
+           COALESCE((SELECT json_extract(farmed, ?2) FROM journey_bank WHERE user_id = ?1), 0) AS farmed,
+           COALESCE((SELECT journey_jelly_top FROM game_resets WHERE user_id = ?1), 0) AS paid`,
       )
       .bind(user, matPath(s.ch ?? 1))
-      .first<{ top: number; farmed: number }>();
+      .first<{ top: number; farmed: number; paid: number }>();
     top = r?.top ?? 0;
+    // 게임 기록 초기화 전에 이미 받은 장 젤리는 다시 주지 않아요
+    jellyTop = Math.max(top, r?.paid ?? 0);
     s.farm = (s.ch ?? 1) <= top;
     s.bankPct = s.farm ? bankRate(r?.farmed ?? 0) : 100;
+    if (burn && s.bankPct < BURN_FARM_MIN) s.bankPct = BURN_FARM_MIN;
     s.banked = Math.floor((s.coins * s.bankPct) / 100);
     // 재료: 젤코인과 달리 깬 장을 몇 판 돌아도 그대로 모여요(다음 장을 기다리는 동안 장비를 채우게, 나리 2026-11-13). 처음 대장을 깨면 2개 더.
     s.matsBanked = (s.mats ?? 0) + (s.cleared && !s.farm ? FIRST_CLEAR_BONUS : 0);
@@ -256,7 +283,9 @@ export async function actJourneyRun(db: D1Database, user: string, id: string, re
   const t = now.toISOString();
   const token = crypto.randomUUID();
   const day = kstDay(now);
-  const room = `(SELECT COUNT(*) FROM journey_runs WHERE user_id = ?2 AND reward_day = ?7 AND xp > 0) < ${DAILY_REWARD_JOURNEYS}`;
+  // 오늘 게임 기록 초기화 전에 받은 판 수(game_resets.xp_used)도 하루 보상 판 수에 세요
+  const room = `((SELECT COUNT(*) FROM journey_runs WHERE user_id = ?2 AND reward_day = ?7 AND xp > 0)
+    + COALESCE((SELECT xp_used FROM game_resets WHERE user_id = ?2 AND xp_day = ?7), 0)) < ${DAILY_REWARD_JOURNEYS}`;
   // 아직 진행 중인 판은 진행 내용만 저장해요. 상태·보상 칸(색인에 들어 있는 칸)을 건드리지 않아서
   // DB 쓰기가 한 번에 4줄 → 1줄로 줄어요(무료 한도 하루 10만 줄).
   if (!s.done) {
@@ -281,7 +310,7 @@ export async function actJourneyRun(db: D1Database, user: string, id: string, re
          WHERE id = ?1 AND user_id = ?2 AND rev = ?12 AND status = 'going'
            AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)`,
       )
-      .bind(id, user, token, JSON.stringify(s), t, s.done ? 1 : 0, day, journeyXp(s.day, s.cleared, s.ch ?? 1), journeyJelly(s.cleared, s.ch ?? 1, top), s.day, s.cleared ? 1 : 0, rev),
+      .bind(id, user, token, JSON.stringify(s), t, s.done ? 1 : 0, day, journeyXp(s.day, s.cleared, s.ch ?? 1), journeyJelly(s.cleared, s.ch ?? 1, jellyTop), s.day, s.cleared ? 1 : 0, rev),
   ];
   if (s.done) {
     // 남은 동전(같은 장을 또 하면 줄어든 만큼)은 보상 횟수와 상관없이 강화 주머니로 (이번 저장이 성공했을 때만)

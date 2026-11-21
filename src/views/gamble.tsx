@@ -367,7 +367,7 @@ export function GambleRoom(props: {
           {result && <Result round={result} balance={balance} />}
           {hand ? (
             <>
-              <p>건 젤칩 {chips(hand.bet)}개 · 한국 시간 자정이 되면 자동으로 멈춰요.</p>
+              <p>건 젤칩 {chips(hand.bet)}개 · 한국 시간 아침 6시가 되면 자동으로 멈춰요.</p>
               <form class="gb-form" method="post" action="/gamble/cards" data-gb-card-actions="" data-no-loader="">
                 <input type="hidden" name="token" value={hand.token} />
                 <input type="hidden" name="revision" value={hand.revision} />

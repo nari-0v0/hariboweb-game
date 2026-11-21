@@ -1,3 +1,4 @@
+import { dayStartMs, gameDay } from './day';
 import { withBoosterMark } from './booster';
 import { characterUrl } from './character';
 import { BOOSTER_REFILL_CHIPS, REFILL_CHIPS, cardScore, coinPayout, DAILY_CHIPS, flipCoin, isCoinSide, natural, type CoinSide, openingPayout, playHand, slotPayout, spinSlots, spinWheel, startHand, WHEEL, type CardMove, type Hand } from './gamble';
@@ -13,8 +14,9 @@ export type Round = {
   expires_at: string; revision: number; multiplier: number | null;
 };
 
+// 도감 날짜(한국 시간 아침 6시에 바뀌어요. src/day.ts)
 export function gambleDay(now: string) {
-  return new Date(Date.parse(now) + 9 * 3600_000).toISOString().slice(0, 10);
+  return gameDay(Date.parse(now));
 }
 
 function awardMilestones(db: D1Database, user: string, now: string) {
@@ -82,7 +84,7 @@ export async function betChips(db: D1Database, user: string, game: Game, bet: nu
   const coin = game === 'coinflip' ? flipCoin(pick!) : null;
   const state = coin ?? (game === 'slot' ? spinSlots() : game === 'roulette' ? spinWheel() : startHand());
   const multiplier = coin ? coinPayout(coin) : Array.isArray(state) ? slotPayout(state) : typeof state === 'number' ? WHEEL[state]! : openingPayout(state as Hand);
-  const expires = new Date(Date.parse(gambleDay(now) + 'T00:00:00+09:00') + 86_400_000).toISOString();
+  const expires = new Date(dayStartMs(gambleDay(now)) + 86_400_000).toISOString();
   const insert = db.prepare(`INSERT OR IGNORE INTO gamble_rounds (user_id, token, game, bet, all_in, state, expires_at)
     SELECT a.user_id, ?, ?, ?, a.chips = ?, ?, ? FROM gamble_accounts a
     JOIN members m ON m.user_id = a.user_id AND m.active = 1
@@ -143,7 +145,7 @@ export async function expireHand(db: D1Database, user: string, now: string) {
   return null;
 }
 
-// 자정이 지나 저절로 멈춘 카드 21을 누구 것이든 정산해요(그 사람이 안 들어와도 순위에 바로 반영되게).
+// 아침 6시가 지나 저절로 멈춘 카드 21을 누구 것이든 정산해요(그 사람이 안 들어와도 순위에 바로 반영되게).
 export async function expireAllHands(db: D1Database, now: string) {
   const { results } = await db
     .prepare(`SELECT * FROM gamble_rounds WHERE game = 'cards' AND settled_at IS NULL AND expires_at <= ?`)

@@ -252,12 +252,16 @@ input:not([type=radio]):not([type=checkbox]):focus { background: #fff6fa; border
 .jelly { margin-left: auto; padding: 2px 12px; background: var(--pink-soft); border: 3px solid var(--ink); font-weight: 700; clip-path: var(--notch); white-space: nowrap; }
 .center { text-align: center; margin-top: 12px; }
 .shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 14px 10px; }
-.shop-grid.deco { max-height: 520px; overflow-y: auto; padding-right: 4px; }
+.shop-grid.deco { max-height: 520px; overflow-y: auto; padding: 6px; }
 .shop-item { display: grid; gap: 4px; justify-items: center; align-content: start; text-align: center; min-width: 0; }
 .shop-item form { margin: 0; }
 .shop-item .theme-img { width: 72px; cursor: pointer; padding: 14%; font: inherit; }
 .shop-item .theme-img.previewing, .theme.previewing .theme-img { outline: 3px dashed var(--pink); outline-offset: 2px; }
 .shop-item img { width: 100%; height: 84px; object-fit: contain; image-rendering: pixelated; }
+.deco-pick { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer; font: inherit; }
+.deco-pick:hover img { transform: translateY(-2px); }
+.deco-pick:focus-visible { outline: 3px solid var(--pink); outline-offset: 2px; }
+.deco-pick.previewing img { outline: 3px dashed var(--pink); outline-offset: 2px; }
 .shop-item.buy img, .shop-item.reward img, .shop-item.buy .theme-img, .shop-item.reward .theme-img { filter: saturate(.45); }
 .shop-item.using img, .shop-item.using .theme-img { outline: 3px solid var(--pink); outline-offset: 2px; }
 .shop-name { font-size: .72rem; line-height: 1.3; overflow-wrap: anywhere; }
@@ -338,12 +342,6 @@ input:not([type=radio]):not([type=checkbox]):focus { background: #fff6fa; border
 .c-art {
   position: relative; overflow: hidden; background: var(--t-sky); border: 1.2cqw solid var(--t-ink);
   box-shadow: inset 0 0 0 1cqw rgba(255, 255, 255, .5);
-}
-.c-art::before {
-  /* 작은 픽셀 별/점 무늬 */
-  content: ''; position: absolute; inset: 0; opacity: .5;
-  background-image: radial-gradient(#fff 35%, transparent 36%);
-  background-size: 7cqw 7cqw; background-position: 2cqw 2cqw;
 }
 .c-label {
   position: absolute; z-index: 2; top: 2.4cqw; left: 50%; translate: -50% 0; white-space: nowrap;
@@ -1313,6 +1311,9 @@ main.wide { max-width: 1320px; }
 .esc-coin { display: block; width: max(22px, 4.4cqw); height: max(22px, 4.4cqw); padding: 0; border: 0; background: radial-gradient(circle, rgba(255, 255, 255, .55) 0 18%, transparent 19%); cursor: pointer; border-radius: 50%; }
 .esc-spot.esc-coin-spot { z-index: 4; }
 .esc-coin:focus-visible { outline: 3px solid var(--pink); }
+/* 반짝이는 곳은 작게 보이되, 손가락으로 누르는 범위는 44px쯤으로 넓혀요 */
+.esc-coin { position: relative; }
+.esc-coin::after { content: ''; position: absolute; inset: -11px; border-radius: 50%; }
 .esc-stamp { position: absolute; left: 50%; top: 42%; z-index: 5; translate: -50% -50%; padding: .4cqw 3cqw; border: 1cqw solid currentColor; font-size: 9cqw; line-height: 1.2; white-space: nowrap; pointer-events: none; rotate: -12deg; background: rgba(255, 250, 242, .85); }
 .esc-stamp.right { color: #e2486e; }
 .esc-stamp.wrong { color: #5b6bd6; }
@@ -2394,6 +2395,9 @@ main.wide { max-width: 1320px; }
   font-size: .86rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 @media (max-width: 380px) { .notice-bar { font-size: .76rem; padding: 0 8px; } }
+/* 버닝타임 띠(2026-11-20): 누르면 안내로 가요 */
+.burn-bar { display: block; background: #ffb38a; text-decoration: none; }
+.burn-bar:hover { background: #ffc4a3; }
 
 /* 펫(원정 준비소 🐾 칸, 2026-11-19) */
 .jp-pets { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
@@ -2446,6 +2450,13 @@ main.wide { max-width: 1320px; }
 .esc-daily-head { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; justify-content: space-between; }
 .esc-daily p { margin: 4px 0; }
 .esc-daily-form .btn { margin-top: 4px; }
+
+/* 게임 기록 초기화권 확인 화면(2026-11-20) */
+.reset-confirm h1 { font-size: 1.2rem; }
+.reset-list { margin: 10px 0; padding-left: 20px; line-height: 1.6; }
+.reset-list li { margin-bottom: 6px; }
+.reset-check { display: flex; gap: 8px; align-items: flex-start; font-weight: 700; cursor: pointer; }
+.reset-check input { margin-top: 3px; width: 18px; height: 18px; flex: none; }
 /* 끝없는 탑 자동 도전(나리 2026-11-21) */
 .tw-auto { gap: 4px; }
 .tw-auto-hint { color: #d7e3f0; font-size: 0.85em; overflow-wrap: anywhere; }
@@ -2472,3 +2483,23 @@ main.wide { max-width: 1320px; }
 /* 자동 1시간 확인 칸(나리 2026-11-21): 버튼 둘이 휴대폰에서도 한 줄에 들어가요 */
 .jr-autoask b { flex-basis: 100%; text-align: center; }
 .jr-autoask .btn { flex: 1 1 120px; }
+.jr-auto-err { display: block; flex-basis: 100%; margin-top: 4px; color: #b3261e; font-size: .8rem; }
+/* 카카오톡 속 브라우저 안내 띠(2026-11-21, src/kakao.ts가 카톡에서만 넣어요).
+   화면 아래에 고정해서 위 메뉴·알림 팝업 위치(--nb)와 겹치지 않아요. 아래 빈칸(.kk-space)만큼 내용이 가려지지 않아요. */
+.kk-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; box-sizing: border-box; max-width: 100%;
+  padding: 8px 36px calc(8px + env(safe-area-inset-bottom, 0px)) 10px; background: #fff; border-top: 4px solid var(--ink); color: var(--ink);
+  text-align: center; font-size: .84rem; line-height: 1.4;
+}
+.kk-bar p { margin: 0; overflow-wrap: anywhere; }
+.kk-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 6px 0 4px; }
+.kk-open, .kk-copy {
+  display: inline-block; padding: 5px 8px; border: 3px solid var(--ink); background: var(--yellow); color: var(--ink);
+  font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; max-width: 100%; overflow-wrap: anywhere;
+}
+.kk-open { background: var(--sky); }
+.kk-hint { font-size: .76rem; }
+.kk-x {
+  position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; padding: 0; border: 3px solid var(--ink);
+  background: #fff; color: var(--ink); font: inherit; font-weight: 700; line-height: 1; cursor: pointer;
+}

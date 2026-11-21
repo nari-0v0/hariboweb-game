@@ -1,6 +1,8 @@
+import { BURN_BINGO_VOICE, inWindow, type BurnWindow } from './burning';
 // 빙고: 생명력(커뮤니티) 주기마다 멤버마다 3×3 빙고판. 활동하면 칸이 저절로 채워지고, 한 줄마다 젤리와 경험치를 받아요.
 // 신청이나 인증, 관리자 확인은 없어요. 알림도 보내지 않아요(고정 패널과 웹 /bingo에서만 보여요).
 import { kstParts, type RoomMinute, type Attendance } from './season';
+import { gameDay } from './day';
 import { seededRandom, shuffle } from './quests';
 import { type MyTeam, JP_FULL, JP_LINE, centerDone, seasonAt, teamStatesFor } from './team';
 
@@ -229,6 +231,7 @@ export function bingoStatements(
   rooms: RoomMinute[],
   attendance: Attendance[],
   periods: Week[] = [],
+  burn: BurnWindow | null = null,
 ): { stmts: D1PreparedStatement[]; touched: Map<string, Set<string>>; periods: Map<string, Week> } {
   const used = new Map<string, Week>();
   const periodId = (ms: number) => {
@@ -245,20 +248,24 @@ export function bingoStatements(
   for (const r of rooms) {
     const ids = [...new Set(r.members)].sort();
     if (ids.length < 2) continue;
-    const { day: d, hour } = kstParts(r.at);
+    // 통화 일수·주말·칭찬 짝은 도감 하루(아침 6시 기준)로 나눠요. 빙고 기간(week)과 밤 시간은 그대로예요.
+    const { hour } = kstParts(r.at);
+    const d = gameDay(Date.parse(r.at));
     const week = periodId(Date.parse(r.at));
     const night = hour >= 22 || hour < 2;
+    // 버닝타임에 한 통화는 빙고 통화 시간으로 2배 쳐요(칭찬용 오늘 통화한 사람은 그대로)
+    const w = inWindow(burn, Date.parse(r.at)) ? BURN_BINGO_VOICE : 1;
     for (const u of ids) {
       const row = dayRow(`${week}|${u}|${d}`);
-      row.minutes++;
-      if (ids.length >= 4) row.crowd++;
-      if (night) row.night++;
+      row.minutes += w;
+      if (ids.length >= 4) row.crowd += w;
+      if (night) row.night += w;
       touch(week, u);
     }
     for (let i = 0; i < ids.length; i++)
       for (let j = i + 1; j < ids.length; j++) {
         const k = `${week}|${ids[i]}|${ids[j]}`;
-        pairs.set(k, (pairs.get(k) ?? 0) + 1);
+        pairs.set(k, (pairs.get(k) ?? 0) + w);
         const dk = `${d}|${ids[i]}|${ids[j]}`;
         pairDays.set(dk, (pairDays.get(dk) ?? 0) + 1);
       }
@@ -511,11 +518,11 @@ export const PAIR_DAY_KEEP_DAYS = 16;
 
 // 오래된 하루치 짝을 지워요(동기화 때마다)
 export function prunePairDays(db: D1Database, nowMs: number): D1PreparedStatement {
-  const cutoff = kstParts(new Date(nowMs - PAIR_DAY_KEEP_DAYS * DAY_MS).toISOString()).day;
+  const cutoff = gameDay(nowMs - PAIR_DAY_KEEP_DAYS * DAY_MS);
   return db.prepare('DELETE FROM pair_day WHERE day < ?').bind(cutoff);
 }
 
-// 그날(한국 날짜) userId와 같이 통화한 사람과 분. 오래 통화한 순.
+// 그날(도감 날짜, 아침 6시 기준) userId와 같이 통화한 사람과 분. 오래 통화한 순.
 export async function todayPartners(db: D1Database, userId: string, day: string): Promise<{ id: string; minutes: number }[]> {
   const { results } = await db
     .prepare(
