@@ -531,14 +531,19 @@
 
   // ── 숫자 칸 ──
   W.numgrid = () => {
-    const g = board(u.w, u.h, 'numgrid');
+    const g = board(u.w, u.h, `numgrid${u.cages ? ' zoned' : ''}`);
     const vals = u.given.map((x) => (x === null ? '' : String(x)));
     const cage = new Map();
     (u.cages || []).forEach((cg, k) => cg.cells.forEach((c, j) => cage.set(c, [k, j === 0 ? cg.label : ''])));
+    const cageOf = (c) => (cage.has(c) ? cage.get(c)[0] : -1);
     u.given.forEach((x, c) => {
       if (x === -1) return g.append(h('span', `esc-ui-cell void${u.marks && u.marks[c] ? ' clue' : ''}`, (u.marks && u.marks[c]) || ''));
       const cell = h('label', `esc-ui-cell num${x !== null ? ' given' : ''}`);
       if (cage.has(c)) {
+        const [cx, cy] = xy(u.w, c);
+        // 묶음 경계는 굵은 선으로도 보여 줘요(색이 비슷해 보여도 나뉜 곳을 알 수 있게).
+        if (cx < u.w - 1 && cageOf(c + 1) !== cageOf(c)) cell.classList.add('br');
+        if (cy < u.h - 1 && cageOf(c + u.w) !== cageOf(c)) cell.classList.add('bb');
         cell.classList.add(`cage${cage.get(c)[0] % 6}`);
         if (cage.get(c)[1]) cell.append(h('small', 'cage-label', cage.get(c)[1]));
       }
@@ -573,7 +578,7 @@
   W.mark = () => {
     const on = u.cells.map(() => false);
     const cols = u.colClues ? 1 : 0, rows = u.rowClues ? 1 : 0;
-    const g = board(u.w + rows, u.h + cols, 'mark');
+    const g = board(u.w + rows, u.h + cols, `mark${u.regions ? ' zoned' : ''}`);
     if (cols) {
       if (rows) g.append(h('span', 'esc-ui-clue'));
       u.colClues.forEach((t) => g.append(h('span', 'esc-ui-clue col', t)));
@@ -585,7 +590,12 @@
         const c = y * u.w + x;
         const fixed = u.cells[c];
         const b = fixed ? h('span', 'esc-ui-cell fixed', fixed) : btn('', () => ((on[c] = !on[c]), draw()), 'esc-ui-cell btn-cell');
-        if (u.regions) b.classList.add(`reg${u.regions[c] % 8}`);
+        if (u.regions) {
+          // 색만으로는 구역이 잘 안 보여요. 다른 구역과 닿는 쪽에 굵은 선을 그어요.
+          b.classList.add(`reg${u.regions[c] % 8}`);
+          if (x < u.w - 1 && u.regions[c + 1] !== u.regions[c]) b.classList.add('br');
+          if (y < u.h - 1 && u.regions[c + u.w] !== u.regions[c]) b.classList.add('bb');
+        }
         g.append(b);
         els.push(b);
       }
