@@ -372,7 +372,8 @@ export async function applySync(
   );
   const earned = new Map<string, number>();
   for (const j of p.jelly_earned) earned.set(j.id, (earned.get(j.id) ?? 0) + j.amount);
-  for (const [id, amount] of earned) stmts.push(addJelly.bind(id, amount, t));
+  // 같은 사람이 여러 줄로 와도 한 묶음에 MAX_JELLY_EARNED까지만 줘요(위 주석의 약속, 6차 점검)
+  for (const [id, amount] of earned) stmts.push(addJelly.bind(id, Math.min(amount, MAX_JELLY_EARNED), t));
 
   // 도감 젤리: 카드 레벨업. 경험치를 올린 다음, 아직 젤리를 안 준 10레벨 단계만큼 주고 준 레벨을 적어요.
   const level = levelSql('xp');

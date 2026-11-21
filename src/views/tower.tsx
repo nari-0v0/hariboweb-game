@@ -3,7 +3,7 @@ import type { JourneyBank } from '../journey-db';
 import { bankPet } from '../journey-db';
 import { material, startJourney, stat, type JourneyState } from '../journey';
 import { PETS, petText } from '../pets';
-import { BOOSTS, BOOST_IDS, TOWER_OPEN, boostCost, boostPrice, isBossFloor, towerAutoEnd, towerCoins, towerFoe, towerMat, towerMonster } from '../tower';
+import { BOOSTS, BOOST_IDS, TOWER_OPEN, boostPrice, isBossFloor, towerAutoEnd, towerCoins, towerFoe, towerMat, towerMonster } from '../tower';
 import type { TowerLast, TowerRank } from '../tower-db';
 import { Bar, Stage, fightPlan } from './journey';
 import { Layout } from './layout';
@@ -37,10 +37,9 @@ export function TowerPage(props: { viewer: Member; art: string; bank: JourneyBan
   const mat = towerMat(floor, top);
   const fought: JourneyState | null = last ? { ...me, fx: last.fight.fx } : null;
   const plan = last ? fightPlan(last.fight.fx) : null;
-  // 진 층을 다시 할 때만 쓴 물약을 미리 골라 둬요(이긴 뒤 다음 층에서 모르고 또 사지 않게).
-  // 젤코인이 모자라면 미리 고르지 않아요(누르면 「젤코인이 모자라요」만 떠서 하나씩 풀어야 했어요, 3차 점검).
-  const again = last && !last.won ? last.boosts : [];
-  const picked = new Set(again.length && boostCost(again, floor) <= bank.coins ? again : []);
+  // 물약은 미리 골라 두지 않아요. 같은 층·같은 능력치·같은 물약이면 결과가 늘 같아서,
+  // 진 뒤에 같은 물약을 다시 골라 두면 똑같이 지고 젤코인만 또 나갔어요(6차 점검).
+  const picked = new Set<string>();
   return (
     <Layout title="끝없는 탑" viewer={props.viewer} active="expedition">
       <Popup lines={props.notice && Object.hasOwn(NOTICES, props.notice) ? NOTICES[props.notice] ?? [] : []} />
