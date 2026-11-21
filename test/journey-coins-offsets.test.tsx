@@ -79,6 +79,11 @@ describe('꾸밈 캐릭터 가운데 맞추기 (멍쑤님 제보 2026-11-20, 얼
     expect(CHAR_OFFSETS['girl-08-0.png']).toBeLessThan(-6);
   });
 
+  it('기본 캐릭터는 발 가운데로 재서 손·귀에 끌려 쏠리지 않아요 (나리 2026-11-21 로도·도치·둥이·하프)', () => {
+    for (const k of ['boy-35-0.png', 'boy-47-0.png', 'boy-33-1.png', 'boy-48-1.png', 'boy-34-0.png', 'girl-40-0.png', 'boy-43-0.png'])
+      expect(Math.abs(CHAR_OFFSETS[k] ?? 0)).toBeLessThan(4);
+  });
+
   it('스크립트는 얼굴 가운데를 먼저 찾고, 못 찾으면 몸 가운데를 써요', () => {
     const py = readFileSync('scripts/char_offsets.py', 'utf8');
     expect(py).toContain('def face_center');

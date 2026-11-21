@@ -51,6 +51,17 @@ def body_center(alpha: np.ndarray, top: int, height: int) -> float:
     return float(np.median(centers))
 
 
+def legs_center(alpha: np.ndarray, top: int, height: int) -> float:
+    """발 높이(위에서 88~100%) 줄마다 왼발 왼쪽 끝~오른발 오른쪽 끝의 가운데를 모은 중앙값."""
+
+    centers = []
+    for y in range(top + int(height * 0.88), top + height):
+        xs = np.where(alpha[y])[0]
+        if len(xs):
+            centers.append((xs.min() + xs.max()) / 2)
+    return float(np.median(centers))
+
+
 def feet_offset(path: Path) -> float:
     """캐릭터 가운데가 그림 가운데에서 몇 % 벗어났는지(그림 너비 기준, 오른쪽이 +).
 
@@ -63,7 +74,13 @@ def feet_offset(path: Path) -> float:
     rows = np.where(alpha.any(1))[0]
     top, bottom = rows[0], rows[-1]
     height = bottom - top + 1
-    cx = face_center(img, alpha, top, height)
+    # 기본 멤버 캐릭터(public/char/*.png)는 발 가운데로 재요. 얼굴 찾기가 손·귀를 얼굴로 잘못 잡아
+    # 크게 쏠리게 했고(나리 2026-11-21: 로도·도치·둥이·하프 카드가 왼쪽으로 쏠림), 몸통으로 재면 포니테일에 끌려가요.
+    # 기본 캐릭터는 소품 없이 두 발로 서 있어서 발 가운데가 곧 몸 가운데예요.
+    if path.parent == CHAR:
+        cx = legs_center(alpha, top, height)
+    else:
+        cx = face_center(img, alpha, top, height)
     if cx is None:
         cx = body_center(alpha, top, height)
     width = alpha.shape[1]
