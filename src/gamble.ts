@@ -35,14 +35,20 @@ export const WHEEL = ROULETTE.flatMap(({ payout, count }) => Array<number>(count
 // 2.05 같은 배수는 부동소수점 오차가 나서(100×2.05=204.999…) 백분율 정수로 계산해요. DB 트리거·순위 계산과 같은 방식이에요.
 export const payback = (bet: number, multiplier: number) => Math.floor(bet * Math.round(multiplier * 100) / 100);
 
-// 동전 던지기(나리 2026-11-13): 곰(앞)·발바닥(뒤) 중 하나를 골라 맞히면 2배. 평균 1배.
+// 동전 던지기(나리 2026-11-13): 곰(앞)·발바닥(뒤) 중 하나를 골라 맞히면 2배.
 // 2026-11-15 나리: 배수는 2.05배처럼 소수 말고 정수로 딱 떨어지게(예전 2.05배 기록은 그대로 남고 계산도 그대로 맞아요).
+// 2026-11-21 점검: 반반(50%)에 2배면 평균이 딱 100%라 다른 게임처럼 100%보다 조금 낮게, 맞힐 확률을 49.5%로 했어요(평균 99%).
 export const COIN_SIDES = ['heads', 'tails'] as const;
 export type CoinSide = (typeof COIN_SIDES)[number];
 export const COIN_PAYOUT = 2;
 export const isCoinSide = (v: unknown): v is CoinSide => v === 'heads' || v === 'tails';
 export type CoinFlip = { pick: CoinSide; side: CoinSide };
-export const flipCoin = (pick: CoinSide): CoinFlip => ({ pick, side: COIN_SIDES[randomBelow(2)]! });
+// 1000번 중 COIN_WIN_PER_MILLE번 맞혀요.
+export const COIN_WIN_PER_MILLE = 495;
+export const flipCoin = (pick: CoinSide): CoinFlip => {
+  const win = randomBelow(1000) < COIN_WIN_PER_MILLE;
+  return { pick, side: win ? pick : pick === 'heads' ? 'tails' : 'heads' };
+};
 export const coinPayout = (flip: CoinFlip) => (flip.pick === flip.side ? COIN_PAYOUT : 0);
 
 export function randomBelow(n: number): number {
@@ -98,7 +104,10 @@ export function openingPayout(hand: Hand): number | null {
 export function playHand(hand: Hand, move: CardMove): number | null {
   if (move === 'hit') {
     hand.player.push(hand.deck.pop()!);
-    return cardScore(hand.player) > 21 ? 0 : null;
+    const score = cardScore(hand.player);
+    if (score > 21) return 0;
+    // 21점이 되면 더 받을 이유가 없어서(받으면 무조건 넘어요) 저절로 멈춰요(2026-11-21 점검).
+    if (score < 21) return null;
   }
   while (cardScore(hand.dealer) < 17) hand.dealer.push(hand.deck.pop()!);
   const player = cardScore(hand.player);

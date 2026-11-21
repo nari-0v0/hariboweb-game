@@ -88,10 +88,10 @@ import {
 } from './title-db';
 
 import { GambleLobby, GambleLocked, GambleRoom } from './views/gamble';
-import { GAMBLE_LOCKED, gambleTester, isCoinSide } from './gamble';
-import { activeHand, betChips, betTooSoon, claimDaily, expireAllHands, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, moveHand, rescueChips, type Game } from './gamble-db';
+import { DAILY_CHIPS, GAMBLE_LOCKED, gambleTester, isCoinSide, type CoinSide } from './gamble';
+import { activeHand, betChips, betTooSoon, claimDaily, expireAllHands, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, movedChips, moveHand, rescueChips, type Game } from './gamble-db';
 import { prefetchAllowed } from './prefetch';
-import { imageRequestAllowed } from './image-guard';
+import { crossSiteImageRequest, imageRequestAllowed } from './image-guard';
 import { burnReply, burnWindow, burnWindowsForSync, burningUntil } from './burning';
 import { dbLimitKind, maintenanceOn, maintenanceSkips, maintenanceWhen, type DbLimit } from './maintenance';
 import { EscapePage } from './views/escape';
@@ -144,7 +144,8 @@ const tooLarge = (c: Context<AppEnv>) => c.text('요청이 너무 커요', 413);
 // 그림 퍼 가기 막기: 다른 사이트에 우리 그림 주소를 붙여 쓰거나, 그림 주소를 새 탭에서 바로 여는 건 거절해요.
 // 우리 화면 안에서 쓰는 그림, 하리보봇이 가져가는 그림(Referer 없음)은 그대로 보여요.
 const imageGuard = async (c: Context<AppEnv>) => {
-  if (!imageRequestAllowed(c.req.header('Referer'), c.req.header('Sec-Fetch-Dest'), new URL(c.req.url).origin, baseUrl(c)))
+  if (crossSiteImageRequest(c.req.header('Sec-Fetch-Site')) ||
+    !imageRequestAllowed(c.req.header('Referer'), c.req.header('Sec-Fetch-Dest'), new URL(c.req.url).origin, baseUrl(c)))
     return c.text('', 403, { 'Cache-Control': 'no-store' });
   const res = await c.env.ASSETS.fetch(c.req.raw);
   return res.status === 404 ? c.notFound() : res;
@@ -966,7 +967,7 @@ members.post('/api/shop/reroll', async (c) => {
 members.get('/shop/reset', async (c) => {
   const viewer = c.get('viewer');
   const [profile, gamble, gen] = await Promise.all([getProfile(c.env.DB, viewer.user_id), gambleAccount(c.env.DB, viewer.user_id), resetCount(c.env.DB, viewer.user_id)]);
-  return page(c, <GameResetPage viewer={viewer} jelly={profile.dogam_jelly} chips={gamble?.chips ?? null} gen={gen} unchecked={c.req.query('n') === 'unchecked'} />);
+  return page(c, <GameResetPage viewer={viewer} jelly={profile.dogam_jelly} chips={gamble?.chips ?? null} unclaimed={!!gamble && gamble.free_day === null} gen={gen} unchecked={c.req.query('n') === 'unchecked'} />);
 });
 
 members.post('/api/shop/reset', async (c) => {
@@ -1139,11 +1140,12 @@ members.get('/gamble', async (c) => {
   if (expired) return c.redirect(gambleRoomUrl('cards', expired));
   await expireAllHands(db, now).catch((e) => console.error('지난 카드 21 정산 실패', e));
   const daily = await claimDaily(db, user, now);
-  const [account, hand, ranks] = await Promise.all([
+  const [account, hand, ranks, moved] = await Promise.all([
     gambleAccount(db, user), activeHand(db, user), gambleRanks(db, now),
+    daily >= DAILY_CHIPS ? movedChips(db, user) : 0,
   ]);
   return page(c, <GambleLobby viewer={viewer} account={account} inProgress={!!hand}
-    ranks={ranks} now={now} daily={daily} notice={c.req.query('n')} />);
+    ranks={ranks} now={now} daily={daily} moved={moved} notice={c.req.query('n')} />);
 });
 
 members.get('/gamble/:game', async (c) => {
@@ -1158,23 +1160,30 @@ members.get('/gamble/:game', async (c) => {
   // 다른 방에 먼저 들어와도 아침 6시에 멈춘 카드 21 결과를 보여 줘요.
   if (expired && game !== 'cards') return c.redirect(gambleRoomUrl('cards', expired));
   const token = (game === 'cards' ? expired : null) ?? c.req.query('r');
-  return gambleRoomPage(c, game, token, c.req.query('n'));
+  // 걸기가 거절돼 돌아왔으면(?n=fast 등) 고른 금액·면을 그대로 둬요(2026-11-21 점검).
+  const b = c.req.query('b');
+  const p = c.req.query('p');
+  const keep = { bet: b && /^[1-9][0-9]{0,15}$/.test(b) ? Number(b) : undefined, pick: isCoinSide(p) ? p : undefined };
+  return gambleRoomPage(c, game, token, c.req.query('n'), undefined, keep);
 });
 
 // 방 화면 그리기. 걸기·카드 버튼 뒤에는 다른 주소로 다시 보내지 않고 바로 그려요(왕복 한 번 줄이기, 나리 2026-11-15).
 // 그때는 gamble.js가 주소창을 결과 주소(?r=)로 바꿔서 새로고침해도 다시 걸지 않아요.
-async function gambleRoomPage(c: Context<AppEnv>, game: Game, token: string | undefined, notice?: string, url?: string) {
+async function gambleRoomPage(c: Context<AppEnv>, game: Game, token: string | undefined, notice?: string, url?: string,
+  keep: { bet?: number; pick?: CoinSide } = {}) {
   c.header('Cache-Control', 'no-store');
   const viewer = c.get('viewer');
   const user = viewer.user_id;
   const db = c.env.DB;
   const daily = await claimDaily(db, user, new Date().toISOString());
-  const [account, hand, round] = await Promise.all([
+  const [account, hand, round, moved] = await Promise.all([
     gambleAccount(db, user), activeHand(db, user),
     uuid(token) ? gambleRound(db, user, token) : null,
+    daily >= DAILY_CHIPS ? movedChips(db, user) : 0,
   ]);
   return page(c, <GambleRoom viewer={viewer} game={game} balance={account?.chips ?? 0}
-    hand={hand} result={round?.game === game ? round : null} daily={daily} notice={notice} url={url} />);
+    hand={hand} result={round?.game === game ? round : null} daily={daily} moved={moved} notice={notice} url={url}
+    keepBet={keep.bet} keepPick={keep.pick} />);
 }
 
 async function playGamble(c: Context<AppEnv>, room?: string) {
@@ -1197,7 +1206,8 @@ async function playGamble(c: Context<AppEnv>, room?: string) {
     : await betChips(db, user, game, Number(bet), token, now);
   if (round?.game === game) return gambleRoomPage(c, game, round.token, undefined, gambleRoomUrl(game, round.token));
   const notice = game === 'cards' && await activeHand(db, user) ? 'active' : await betTooSoon(db, user, now) ? 'fast' : 'bet';
-  return c.redirect(`${url}?n=${notice}`, 303);
+  // 고른 금액과 면은 돌아간 화면에 그대로 둬요(다시 고르지 않게, 2026-11-21 점검)
+  return c.redirect(`${url}?n=${notice}&b=${bet}${game === 'coinflip' && isCoinSide(pick) ? `&p=${pick}` : ''}`, 303);
 }
 
 members.post('/gamble/:game/play', (c) => playGamble(c, c.req.param('game')));
@@ -1210,8 +1220,9 @@ members.post('/gamble/cards', async (c) => {
     (move !== 'hit' && move !== 'stand')) return c.redirect(gambleRoomUrl('cards'), 303);
   const user = c.get('viewer').user_id;
   const moved = await moveHand(c.env.DB, user, token, Number(revision), move, new Date().toISOString());
-  // 다른 탭에서 이미 진행해 이 버튼이 옛것이면 알려 줘요.
-  if (!moved && (await activeHand(c.env.DB, user))?.token === token) return c.redirect(`${gambleRoomUrl('cards')}?n=stale`, 303);
+  // 다른 탭에서 이미 진행해 이 버튼이 옛것이면 알려 줘요. 바로 앞 순번(같은 버튼을 두 번 누름)이면 알림 없이 지금 판을 보여 줘요.
+  const open = moved ? null : await activeHand(c.env.DB, user);
+  if (open?.token === token && open.revision !== Number(revision) + 1) return c.redirect(`${gambleRoomUrl('cards')}?n=stale`, 303);
   return gambleRoomPage(c, 'cards', token, undefined, gambleRoomUrl('cards', token));
 });
 

@@ -151,6 +151,22 @@ function firstView(key) {
   return true;
 }
 
+// 카드 21 버튼 두 번 누르기 막기: 한 번 보내면 새 화면이 뜰 때까지 다음 제출은 무시해요(public/escape.js와 같은 방식).
+// 빠르게 두 번 누르면 두 번째가 옛 순번으로 가서 "다른 화면에서 이미 진행했어요"가 떴어요(2026-11-21 점검).
+// 버튼을 disabled로 바꾸면 누른 버튼(hit/stand) 값이 안 가서, 표시만 해 두고 막아요.
+export function guardCardActions(form) {
+  let sending = false;
+  form.addEventListener('submit', (event) => {
+    if (event.defaultPrevented) return;
+    if (sending) {
+      event.preventDefault();
+      return;
+    }
+    sending = true;
+  });
+  addEventListener('pageshow', () => { sending = false; });
+}
+
 const playMotion = { slot: spinReels, roulette: spinWheel, cards: dealCards, coinflip: tossCoin };
 
 // 그림이 아직 안 받아졌으면(처음 보는 카드 등) 잠깐(최대 1.5초) 기다렸다가 움직여요. 빈 카드가 날아오지 않게요.
@@ -216,6 +232,7 @@ if (typeof document !== 'undefined') {
   const room = document.querySelector('[data-gb-url]');
   if (room) history.replaceState(null, '', room.dataset.gbUrl);
   for (const form of document.querySelectorAll('[data-gb-balance]')) initBet(form);
+  for (const form of document.querySelectorAll('[data-gb-card-actions]')) guardCardActions(form);
   const stage = document.querySelector('[data-gb-motion]');
   if (stage) void showResult(stage);
   prefetchImages(document.querySelector('[data-gb-prefetch]'));

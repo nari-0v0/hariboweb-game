@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import app from '../src/index';
 import { signSession } from '../src/crypto';
 import type { Env } from '../src/env';
-import { activeHand, betChips, expireHand, gambleRound, moveHand, type Game, type Round } from '../src/gamble-db';
+import { activeHand, betChips, betTooSoon, expireHand, gambleAccount, gambleRound, movedChips, moveHand, type Game, type Round } from '../src/gamble-db';
 
 vi.mock('../src/plaza-room', () => ({ PlazaRoom: class {} }));
 vi.mock('../src/db', async (original) => ({
@@ -19,11 +19,12 @@ vi.mock('../src/gamble-db', async (original) => ({
   ...await original<typeof import('../src/gamble-db')>(),
   activeHand: vi.fn(),
   betChips: vi.fn(),
-  betTooSoon: async () => false,
+  betTooSoon: vi.fn(),
   claimDaily: async () => 1000,
   expireAllHands: async () => {},
   expireHand: vi.fn(async () => null as string | null),
-  gambleAccount: async () => ({ chips: 15 }),
+  gambleAccount: vi.fn(),
+  movedChips: vi.fn(),
   gambleRanks: async () => [],
   gambleRound: vi.fn(),
   moveHand: vi.fn(),
@@ -56,6 +57,9 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(activeHand).mockResolvedValue(null);
   vi.mocked(gambleRound).mockResolvedValue(null);
+  vi.mocked(betTooSoon).mockResolvedValue(false);
+  vi.mocked(gambleAccount).mockResolvedValue({ chips: 15 } as never);
+  vi.mocked(movedChips).mockResolvedValue(0);
 });
 
 describe('동전 던지기', () => {
@@ -108,7 +112,7 @@ describe('겜블장 로비와 게임 방', () => {
     expect(response.status).toBe(200);
     const html = await response.text();
     for (const game of GAMES) expect(html).toContain(`href="/gamble/${game}"`);
-    expect(html).toContain('겜블장 시작 젤칩 1000개를 받았어요.');
+    expect(html).toContain('겜블장 시작 젤칩 1,000개를 받았어요.');
     expect(html).toContain('href="/titles"');
     expect(html).not.toContain('class="gb-bet-steps"');
   });
@@ -131,7 +135,9 @@ describe('겜블장 로비와 게임 방', () => {
     expect(html).toContain(`action="/gamble/${game}/play"`);
     // 결과가 나온 뒤 걸 젤칩은 0개로 돌아가요
     expect(html).toContain('name="bet" value="0"');
-    expect(html).toContain('한 번 더');
+    // 금액이 0개라 바로 못 누르는 "한 번 더" 대신 늘 같은 이름이에요
+    expect(html).not.toContain('한 번 더');
+    expect(html).toContain(game === 'cards' ? '>카드 받기</button>' : '>확인</button>');
     expect((await request(`/gamble/${game}/play`, { ...form, bet: '0' })).headers.get('location'))
       .toBe(`/gamble/${game}?n=bet`);
   });
@@ -156,5 +162,41 @@ describe('겜블장 로비와 게임 방', () => {
     vi.mocked(moveHand).mockResolvedValueOnce(false);
     const stale = await request('/gamble/cards', { token: TOKEN, revision: '0', move: 'stand' });
     expect(stale.headers.get('location')).toBe('/gamble/cards?n=stale');
+    // 같은 버튼을 빠르게 두 번 눌러 바로 앞 순번으로 온 건 알림 없이 지금 판을 보여 줘요
+    vi.mocked(moveHand).mockResolvedValueOnce(false);
+    vi.mocked(activeHand).mockResolvedValue({ ...round('cards', null), revision: 1 });
+    const twice = await request('/gamble/cards', { token: TOKEN, revision: '0', move: 'hit' });
+    expect(twice.status).toBe(200);
+    expect(await twice.text()).not.toContain('다른 화면에서 이미 진행했어요');
+  });
+
+  it('거절된 걸기는 고른 금액(가진 만큼까지)과 면을 그대로 두고 돌아가요', async () => {
+    vi.mocked(betChips).mockResolvedValue(null);
+    vi.mocked(betTooSoon).mockResolvedValue(true);
+    const post = await request('/gamble/coinflip/play', { token: TOKEN, bet: '20', pick: 'tails' });
+    expect(post.headers.get('location')).toBe('/gamble/coinflip?n=fast&b=20&p=tails');
+    const html = await (await request('/gamble/coinflip?n=fast&b=20&p=tails')).text();
+    expect(html).toContain('name="bet" value="15"'); // 가진 젤칩 15개까지
+    expect(html).toMatch(/value="tails" checked/);
+    expect(html).not.toMatch(/type="submit" disabled/);
+    // 이상한 값은 무시해요
+    expect(await (await request('/gamble/slot?n=bet&b=abc')).text()).toContain('name="bet" value="0"');
+  });
+
+  it('젤칩이 0개인데 채울 수 없으면 아무것도 주지 않는 링크 대신 언제 채워지는지 알려 줘요', async () => {
+    vi.mocked(gambleAccount).mockResolvedValue({ chips: 0 } as never);
+    const html = await (await request('/gamble/slot')).text();
+    expect(html).not.toContain('겜블장에서 젤칩 받기');
+    expect(html).toContain('다음 게임일(아침 6시 뒤)에 0개면 300개(💎 400개)로 채워져요');
+    vi.mocked(activeHand).mockResolvedValue(round('cards', null));
+    expect(await (await request('/gamble/slot')).text()).toContain('카드 21을 먼저 끝내 주세요');
+    const lobby = await (await request('/gamble')).text();
+    expect(lobby).toContain('카드 21을 먼저 끝내 주세요');
+  });
+
+  it('처음 오면 디스코드 겜블장에서 옮긴 젤칩도 같이 알려 줘요', async () => {
+    vi.mocked(movedChips).mockResolvedValue(3000);
+    const html = await (await request('/gamble')).text();
+    expect(html).toContain('겜블장 시작 젤칩 1,000개를 받았어요. 디스코드 겜블장에서 옮긴 젤칩 3,000개도 들어 있어요.');
   });
 });

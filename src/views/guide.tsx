@@ -2,7 +2,9 @@ import type { Member } from '../env';
 import { KIDNAP_MIN, TEAM_GOAL_MIN, TEAM_MATES, TEAM_TARGET } from '../team';
 import { PRAISE_PER_DAY } from '../db';
 import { LEVEL_STEP } from '../sync';
-import { GAMBLE_LOCKED } from '../gamble';
+import { BOOSTER_REFILL_CHIPS, DAILY_CHIPS, GAMBLE_LOCKED, REFILL_CHIPS } from '../gamble';
+import { comma } from '../num';
+import { CardRules } from './gamble';
 import { TOWER_OPEN } from '../tower';
 import { Layout } from './layout';
 
@@ -105,7 +107,7 @@ export function GuidePage(props: { viewer: Member | null }) {
               <li>스킬 선택, 장비 강화, 훈련 가능</li>
               <li>대장을 처치하면 다음 장 해금</li>
               <li>최초 최종 클리어 시 특별 보상 지급</li>
-              <li>🤖 자동을 켜면 스킬·갈림길·상점·동전 던지기까지 알아서 골라요(스킬은 무작위, 동전은 반반). 끌 때까지 켜져 있고, 한 판이 끝나면 5초 뒤 같은 장으로 다시 떠나요. 켜 둔 채 자리를 비우지 않게 1시간마다 한 번 「계속하기」를 눌러야 이어져요. 원정은 하루 100판(한국 날짜)까지 떠날 수 있어요. 「그만하기」나 자동 끄기로 멈출 수 있어요.</li>
+              <li>🤖 자동을 켜면 스킬·갈림길·상점·동전 던지기까지 알아서 골라요(스킬은 무작위, 동전은 반반). 끌 때까지 켜져 있고, 한 판이 끝나면 5초 뒤 같은 장으로 다시 떠나요. 켜 둔 채 자리를 비우지 않게 1시간마다 한 번 「계속하기」를 눌러야 이어져요. 원정은 하루 100판(아침 6시 기준)까지 떠날 수 있어요. 「그만하기」나 자동 끄기로 멈출 수 있어요.</li>
               <li>원정 중 위 칸에서 이 장 강화 재료를 가방에 몇 개 가졌는지(보유)와 이번 판에 몇 개 얻었는지(얻음) 볼 수 있어요.</li>
             </ul>
             <h3>🗼 끝없는 탑</h3>
@@ -136,7 +138,18 @@ export function GuidePage(props: { viewer: Member | null }) {
             ) : (
               <>
                 <p>슬롯, 룰렛, 카드 21, 동전 던지기를 즐길 수 있는 공간이에요.</p>
-                <p>도감 젤리와 별개인 전용 젤칩을 사용해요. 처음 들어오면 1000개를 받고, 젤칩이 0개 이하가 되면 하루 한 번 300개(💎 부스터 400개)로 채워져요.</p>
+                <p>
+                  도감 젤리와 별개인 전용 젤칩을 사용해요. 처음 들어오면 {comma(DAILY_CHIPS)}개를 받아요. 그다음 게임일(아침 6시 뒤)부터는 젤칩이 0개면
+                  하루 한 번 {REFILL_CHIPS}개(💎 부스터 {BOOSTER_REFILL_CHIPS}개)로 채워져요. 처음 받은 날에는 다시 채워지지 않아요.
+                </p>
+                <h3>🃏 카드 21 규칙</h3>
+                <CardRules />
+                <h3>🏅 겜블장 칭호</h3>
+                <ul>
+                  <li>타짜: 젤칩 {comma(50_000)}개 가지기(큰손 10만 · 재벌 100만)</li>
+                  <li>올인·강심장: 가진 젤칩을 다 걸어 이기기 1번·10번 · 칠칠칠: 슬롯 7 세 개 · 블랙잭: 첫 두 장 21을 10번</li>
+                  <li>도박신: 시즌 순이익(딴 젤칩 − 잃은 젤칩) 1등. 시즌이 끝나면 받아요.</li>
+                </ul>
               </>
             )}
           </details>

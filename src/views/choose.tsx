@@ -160,7 +160,7 @@ export function RerollPage(props: { viewer: Member; pool: CharacterPool; charact
 }
 
 // 상점 "게임 기록 초기화권" 확인 화면(나리 2026-11-20). 되돌릴 수 없어서 체크해야 살 수 있어요.
-export function GameResetPage(props: { viewer: Member; jelly: number; chips: number | null; gen: number; unchecked?: boolean }) {
+export function GameResetPage(props: { viewer: Member; jelly: number; chips: number | null; unclaimed?: boolean; gen: number; unchecked?: boolean }) {
   const { viewer } = props;
   return (
     <Layout title="게임 기록 초기화권" viewer={viewer} active="shop">
@@ -169,8 +169,9 @@ export function GameResetPage(props: { viewer: Member; jelly: number; chips: num
         <p class="notice">되돌릴 수 없어요. 아래 기록이 모두 처음 상태가 돼요.</p>
         <ul class="reset-list">
           <li>
-            🎰 <b>겜블장</b>: 젤칩이 시작 칩 1000개가 되고 판 기록이 사라져요
-            {props.chips !== null && props.chips > 1000 ? ` (지금 ${props.chips.toLocaleString('ko-KR')}개 → 1000개)` : ''}. 디스코드 겜블에서 옮겨 온 젤리도 사라져요.
+            🎰 <b>겜블장</b>: 젤칩이 시작 칩 1000개가 되고 판 기록과 이번 시즌 겜블 순이익 기록이 사라져요
+            {props.chips !== null && props.chips !== 1000 ? ` (지금 ${props.chips.toLocaleString('ko-KR')}개 → 1000개)` : ''}. 디스코드 겜블에서 옮겨 온 젤리도 사라져요.
+            {props.unclaimed && ' 아직 받지 않은 시작 젤칩 1000개는 이 1000개로 쳐서 따로 받지 않아요.'}
           </li>
           <li>🧭 <b>원정대</b>: 깬 장, 장비, 재료, 훈련, 젤코인, 펫, 끝없는 탑 층이 모두 처음으로.</li>
           <li>🔎 <b>사건파일</b>: 푼 사건, 재수사·오늘의 사건 기록이 모두 처음으로.</li>

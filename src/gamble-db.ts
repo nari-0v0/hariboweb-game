@@ -3,6 +3,7 @@ import { withBoosterMark } from './booster';
 import { characterUrl } from './character';
 import { BOOSTER_REFILL_CHIPS, REFILL_CHIPS, cardScore, coinPayout, DAILY_CHIPS, flipCoin, isCoinSide, natural, type CoinSide, openingPayout, playHand, slotPayout, spinSlots, spinWheel, startHand, WHEEL, type CardMove, type Hand } from './gamble';
 import { GAMBLE_TITLES, GAMBLE_WINNER_ID, stripTitle, titleById, titleItemId } from './titles';
+import { notTestMember } from './test-accounts';
 
 export type Game = 'slot' | 'roulette' | 'cards' | 'coinflip';
 export type GambleAccount = {
@@ -62,6 +63,12 @@ export async function rescueChips(db: D1Database, user: string, now: string): Pr
   const exists = await gambleAccount(db, user);
   if (!exists) return false;
   return (await claimDaily(db, user, now)) > 0;
+}
+
+// 디스코드 겜블장 지갑에서 옮겨 온 젤칩(옮겼으면, 처음 왔을 때 안내용)
+export async function movedChips(db: D1Database, user: string): Promise<number> {
+  const r = await db.prepare('SELECT jelly FROM gamble_jelly_moves WHERE user_id = ? AND moved_at IS NOT NULL').bind(user).first<{ jelly: number }>();
+  return Number(r?.jelly ?? 0);
 }
 
 export const gambleAccount = (db: D1Database, user: string) =>
@@ -163,6 +170,9 @@ export function publicHand(round: Round) {
   return { player, dealer: round.multiplier === null ? dealer.slice(0, 1) : dealer, score: cardScore(player) };
 }
 
+// 시즌 순이익: 끝난 판마다 받은 젤칩(내림) − 건 젤칩의 합. 진행 중인 판(multiplier가 빈 판)은 SUM에서 빠져요.
+const SEASON_NET = 'SUM((r.bet * CAST(ROUND(r.multiplier * 100) AS INTEGER) / 100) - r.bet)';
+
 type RankRow = { user_id: string; name: string; booster: number; value: number; title_id: string | null; character_id: string | null; deco_id: string | null };
 const RANK_FIELDS = ['chips', 'best_win', 'all_in_wins'] as const;
 
@@ -170,7 +180,7 @@ export async function gambleMyRanks(db: D1Database, user: string) {
   const result = await db.batch(RANK_FIELDS.map((field) => db.prepare(
     `SELECT m.display_name AS name, m.booster, a.${field} AS value, p.character_id, p.deco_id,
        1 + (SELECT COUNT(*) FROM gamble_accounts other JOIN members active ON active.user_id = other.user_id AND active.active = 1
-            WHERE other.${field} > a.${field}) AS rank
+            WHERE other.${field} > a.${field} AND ${notTestMember('other.user_id')}) AS rank
      FROM gamble_accounts a JOIN members m ON m.user_id = a.user_id AND m.active = 1
      LEFT JOIN profiles p ON p.user_id = a.user_id
      WHERE a.user_id = ? AND a.${field} > 0`).bind(user)));
@@ -185,13 +195,14 @@ export async function gambleRanks(db: D1Database, now: string) {
     ...RANK_FIELDS.map((field) => db.prepare(`SELECT a.user_id, m.display_name AS name, m.booster, a.${field} AS value, p.title_id, p.character_id, p.deco_id
       FROM gamble_accounts a JOIN members m ON m.user_id = a.user_id AND m.active = 1
       LEFT JOIN profiles p ON p.user_id = a.user_id
-      WHERE a.${field} > 0 ORDER BY a.${field} DESC, a.user_id LIMIT 10`)),
-    db.prepare(`SELECT r.user_id, m.display_name AS name, m.booster, SUM((r.bet * CAST(ROUND(r.multiplier * 100) AS INTEGER) / 100) - r.bet) AS value, p.title_id, p.character_id, p.deco_id
+      WHERE a.${field} > 0 AND ${notTestMember('a.user_id')} ORDER BY a.${field} DESC, a.user_id LIMIT 10`)),
+    // 시즌 순이익(나리 2026-11-21): 시즌 안에 끝난 모든 판의 (받은 젤칩 − 건 젤칩)을 더해요. 잃은 판은 빼고, 순이익이 0보다 큰 사람만요.
+    db.prepare(`SELECT r.user_id, m.display_name AS name, m.booster, ${SEASON_NET} AS value, p.title_id, p.character_id, p.deco_id
       FROM gamble_rounds r JOIN members m ON m.user_id = r.user_id AND m.active = 1
       LEFT JOIN profiles p ON p.user_id = r.user_id
       JOIN seasons s ON s.id = (SELECT id FROM seasons WHERE starts_at <= ? AND ends_at > ? ORDER BY id DESC LIMIT 1)
-      WHERE r.settled_at >= s.starts_at AND r.settled_at < s.ends_at AND (r.bet * CAST(ROUND(r.multiplier * 100) AS INTEGER) / 100) > r.bet
-      GROUP BY r.user_id ORDER BY value DESC, r.user_id LIMIT 1`).bind(now, now),
+      WHERE r.settled_at >= s.starts_at AND r.settled_at < s.ends_at AND ${notTestMember('r.user_id')}
+      GROUP BY r.user_id HAVING value > 0 ORDER BY value DESC, r.user_id LIMIT 1`).bind(now, now),
   ]);
   // 디스코드는 방장 닉네임을 못 바꾸니, 고른 칭호는 닉네임 대신 여기서 「칭호」로 붙여 보여 줘요.
   return ranks.map(({ results }) => (results as RankRow[]).map(({ user_id, name, booster, value, title_id, character_id, deco_id }) => {
@@ -207,11 +218,11 @@ export async function awardGambleSeason(db: D1Database, seasonId: string, end: s
   for (const round of results) await updateHand(db, round, 'stand', now, true);
   await db.batch([
     db.prepare(`INSERT OR IGNORE INTO gamble_season_winners (season_id, user_id, won, awarded_at)
-      SELECT s.id, r.user_id, SUM((r.bet * CAST(ROUND(r.multiplier * 100) AS INTEGER) / 100) - r.bet) AS won, ?
+      SELECT s.id, r.user_id, ${SEASON_NET} AS won, ?
       FROM seasons s JOIN gamble_rounds r ON r.settled_at >= s.starts_at AND r.settled_at < s.ends_at
       JOIN members m ON m.user_id = r.user_id AND m.active = 1
-      WHERE s.id = ? AND (r.bet * CAST(ROUND(r.multiplier * 100) AS INTEGER) / 100) > r.bet
-      GROUP BY r.user_id ORDER BY won DESC, r.user_id LIMIT 1`).bind(now, seasonId),
+      WHERE s.id = ? AND ${notTestMember('r.user_id')}
+      GROUP BY r.user_id HAVING won > 0 ORDER BY won DESC, r.user_id LIMIT 1`).bind(now, seasonId),
     db.prepare(`INSERT OR IGNORE INTO owned_items (user_id, item_id, acquired_at)
       SELECT user_id, ?, awarded_at FROM gamble_season_winners WHERE season_id = ? AND changes() = 1`)
       .bind(titleItemId(GAMBLE_WINNER_ID), seasonId),
