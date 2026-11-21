@@ -1,6 +1,6 @@
 // 겜블장 잠금 스위치(나리 2026-11-15에 잠가 달라고 함). 다시 열려면 false로 바꿔요.
 // true면 메뉴에 🔒로 보이고, 겜블장 주소로 들어가도 잠금 안내만 보여요. 젤칩·순위 기록은 그대로 남아요.
-export const GAMBLE_LOCKED = true;
+export const GAMBLE_LOCKED = false;
 
 // 잠겨 있어도 시험해 볼 수 있는 사람(wrangler.jsonc의 GAMBLE_TESTERS). 메뉴는 똑같이 🔒로 보이고, /gamble 주소로 직접 들어가요.
 export const gambleTester = (testers: string | undefined, userId: string) =>
