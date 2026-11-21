@@ -1461,7 +1461,9 @@ main.wide { max-width: 1320px; }
 .jr-journal-list li.day { color: var(--yellow); }
 .jr-game .jr-quit { margin-top: 10px; text-align: right; }
 
-.jr-lobby-stage { position: relative; display: flex; align-items: flex-end; gap: 12px; height: clamp(190px, 36vw, 260px); padding: 0 12px 12px; border: 4px solid #1d1930; background: var(--jr-bg) center bottom / cover no-repeat, #bfe6ff; clip-path: var(--notch); }
+.jr-lobby-stage { position: relative; display: flex; align-items: flex-end; gap: 12px; height: clamp(190px, 36vw, 260px); padding: 0 12px 12px;
+  /* 발이 흙이 아니라 풀밭에 오게: 배경(3:1)은 아래에 맞춰 꽉 채우니 그려진 높이 = max(무대 높이, 너비÷3), 풀밭은 그 아래 20%쯤이에요. */
+  padding-bottom: max(calc(clamp(190px, 36vw, 260px) * .19), calc(100% / 3 * .19)); border: 4px solid #1d1930; background: var(--jr-bg) center bottom / cover no-repeat, #bfe6ff; clip-path: var(--notch); }
 .jr-lobby-stage .jr-hero { margin-left: 6%; }
 .jr-lobby-stats { margin-left: auto; display: grid; gap: 4px; justify-items: end; }
 .jr-lobby-stats span { padding: 0 8px; border: 2px solid #1d1930; background: rgba(255, 250, 242, .92); color: var(--ink); font-size: .78rem; }

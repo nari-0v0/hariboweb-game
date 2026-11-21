@@ -227,18 +227,32 @@ export function ShopPage(props: {
                 const pending = props.services.pending.has(item.id);
                 const price = servicePrice(item, props.services.bought.get(item.id) ?? 0);
                 return (
-                  <div class="service-item">
+                  <div class={item.key === 'nickname' ? 'service-item service-nick' : 'service-item'} id={item.key === 'nickname' ? 'nick' : undefined}>
                     <div>
-                      <span class="shop-name">{item.name}</span>
-                      <p class="hint">{item.text}</p>
+                      <span class="shop-name">
+                        {item.name}
+                        {item.key === 'nickname' && props.nick.left > 0 ? ` · ${props.nick.left}장 있어요` : ''}
+                      </span>
+                      <p class="hint">{item.key === 'nickname' && props.nick.left > 0 ? '새 닉네임을 적고 사용하기를 누르면 앞부분만 바뀌어요. 칭호·생년은 그대로예요.' : item.text}</p>
+                      {item.key === 'nickname' && props.nick.last && props.nick.last.status !== 'pending' && (
+                        <p class="hint">
+                          지난 변경 「{props.nick.last.front}」:{' '}
+                          {props.nick.last.status === 'done' ? '적용됐어요' : `${NICK_FAIL_TEXT[props.nick.last.reason ?? ''] ?? '적용하지 못했어요'} 변경권은 그대로 남아 있어요.`}
+                        </p>
+                      )}
                     </div>
                     {pending ? (
                       <span class="tag">적용 중</span>
+                    ) : item.key === 'nickname' && props.nick.last?.status === 'pending' ? (
+                      <span class="tag">적용 중</span>
                     ) : item.key === 'nickname' && props.nick.left > 0 ? (
-                      // 변경권이 남아 있으면 사지 말고 바로 쓰러 가요(아래 "내 닉네임 변경권")
-                      <a class="btn btn-small" href="#nick" data-focus="nick-front">
-                        사용하기
-                      </a>
+                      // 변경권이 있으면 같은 칸에서 바로 써요(나리 2026-11-21: 두 칸을 하나로, 버튼은 "사용하기")
+                      <form method="post" action="/api/shop/nick" class="nick-form">
+                        <input id="nick-front" name="front" maxlength={16} required placeholder="새 닉네임" aria-label="새 닉네임" />
+                        <button class="btn btn-small btn-buy" type="submit">
+                          사용하기
+                        </button>
+                      </form>
                     ) : (
                       <form method="post" action="/api/shop/service">
                         <input type="hidden" name="item" value={item.id} />
@@ -251,30 +265,6 @@ export function ShopPage(props: {
                   </div>
                 );
               })}
-                <div class="service-item service-nick" id="nick">
-                  <div>
-                    <span class="shop-name">내 닉네임 변경권 {props.nick.left}장</span>
-                    <p class="hint">닉네임 앞부분만 바뀌어요. 칭호·생년은 그대로예요.</p>
-                    {props.nick.last && props.nick.last.status !== 'pending' && (
-                      <p class="hint">
-                        지난 변경 「{props.nick.last.front}」:{' '}
-                        {props.nick.last.status === 'done' ? '적용됐어요' : `${NICK_FAIL_TEXT[props.nick.last.reason ?? ''] ?? '적용하지 못했어요'} 변경권은 그대로 남아 있어요.`}
-                      </p>
-                    )}
-                  </div>
-                  {props.nick.last?.status === 'pending' ? (
-                    <span class="tag">적용 중</span>
-                  ) : props.nick.left > 0 ? (
-                    <form method="post" action="/api/shop/nick" class="nick-form">
-                      <input id="nick-front" name="front" maxlength={16} required placeholder="새 닉네임" aria-label="새 닉네임" />
-                      <button class="btn btn-small btn-buy" type="submit">
-                        바꾸기
-                      </button>
-                    </form>
-                  ) : (
-                    <span class="hint">위에서 사면 여기서 써요</span>
-                  )}
-                </div>
                 <div class="service-item" id="gender">
                   <div>
                     <span class="shop-name">성별 바꾸기</span>
