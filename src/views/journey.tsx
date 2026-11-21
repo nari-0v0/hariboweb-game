@@ -561,7 +561,7 @@ function Play(props: { run: JourneyRun; art: string; name: string; preview?: boo
           <label class="jr-auto" hidden data-auto-toggle={preview ? undefined : ''}>
             <input type="checkbox" />
             <span>
-              <b>🤖 자동</b> 켜 두면 스킬·갈림길·상점까지 알아서 골라요. 끌 때까지 계속 켜져 있고, 한 판이 끝나면 5초 뒤 같은 장으로 다시 떠나요. 켠 지 1시간이 지나면 「계속하기」를 눌러야 이어져요
+              <b>🤖 자동</b> 알아서 골라요 · 판이 끝나면 5초 뒤 같은 장으로 · 1시간마다 「계속하기」
             </span>
           </label>
         </div>
@@ -722,6 +722,17 @@ function Result(props: { run: JourneyRun; art: string; name: string; unlocked: n
           ? `보상: 내 카드 경험치 +${run.row.xp}${run.row.jelly ? `, 도감 젤리 +${run.row.jelly}` : ''}`
           : `이 판을 끝낸 날에는 경험치 보상(하루 ${DAILY_REWARD_JOURNEYS}번)을 이미 다 받아서 이번 판은 경험치가 없어요. 다음 날 다시 받을 수 있어요.${run.row.jelly ? ` 원정대 완주 보상: 도감 젤리 +${run.row.jelly}` : ''}`}
       </p>
+      {!props.going && (s.ch ?? 1) <= Math.min(props.unlocked, journeyOpenTo(props.dogam)) && (
+        // 휴대폰에서 장 목록(15장)을 지나 3화면 아래까지 내려가지 않아도 같은 장으로 바로 떠나요(4차 점검). 준비물은 사지 않아요.
+        <form method="post" action="/api/journey/start" class="jr-again-quick">
+          <input type="hidden" name="kl" value={Math.min(props.unlocked, journeyOpenTo(props.dogam))} />
+          <input type="hidden" name="ch" value={s.ch ?? 1} />
+          <button class="btn btn-primary" type="submit">
+            🎒 {s.ch ?? 1}장 바로 다시 떠나기
+          </button>
+          <span class="hint"> 준비물 없이 떠나요. 다른 장이나 준비물은 아래에서 골라요.</span>
+        </form>
+      )}
       {props.going
         ? <a class="btn btn-primary" href="/expedition/go#now">진행 중인 원정 이어 하기</a>
         : <ChapterPick unlocked={props.unlocked} top={props.top} dogam={props.dogam} farmed={props.farmed} coins={props.coins} last={s.ch ?? 1} again burn={props.burn} />}

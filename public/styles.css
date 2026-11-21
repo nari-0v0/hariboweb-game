@@ -1255,6 +1255,8 @@ main.wide { max-width: 1320px; }
 .jr-next { min-width: 9em; }
 .jr-auto { display: flex; align-items: flex-start; gap: 8px; margin: 10px 0; padding: 8px 10px; border: 3px dashed var(--ink-soft); background: #fff; cursor: pointer; font-size: .85rem; }
 .jr-auto[hidden] { display: none; }
+.jr-again-quick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 6px 0 14px; }
+.jr-again-quick .hint { flex: 1 1 180px; word-break: keep-all; }
 .jr-auto input { width: 20px; height: 20px; margin: 2px 0 0; flex: none; accent-color: var(--pink); }
 .jr-auto.on { border-style: solid; border-color: var(--ink); background: var(--mint); }
 .jr-idling .jr-go button, .jr-idling .jr-choice button { pointer-events: none; opacity: .6; }
