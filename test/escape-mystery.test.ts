@@ -53,7 +53,7 @@ describe('추리 사건', () => {
       const codes = c.objects.filter((o) => o.lock?.kind === 'code');
       const deduce = codes.filter((o) => o.deduce);
       const brain = codes.filter((o) => !o.deduce);
-      expect(deduce.length, c.id).toBeGreaterThanOrEqual(2);
+      expect(deduce.length, c.id).toBeGreaterThanOrEqual(c.scenes.length === 1 ? 4 : 2); // 방 하나 사건은 추리 4개 이상(나리 2026-11-21)
       expect(brain.length, c.id).toBeGreaterThanOrEqual(1);
       expect(brain.length, c.id).toBeLessThanOrEqual(2);
       for (const o of deduce) expect(o.memo, `${c.id}/${o.id} 증언은 메모에 남아요`).toBe(true);
