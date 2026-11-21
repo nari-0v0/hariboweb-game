@@ -110,8 +110,8 @@ it('시즌을 처음 만들 때는 활동과 상관없이 초록하리보가 있
   const { db, sql } = fakeD1();
   sql.prepare('UPDATE members SET green = 1 WHERE user_id IN (?, ?)').run(A, B);
   sql.prepare('UPDATE members SET green = 0 WHERE user_id IN (?, ?)').run(C, D);
-  // C는 최근 통화가 많지만 초록하리보가 없어요. A는 1주 넘게 전에만 통화했지만 날마다 기록이 없는(다 0분인) 경우라 잠수로 안 쳐요
-  sql.prepare("INSERT INTO member_voice_day (user_id, day, minutes) VALUES (?, '2026-11-01', 300)").run(C);
+  // C는 최근 통화가 많지만 초록하리보가 없어요
+  sql.prepare("INSERT INTO member_voice_day (user_id, day, minutes) VALUES (?, '2026-11-05', 300)").run(C);
   expect(await ensureSeason(db, SEASON, Date.parse(START) + 1000)).toBe(true);
   const ids = (sql.prepare('SELECT user_id FROM season_members WHERE season_id = ? ORDER BY user_id').all(SEASON.id) as { user_id: string }[]).map((r) => r.user_id);
   expect(ids).toEqual([A, B]);
@@ -123,30 +123,6 @@ it('초록하리보 값을 안 보내는 예전 봇이면 예전처럼 활동으
   expect(await ensureSeason(db, SEASON, Date.parse(START) + 1000)).toBe(true);
   const ids = (sql.prepare('SELECT user_id FROM season_members WHERE season_id = ? ORDER BY user_id').all(SEASON.id) as { user_id: string }[]).map((r) => r.user_id);
   expect(ids).toEqual([C, D]);
-});
-
-// 벙구 의견, 나리 2026-11-21: 시즌 시작 전 7일 동안 통화 0분 + 출석도 없는 초록하리보는 처음 팀에서 빠져요.
-// 시즌 중에 통화·출석 기록에 나오면 그때 팀에 들어가요. 역할이 원래 있던 사람이라 멤버 목록만으로는 들어가지 않아요.
-it('잠수(지난 7일 통화 0분, 출석 없음)인 초록하리보는 처음 팀에서 빠지고, 통화하면 들어가요', async () => {
-  const { db, sql } = fakeD1();
-  sql.prepare('UPDATE members SET green = 1').run();
-  sql.prepare("INSERT INTO member_voice_day (user_id, day, minutes) VALUES (?, '2026-11-08', 40)").run(A); // 7일 안
-  sql.prepare("INSERT INTO gq_attend (season_id, user_id, day) VALUES ('old', ?, '2026-11-10')").run(B); // 출석만
-  sql.prepare("INSERT INTO member_voice_day (user_id, day, minutes) VALUES (?, '2026-11-02', 90)").run(C); // 7일보다 전
-  expect(await ensureSeason(db, SEASON, Date.parse(START) + 1000)).toBe(true);
-  const ids = () => (sql.prepare('SELECT user_id FROM season_members WHERE season_id = ? AND left_at IS NULL ORDER BY user_id').all(SEASON.id) as { user_id: string }[]).map((r) => r.user_id);
-  expect(ids()).toEqual([A, B]);
-  // 멤버 목록(역할 그대로)만 와서는 안 들어가요
-  const at = Date.parse(START) + 600000;
-  expect(await applySync(db, syncPayload(at, { season: { start: START, end: END }, members: [member(C, true), member(D, true)], full_members: true }, 'list'), at)).toBe('applied');
-  expect(ids()).toEqual([A, B]);
-  // 통화방에 나오면 들어가요
-  const at2 = at + 600000;
-  expect(await applySync(db, syncPayload(at2, {
-    season: { start: START, end: END },
-    room_minutes: [{ at: new Date(at2 - 60000).toISOString(), room: ROOM, members: [C, A] }],
-  }, 'voice'), at2)).toBe('applied');
-  expect(ids()).toEqual([A, B, C]);
 });
 
 it('새 시즌을 만들면 그보다 늦게 끝나기로 된 앞 시즌을 새 시즌 시작에서 끝내요', async () => {

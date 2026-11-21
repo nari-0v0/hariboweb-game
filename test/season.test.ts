@@ -406,7 +406,7 @@ describe('동기화로 시즌 모둠', () => {
       NOW,
     );
     expect(sql.prepare('SELECT members FROM gq_scrim').get()).toEqual({ members: JSON.stringify([id(1), id(2), id(3)]) });
-    expect(sql.prepare("SELECT day FROM gq_attend WHERE season_id != 'voice-log-backfill'").all()).toEqual([{ day: '2026-11-03' }]);
+    expect(sql.prepare('SELECT day FROM gq_attend').all()).toEqual([{ day: '2026-11-03' }]);
   });
 
   it('잘못된 시즌 기록은 거절해요', () => {

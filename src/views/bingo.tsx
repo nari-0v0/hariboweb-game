@@ -345,7 +345,7 @@ export function BingoPage(props: { viewer: Member; view: BingoView | null; extra
               한 줄마다 젤리 {LINE_JELLY}개 + 경험치 {LINE_XP}, 9칸을 다 채우면 젤리 {FULL_JELLY}개 더.
             </p>
             <p>가운데 칸은 팀 퀘스트예요. 내가 달성하거나 우리 팀이 목표를 채우면 채워져요.</p>
-            <p>빙고판과 팀은 매주 새로 나와요. 지난 1주 동안 통화하지 않은 사람은 처음 팀에서 빠지고, 통화하면 그때 팀에 들어가요.</p>
+            <p>빙고판과 팀은 매주 새로 나와요(생명력 주기 2주에 두 번).</p>
             <p>
               젤리피 순위는 <a href="/rank?g=bingo">순위</a> 메뉴에서 볼 수 있어요.
             </p>
