@@ -98,6 +98,19 @@ describe('버닝타임', () => {
     // 3일 지난 기록은 안 봐요
     expect((await burnWindowsForSync(db, T0 + 4 * 86_400_000)).all).toEqual([third]);
   });
+
+  it('버닝 중에 새로 켜고 일찍 끝내면 예전 버닝도 새 시작에서 끝나요(Codex #313)', async () => {
+    const { sql, db } = fakeD1();
+    const iso = (m: number) => new Date(T0 + m * MIN).toISOString();
+    sql.prepare('UPDATE burning SET started_at = ?, until = ? WHERE id = 1').run(iso(0), iso(120));
+    sql.prepare('UPDATE burning SET started_at = ?, until = ? WHERE id = 1').run(iso(30), iso(150));
+    sql.prepare('UPDATE burning SET until = ? WHERE id = 1').run(iso(45));
+    const { all } = await burnWindowsForSync(db, T0 + 60 * MIN);
+    expect(all).toEqual([{ from: iso(30), until: iso(45) }, { from: iso(0), until: iso(30) }]);
+    const fake = { prepare: () => ({ bind: (...a: unknown[]) => a }) } as unknown as D1Database;
+    const out = bingoStatements(fake, [{ at: iso(60), room: 'r', members: ['1', '2'] }], [], [], all).stmts as unknown as unknown[][];
+    expect(out.find((a) => a[1] === '1')![3]).toBe(1);
+  });
 });
 
 describe('원정대 수상한 샘·상인 재료', () => {

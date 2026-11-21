@@ -161,12 +161,23 @@ addEventListener('pageshow', (e) => {
     mem = false;
     try { localStorage.removeItem(KEY); } catch {}
   }
-  const get = () => mem;
+  // 저장이 되는 브라우저면 쓸 때마다 저장된 값을 다시 읽어요. 다른 탭에서 끈 것도 바로 따르게요(Codex #313).
+  let stored = false;
+  try { stored = localStorage.getItem(KEY) === (mem ? '1' : null); } catch {}
+  const get = () => {
+    if (mem && stored) {
+      try { if (localStorage.getItem(KEY) !== '1') mem = false; } catch {}
+    }
+    return mem;
+  };
   const set = (on) => {
     if (on && !mem) mark(Date.now());
     if (!on) mark(0);
     mem = !!on;
-    try { on ? localStorage.setItem(KEY, '1') : localStorage.removeItem(KEY); } catch {}
+    try {
+      on ? localStorage.setItem(KEY, '1') : localStorage.removeItem(KEY);
+      stored = localStorage.getItem(KEY) === (on ? '1' : null);
+    } catch { stored = false; }
   };
   let timer = 0;
   let busy = false;
@@ -213,7 +224,8 @@ addEventListener('pageshow', (e) => {
       t = setInterval(() => {
         left -= 1;
         box.querySelector('[data-left]').textContent = String(Math.max(0, left));
-        if (left > 0 || !get()) return;
+        if (!get()) { stop(); return; } // 다른 탭에서 껐으면 세기를 멈춰요
+        if (left > 0) return;
         stop();
         // 세는 사이(또는 탭이 멈춘 사이) 1시간이 지났으면 떠나지 않고 물어봐요(Codex #303).
         if (fresh()) depart();
@@ -309,6 +321,14 @@ addEventListener('pageshow', (e) => {
       sync();
     }
   }
+  // 다른 탭에서 자동을 끄거나 그만하기를 누르면 이 탭도 멈춰요: 진행 중 다음 행동과 5초 출발 대기 모두(Codex #313).
+  addEventListener('storage', (e) => {
+    if (e.key !== KEY || e.newValue === '1' || !mem) return;
+    mem = false;
+    clearTimeout(timer);
+    document.querySelectorAll('.jr-autonext:not(.jr-autoask)').forEach((b) => b.remove());
+    sync();
+  });
   document.addEventListener('change', (e) => {
     const box = e.target instanceof Element && e.target.closest('[data-auto-toggle]');
     if (!box) return;
