@@ -1,0 +1,958 @@
+import { dayStartMs, gameDay } from './day';
+import { awardGambleSeason } from './gamble-db';
+// 시즌 모둠 퀘스트: 모둠 나누기, 봇 기록 모으기, 퀘스트 확인과 보상.
+// 시즌 = 1주(나리 2026-11-21, 커뮤니티 주기 2주를 봇이 7일씩 잘라 보내요). 봇이 동기화 때 시즌 시작·끝을 보내면 처음 한 번 모둠을 만들어요.
+import { levelFromXp } from './levels';
+import {
+  type GroupCtx,
+  type Quest,
+  type QuestDiff,
+  pickQuests,
+  QUEST_REWARD,
+  questById,
+  seededRandom,
+  shuffle,
+} from './quests';
+import { type Prior, kidnapStatements, loadPrior, slotOf } from './team';
+import { approvedBlocks, blockKey, hasBlockedTogether, separateBlocked } from './assign-block';
+import { isTestMember } from './test-accounts';
+
+export const GROUP_SIZE = 10;
+// 시즌 시작 전 이 기간 안에 활동한 사람만 모둠에 넣어요
+export const ACTIVE_DAYS = 14;
+const DAY_MS = 86_400_000;
+const KST_MS = 9 * 3_600_000;
+
+export function kstParts(iso: string): { day: string; hour: number; minute: number } {
+  const d = new Date(Date.parse(iso) + KST_MS);
+  return { day: d.toISOString().slice(0, 10), hour: d.getUTCHours(), minute: Math.floor(Date.parse(iso) / 60_000) };
+}
+
+export type Season = { id: string; start: string; end: string };
+export function seasonFrom(start: string, end: string): Season {
+  return { id: kstParts(start).day, start: new Date(start).toISOString(), end: new Date(end).toISOString() };
+}
+
+// ── 모둠 나누기 ──
+
+// slot: 지난 2주에 주로 통화한 시간대(평일/주말 + 저녁/밤/새벽/낮). 없으면 시간대는 안 봐요.
+// days: 지난 30일 동안 통화방에 나온 날 수, days14: 지난 2주 동안 나온 날 수(모르면 없음 → 활동 시간으로 대신 봐요)
+export type Person = { id: string; games: string[]; activity: number; slot?: string; days?: number; days14?: number };
+
+// 10명 안팎으로: 91명 → 9모둠(11·10×8), 95명 → 10모둠(10×5·9×5)
+export function groupCount(n: number): number {
+  return n < 2 ? 0 : Math.max(1, Math.round(n / GROUP_SIZE));
+}
+
+function spread(total: number, groups: number): number[] {
+  const base = Math.floor(total / groups);
+  const extra = total % groups;
+  return Array.from({ length: groups }, (_, i) => base + (i < extra ? 1 : 0));
+}
+
+// 팀 나누기(나리 2026-11-21): 활동량이 고르게가 먼저, 시간대가 다음, 게임 역할은 그래도 같을 때만 봐요.
+// 활동 적은 사람은 팀마다 같은 수로 먼저 나누고, 나머지는 많이 노는 사람부터 활동량 합이 적은 팀에 넣어요.
+// 모둠 인원 차이는 많아야 1명.
+// 팀마다 고르게 나누는 단계(벙구 의견, 나리 2026-11-21: 한 달로 먼저 끊고, 2주로 한 번 더 끊어요).
+// 1단계 "가끔 와요": 지난 30일 중 나온 날 3일 이하, 또는 지난 2주에 나온 날 1일 이하
+// 2단계 "보통": 지난 2주에 나온 날 2~3일
+// 두 단계는 팀마다 같은 수(차이 1명까지)로 먼저 나눠요. 나머지(2주에 4일 이상)는 아래 planCore(활동 시간 고르게 → 시간대 → 게임)로.
+// 나온 날 기록이 아무에게도 없으면 지난 2주 통화 LOW_ACTIVITY_MIN분 미만을 1단계로 대신 봐요.
+export const LOW_DAYS_WINDOW = 30;
+export const LOW_DAYS = 3;
+export const LOW_DAYS14 = 1;
+export const MID_DAYS14 = 3;
+export const LOW_ACTIVITY_MIN = 60;
+
+export function activityTier(p: Person, byDays: boolean): 0 | 1 | 2 {
+  if (!byDays) return p.activity < LOW_ACTIVITY_MIN ? 0 : 2;
+  const d30 = p.days ?? 0;
+  const d14 = p.days14 ?? 0;
+  if (d30 <= LOW_DAYS || d14 <= LOW_DAYS14) return 0;
+  if (d14 <= MID_DAYS14) return 1;
+  return 2;
+}
+
+// 막힌 짝을 떼어 놓으려고 사람을 바꿀 때 팀마다 "가끔/보통" 인원이 처음 나눈 범위(가장 적은 팀~가장 많은 팀)를 벗어나지 않게 해요.
+export function tierKeeper(people: Person[], plan: Map<string, number>): (ids: string[]) => boolean {
+  const byDays = people.some((p) => (p.days ?? 0) > 0);
+  const tier = new Map(people.map((p) => [p.id, activityTier(p, byDays)]));
+  const teams = [...new Set(plan.values())];
+  const range = [0, 1].map((k) => {
+    const n = teams.map((no) => [...plan].filter(([id, g]) => g === no && tier.get(id) === k).length);
+    return [Math.min(...n), Math.max(...n)] as const;
+  });
+  return (ids) =>
+    range.every(([lo, hi], k) => {
+      const n = ids.filter((id) => tier.get(id) === k).length;
+      return n >= lo && n <= hi;
+    });
+}
+
+export function planGroups(people: Person[], rand: () => number): Map<string, number> {
+  const g = groupCount(people.length);
+  if (!g) return new Map();
+  const cap = spread(people.length, g);
+  const byDays = people.some((p) => (p.days ?? 0) > 0);
+  const tiers = [0, 1].map((k) => people.filter((p) => activityTier(p, byDays) === k));
+  const rest = people.filter((p) => activityTier(p, byDays) === 2);
+  if (tiers.every((t) => !t.length)) return planCore(people, rand, g, cap);
+  // 단계마다 팀 몫을 정해요. 남은 자리가 많은 팀이 먼저 하나 더 받아서 팀 인원 차이가 1명을 넘지 않게요.
+  const room = [...cap];
+  const quotas = tiers.map((list) => {
+    const order = [...Array(g).keys()].sort((a, b) => room[b]! - room[a]! || a - b);
+    const q = Array<number>(g).fill(0);
+    spread(list.length, g).forEach((n, k) => (q[order[k]!] = n));
+    q.forEach((n, i) => (room[i]! -= n));
+    return q;
+  });
+  const out = planCore(rest, rand, g, room);
+  const games = Array.from({ length: g }, () => new Set<string>());
+  const slots = Array.from({ length: g }, () => new Map<string, number>());
+  const act = Array<number>(g).fill(0);
+  const add = (p: Person, i: number) => {
+    out.set(p.id, i);
+    for (const x of p.games) games[i]!.add(x);
+    if (p.slot) slots[i]!.set(p.slot, (slots[i]!.get(p.slot) ?? 0) + 1);
+    act[i]! += p.activity;
+  };
+  for (const p of rest) add(p, out.get(p.id)!);
+  // 단계 안에서는 조금이라도 더 하는 사람부터: 그 단계 사람이 아직 적은 팀 중 → 같은 시간대가 많은 팀 → 게임 역할이 겹치는 팀 → 활동량 합이 적은 팀
+  tiers.forEach((list, k) => {
+    const count = Array<number>(g).fill(0);
+    for (const p of shuffle(list, rand).sort((a, b) => b.activity - a.activity)) {
+      const open = [...Array(g).keys()].filter((i) => count[i]! < quotas[k]![i]!);
+      const fewest = Math.min(...open.map((i) => count[i]!));
+      const i = shuffle(open.filter((x) => count[x] === fewest), rand).sort(
+        (a, b) =>
+          (p.slot ? (slots[b]!.get(p.slot) ?? 0) - (slots[a]!.get(p.slot) ?? 0) : 0) ||
+          Number(p.games.some((x) => games[b]!.has(x))) - Number(p.games.some((x) => games[a]!.has(x))) ||
+          act[a]! - act[b]!,
+      )[0]!;
+      count[i]!++;
+      add(p, i);
+    }
+  });
+  return out;
+}
+
+// 나머지 사람(나리 2026-11-21): 1) 활동량이 고르게 — 많이 노는 사람부터, 지금 활동량 합이 제일 적은 두 팀(합이 비슷할 때만 둘) 중에
+// 2) 주로 노는 시간대가 같은 사람이 더 많은 팀, 3) 그래도 같으면 게임 역할이 겹치는 사람이 더 많은 팀에 넣어요.
+// (예전엔 게임별로 팀을 먼저 정해서, 한 게임 팀에 활동이 적은 사람만 모이면 팀끼리 활동량이 4배까지 벌어졌어요.)
+function planCore(people: Person[], rand: () => number, g: number, cap: number[]): Map<string, number> {
+  const out = new Map<string, number>();
+  const size = Array<number>(g).fill(0);
+  const act = Array<number>(g).fill(0);
+  const members = Array.from({ length: g }, () => [] as Person[]);
+  const slots = Array.from({ length: g }, () => new Map<string, number>());
+  const sameGame = (p: Person, i: number) => members[i]!.filter((q) => q.games.some((x) => p.games.includes(x))).length;
+  for (const p of shuffle(people, rand).sort((a, b) => b.activity - a.activity)) {
+    const open = [...Array(g).keys()].filter((i) => size[i]! < cap[i]!);
+    if (!open.length) break;
+    // 활동량 합이 제일 적은 두 팀 중, 제일 적은 팀과 차이가 이 사람 활동량의 절반 안쪽인 팀만 비슷하다고 봐요
+    const sorted = shuffle(open, rand).sort((a, b) => act[a]! - act[b]! || size[a]! - size[b]!);
+    const two = sorted.slice(0, 2).filter((x) => act[x]! - act[sorted[0]!]! <= p.activity / 2);
+    const i = two.sort(
+      (a, b) =>
+        (p.slot ? (slots[b]!.get(p.slot) ?? 0) - (slots[a]!.get(p.slot) ?? 0) : 0) || sameGame(p, b) - sameGame(p, a),
+    )[0]!;
+    out.set(p.id, i);
+    size[i]!++;
+    act[i]! += p.activity;
+    members[i]!.push(p);
+    if (p.slot) slots[i]!.set(p.slot, (slots[i]!.get(p.slot) ?? 0) + 1);
+  }
+  return out;
+}
+
+// 시즌 중에 새로 활동한 사람: 게임 역할이 겹치는 모둠 중 제일 작은 곳(없으면 그냥 제일 작은 곳)
+// avoid: 같이 배정되지 않기로 승인된 상대가 있는 모둠 번호(다른 곳이 있으면 피해요)
+export function joinGroup(
+  games: string[],
+  groups: { no: number; size: number; games: Set<string> }[],
+  rand: () => number,
+  avoid: Set<number> = new Set(),
+): number | null {
+  if (!groups.length) return null;
+  if (avoid.size && groups.some((x) => !avoid.has(x.no))) groups = groups.filter((x) => !avoid.has(x.no));
+  const sharing = groups.filter((x) => games.some((g) => x.games.has(g)));
+  const pool = sharing.length ? sharing : groups;
+  return shuffle(pool, rand).sort((a, b) => a.size - b.size)[0]!.no;
+}
+
+const parseGames = (raw: string | null | undefined): string[] => {
+  try {
+    const v = JSON.parse(raw ?? '[]');
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+
+// 시즌이 처음이면 모둠과 퀘스트를 만들어요. 만들었으면 true.
+export async function ensureSeason(db: D1Database, season: Season, nowMs: number, opts: { scrim?: boolean; groupQuests?: boolean; exclude?: string[] } = {}): Promise<boolean> {
+  const exists = await db.prepare('SELECT 1 FROM seasons WHERE id = ?').bind(season.id).first();
+  if (exists) return false;
+  const t = new Date(nowMs).toISOString();
+  const cutoffIso = new Date(Date.parse(season.start) - ACTIVE_DAYS * DAY_MS).toISOString();
+  const cutoffDay = kstParts(cutoffIso).day;
+  const daysFrom = kstParts(new Date(Date.parse(season.start) - LOW_DAYS_WINDOW * DAY_MS).toISOString()).day;
+  // 시즌 시작 날(그날 포함)부터의 기록은 세지 않아요(배포가 늦어져도 같은 결과가 나오게).
+  const toDay = kstParts(season.start).day;
+  const { results: rows } = await db
+    .prepare(
+      `SELECT m.user_id, m.games, m.last_login_at, p.updated_at AS profile_at, m.green,
+         (SELECT COALESCE(SUM(minutes), 0) FROM member_voice_day v WHERE v.user_id = m.user_id AND v.day >= ?1 AND v.day < ?4) AS recent,
+         (SELECT COUNT(*) FROM member_voice_day v WHERE v.user_id = m.user_id AND v.day >= ?3 AND v.day < ?4 AND v.minutes > 0) AS days,
+         (SELECT COUNT(*) FROM member_voice_day v WHERE v.user_id = m.user_id AND v.day >= ?1 AND v.day < ?4 AND v.minutes > 0) AS days14,
+         (SELECT COALESCE(SUM(voice_seconds), 0) / 60 FROM cards c WHERE c.owner_id = m.user_id AND c.updated_at >= ?2) AS fallback
+       FROM members m LEFT JOIN profiles p ON p.user_id = m.user_id WHERE m.active = 1`,
+    )
+    .bind(cutoffDay, cutoffIso, daysFrom, toDay)
+    .all<{ user_id: string; games: string; last_login_at: string | null; profile_at: string | null; green: number | null; recent: number; days: number; days14: number; fallback: number }>();
+  // 처음 시즌에는 날마다 통화 기록이 아직 없어서 카드 통화 시간으로 대신 재요
+  const useRecent = rows.some((r) => r.recent > 0);
+  const prior: Prior = await loadPrior(db, season);
+  const people: Person[] = [];
+  // 팀은 초록하리보 역할이 있는 사람으로만 짜요(잠수하면 역할이 빠져요, 나리 2026-11-15).
+  // 봇이 아직 초록하리보 여부를 안 보내면(모두 NULL) 예전처럼 지난 2주 활동으로 골라요.
+  // 테스트 계정(src/test-accounts.ts)은 팀에 넣지 않고, 역할 정보가 있는지 판단할 때도 보지 않아요.
+  const greenKnown = rows.some((r) => r.green !== null && !isTestMember(r.user_id));
+  // 같은 묶음에서 나간 사람은 아직 active라도 빼요(넣으면 팀 인원이 한 명 모자란 채로 시작해요)
+  const exclude = new Set(opts.exclude ?? []);
+  for (const r of rows) {
+    if (exclude.has(r.user_id) || isTestMember(r.user_id)) continue;
+    const activity = useRecent ? r.recent : r.fallback;
+    const active = greenKnown ? r.green === 1 : activity > 0 || (r.profile_at ?? '') >= cutoffIso || (r.last_login_at ?? '') >= cutoffIso;
+    if (active) people.push({ id: r.user_id, games: parseGames(r.games), activity, slot: prior.slot.get(r.user_id), days: useRecent ? r.days : undefined, days14: useRecent ? r.days14 : undefined });
+  }
+  const rand = seededRandom(`season:${season.id}`);
+  // 팀(예전 이름 모둠): 게임 역할 겹치게, 많이/적게 노는 사람 섞기, 주로 노는 시간대 겹치게
+  // 같이 배정되지 않기로 승인된 짝은 떼어 놓아요
+  const blocked = await approvedBlocks(db);
+  // 먼저 "가끔/보통" 고르게 나눈 걸 지키면서 떼어 보고, 그래도 안 되면 떼어 놓는 쪽을 먼저 지켜요.
+  const planned = planGroups(people, rand);
+  let plan = separateBlocked(new Map(planned), blocked, tierKeeper(people, planned));
+  if (hasBlockedTogether(plan, blocked)) plan = separateBlocked(new Map(planned), blocked);
+  // 모둠을 만들 사람이 없으면 시즌을 적지 않고 다음 묶음에서 다시 해 봐요
+  if (!plan.size) return false;
+
+  const stmts: D1PreparedStatement[] = [
+    // 새 시즌 시작 뒤에 받은 빙고 젤리피는 앞 시즌이 아니라 새 시즌 순위에 쌓여요(빙고 기간은 같은 id라 그대로 이어져요).
+    db
+      .prepare(
+        `UPDATE jellypi SET season_id = ?1 WHERE source IN ('line', 'full') AND created_at >= ?2
+           AND season_id IN (SELECT id FROM seasons WHERE starts_at < ?2 AND ends_at > ?2)`,
+      )
+      .bind(season.id, season.start),
+    // 앞 시즌이 새 시즌 시작보다 늦게 끝나기로 돼 있으면(2주 시즌을 1주로 바꾼 날) 새 시즌 시작에서 끝내요.
+    // 그러면 앞 시즌은 그 시각에 끝난 걸로 정산되고(팀·서버 퀘스트 보상, 겜블 우승), 기록이 두 시즌에 겹쳐 들어가지 않아요.
+    db
+      .prepare('UPDATE seasons SET ends_at = ?1 WHERE starts_at < ?1 AND ends_at > ?1')
+      .bind(season.start),
+    db.prepare('INSERT INTO seasons (id, starts_at, ends_at, created_at) VALUES (?, ?, ?, ?)').bind(season.id, season.start, season.end, t),
+  ];
+  const addMember = db.prepare(
+    'INSERT INTO season_members (season_id, user_id, group_no, start_member, joined_at) VALUES (?, ?, ?, 1, ?)',
+  );
+  for (const [id, no] of plan) stmts.push(addMember.bind(season.id, id, no, t));
+  // 하리보 빙고부터 모둠 퀘스트 8개는 만들지 않아요(빙고 가운데 칸 팀 퀘스트로 바뀌었어요).
+  // 예전 퀘스트를 다시 켜고 싶을 때만 opts.groupQuests를 써요.
+  if (opts.groupQuests) {
+    const addQuest = db.prepare('INSERT INTO season_quests (season_id, group_no, slot, quest_id) VALUES (?, ?, ?, ?)');
+    for (let no = 0; no < groupCount(plan.size); no++)
+      pickQuests(rand, { seen: new Map(), scrim: opts.scrim }).forEach((q, slot) => stmts.push(addQuest.bind(season.id, no, slot, q)));
+  }
+  stmts.push(...snapshotStatements(db, season.id, null));
+  try {
+    await db.batch(stmts);
+  } catch (e) {
+    if (String(e).includes('UNIQUE') && String(e).includes('seasons')) return false;
+    throw e;
+  }
+  return true;
+}
+
+// 시즌 시작(또는 늦게 들어온 때) 카드 경험치를 적어 둬요. userId가 없으면 모두.
+function snapshotStatements(db: D1Database, seasonId: string, userId: string | null): D1PreparedStatement[] {
+  return [
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO season_snap (season_id, owner_id, target_id, xp)
+         SELECT ?1, p.user_id, p.user_id, p.solo_xp FROM profiles p
+         JOIN season_members s ON s.season_id = ?1 AND s.user_id = p.user_id
+         WHERE ?2 IS NULL OR p.user_id = ?2`,
+      )
+      .bind(seasonId, userId),
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO season_snap (season_id, owner_id, target_id, xp)
+         SELECT ?1, c.owner_id, c.target_id, c.xp FROM cards c
+         JOIN season_members a ON a.season_id = ?1 AND a.user_id = c.owner_id
+         JOIN season_members b ON b.season_id = ?1 AND b.user_id = c.target_id AND b.group_no = a.group_no
+         WHERE c.owner_id < c.target_id AND (?2 IS NULL OR c.owner_id = ?2 OR c.target_id = ?2)`,
+      )
+      .bind(seasonId, userId),
+  ];
+}
+
+// ── 봇 기록 모으기(동기화와 같은 트랜잭션) ──
+
+export type RoomMinute = { at: string; room: string; members: string[] };
+export type ScrimRecord = { id: string; game: string; at: string; members: string[] };
+export type Attendance = { id: string; day: string };
+export type SeasonPayload = {
+  members: { id: string; is_newbie: boolean; green?: boolean; games?: string[] }[];
+  removed: string[];
+  room_minutes: RoomMinute[];
+  scrims: ScrimRecord[];
+  attendance: Attendance[];
+  season: Season | null;
+};
+
+type SeasonMemberRow = { user_id: string; group_no: number; left_at: string | null; games: string; is_newbie: number };
+
+// 동기화 묶음에 덧붙일 문장들. 묶음이 한 번만 반영되니까 여기서 더한 분도 한 번만 더해져요.
+export async function seasonStatements(db: D1Database, p: SeasonPayload, nowMs: number): Promise<D1PreparedStatement[]> {
+  const t = new Date(nowMs).toISOString();
+  const stmts: D1PreparedStatement[] = [];
+
+  // 최근 활동량(모둠 섞기용): 2명 이상 있던 통화방의 1분마다
+  const voiceDay = new Map<string, number>();
+  for (const r of p.room_minutes)
+    for (const u of new Set(r.members)) {
+      const key = `${u}|${kstParts(r.at).day}`;
+      voiceDay.set(key, (voiceDay.get(key) ?? 0) + 1);
+    }
+  const addVoiceDay = db.prepare(
+    `INSERT INTO member_voice_day (user_id, day, minutes) VALUES (?1, ?2, ?3)
+     ON CONFLICT (user_id, day) DO UPDATE SET minutes = minutes + ?3`,
+  );
+  for (const [key, n] of voiceDay) {
+    const [u, day] = key.split('|') as [string, string];
+    stmts.push(addVoiceDay.bind(u, day, n));
+  }
+  // 통화한 시간대(팀을 짤 때 주로 노는 시간대가 겹치게)
+  const voiceSlot = new Map<string, number>();
+  for (const r of p.room_minutes) {
+    const { day, hour } = kstParts(r.at);
+    for (const u of new Set(r.members)) {
+      const key = `${u}|${day}|${slotOf(hour)}`;
+      voiceSlot.set(key, (voiceSlot.get(key) ?? 0) + 1);
+    }
+  }
+  const addVoiceSlot = db.prepare(
+    `INSERT INTO member_voice_slot (user_id, day, slot, minutes) VALUES (?1, ?2, ?3, ?4)
+     ON CONFLICT (user_id, day, slot) DO UPDATE SET minutes = minutes + ?4`,
+  );
+  for (const [key, n] of voiceSlot) {
+    const [u, day, slot] = key.split('|') as [string, string, string];
+    stmts.push(addVoiceSlot.bind(u, day, slot, n));
+  }
+
+  // 나간 사람은 지금 진행 중인 모든 시즌 모둠에서 빼요(이미 쌓은 기록은 남아요).
+  // 시즌 정보가 없는 묶음에도 나간 사람은 올 수 있어서, 시즌 정보와 상관없이 처리해요.
+  const removed = new Set(p.removed);
+  if (removed.size)
+    stmts.push(
+      db
+        .prepare(
+          `UPDATE season_members SET left_at = ?1 WHERE left_at IS NULL AND user_id IN (SELECT value FROM json_each(?2))
+           AND season_id IN (SELECT id FROM seasons WHERE ends_at > ?1)`,
+        )
+        .bind(t, JSON.stringify([...removed])),
+    );
+
+  for (const { season, join } of await seasonTargets(db, p)) stmts.push(...(await groupStatements(db, p, season, t, removed, join)));
+  return stmts;
+}
+
+// 이번 묶음 기록이 들어갈 시즌들. 지금 시즌(봇이 보낸 season) + 시즌이 바뀌는 순간에 걸친 앞 시즌.
+// 앞 시즌에는 기록만 더하고, 새 모둠원은 넣지 않아요.
+export async function seasonTargets(db: D1Database, p: SeasonPayload): Promise<{ season: Season; join: boolean }[]> {
+  const out: { season: Season; join: boolean }[] = [];
+  if (p.season && (await db.prepare('SELECT 1 FROM seasons WHERE id = ?').bind(p.season.id).first())) out.push({ season: p.season, join: true });
+  // 출석은 도감 날짜만 오므로 그날이 시작하는 순간(한국 시간 아침 6시)으로 봐요.
+  const times = [...p.room_minutes.map((r) => Date.parse(r.at)), ...p.scrims.map((s) => Date.parse(s.at)), ...p.attendance.map((a) => dayStartMs(a.day))]
+    .filter(Number.isFinite);
+  if (!times.length) return out;
+  const earliest = new Date(Math.min(...times)).toISOString();
+  if (p.season && earliest >= p.season.start) return out;
+  const latest = new Date(Math.max(...times)).toISOString();
+  const { results } = await db
+    .prepare('SELECT id, starts_at, ends_at FROM seasons WHERE ends_at > ?1 AND starts_at <= ?2 AND id != ?3 ORDER BY id')
+    .bind(earliest, latest, p.season?.id ?? '')
+    .all<{ id: string; starts_at: string; ends_at: string }>();
+  for (const r of results) out.push({ season: { id: r.id, start: r.starts_at, end: r.ends_at }, join: false });
+  return out;
+}
+
+async function groupStatements(
+  db: D1Database,
+  p: SeasonPayload,
+  season: Season,
+  t: string,
+  removed: Set<string>,
+  join: boolean,
+): Promise<D1PreparedStatement[]> {
+  const stmts: D1PreparedStatement[] = [];
+  const startMs = Date.parse(season.start);
+  const endMs = Date.parse(season.end);
+  const inSeason = (at: string) => {
+    const ms = Date.parse(at);
+    return ms >= startMs && ms < endMs;
+  };
+
+  const { results: rows } = await db
+    .prepare(
+      `SELECT s.user_id, s.group_no, s.left_at, COALESCE(m.games, '[]') AS games, COALESCE(m.is_newbie, 0) AS is_newbie
+       FROM season_members s LEFT JOIN members m ON m.user_id = s.user_id WHERE s.season_id = ?`,
+    )
+    .bind(season.id)
+    .all<SeasonMemberRow>();
+  const payloadMember = new Map(p.members.map((m) => [m.id, m]));
+  const gamesOf = new Map<string, string[]>();
+  const newbie = new Set<string>();
+  const group = new Map<string, number>(); // 지금 모둠원 → 모둠
+  const known = new Set<string>();
+  const departed = new Map<string, number>(); // 시즌 중에 나갔던 사람 → 원래 모둠
+  for (const r of rows) {
+    known.add(r.user_id);
+    gamesOf.set(r.user_id, payloadMember.get(r.user_id)?.games ?? parseGames(r.games));
+    if (!r.left_at) group.set(r.user_id, r.group_no);
+    else departed.set(r.user_id, r.group_no);
+  }
+  // 이번 묶음에서 나간 사람의 원래 모둠. 나가기 전의 통화는 같은 묶음에 같이 와도 세요(따로 왔을 때와 같게).
+  const leftNow = new Map([...group].filter(([id]) => removed.has(id)));
+  for (const id of removed) group.delete(id);
+  // 초록하리보 여부(이번 묶음 정보가 먼저, 없으면 웹에 있던 값). undefined = 모름(예전 봇)
+  const greenOf = new Map<string, boolean>();
+  for (const m of p.members) if (typeof m.green === 'boolean') greenOf.set(m.id, m.green);
+  for (const u of [...group.keys(), ...p.members.map((m) => m.id)]) if (isTestMember(u)) greenOf.set(u, false); // 테스트 계정은 팀에서 빼요
+
+  // 기록에 나오는 사람의 신입 여부·게임 역할(이번 묶음 정보가 먼저)
+  const seen = new Set<string>();
+  for (const r of p.room_minutes) if (inSeason(r.at)) for (const u of r.members) seen.add(u);
+  for (const s of p.scrims) if (inSeason(s.at)) for (const u of s.members) seen.add(u);
+  // 출석은 시즌 날짜 안의 것만(지난 시즌 날짜의 늦은 출석으로 새 시즌 모둠에 들어가지 않게)
+  const seasonFirstDay = season.id;
+  const seasonLastDay = kstParts(new Date(endMs - 1).toISOString()).day;
+  for (const a of p.attendance) if (a.day >= seasonFirstDay && a.day <= seasonLastDay) seen.add(a.id);
+  const { results: info } = await db
+    .prepare('SELECT user_id, games, is_newbie, active, green FROM members WHERE user_id IN (SELECT value FROM json_each(?))')
+    .bind(JSON.stringify([...seen]))
+    .all<{ user_id: string; games: string; is_newbie: number; active: number; green: number | null }>();
+  const activeNow = new Set<string>();
+  for (const r of info) {
+    if (r.green !== null && !greenOf.has(r.user_id)) greenOf.set(r.user_id, r.green === 1);
+    if (r.is_newbie) newbie.add(r.user_id);
+    if (r.active) activeNow.add(r.user_id);
+    if (!gamesOf.has(r.user_id)) gamesOf.set(r.user_id, parseGames(r.games));
+  }
+  for (const m of p.members) {
+    activeNow.add(m.id);
+    if (m.is_newbie) newbie.add(m.id);
+    else newbie.delete(m.id);
+    if (m.games) gamesOf.set(m.id, m.games);
+  }
+
+  // 시즌 중에 초록하리보가 빠진 사람은 팀에서 빠져요(이미 쌓은 기록은 남아요). 지금 시즌에서만.
+  if (join) {
+    const markLeft = db.prepare('UPDATE season_members SET left_at = ? WHERE season_id = ? AND user_id = ? AND left_at IS NULL');
+    for (const [u, g] of [...group]) {
+      if (greenOf.get(u) !== false) continue;
+      group.delete(u);
+      leftNow.set(u, g); // 이번 묶음에서 빠지기 전 통화는 세요
+      departed.set(u, g);
+      stmts.push(markLeft.bind(t, season.id, u));
+    }
+  }
+
+  // 시즌 중에 새로 들어온 사람 → 제일 작은 팀
+  // 초록하리보를 아는 사람: 역할이 생기면 활동과 상관없이 바로 들어가고, 인원이 같으면 아무 팀(랜덤)이에요(나리 2026-11-15).
+  // 모르는 사람(예전 봇): 예전처럼 기록에 나오면 게임 역할이 겹치는 제일 작은 팀으로 가요.
+  for (const m of p.members) if (m.green === true) seen.add(m.id);
+  const groupNos = new Set(rows.map((r) => r.group_no));
+  const rand = seededRandom(`join:${season.id}:${t}`);
+  const addLate = db.prepare(
+    'INSERT OR IGNORE INTO season_members (season_id, user_id, group_no, start_member, joined_at) VALUES (?, ?, ?, 0, ?)',
+  );
+  const rejoin = db.prepare('UPDATE season_members SET left_at = NULL WHERE season_id = ? AND user_id = ?');
+  let blocked: Set<string> | null = null; // 같이 배정되지 않기(새로 들어오는 사람이 있을 때만 읽어요)
+  for (const u of join ? [...seen].sort() : []) {
+    if (removed.has(u) || !activeNow.has(u)) continue;
+    const green = greenOf.get(u);
+    if (green === false || isTestMember(u)) continue; // 초록하리보가 없거나 테스트 계정이면 팀에 들어가지 않아요
+    // 나갔다가 다시 들어온 사람은 원래 모둠으로 돌아가요
+    const back = departed.get(u);
+    if (back !== undefined) {
+      departed.delete(u);
+      group.set(u, back);
+      stmts.push(rejoin.bind(season.id, u));
+      continue;
+    }
+    if (known.has(u) || !groupNos.size) continue;
+    const groups = [...groupNos].map((no) => {
+      const ids = [...group].filter(([, g]) => g === no).map(([id]) => id);
+      return { no, size: ids.length, games: new Set(ids.flatMap((id) => gamesOf.get(id) ?? [])) };
+    });
+    blocked ??= await approvedBlocks(db);
+    const avoid = new Set([...group].filter(([id]) => blocked!.has(blockKey(u, id))).map(([, g]) => g));
+    const no = joinGroup(green === true ? [] : gamesOf.get(u) ?? [], groups, rand, avoid);
+    if (no === null) continue;
+    group.set(u, no);
+    known.add(u);
+    stmts.push(addLate.bind(season.id, u, no, t));
+    stmts.push(...snapshotStatements(db, season.id, u));
+  }
+
+  // 1분 통화방 기록 → 모둠별로
+  const voice = new Map<string, number>();
+  const memberDay = new Map<string, number>();
+  const memberGameDay = new Map<string, number>();
+  const pairs = new Map<string, number>();
+  const rooms = new Set<string>();
+  const newbieMin = new Map<string, number>();
+  const runMinutes = new Map<number, Set<number>>();
+  const keyOf = (...xs: (string | number)[]) => xs.join('|');
+  for (const r of p.room_minutes) {
+    if (!inSeason(r.at)) continue;
+    const { day, hour, minute } = kstParts(r.at);
+    const inRoom = [...new Set(r.members)];
+    const byGroup = new Map<number, string[]>();
+    for (const u of inRoom) {
+      const g = group.get(u) ?? leftNow.get(u);
+      if (g !== undefined) (byGroup.get(g) ?? byGroup.set(g, []).get(g)!).push(u);
+    }
+    const newbies = inRoom.filter((u) => newbie.has(u));
+    for (const [g, gm] of byGroup) {
+      if (gm.length < 2) continue;
+      const counts = new Map<string, number>();
+      for (const u of gm) for (const x of new Set(gamesOf.get(u) ?? [])) counts.set(x, (counts.get(x) ?? 0) + 1);
+      const same = Math.max(0, ...counts.values());
+      const vk = keyOf(g, day, hour, gm.length, same);
+      voice.set(vk, (voice.get(vk) ?? 0) + 1);
+      for (const u of gm) memberDay.set(keyOf(g, u, day), (memberDay.get(keyOf(g, u, day)) ?? 0) + 1);
+      const gday = gameDay(Date.parse(r.at));
+      for (const u of gm) memberGameDay.set(keyOf(g, u, gday), (memberGameDay.get(keyOf(g, u, gday)) ?? 0) + 1);
+      const sorted = [...gm].sort();
+      for (let i = 0; i < sorted.length; i++)
+        for (let j = i + 1; j < sorted.length; j++) {
+          const pk = keyOf(g, sorted[i]!, sorted[j]!);
+          pairs.set(pk, (pairs.get(pk) ?? 0) + 1);
+        }
+      rooms.add(keyOf(g, r.room));
+      (runMinutes.get(g) ?? runMinutes.set(g, new Set()).get(g)!).add(minute);
+      for (const nb of newbies)
+        for (const u of gm) if (u !== nb) newbieMin.set(keyOf(g, nb, u), (newbieMin.get(keyOf(g, nb, u)) ?? 0) + 1);
+    }
+    // 모둠원 한 명이라도 신입과 같은 방이면 신입 챙기기로 쳐요
+    for (const [g, gm] of byGroup) {
+      if (gm.length >= 2) continue;
+      for (const nb of newbies) for (const u of gm) if (u !== nb) newbieMin.set(keyOf(g, nb, u), (newbieMin.get(keyOf(g, nb, u)) ?? 0) + 1);
+    }
+  }
+  const sid = season.id;
+  const addVoice = db.prepare(
+    `INSERT INTO gq_voice (season_id, group_no, day, hour, together, same, minutes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+     ON CONFLICT (season_id, group_no, day, hour, together, same) DO UPDATE SET minutes = minutes + ?7`,
+  );
+  for (const [k, n] of voice) {
+    const [g, day, hour, together, same] = k.split('|');
+    stmts.push(addVoice.bind(sid, Number(g), day, Number(hour), Number(together), Number(same), n));
+  }
+  const addMemberDay = db.prepare(
+    `INSERT INTO gq_member_day (season_id, group_no, user_id, day, minutes) VALUES (?1, ?2, ?3, ?4, ?5)
+     ON CONFLICT (season_id, group_no, user_id, day) DO UPDATE SET minutes = minutes + ?5`,
+  );
+  for (const [k, n] of memberDay) {
+    const [g, u, day] = k.split('|');
+    stmts.push(addMemberDay.bind(sid, Number(g), u, day, n));
+  }
+  const addMemberGameDay = db.prepare(
+    `INSERT INTO gq_member_gameday (season_id, group_no, user_id, day, minutes) VALUES (?1, ?2, ?3, ?4, ?5)
+     ON CONFLICT (season_id, group_no, user_id, day) DO UPDATE SET minutes = minutes + ?5`,
+  );
+  for (const [k, n] of memberGameDay) {
+    const [g, u, day] = k.split('|');
+    stmts.push(addMemberGameDay.bind(sid, Number(g), u, day, n));
+  }
+  const addPair = db.prepare(
+    `INSERT INTO gq_pair (season_id, group_no, a, b, minutes) VALUES (?1, ?2, ?3, ?4, ?5)
+     ON CONFLICT (season_id, group_no, a, b) DO UPDATE SET minutes = minutes + ?5`,
+  );
+  for (const [k, n] of pairs) {
+    const [g, a, b] = k.split('|');
+    stmts.push(addPair.bind(sid, Number(g), a, b, n));
+  }
+  const addRoom = db.prepare('INSERT OR IGNORE INTO gq_room (season_id, group_no, room_id) VALUES (?, ?, ?)');
+  for (const k of rooms) {
+    const [g, room] = k.split('|');
+    stmts.push(addRoom.bind(sid, Number(g), room));
+  }
+  const addNewbie = db.prepare(
+    `INSERT INTO gq_newbie (season_id, group_no, newbie_id, user_id, minutes) VALUES (?1, ?2, ?3, ?4, ?5)
+     ON CONFLICT (season_id, group_no, newbie_id, user_id) DO UPDATE SET minutes = minutes + ?5`,
+  );
+  for (const [k, n] of newbieMin) {
+    const [g, nb, u] = k.split('|');
+    stmts.push(addNewbie.bind(sid, Number(g), nb, u, n));
+  }
+
+  // 이어서 통화한 시간: 1분씩 이어지면 늘고, 끊기면 다시 1부터
+  if (runMinutes.size) {
+    const { results: runs } = await db
+      .prepare('SELECT group_no, last_minute, current, best FROM gq_run WHERE season_id = ?')
+      .bind(sid)
+      .all<{ group_no: number; last_minute: string; current: number; best: number }>();
+    const prevRun = new Map(runs.map((r) => [r.group_no, r]));
+    const setRun = db.prepare(
+      `INSERT INTO gq_run (season_id, group_no, last_minute, current, best) VALUES (?1, ?2, ?3, ?4, ?5)
+       ON CONFLICT (season_id, group_no) DO UPDATE SET last_minute = ?3, current = ?4, best = MAX(best, ?5)`,
+    );
+    for (const [g, set] of runMinutes) {
+      const before = prevRun.get(g);
+      let last = before ? Number(before.last_minute) : -2;
+      let current = before?.current ?? 0;
+      let best = before?.best ?? 0;
+      for (const m of [...set].sort((a, b) => a - b)) {
+        if (m <= last) continue; // 이미 센 분(늦게 온 묶음)
+        current = m === last + 1 ? current + 1 : 1;
+        last = m;
+        best = Math.max(best, current);
+      }
+      stmts.push(setRun.bind(sid, g, String(last), current, best));
+    }
+  }
+
+  // 서버 퀘스트: 초록하리보와 같은 통화방에 있던 분(팀 상관없이 서버 전체)
+  stmts.push(...kidnapStatements(db, sid, p.room_minutes.filter((r) => inSeason(r.at)), newbie));
+
+  // 내전(참가만 하면 세요)
+  const addScrim = db.prepare(
+    'INSERT OR IGNORE INTO gq_scrim (season_id, group_no, scrim_id, game, day, members, newbies) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  );
+  for (const s of p.scrims) {
+    if (!inSeason(s.at)) continue;
+    const ids = [...new Set(s.members)];
+    const newbies = ids.filter((u) => newbie.has(u)).length;
+    const byGroup = new Map<number, string[]>();
+    for (const u of ids) {
+      const g = group.get(u);
+      if (g !== undefined) (byGroup.get(g) ?? byGroup.set(g, []).get(g)!).push(u);
+    }
+    for (const [g, gm] of byGroup) stmts.push(addScrim.bind(sid, g, s.id, s.game, kstParts(s.at).day, JSON.stringify(gm), newbies));
+  }
+
+  // 출석
+  const addAttend = db.prepare('INSERT OR IGNORE INTO gq_attend (season_id, user_id, day) VALUES (?, ?, ?)');
+  for (const a of p.attendance)
+    if (group.has(a.id) && a.day >= seasonFirstDay && a.day <= seasonLastDay) stmts.push(addAttend.bind(sid, a.id, a.day));
+
+  return stmts;
+}
+
+// ── 진행도 계산 ──
+
+export type GroupState = {
+  no: number;
+  members: { id: string; name: string; start: boolean; left: boolean }[];
+  quests: { slot: number; quest: Quest; done_at: string | null }[];
+  ctx: GroupCtx;
+};
+
+type Rows<T> = Promise<{ results: T[] }>;
+
+// 시즌의 모둠(groupNo가 있으면 그 모둠만) 기록을 읽어 퀘스트 계산용으로 묶어요.
+// ended: 이미 끝난 시즌을 늦게 계산할 때예요. 로그인·카드 레벨처럼 "지금 상태"로만 알 수 있는 값은
+// 다음 시즌 활동이 섞이므로 쓰지 않아요(끝난 시즌 안에 적힌 기록만으로 계산).
+export async function loadGroups(
+  db: D1Database,
+  seasonId: string,
+  groupNo: number | null = null,
+  ended = false,
+): Promise<{ season: Season; groups: GroupState[] } | null> {
+  const s = await db.prepare('SELECT id, starts_at, ends_at FROM seasons WHERE id = ?').bind(seasonId).first<{ id: string; starts_at: string; ends_at: string }>();
+  if (!s) return null;
+  const season: Season = { id: s.id, start: s.starts_at, end: s.ends_at };
+  const q = <T>(sql: string, ...args: unknown[]): Rows<T> => db.prepare(sql).bind(seasonId, groupNo, ...args).all<T>();
+  const G = '(?2 IS NULL OR group_no = ?2)';
+  const [members, quests, voice, memberDay, pairs, rooms, runs, scrims, newbie, attend, praises, cards, newOwners, snaps, memberGameDay] = await Promise.all([
+    q<{ user_id: string; group_no: number; start_member: number; left_at: string | null; display_name: string | null; last_login_at: string | null; solo_xp: number | null; is_newbie: number | null }>(
+      `SELECT s.user_id, s.group_no, s.start_member, s.left_at, m.display_name, m.last_login_at, p.solo_xp, m.is_newbie
+       FROM season_members s LEFT JOIN members m ON m.user_id = s.user_id LEFT JOIN profiles p ON p.user_id = s.user_id
+       WHERE s.season_id = ?1 AND (?2 IS NULL OR s.group_no = ?2) ORDER BY s.joined_at, s.user_id`,
+    ),
+    q<{ group_no: number; slot: number; quest_id: string; done_at: string | null }>(`SELECT group_no, slot, quest_id, done_at FROM season_quests WHERE season_id = ?1 AND ${G} ORDER BY slot`),
+    q<{ group_no: number; day: string; hour: number; together: number; same: number; minutes: number }>(`SELECT group_no, day, hour, together, same, minutes FROM gq_voice WHERE season_id = ?1 AND ${G}`),
+    q<{ group_no: number; user_id: string; day: string; minutes: number }>(`SELECT group_no, user_id, day, minutes FROM gq_member_day WHERE season_id = ?1 AND ${G}`),
+    q<{ group_no: number; a: string; b: string; minutes: number }>(`SELECT group_no, a, b, minutes FROM gq_pair WHERE season_id = ?1 AND ${G}`),
+    q<{ group_no: number; n: number }>(`SELECT group_no, COUNT(*) AS n FROM gq_room WHERE season_id = ?1 AND ${G} GROUP BY group_no`),
+    q<{ group_no: number; best: number }>(`SELECT group_no, best FROM gq_run WHERE season_id = ?1 AND ${G}`),
+    q<{ group_no: number; game: string; day: string; members: string; newbies: number }>(`SELECT group_no, game, day, members, newbies FROM gq_scrim WHERE season_id = ?1 AND ${G}`),
+    q<{ group_no: number; newbie_id: string; user_id: string; minutes: number }>(`SELECT group_no, newbie_id, user_id, minutes FROM gq_newbie WHERE season_id = ?1 AND ${G}`),
+    q<{ user_id: string; day: string }>(
+      `SELECT a.user_id, a.day FROM gq_attend a JOIN season_members s ON s.season_id = a.season_id AND s.user_id = a.user_id
+       WHERE a.season_id = ?1 AND (?2 IS NULL OR s.group_no = ?2)`,
+    ),
+    q<{ day: string; from_id: string; to_id: string; to_newbie: number }>(
+      `SELECT r.day, r.from_id, r.to_id, COALESCE(m.is_newbie, 0) AS to_newbie FROM praises r
+       JOIN season_members a ON a.season_id = ?1 AND a.user_id = r.from_id AND a.left_at IS NULL
+       JOIN season_members b ON b.season_id = ?1 AND b.user_id = r.to_id AND b.group_no = a.group_no AND b.left_at IS NULL
+       LEFT JOIN members m ON m.user_id = r.to_id
+       WHERE r.created_at >= ?3 AND r.created_at < ?4 AND (?2 IS NULL OR a.group_no = ?2)`,
+      // 한마디 검사 중 자정을 넘으면 한도용 day와 저장 날짜가 달라져요. 시즌은 저장 시각으로만 나눠요.
+      season.start,
+      season.end,
+    ),
+    q<{ owner_id: string; target_id: string; xp: number; first_met: string }>(
+      `SELECT c.owner_id, c.target_id, c.xp, c.first_met FROM cards c
+       JOIN season_members a ON a.season_id = ?1 AND a.user_id = c.owner_id AND a.left_at IS NULL
+       JOIN season_members b ON b.season_id = ?1 AND b.user_id = c.target_id AND b.group_no = a.group_no AND b.left_at IS NULL
+       WHERE c.owner_id < c.target_id AND (?2 IS NULL OR a.group_no = ?2)`,
+    ),
+    q<{ owner_id: string }>(
+      `SELECT DISTINCT c.owner_id FROM cards c JOIN season_members s ON s.season_id = ?1 AND s.user_id = c.owner_id
+       WHERE c.first_met >= ?3 AND c.first_met < ?4 AND (?2 IS NULL OR s.group_no = ?2)`,
+      season.start,
+      season.end,
+    ),
+    q<{ owner_id: string; target_id: string; xp: number }>(
+      `SELECT n.owner_id, n.target_id, n.xp FROM season_snap n JOIN season_members s ON s.season_id = n.season_id AND s.user_id = n.owner_id
+       WHERE n.season_id = ?1 AND (?2 IS NULL OR s.group_no = ?2)`,
+    ),
+    // 오늘의 활약은 시즌이 0시에 바뀌어도 같은 게임일(아침 6시~)이면 이어서 세요: 앞 시즌 기록도 지금 팀으로 합쳐요.
+    q<{ group_no: number; user_id: string; day: string; minutes: number }>(
+      `SELECT s.group_no, x.user_id, x.day, SUM(x.minutes) AS minutes FROM gq_member_gameday x
+       JOIN season_members s ON s.season_id = ?1 AND s.user_id = x.user_id AND (?2 IS NULL OR s.group_no = ?2)
+       WHERE x.day >= ?3 GROUP BY s.group_no, x.user_id, x.day`,
+      gameDay(Date.parse(season.start)),
+    ),
+  ]);
+
+  const groupOf = new Map(members.results.map((m) => [m.user_id, m.group_no]));
+  const snap = new Map(snaps.results.map((r) => [`${r.owner_id}|${r.target_id}`, r.xp]));
+  const nos = [...new Set([...members.results.map((m) => m.group_no), ...quests.results.map((x) => x.group_no)])].sort((a, b) => a - b);
+  const groups: GroupState[] = nos.map((no) => {
+    const ms = members.results.filter((m) => m.group_no === no);
+    const current = ms.filter((m) => !m.left_at).map((m) => m.user_id);
+    const currentSet = new Set(current);
+    const inGroup = <T extends { group_no: number }>(rows: T[]) => rows.filter((r) => r.group_no === no);
+    const groupCards = cards.results.filter((c) => groupOf.get(c.owner_id) === no);
+    const ctx: GroupCtx = {
+      seasonStart: season.id,
+      startSize: ms.filter((m) => m.start_member).length,
+      current,
+      startCurrent: ms.filter((m) => m.start_member && !m.left_at).map((m) => m.user_id),
+      voice: inGroup(voice.results),
+      memberDay: inGroup(memberDay.results).map((r) => ({ user: r.user_id, day: r.day, minutes: r.minutes })),
+      memberGameDay: inGroup(memberGameDay.results).map((r) => ({ user: r.user_id, day: r.day, minutes: r.minutes })),
+      pairs: inGroup(pairs.results),
+      rooms: inGroup(rooms.results)[0]?.n ?? 0,
+      bestRun: inGroup(runs.results)[0]?.best ?? 0,
+      scrims: inGroup(scrims.results).map((r) => ({ game: r.game, day: r.day, members: parseGames(r.members), newbies: r.newbies })),
+      newbie: inGroup(newbie.results).map((r) => ({ newbie: r.newbie_id, user: r.user_id, minutes: r.minutes })),
+      praises: praises.results
+        .filter((r) => groupOf.get(r.from_id) === no)
+        .map((r) => ({ from: r.from_id, to: r.to_id, day: r.day, toNewbie: r.to_newbie === 1 })),
+      attend: attend.results.filter((r) => groupOf.get(r.user_id) === no).map((r) => ({ user: r.user_id, day: r.day })),
+      newCardPairs: groupCards.filter((c) => c.first_met >= season.start && c.first_met < season.end).map((c) => `${c.owner_id}|${c.target_id}`),
+      newCardOwners: newOwners.results.map((r) => r.owner_id).filter((u) => currentSet.has(u)),
+      pairLevels: groupCards.map((c) => {
+        const from = levelFromXp(snap.get(`${c.owner_id}|${c.target_id}`) ?? 0);
+        return { from, now: ended ? from : levelFromXp(c.xp) };
+      }),
+      ownLevelUp: ended
+        ? []
+        : ms
+            .filter((m) => !m.left_at && levelFromXp(m.solo_xp ?? 0) > levelFromXp(snap.get(`${m.user_id}|${m.user_id}`) ?? 0))
+            .map((m) => m.user_id),
+      loggedIn: ended ? [] : ms.filter((m) => !m.left_at && (m.last_login_at ?? '') >= season.start && (m.last_login_at ?? '') < season.end).map((m) => m.user_id),
+    };
+    return {
+      no,
+      members: ms.map((m) => ({ id: m.user_id, name: m.display_name ?? '알 수 없음', start: m.start_member === 1, left: !!m.left_at })),
+      quests: inGroup(quests.results).flatMap((r) => {
+        const quest = questById(r.quest_id);
+        return quest ? [{ slot: r.slot, quest, done_at: r.done_at }] : [];
+      }),
+      ctx,
+    };
+  });
+  return { season, groups };
+}
+
+export function questProgress(quest: Quest, ctx: GroupCtx) {
+  const target = quest.target(ctx);
+  const value = quest.value(ctx);
+  return { target, value: Math.min(value, target), done: value >= target };
+}
+
+export function seasonTitle(season: Season): string {
+  const [, m, d] = season.id.split('-');
+  return `${Number(m)}월 ${Number(d)}일 시즌 모둠 완주`;
+}
+
+// 다 채운 퀘스트를 깬 것으로 적고, 지금 모둠원에게 젤리를 줘요. 8개를 다 깨면 시즌 칭호.
+// 같은 퀘스트를 두 번 깨지 않게: done_at이 비어 있을 때만 이번 표시(mark)를 적고, 그 표시가 있을 때만 젤리를 줘요.
+// 봇은 10분마다 보내고 실패하면 다시 보내요. 시즌 끝 직전 기록이 늦게 와도 잡히게 30분 여유를 둬요.
+export const ENDED_GRACE_MS = 30 * 60 * 1000;
+export async function evaluateSeason(db: D1Database, seasonId: string, nowMs: number): Promise<number> {
+  const end = await db.prepare('SELECT ends_at FROM seasons WHERE id = ?').bind(seasonId).first<{ ends_at: string }>();
+  if (!end) return 0;
+  // 하리보 빙고부터는 모둠 퀘스트 8개를 만들지 않아요. 확인할 퀘스트가 없으면 무거운 기록 읽기(동기화마다 수천 줄)를 건너뛰어요.
+  if (!(await db.prepare('SELECT 1 FROM season_quests WHERE season_id = ? AND done_at IS NULL LIMIT 1').bind(seasonId).first())) return 0;
+  // 시즌이 끝난 직후의 마지막 묶음(끝나기 직전 활동)은 지금 상태로 계산해요. 그 뒤로는 끝난 시즌 기록만 써요.
+  const loaded = await loadGroups(db, seasonId, null, Date.parse(end.ends_at) + ENDED_GRACE_MS <= nowMs);
+  if (!loaded) return 0;
+  const t = new Date(nowMs).toISOString();
+  const mark = `${t}#${crypto.randomUUID()}`;
+  const stmts: D1PreparedStatement[] = [];
+  let done = 0;
+  for (const g of loaded.groups) {
+    const finished = g.quests.filter((q) => !q.done_at && questProgress(q.quest, g.ctx).done);
+    if (!finished.length) continue;
+    for (const q of finished) {
+      done++;
+      stmts.push(
+        db.prepare('UPDATE season_quests SET done_at = ? WHERE season_id = ? AND group_no = ? AND slot = ? AND done_at IS NULL').bind(mark, seasonId, g.no, q.slot),
+      );
+      stmts.push(
+        db
+          .prepare(
+            `INSERT INTO profiles (user_id, dogam_jelly, updated_at)
+             SELECT s.user_id, ?5, ?6 FROM season_members s JOIN members m ON m.user_id = s.user_id AND m.active = 1
+             WHERE s.season_id = ?1 AND s.group_no = ?2 AND s.left_at IS NULL
+               AND EXISTS (SELECT 1 FROM season_quests WHERE season_id = ?1 AND group_no = ?2 AND slot = ?3 AND done_at = ?4)
+             ON CONFLICT (user_id) DO UPDATE SET dogam_jelly = dogam_jelly + excluded.dogam_jelly, updated_at = excluded.updated_at`,
+          )
+          .bind(seasonId, g.no, q.slot, mark, QUEST_REWARD[q.quest.diff as QuestDiff], t),
+      );
+    }
+    stmts.push(
+      db
+        .prepare(
+          `INSERT OR IGNORE INTO season_titles (season_id, user_id, title, created_at)
+           SELECT ?1, s.user_id, ?3, ?4 FROM season_members s JOIN members m ON m.user_id = s.user_id AND m.active = 1
+           WHERE s.season_id = ?1 AND s.group_no = ?2 AND s.left_at IS NULL
+             AND NOT EXISTS (SELECT 1 FROM season_quests WHERE season_id = ?1 AND group_no = ?2 AND done_at IS NULL)
+             AND EXISTS (SELECT 1 FROM season_quests WHERE season_id = ?1 AND group_no = ?2 AND done_at = ?5)`,
+        )
+        .bind(seasonId, g.no, seasonTitle(loaded.season), t, mark),
+    );
+  }
+  if (stmts.length) await db.batch(stmts);
+  if (Date.parse(end.ends_at) <= nowMs) await awardGambleSeason(db, seasonId, end.ends_at, t);
+  return done;
+}
+
+// ── 화면용 ──
+
+export type GroupView = {
+  season: Season;
+  groupNo: number;
+  members: GroupState['members'];
+  quests: { slot: number; name: string; text: string; cat: string; diff: QuestDiff; reward: number; value: number; target: number; done: boolean }[];
+  titles: string[];
+  // 모둠별 순위: 깬 퀘스트가 많은 순, 같으면 모둠 통화 시간이 긴 순
+  ranking: GroupRank[];
+  // 내가 모둠원과 같이 통화한 분(오늘·이번 시즌)과 우리 모둠 오늘의 활약(오늘 모둠 통화가 긴 순 3명)
+  me: { today: number; season: number };
+  todayTop: { id: string; name: string; minutes: number }[];
+};
+
+export type GroupRank = { no: number; rank: number; done: number; total: number; minutes: number; size: number; mine: boolean };
+
+export function rankGroups(groups: GroupState[], mine: number | null): GroupRank[] {
+  const rows = groups.map((g) => {
+    const done = g.quests.filter((q) => !!q.done_at || questProgress(q.quest, g.ctx).done).length;
+    const minutes = g.ctx.voice.reduce((sum, v) => sum + v.minutes, 0);
+    return { no: g.no, done, total: g.quests.length, minutes, size: g.members.filter((m) => !m.left).length, mine: g.no === mine };
+  });
+  rows.sort((a, b) => b.done - a.done || b.minutes - a.minutes || a.no - b.no);
+  let rank = 0;
+  return rows.map((r, i) => {
+    const prev = rows[i - 1];
+    if (!prev || prev.done !== r.done || prev.minutes !== r.minutes) rank = i + 1;
+    return { ...r, rank };
+  });
+}
+
+function activity(g: GroupState, userId: string, today: string): Pick<GroupView, 'me' | 'todayTop'> {
+  const me = { today: 0, season: 0 };
+  const todayBy = new Map<string, number>();
+  for (const r of g.ctx.memberDay) if (r.user === userId) me.season += r.minutes;
+  // 「오늘」은 아침 6시 기준 하루예요(gq_member_gameday, 0068).
+  for (const r of g.ctx.memberGameDay ?? []) {
+    if (r.day !== today) continue;
+    if (r.user === userId) me.today += r.minutes;
+    todayBy.set(r.user, (todayBy.get(r.user) ?? 0) + r.minutes);
+  }
+  const names = new Map(g.members.filter((m) => !m.left).map((m) => [m.id, m.name]));
+  const todayTop = [...todayBy]
+    .filter(([id, n]) => names.has(id) && n > 0)
+    .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))
+    .slice(0, 3)
+    .map(([id, minutes]) => ({ id, name: names.get(id)!, minutes }));
+  return { me, todayTop };
+}
+
+// 지금 시즌에서 이 사람의 모둠(없으면 null)
+export async function groupViewFor(db: D1Database, userId: string, nowMs: number): Promise<GroupView | null> {
+  const now = new Date(nowMs).toISOString();
+  const row = await db
+    .prepare(
+      `SELECT s.season_id, s.group_no FROM season_members s JOIN seasons x ON x.id = s.season_id
+       WHERE s.user_id = ?1 AND s.left_at IS NULL AND x.starts_at <= ?2 AND x.ends_at > ?2 ORDER BY x.id DESC LIMIT 1`,
+    )
+    .bind(userId, now)
+    .first<{ season_id: string; group_no: number }>();
+  if (!row) return null;
+  const loaded = await loadGroups(db, row.season_id);
+  const g = loaded?.groups.find((x) => x.no === row.group_no);
+  if (!loaded || !g) return null;
+  const { results: titles } = await db
+    // 다시 들어온 멤버는 나간 뒤 받은 칭호만 보여요(칭호 화면의 집계와 같은 기준)
+    .prepare(
+      "SELECT title FROM season_titles WHERE user_id = ?1 AND created_at >= COALESCE((SELECT reset_at FROM members WHERE user_id = ?1), '') ORDER BY season_id DESC LIMIT 20",
+    )
+    .bind(userId)
+    .all<{ title: string }>();
+  return {
+    season: loaded.season,
+    groupNo: g.no,
+    members: g.members.filter((m) => !m.left),
+    quests: g.quests.map(({ slot, quest, done_at }) => {
+      const p = questProgress(quest, g.ctx);
+      const done = !!done_at || p.done;
+      return { slot, name: quest.name, text: quest.text(p.target, g.ctx), cat: quest.cat, diff: quest.diff, reward: QUEST_REWARD[quest.diff], value: done ? p.target : p.value, target: p.target, done };
+    }),
+    titles: titles.map((r) => r.title),
+    ranking: rankGroups(loaded.groups, g.no),
+    ...activity(g, userId, gameDay(Date.parse(now))),
+  };
+}
+
+// 지금 시즌 전체 모둠 순위(디스코드 고정 패널에 모두에게 보여 줘요). 오늘의 활약은 서버 전체에서 3명.
+export type SeasonRanking = {
+  season: Season;
+  ranking: GroupRank[];
+  todayTop: { id: string; name: string; minutes: number; group: number }[];
+};
+
+export async function seasonRanking(db: D1Database, nowMs: number): Promise<SeasonRanking | null> {
+  const now = new Date(nowMs).toISOString();
+  const row = await db
+    .prepare('SELECT id FROM seasons WHERE starts_at <= ?1 AND ends_at > ?1 ORDER BY id DESC LIMIT 1')
+    .bind(now)
+    .first<{ id: string }>();
+  if (!row) return null;
+  const loaded = await loadGroups(db, row.id);
+  if (!loaded || loaded.groups.length === 0) return null;
+  const today = gameDay(Date.parse(now));
+  const todayTop = loaded.groups
+    .flatMap((g) => activity(g, '', today).todayTop.map((t) => ({ ...t, group: g.no })))
+    .sort((a, b) => b.minutes - a.minutes || (a.id < b.id ? -1 : 1))
+    .slice(0, 3);
+  return { season: loaded.season, ranking: rankGroups(loaded.groups, null), todayTop };
+}

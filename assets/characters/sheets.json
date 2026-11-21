@@ -1,0 +1,1403 @@
+{
+ "_설명": "캐릭터 그림 목록이에요. basic = 멤버마다 자동으로 하나씩 정해 주는 기본 캐릭터, deco = 꾸미기로 바꿔 낄 수 있는 꾸밈 캐릭터. 새 그림은 png를 이 폴더에 두고 아래에 추가한 다음 python3 scripts/build_characters.py 를 실행하세요. rows는 줄마다 몇 명인지, 이름은 왼쪽 위부터 순서대로예요. 이미 있는 id는 바꾸지 마세요(멤버에게 정해진 캐릭터가 달라져요).",
+ "basic": [
+  {
+   "file": "basic/girls-1.png",
+   "rows": [
+    5,
+    5,
+    5,
+    5,
+    5
+   ],
+   "characters": [
+    [
+     "girl-01",
+     "소녀 1"
+    ],
+    [
+     "girl-02",
+     "소녀 2"
+    ],
+    [
+     "girl-03",
+     "소녀 3"
+    ],
+    [
+     "girl-04",
+     "소녀 4"
+    ],
+    [
+     "girl-05",
+     "소녀 5"
+    ],
+    [
+     "girl-06",
+     "소녀 6"
+    ],
+    [
+     "girl-07",
+     "소녀 7"
+    ],
+    [
+     "girl-08",
+     "소녀 8"
+    ],
+    [
+     "girl-09",
+     "소녀 9"
+    ],
+    [
+     "girl-10",
+     "소녀 10"
+    ],
+    [
+     "girl-11",
+     "소녀 11"
+    ],
+    [
+     "girl-12",
+     "소녀 12"
+    ],
+    [
+     "girl-13",
+     "소녀 13"
+    ],
+    [
+     "girl-14",
+     "소녀 14"
+    ],
+    [
+     "girl-15",
+     "소녀 15"
+    ],
+    [
+     "girl-16",
+     "소녀 16"
+    ],
+    [
+     "girl-17",
+     "소녀 17"
+    ],
+    [
+     "girl-18",
+     "소녀 18"
+    ],
+    [
+     "girl-19",
+     "소녀 19"
+    ],
+    [
+     "girl-20",
+     "소녀 20"
+    ],
+    [
+     "girl-21",
+     "소녀 21"
+    ],
+    [
+     "girl-22",
+     "소녀 22"
+    ],
+    [
+     "girl-23",
+     "소녀 23"
+    ],
+    [
+     "girl-24",
+     "소녀 24"
+    ],
+    [
+     "girl-25",
+     "소녀 25"
+    ]
+   ]
+  },
+  {
+   "file": "basic/girls-2.png",
+   "rows": [
+    5,
+    5,
+    5,
+    5,
+    5
+   ],
+   "characters": [
+    [
+     "girl-26",
+     "소녀 26"
+    ],
+    [
+     "girl-27",
+     "소녀 27"
+    ],
+    [
+     "girl-28",
+     "소녀 28"
+    ],
+    [
+     "girl-29",
+     "소녀 29"
+    ],
+    [
+     "girl-30",
+     "소녀 30"
+    ],
+    [
+     "girl-31",
+     "소녀 31"
+    ],
+    [
+     "girl-32",
+     "소녀 32"
+    ],
+    [
+     "girl-33",
+     "소녀 33"
+    ],
+    [
+     "girl-34",
+     "소녀 34"
+    ],
+    [
+     "girl-35",
+     "소녀 35"
+    ],
+    [
+     "girl-36",
+     "소녀 36"
+    ],
+    [
+     "girl-37",
+     "소녀 37"
+    ],
+    [
+     "girl-38",
+     "소녀 38"
+    ],
+    [
+     "girl-39",
+     "소녀 39"
+    ],
+    [
+     "girl-40",
+     "소녀 40"
+    ],
+    [
+     "girl-41",
+     "소녀 41"
+    ],
+    [
+     "girl-42",
+     "소녀 42"
+    ],
+    [
+     "girl-43",
+     "소녀 43"
+    ],
+    [
+     "girl-44",
+     "소녀 44"
+    ],
+    [
+     "girl-45",
+     "소녀 45"
+    ],
+    [
+     "girl-46",
+     "소녀 46"
+    ],
+    [
+     "girl-47",
+     "소녀 47"
+    ],
+    [
+     "girl-48",
+     "소녀 48"
+    ],
+    [
+     "girl-49",
+     "소녀 49"
+    ],
+    [
+     "girl-50",
+     "소녀 50"
+    ]
+   ]
+  },
+  {
+   "file": "basic/boys-1.png",
+   "rows": [
+    5,
+    5,
+    5,
+    5,
+    5
+   ],
+   "characters": [
+    [
+     "boy-01",
+     "소년 1"
+    ],
+    [
+     "boy-02",
+     "소년 2"
+    ],
+    [
+     "boy-03",
+     "소년 3"
+    ],
+    [
+     "boy-04",
+     "소년 4"
+    ],
+    [
+     "boy-05",
+     "소년 5"
+    ],
+    [
+     "boy-06",
+     "소년 6"
+    ],
+    [
+     "boy-07",
+     "소년 7"
+    ],
+    [
+     "boy-08",
+     "소년 8"
+    ],
+    [
+     "boy-09",
+     "소년 9"
+    ],
+    [
+     "boy-10",
+     "소년 10"
+    ],
+    [
+     "boy-11",
+     "소년 11"
+    ],
+    [
+     "boy-12",
+     "소년 12"
+    ],
+    [
+     "boy-13",
+     "소년 13"
+    ],
+    [
+     "boy-14",
+     "소년 14"
+    ],
+    [
+     "boy-15",
+     "소년 15"
+    ],
+    [
+     "boy-16",
+     "소년 16"
+    ],
+    [
+     "boy-17",
+     "소년 17"
+    ],
+    [
+     "boy-18",
+     "소년 18"
+    ],
+    [
+     "boy-19",
+     "소년 19"
+    ],
+    [
+     "boy-20",
+     "소년 20"
+    ],
+    [
+     "boy-21",
+     "소년 21"
+    ],
+    [
+     "boy-22",
+     "소년 22"
+    ],
+    [
+     "boy-23",
+     "소년 23"
+    ],
+    [
+     "boy-24",
+     "소년 24"
+    ],
+    [
+     "boy-25",
+     "소년 25"
+    ]
+   ]
+  },
+  {
+   "file": "basic/boys-2.png",
+   "rows": [
+    5,
+    5,
+    5,
+    5,
+    5
+   ],
+   "characters": [
+    [
+     "boy-26",
+     "소년 26"
+    ],
+    [
+     "boy-27",
+     "소년 27"
+    ],
+    [
+     "boy-28",
+     "소년 28"
+    ],
+    [
+     "boy-29",
+     "소년 29"
+    ],
+    [
+     "boy-30",
+     "소년 30"
+    ],
+    [
+     "boy-31",
+     "소년 31"
+    ],
+    [
+     "boy-32",
+     "소년 32"
+    ],
+    [
+     "boy-33",
+     "소년 33"
+    ],
+    [
+     "boy-34",
+     "소년 34"
+    ],
+    [
+     "boy-35",
+     "소년 35"
+    ],
+    [
+     "boy-36",
+     "소년 36"
+    ],
+    [
+     "boy-37",
+     "소년 37"
+    ],
+    [
+     "boy-38",
+     "소년 38"
+    ],
+    [
+     "boy-39",
+     "소년 39"
+    ],
+    [
+     "boy-40",
+     "소년 40"
+    ],
+    [
+     "boy-41",
+     "소년 41"
+    ],
+    [
+     "boy-42",
+     "소년 42"
+    ],
+    [
+     "boy-43",
+     "소년 43"
+    ],
+    [
+     "boy-44",
+     "소년 44"
+    ],
+    [
+     "boy-45",
+     "소년 45"
+    ],
+    [
+     "boy-46",
+     "소년 46"
+    ],
+    [
+     "boy-47",
+     "소년 47"
+    ],
+    [
+     "boy-48",
+     "소년 48"
+    ],
+    [
+     "boy-49",
+     "소년 49"
+    ],
+    [
+     "boy-50",
+     "소년 50"
+    ]
+   ]
+  }
+ ],
+ "deco": [
+  {
+   "file": "deco/outfit.png",
+   "rows": [
+    5,
+    5,
+    5,
+    5,
+    5
+   ],
+   "characters": [
+    [
+     "gothic",
+     "고스로리"
+    ],
+    [
+     "maid",
+     "메이드"
+    ],
+    [
+     "butler",
+     "집사"
+    ],
+    [
+     "idol",
+     "아이돌"
+    ],
+    [
+     "rocker",
+     "록스타"
+    ],
+    [
+     "skater",
+     "스케이터"
+    ],
+    [
+     "techwear",
+     "테크웨어"
+    ],
+    [
+     "bunny-hoodie",
+     "토끼 후디"
+    ],
+    [
+     "beret-girl",
+     "베레모 소녀"
+    ],
+    [
+     "sailor-boy",
+     "세일러 소년"
+    ],
+    [
+     "winter-scarf",
+     "빨간 목도리"
+    ],
+    [
+     "sunflower",
+     "해바라기"
+    ],
+    [
+     "bunny-pajama",
+     "토끼 잠옷"
+    ],
+    [
+     "cat-girl",
+     "고양이 소녀"
+    ],
+    [
+     "wolf-jacket",
+     "늑대 패딩"
+    ],
+    [
+     "red-cap",
+     "빨간 캡"
+    ],
+    [
+     "cyber",
+     "사이버 트윈테일"
+    ],
+    [
+     "gamer-girl",
+     "게이머"
+    ],
+    [
+     "black-dress",
+     "블랙 드레스"
+    ],
+    [
+     "prep",
+     "프레피"
+    ],
+    [
+     "camper",
+     "캠퍼"
+    ],
+    [
+     "varsity",
+     "야구 점퍼"
+    ],
+    [
+     "kimono",
+     "기모노"
+    ],
+    [
+     "lolita",
+     "로리타"
+    ],
+    [
+     "admiral",
+     "제독"
+    ]
+   ]
+  },
+  {
+   "file": "deco/animal.png",
+   "rows": [
+    5,
+    5,
+    5,
+    5,
+    5
+   ],
+   "characters": [
+    [
+     "fox",
+     "여우"
+    ],
+    [
+     "bear",
+     "곰"
+    ],
+    [
+     "rabbit",
+     "토끼"
+    ],
+    [
+     "calico",
+     "삼색 고양이"
+    ],
+    [
+     "puppy",
+     "강아지"
+    ],
+    [
+     "frog",
+     "개구리"
+    ],
+    [
+     "wolf",
+     "늑대"
+    ],
+    [
+     "tiger",
+     "호랑이"
+    ],
+    [
+     "cow",
+     "젖소"
+    ],
+    [
+     "chick",
+     "병아리"
+    ],
+    [
+     "duck",
+     "오리"
+    ],
+    [
+     "penguin",
+     "펭귄"
+    ],
+    [
+     "panda",
+     "판다"
+    ],
+    [
+     "sheep",
+     "양"
+    ],
+    [
+     "deer",
+     "사슴"
+    ],
+    [
+     "hamster",
+     "햄스터"
+    ],
+    [
+     "raccoon",
+     "너구리"
+    ],
+    [
+     "shark",
+     "상어"
+    ],
+    [
+     "dino",
+     "공룡"
+    ],
+    [
+     "dragon",
+     "드래곤"
+    ],
+    [
+     "monkey",
+     "원숭이"
+    ],
+    [
+     "koala",
+     "코알라"
+    ],
+    [
+     "polar-bear",
+     "북극곰"
+    ],
+    [
+     "seal",
+     "물범"
+    ],
+    [
+     "red-panda",
+     "레서판다"
+    ]
+   ]
+  },
+  {
+   "file": "deco/fantasy.png",
+   "rows": [
+    5,
+    5,
+    5,
+    5,
+    5
+   ],
+   "characters": [
+    [
+     "wizard",
+     "마법사"
+    ],
+    [
+     "witch",
+     "마녀"
+    ],
+    [
+     "knight",
+     "기사"
+    ],
+    [
+     "valkyrie",
+     "발키리"
+    ],
+    [
+     "archer",
+     "엘프 궁수"
+    ],
+    [
+     "rogue",
+     "도적"
+    ],
+    [
+     "assassin",
+     "암살자"
+    ],
+    [
+     "elf",
+     "엘프"
+    ],
+    [
+     "dark-elf",
+     "다크엘프"
+    ],
+    [
+     "fairy",
+     "요정"
+    ],
+    [
+     "angel",
+     "천사"
+    ],
+    [
+     "demon",
+     "악마"
+    ],
+    [
+     "dragon-tamer",
+     "드래곤 조련사"
+    ],
+    [
+     "necromancer",
+     "네크로맨서"
+    ],
+    [
+     "priestess",
+     "사제"
+    ],
+    [
+     "monk",
+     "수도승"
+    ],
+    [
+     "pirate",
+     "해적"
+    ],
+    [
+     "prince",
+     "왕자"
+    ],
+    [
+     "princess",
+     "공주"
+    ],
+    [
+     "queen",
+     "여왕"
+    ],
+    [
+     "king",
+     "왕"
+    ],
+    [
+     "summoner",
+     "소환사"
+    ],
+    [
+     "alchemist",
+     "연금술사"
+    ],
+    [
+     "star-mage",
+     "별의 마법사"
+    ],
+    [
+     "reaper",
+     "사신"
+    ]
+   ]
+  },
+  {
+   "file": "deco/job.png",
+   "rows": [
+    5,
+    5,
+    5,
+    5,
+    6
+   ],
+   "characters": [
+    [
+     "hoodie",
+     "파란 후디"
+    ],
+    [
+     "pink-knit",
+     "분홍 니트"
+    ],
+    [
+     "student",
+     "학생"
+    ],
+    [
+     "sailor",
+     "세일러복"
+    ],
+    [
+     "office",
+     "직장인"
+    ],
+    [
+     "teacher",
+     "선생님"
+    ],
+    [
+     "professor",
+     "교수님"
+    ],
+    [
+     "nurse",
+     "간호사"
+    ],
+    [
+     "barista",
+     "바리스타"
+    ],
+    [
+     "baker",
+     "제빵사"
+    ],
+    [
+     "chef",
+     "요리사"
+    ],
+    [
+     "painter",
+     "화가"
+    ],
+    [
+     "photographer",
+     "사진가"
+    ],
+    [
+     "streamer",
+     "스트리머"
+    ],
+    [
+     "bookworm",
+     "모범생"
+    ],
+    [
+     "soccer",
+     "축구"
+    ],
+    [
+     "basketball",
+     "농구"
+    ],
+    [
+     "tennis",
+     "테니스"
+    ],
+    [
+     "baseball",
+     "야구"
+    ],
+    [
+     "swimmer",
+     "수영"
+    ],
+    [
+     "ballerina",
+     "발레리나"
+    ],
+    [
+     "guitarist",
+     "기타리스트"
+    ],
+    [
+     "detective",
+     "탐정"
+    ],
+    [
+     "courier",
+     "택배기사"
+    ],
+    [
+     "explorer",
+     "탐험가"
+    ],
+    [
+     "winter",
+     "겨울 산책"
+    ]
+   ]
+  },
+  {
+   "file": "deco/robot.png",
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "robot",
+     "로봇 기사"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/astronaut-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "astronaut-girl",
+     "우주비행사 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/astronaut-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "astronaut-boy",
+     "우주비행사 소년"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/beekeeper-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "beekeeper-girl",
+     "양봉가 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/beekeeper-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "beekeeper-boy",
+     "양봉가 소년"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/calligrapher-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "calligrapher-girl",
+     "서예가 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/calligrapher-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "calligrapher-boy",
+     "서예가 소년"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/clockmaker-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "clockmaker-girl",
+     "시계공 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/clockmaker-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "clockmaker-boy",
+     "시계공 소년"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/conductor-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "conductor-girl",
+     "차장 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/conductor-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "conductor-boy",
+     "차장 소년"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/construction-worker-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "construction-worker-girl",
+     "건설공 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/construction-worker-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "construction-worker-boy",
+     "건설공 소년"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/diver-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "diver-girl",
+     "잠수부 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/diver-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "diver-boy",
+     "잠수부 소년"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/farmer-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "farmer-girl",
+     "농부 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/farmer-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "farmer-boy",
+     "농부 소년"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/lighthouse-keeper-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "lighthouse-keeper-girl",
+     "등대지기 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/lighthouse-keeper-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "lighthouse-keeper-boy",
+     "등대지기 소년"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/puppeteer-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "puppeteer-girl",
+     "인형술사 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/puppeteer-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "puppeteer-boy",
+     "인형술사 소년"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/firefighter-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "firefighter-girl",
+     "소방관 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/firefighter-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "firefighter-boy",
+     "소방관 소년"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/glassblower-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "glassblower-girl",
+     "유리공예가 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/glassblower-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "glassblower-boy",
+     "유리공예가 소년"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/brewer-girl.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "brewer-girl",
+     "양조사 소녀"
+    ]
+   ]
+  },
+  {
+   "file": "deco/jobs2/brewer-boy.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "brewer-boy",
+     "양조사 소년"
+    ]
+   ]
+  },
+  {
+   "file": "deco/mecha/mech-cannon.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "mech-cannon",
+     "초록 대포 메카"
+    ]
+   ]
+  },
+  {
+   "file": "deco/mecha/mech-green-knight.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "mech-green-knight",
+     "초록 기사 메카"
+    ]
+   ]
+  },
+  {
+   "file": "deco/mecha/mech-lancer.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "mech-lancer",
+     "보라 창 메카"
+    ]
+   ]
+  },
+  {
+   "file": "deco/mecha/mech-rifle.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "mech-rifle",
+     "빔 라이플 메카"
+    ]
+   ]
+  },
+  {
+   "file": "deco/mecha/mech-drill.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "mech-drill",
+     "붉은 드릴 메카"
+    ]
+   ],
+   "center": 37.6
+  },
+  {
+   "file": "deco/mecha/mech-violet-axe.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "mech-violet-axe",
+     "보라 도끼 메카"
+    ]
+   ]
+  },
+  {
+   "file": "deco/mecha/mech-flame-sword.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "mech-flame-sword",
+     "불꽃 검 메카"
+    ]
+   ]
+  },
+  {
+   "file": "deco/mecha/mech-dark-axe.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "mech-dark-axe",
+     "암흑 도끼 메카"
+    ]
+   ],
+   "center": 59.8
+  },
+  {
+   "file": "deco/mecha/mech-red-twin.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "mech-red-twin",
+     "붉은 쌍검 메카"
+    ]
+   ]
+  },
+  {
+   "file": "deco/mecha/mech-gatling.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "mech-gatling",
+     "황금 개틀링 메카"
+    ]
+   ]
+  },
+  {
+   "file": "deco/mecha/mech-blue-twin.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "mech-blue-twin",
+     "푸른 쌍검 메카"
+    ]
+   ],
+   "center": 44.9
+  }
+ ]
+}

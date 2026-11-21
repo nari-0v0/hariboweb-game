@@ -1,0 +1,116 @@
+// 사건파일 방: 그림을 누르면 톡 하고 돋보기가 떠요. 사건과 상관없는 곳은 짧은 말만 하고,
+// 확대 화면은 손가락·마우스로 끌어서 둘러볼 수 있어요.
+(() => {
+  // 줄 세우기: 같은 이름을 두 번 고르면 답이 될 수 없어요. 내기 전에 알려 주고 틀린 횟수에는 넣지 않아요.
+  document.addEventListener('submit', (e) => {
+    const f = e.target;
+    if (!(f instanceof HTMLFormElement)) return;
+    const sels = [...f.querySelectorAll('.esc-order select')];
+    if (!sels.length) return;
+    sels.forEach((x) => x.setCustomValidity(''));
+    const twice = sels.find((x, i) => x.value && sels.slice(0, i).some((y) => y.value === x.value));
+    if (!twice) return;
+    e.preventDefault();
+    twice.setCustomValidity('같은 이름을 두 번 골랐어요. 자리마다 다른 이름을 골라 주세요.');
+    twice.reportValidity();
+    // 캡처 단계라서 공통 로딩 가림막(app.js의 제출 리스너)보다 먼저 막아요. 가림막이 뜬 채로 남지 않아요.
+  }, true);
+  // 두 번 누르기 막기: 사건 진행 폼을 한 번 보내면 새 화면이 뜰 때까지 다음 제출은 무시해요.
+  // (빠르게 두 번 누르면 두 번째가 옛 순번으로 가서 "다른 화면에서 이미 진행했어요" 알림이 떴어요.)
+  // window 버블 단계라서 위의 같은 이름 막기 등 다른 리스너가 막은 제출은 세지 않아요.
+  let sending = false;
+  addEventListener('submit', (e) => {
+    const f = e.target;
+    if (!(f instanceof HTMLFormElement) || !/\/api\/escape\/act$/.test(new URL(f.action, location.href).pathname)) return;
+    if (e.defaultPrevented) return;
+    if (sending) {
+      e.preventDefault();
+      return;
+    }
+    sending = true;
+  });
+  addEventListener('pageshow', () => {
+    sending = false;
+  });
+  document.addEventListener('change', (e) => {
+    const box = e.target instanceof HTMLSelectElement && e.target.closest('.esc-order');
+    if (box) for (const x of box.querySelectorAll('select')) x.setCustomValidity('');
+  });
+  const room = document.querySelector('[data-room]');
+  if (!room) return;
+  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const tap = (e) => {
+    const r = room.getBoundingClientRect();
+    const dot = document.createElement('span');
+    dot.className = 'esc-tap';
+    dot.style.left = `${((e.clientX - r.left) / r.width) * 100}%`;
+    dot.style.top = `${((e.clientY - r.top) / r.height) * 100}%`;
+    room.append(dot);
+    setTimeout(() => dot.remove(), 700);
+    return dot;
+  };
+  let bubble = null;
+  room.addEventListener('pointerdown', (e) => {
+    if (e.target instanceof Element && e.target.closest('[data-loupe], .esc-back')) return;
+    if (!calm) tap(e);
+  });
+  room.addEventListener('click', (e) => {
+    const idle = e.target instanceof Element && e.target.closest('.esc-hot.idle');
+    if (!idle) return;
+    bubble?.remove();
+    bubble = document.createElement('span');
+    bubble.className = 'esc-say';
+    bubble.textContent = idle.dataset.say || '';
+    const r = room.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * 100;
+    bubble.style.left = `${Math.min(80, Math.max(20, x))}%`;
+    bubble.style.top = `${((e.clientY - r.top) / r.height) * 100}%`;
+    room.append(bubble);
+    const mine = bubble;
+    setTimeout(() => mine.remove(), 1800);
+  });
+
+  // 확대 화면 끌기
+  const lens = room.querySelector('[data-loupe]');
+  const img = lens?.querySelector('.esc-loupe-img');
+  if (!lens || !img) return;
+  // 조금 움직여야 끌기로 봐요. 그냥 누르면 확대 화면 속 물건이 눌려요.
+  let start = null;
+  let dragged = false;
+  lens.addEventListener('pointerdown', (e) => {
+    if (e.target instanceof Element && e.target.closest('label')) return;
+    start = { x: e.clientX, y: e.clientY, l: img.offsetLeft, t: img.offsetTop, id: e.pointerId };
+    dragged = false;
+  });
+  lens.addEventListener('pointermove', (e) => {
+    if (!start) return;
+    if (!dragged) {
+      if (Math.hypot(e.clientX - start.x, e.clientY - start.y) < 8) return;
+      dragged = true;
+      lens.setPointerCapture(start.id);
+      lens.classList.add('dragging');
+    }
+    const minL = lens.clientWidth - img.offsetWidth;
+    const minT = lens.clientHeight - img.offsetHeight;
+    img.style.left = `${Math.min(0, Math.max(minL, start.l + e.clientX - start.x))}px`;
+    img.style.top = `${Math.min(0, Math.max(minT, start.t + e.clientY - start.y))}px`;
+  });
+  const end = () => {
+    start = null;
+    lens.classList.remove('dragging');
+  };
+  lens.addEventListener('pointerup', end);
+  lens.addEventListener('pointercancel', end);
+  // 끌고 난 뒤 손을 뗄 때 생기는 클릭은 물건 누르기로 치지 않아요.
+  lens.addEventListener(
+    'click',
+    (e) => {
+      if (!dragged) return;
+      dragged = false;
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    true,
+  );
+})();
