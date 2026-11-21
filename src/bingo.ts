@@ -231,7 +231,7 @@ export function bingoStatements(
   rooms: RoomMinute[],
   attendance: Attendance[],
   periods: Week[] = [],
-  burn: BurnWindow | null = null,
+  burn: BurnWindow | readonly BurnWindow[] | null = null,
 ): { stmts: D1PreparedStatement[]; touched: Map<string, Set<string>>; periods: Map<string, Week> } {
   const used = new Map<string, Week>();
   const periodId = (ms: number) => {

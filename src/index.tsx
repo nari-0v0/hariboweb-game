@@ -92,7 +92,7 @@ import { GAMBLE_LOCKED, gambleTester, isCoinSide } from './gamble';
 import { activeHand, betChips, betTooSoon, claimDaily, expireAllHands, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, moveHand, rescueChips, type Game } from './gamble-db';
 import { prefetchAllowed } from './prefetch';
 import { imageRequestAllowed } from './image-guard';
-import { burnReply, burnWindow, burningUntil } from './burning';
+import { burnReply, burnWindow, burnWindowsForSync, burningUntil } from './burning';
 import { dbLimitKind, maintenanceOn, maintenanceSkips, maintenanceWhen, type DbLimit } from './maintenance';
 import { EscapePage } from './views/escape';
 import { JourneyPage } from './views/journey';
@@ -269,8 +269,8 @@ app.post('/api/bot/sync', async (c) => {
   if (!parsed.ok) return c.json({ error: parsed.error }, 400);
   const now = Date.now();
   // 보상 기록이라 화면용 1분 캐시를 쓰지 않고 새로 읽어요
-  const burn = await burnWindow(c.env.DB, now, true);
-  const result = await applySync(c.env.DB, parsed.value, now, { scrimQuests: c.env.SCRIM_QUESTS === '1', burn });
+  const { current: burn, all: burns } = await burnWindowsForSync(c.env.DB, now);
+  const result = await applySync(c.env.DB, parsed.value, now, { scrimQuests: c.env.SCRIM_QUESTS === '1', burn: burns });
   // 활동은 이미 반영됐어도 캐릭터나 첫 선물 저장에서 실패했을 수 있어요.
   if (result !== 'stale') {
     const ids = parsed.value.members.map((m) => m.id);

@@ -974,7 +974,8 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
         {PERK_IDS.map((id) => {
           const info = PERKS[id];
           const lv = bank[id];
-          const max = perkMax(id, props.unlocked);
+          // 예전 단계에서 옮겨 온 사람은 지금 한도보다 높을 수 있어요. "11/10"처럼 보이지 않게 해요.
+          const max = Math.max(lv, perkMax(id, props.unlocked));
           const full = lv >= max;
           const cost = perkCost(lv);
           return (

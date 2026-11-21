@@ -49,6 +49,13 @@ DELETE FROM story_rewards;
 DELETE FROM story_runs;
 DELETE FROM escape_rewards;
 DELETE FROM escape_runs;
+-- 재수사·오늘의 사건·사건 첫 보상 표와 게임 초기화권 기록도 지워요(점검 2026-11-21).
+-- 남겨 두면 처음으로 되돌린 계정이 옛 연속 기록을 보고, 새로 깬 사건·원정대 첫 보상도 못 받아요.
+DELETE FROM escape_re;
+DELETE FROM escape_daily;
+DELETE FROM escape_daily_stats;
+DELETE FROM escape_paid;
+DELETE FROM game_resets;
 DELETE FROM journey_bank;
 DELETE FROM journey_runs;
 DELETE FROM room_likes;

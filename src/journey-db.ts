@@ -179,6 +179,9 @@ export async function beginJourney(db: D1Database, user: string, chapter = 1, no
   const going = await activeJourney(db, user);
   if (going) return going.row.id;
   await dropBrokenJourney(db, user, now.toISOString());
+  // 게임 기록 초기화 횟수(세대). 해금·장비를 읽기 전에 먼저 읽어요.
+  // 그 사이 다른 탭에서 초기화하면 INSERT의 세대 검사로 막아요(초기화 전 해금으로 잠긴 장에 가지 않게).
+  const gen = Number((await db.prepare('SELECT count FROM game_resets WHERE user_id = ?').bind(user).first<{ count: number }>())?.count ?? 0);
   // 앞 장을 깼고(unlocked), 도감 조건도 채운 장까지만 떠날 수 있어요.
   const [top, dogam] = await Promise.all([journeyTop(db, user), dogamProgress(db, user)]);
   const unlocked = unlockedFrom(top);
@@ -190,8 +193,6 @@ export async function beginJourney(db: D1Database, user: string, chapter = 1, no
   const ch = chapter;
   const id = crypto.randomUUID();
   const t = now.toISOString();
-  // 게임 기록 초기화 횟수(세대). 장비를 읽은 뒤 그 사이 초기화됐으면 옛 장비로 판을 만들지 않아요.
-  const gen = Number((await db.prepare('SELECT count FROM game_resets WHERE user_id = ?').bind(user).first<{ count: number }>())?.count ?? 0);
   const bank = await journeyBank(db, user);
   const cost = kitCost(kit, level);
   if (cost > 0 && cost > bank.coins) return NO_COINS; // 빚(마이너스)이 있어도 준비물 없이는 떠날 수 있어요
