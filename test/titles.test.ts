@@ -229,3 +229,15 @@ it('배포 중 잠깐 빠졌던 칭호가 돌아오면 고른 칭호를 다시 �
   sql.prepare("UPDATE profiles SET title_id = 'shop-1' WHERE user_id = ?").run(A);
   expect(await listTitleJobs(db)).toEqual([{ user: A, id: 'shop-1', title: 'MOOD' }]);
 });
+
+it('통화 칭호는 카드마다 더하지 않고, 초기화한 날부터 다른 멤버와 실제로 같이 있던 시간만 세요(나리 2026-11-21)', async () => {
+  const { db, sql } = setup();
+  // 5명 방에 1시간 있었으면 카드 4장에 1시간씩 붙지만, 칭호는 1시간이에요
+  for (const t of ['b1', 'b2', 'b3', 'b4'])
+    sql.prepare("INSERT INTO cards (owner_id, target_id, xp, voice_seconds, first_met, updated_at) VALUES (?, ?, 60, 3600, 'x', 'x')").run(A, t);
+  sql.prepare("UPDATE members SET reset_at = '2026-11-16T21:01:10.769Z' WHERE user_id = ?").run(A); // 한국 11/17 06:01
+  sql.prepare("INSERT INTO member_voice_day (user_id, day, minutes) VALUES (?, '2026-11-16', 600), (?, '2026-11-17', 60), (?, '2026-11-20', 30)").run(A, A, A);
+  const stats = await loadTitleStats(db, A, '2026-11-21T00:00:00Z');
+  expect(stats.voiceSeconds).toBe(90 * 60);
+  expect(titleProgress(byName('수다'), stats).ok).toBe(false);
+});
