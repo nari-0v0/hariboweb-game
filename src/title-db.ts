@@ -7,8 +7,8 @@ type N = { n: number };
 
 // 칭호 조건에 쓰는 내 기록을 한 번에 읽어요
 export async function loadTitleStats(db: D1Database, userId: string, nowIso: string): Promise<TitleStats> {
-  const [cards, seasons, clears, bingo, got, gave, own, gamble, member, journey] = await db.batch([
-    db.prepare('SELECT xp, voice_seconds FROM cards WHERE owner_id = ?').bind(userId),
+  const [cards, seasons, clears, bingo, got, gave, own, gamble, member, journey, voice] = await db.batch([
+    db.prepare('SELECT xp FROM cards WHERE owner_id = ?').bind(userId),
     // 끝난 시즌마다 내가 끝까지 있던 모둠의 퀘스트 수와 깬 수
     db
       .prepare(
@@ -36,8 +36,16 @@ export async function loadTitleStats(db: D1Database, userId: string, nowIso: str
     db.prepare('SELECT reset_at, booster FROM members WHERE user_id = ?').bind(userId),
     // 대장을 깬 가장 높은 장(색인으로 한 줄만 읽어요)
     db.prepare("SELECT chapter AS n FROM journey_runs WHERE user_id = ? AND status = 'done' AND cleared = 1 ORDER BY chapter DESC LIMIT 1").bind(userId),
+    // 통화 칭호: 다른 멤버와 같은 통화방에 실제로 있던 분(봇이 1분마다 보내는 2명 이상 통화방 기록, 혼자·봇과 있던 시간은 빠져요).
+    // 카드마다 더하면 5명 방 1시간이 4시간이 돼서 실제 시간으로 바꿨어요(나리 2026-11-21). 초기화한 날(한국 날짜)부터 세요.
+    db
+      .prepare(
+        `SELECT COALESCE(SUM(minutes), 0) AS n FROM member_voice_day
+         WHERE user_id = ?1 AND day >= COALESCE((SELECT date(reset_at, '+9 hours') FROM members WHERE user_id = ?1), '')`,
+      )
+      .bind(userId),
   ]);
-  const cardRows = cards!.results as { xp: number; voice_seconds: number }[];
+  const cardRows = cards!.results as { xp: number }[];
   const xps = cardRows.map((r) => Number(r.xp));
   const n = (r: D1Result | undefined) => Number((r?.results[0] as N | undefined)?.n ?? 0);
   return {
@@ -46,7 +54,7 @@ export async function loadTitleStats(db: D1Database, userId: string, nowIso: str
     gamble: gamble?.results[0] as TitleStats['gamble'],
     bestXp: xps.reduce((a, b) => Math.max(a, b), 0),
     ownXp: n(own),
-    voiceSeconds: cardRows.reduce((a, r) => a + Number(r.voice_seconds), 0),
+    voiceSeconds: n(voice) * 60,
     bingoFull: Number((bingo?.results[0] as { full?: number } | undefined)?.full ?? 0),
     friendXps: xps,
     // 카드 장수 칭호는 젤리를 받은 단계면 이미 얻은 거예요. 칭호 화면을 열기 전에 친구가 떠나 장수가 줄어도 잃지 않게(4차 점검).

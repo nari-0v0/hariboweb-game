@@ -2528,3 +2528,10 @@ main.wide { max-width: 1320px; }
   position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; padding: 0; border: 3px solid var(--ink);
   background: #fff; color: var(--ink); font: inherit; font-weight: 700; line-height: 1; cursor: pointer;
 }
+/* 휴대폰에서 날짜·젤코인·재료 세 칸이 한 줄에 들어가게 조금 작게(나리 2026-11-21) */
+@media (max-width: 480px) {
+  .jr-hud { gap: 5px; }
+  .jr-hud > .jr-hud-day, .jr-hud > .jr-coins { padding: 0 5px; font-size: .86rem; }
+  .jr-hud > .jr-hud-day { padding-top: 7px; }
+  .jr-hud .jr-lab { margin-right: 2px; }
+}

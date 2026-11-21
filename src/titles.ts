@@ -24,7 +24,7 @@ export type TitleRule =
   | { kind: 'bingoFull'; count: number } // 빙고판을 다 채운 수
   | { kind: 'praiseGot'; count: number }
   | { kind: 'praiseGave'; count: number }
-  | { kind: 'voiceHours'; hours: number } // 같이 통화한 시간(카드마다 더해서)
+  | { kind: 'voiceHours'; hours: number } // 다른 멤버와 같은 통화방에 실제로 있던 시간(카드마다 더하지 않아요)
   | { kind: 'journeyTop'; chapter: number } // 원정대 이 장 대장을 깸
   | { kind: 'booster' }; // 디스코드 서버 부스트 중에만(얻은 기록으로 남지 않아요)
 
