@@ -1383,6 +1383,8 @@ main.wide { max-width: 1320px; }
 .esc-person img { image-rendering: pixelated; }
 .esc-choices { display: flex; flex-wrap: wrap; gap: 6px; }
 .esc-choices .btn { flex: 1 1 4.5em; }
+/* 추리 사건: 「나래의 증언」처럼 긴 보기는 한 줄에 두 개씩(글자가 세로로 쪼개지지 않게) */
+.esc-choices-long .btn { flex: 1 1 calc(50% - 3px); word-break: keep-all; }
 .esc-wrong { margin: 6px 0 0; padding: 4px 8px; border: 2px solid #e05a7a; background: #ffe8ee; font-weight: 700; }
 .esc-hint-line { margin: 6px 0 0; padding: 4px 8px; border: 2px dashed var(--ink); background: #fffbe0; }
 .esc-seen-hints li { background: #fffbe0; }

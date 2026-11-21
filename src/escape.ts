@@ -4,10 +4,12 @@ import { BURN_HINT_COINS } from './burning';
 // 등장인물은 모두 가상 인물이에요(실제 멤버와 관계없어요).
 
 import { handHardness, LEVEL_SPLIT } from './escape-level';
+import { MYSTERY_BASE } from './unlock';
 import { buildCase } from './escape-gen';
 import { ROOMS, ROOM_KEYS, roomByName, type RoomKey } from './case-rooms';
 import { STORY_SEEDS } from './escape-stories';
 import { TALK_CASES } from './escape-talk';
+import { MYSTERY_CASES } from './escape-mystery';
 import { checkUi, UI_MAX, type Ui } from './escape-ui';
 import { jo, ro } from './josa';
 
@@ -37,6 +39,7 @@ export type EscObject = {
   at?: string; // 방 그림 속 자리(case-rooms.ts의 자리 id). 없으면 그림 위에 따로 서 있어요(사람·고양이 등)
   ref?: number; // 만든 사건: 수수께끼 은행 번호(목록 문서·테스트용, 화면엔 안 보여요)
   face?: string; // 인물: 캐릭터 그림(public/char/<face>.png). 잠금은 그 사람이 내는 수수께끼예요
+  deduce?: boolean; // 추리 사건: 잠금이 수수께끼가 아니라 추리(증언 반박·시각 맞히기 등)예요. 화면에 「추리」로 보여요
 };
 export type EscCase = {
   id: string;
@@ -310,6 +313,8 @@ export const ESCAPE_CASES: EscCase[] = [
   ...leveled.filter((c) => c.level === 2),
   ...leveled.filter((c) => c.level === 3),
   ...TALK_CASES.map((c) => ({ ...c, level: 3 })),
+  // 추리 사건(나리 2026-11-21): 앞의 51개 뒤에 이어 붙여요
+  ...MYSTERY_CASES,
 ].map(placeRooms);
 
 // vr > 0: 같은 수수께끼로 범인·단서·자리를 새로 섞은 다시 푸는 판(이야기 씨앗으로 만든 사건만, 나머지는 그대로).
@@ -338,8 +343,14 @@ export function escVariantOf(json: string): number {
 }
 
 // 도감으로 여는 순서 = 목록 순서(쉬운 것부터). 처음 5개(입문 3개 + 가장 쉬운 사건 2개)는 그냥 할 수 있어요.
-const UNLOCK_ORDER = ESCAPE_CASES.map((c) => c.id);
-export const escapeUnlockIndex = (id: string) => UNLOCK_ORDER.indexOf(id);
+// 추리 사건은 따로 순서를 세요(MYSTERY_BASE부터). 조건은 unlock.ts의 MYSTERY_STEPS예요.
+const MYSTERY_IDS = new Set(MYSTERY_CASES.map((c) => c.id));
+const UNLOCK_ORDER = ESCAPE_CASES.filter((c) => !MYSTERY_IDS.has(c.id)).map((c) => c.id);
+const MYSTERY_ORDER = ESCAPE_CASES.filter((c) => MYSTERY_IDS.has(c.id)).map((c) => c.id);
+// 추리 사건은 범인이 이야기로 정해져 있어서 다시 풀어도 답이 같아요. 그래서 재수사가 없어요(나리 확인 전 임시).
+export const isMystery = (id: string) => MYSTERY_IDS.has(id);
+export const reOk = (id: string) => !MYSTERY_IDS.has(id);
+export const escapeUnlockIndex = (id: string) => (MYSTERY_IDS.has(id) ? MYSTERY_BASE + MYSTERY_ORDER.indexOf(id) : UNLOCK_ORDER.indexOf(id));
 
 export type EscState = {
   v: 1;
@@ -621,6 +632,8 @@ function actEscapeBase(c: EscCase, old: EscState, act: EscAction, burn = false):
     if (isLocked(s, o)) {
       s.msg = o.look;
       s.tone = 'info';
+      // 추리 사건: 잠긴 채로 들은 증언(메모)도 수첩 메모에 남겨요(shown은 숨은 물건에만 쓰여서 다른 물건에 영향이 없어요)
+      if (o.memo) add(s.shown, o.id);
       return s;
     }
     if (o.goto && (!o.lock || s.seen.includes(o.id))) {

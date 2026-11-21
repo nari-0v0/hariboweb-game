@@ -22,7 +22,7 @@ describe('도감으로 원정대·사건파일 열기', () => {
     const free = ESCAPE_CASES.filter((c) => escapeNeed(escapeUnlockIndex(c.id)).cards === 0);
     expect(free).toHaveLength(5);
     expect(free.map((c) => c.id)).toEqual(ESCAPE_CASES.slice(0, 5).map((c) => c.id)); // 목록 맨 앞(입문 3개 + 가장 쉬운 2개)
-    expect(ESCAPE_CASES.filter((c) => !c.formats && !c.id.endsWith('-talk')).every((c) => free.includes(c))).toBe(true);
+    expect(ESCAPE_CASES.filter((c) => !c.formats && !c.id.endsWith('-talk') && !/^m\d+$/.test(c.id)).every((c) => free.includes(c))).toBe(true);
     const needs = ESCAPE_CASES.map((c) => escapeNeed(escapeUnlockIndex(c.id)).cards);
     expect(Math.max(...needs)).toBe(55);
     for (const c of ESCAPE_CASES) expect(escapeUnlockIndex(c.id)).toBeGreaterThanOrEqual(0);

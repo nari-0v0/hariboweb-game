@@ -1,6 +1,6 @@
 import type { Member } from '../env';
 import type { DailyInfo, EscRun, ReRecord } from '../escape-db';
-import { ESCAPE_CASES, ESC_XP, escapeUnlockIndex, bigHint, canAnswer, coinSpots, coinsLeft, escGrade, GRADE_RULE, gradeRule, BOOSTER_DAILY_COINS, hintIndex, RE_LIVES, isLocked, openScenes, puzzleNo, visible, type EscGrade, type EscObject } from '../escape';
+import { ESCAPE_CASES, ESC_XP, escapeUnlockIndex, isMystery, reOk, bigHint, canAnswer, coinSpots, coinsLeft, escGrade, GRADE_RULE, gradeRule, BOOSTER_DAILY_COINS, hintIndex, RE_LIVES, isLocked, openScenes, puzzleNo, visible, type EscGrade, type EscObject } from '../escape';
 import { casePics, itemPic } from '../case-art';
 import { ROOMS, roomSrc, roomSrcSet, type Hotspot, type RoomKey } from '../case-rooms';
 import { ROOM_BLUR } from '../room-blur.gen';
@@ -250,14 +250,16 @@ function Focus(props: { run: EscRun; art: string; name: string }) {
         {puzzle && (
           <div class="esc-puzzle" data-esc-sync="puzzle">
             <div class="esc-puzzle-head">
-              <b>수수께끼 No.{puzzleNo(run.def, o.id)}</b>
-              <span>{o.face ? `${o.name}의 문제` : o.name}</span>
+              <b>
+                {o.deduce ? '🔎 추리' : '수수께끼'} No.{puzzleNo(run.def, o.id)}
+              </b>
+              <span>{o.face ? `${o.name}${o.deduce ? '의 증언' : '의 문제'}` : o.name}</span>
             </div>
             <p>{o.look}</p>
             {s.fx === 'wrong' && <p class="esc-wrong">❌ {s.msg}</p>}
             <p class="hint">
               {o.lock!.kind === 'code' && o.lock!.ask}
-              {o.face ? '' : ' · 수첩의 📌 메모가 실마리예요.'}
+              {o.deduce ? ' · 수첩의 단서와 메모를 다시 읽어 보세요.' : o.face ? '' : ' · 수첩의 📌 메모가 실마리예요.'}
             </p>
             {(s.seenHints ?? [])
               .filter((k) => run.def.hints[k]?.until === o.id)
@@ -319,7 +321,7 @@ function Focus(props: { run: EscRun; art: string; name: string }) {
                 ))}
               </div>
             ) : o.lock!.kind === 'code' && o.lock!.choices ? (
-              <div class="esc-choices">
+              <div class={`esc-choices${o.lock!.choices.some((ch) => ch.length > 5) ? ' esc-choices-long' : ''}`}>
                 {o.lock!.choices.map((ch) => (
                   <button class="btn" type="submit" name="v" value={ch}>
                     {ch}
@@ -390,7 +392,7 @@ function Play(props: { run: EscRun; art: string; name: string }) {
   const things = def.objects.filter((o) => visible(def, s, o));
   const allClues = Object.keys(def.clues);
   const need = def.question.needs.filter((n) => s.clues.includes(n)).length;
-  const memos = def.objects.filter((o) => o.memo && s.seen.includes(o.id));
+  const memos = def.objects.filter((o) => o.memo && (s.seen.includes(o.id) || s.shown.includes(o.id)));
   const qs = [def.question, ...(def.more ?? [])];
   const puzzles = def.objects.filter((o) => o.lock?.kind === 'code');
   const solved = puzzles.filter((o) => s.opened.includes(o.id)).length;
@@ -816,6 +818,60 @@ export function EscapePage(props: {
   url?: string;
 }) {
   const { run, result } = props;
+  const fileOf = (c: (typeof ESCAPE_CASES)[number]) => {
+                const best = props.best.get(c.id);
+                const need = escapeNeed(escapeUnlockIndex(c.id));
+                if (need.cards > 0 && !meets(need, props.dogam)) {
+                  return (
+                    <div class="esc-file locked" title={needText(need, props.dogam)}>
+                      <span class="esc-file-btn">
+                        <span class="esc-file-tab">{'★'.repeat(c.level ?? 1)}</span>
+                        <span class="esc-case-emoji" aria-hidden="true">
+                          🔒
+                        </span>
+                        <b>잠긴 사건</b>
+                        <span class="esc-file-need">📖 {shortNeed(need)}</span>
+                      </span>
+                    </div>
+                  );
+                }
+                const re = props.re?.get(c.id);
+                return (
+                  <div class="esc-file-wrap">
+                  <form method="post" action="/api/escape/start" class={`esc-file${best ? ' done' : ''}`}>
+                    <input type="hidden" name="case" value={c.id} />
+                    {run && <>
+                      <input type="hidden" name="switch" value="1" />
+                      <input type="hidden" name="run" value={run.row.id} />
+                      <input type="hidden" name="rev" value={run.row.rev} />
+                    </>}
+                    <button type="submit" title={c.intro}>
+                      <span class="esc-file-tab">{'★'.repeat(c.level ?? 1)}</span>
+                      <span class="esc-case-emoji" aria-hidden="true">
+                        {c.emoji}
+                      </span>
+                      <b>{c.title}</b>
+                      <span class="esc-file-place">📍 {c.place}</span>
+                      {best ? <span class={`esc-file-stamp g-${best}`}>{best}</span> : <span class="esc-file-new">미해결</span>}
+                    </button>
+                  </form>
+                  {best && reOk(c.id) && (
+                    <form method="post" action="/api/escape/start" class="esc-re-form">
+                      <input type="hidden" name="case" value={c.id} />
+                      <input type="hidden" name="re" value="1" />
+                      {run && <>
+                        <input type="hidden" name="switch" value="1" />
+                        <input type="hidden" name="run" value={run.row.id} />
+                        <input type="hidden" name="rev" value={run.row.rev} />
+                      </>}
+                      <button type="submit" class="btn btn-small esc-re-btn" title={`힌트 없이, 답을 ${RE_LIVES}번 틀리면 실패`}>
+                        🔁 재수사{re?.flawless ? ' 💮' : ''}{re?.best != null ? ` · ${clock(re.best)}` : ''}
+                      </button>
+                    </form>
+                  )}
+                  </div>
+                );
+              };
   return (
     <Layout title="하리보 사건파일" viewer={props.viewer} active="cases" scripts={run ? ['/escape.js?v=once-2', '/escape-ui.js?v=11'] : undefined}>
       {props.url && <i hidden data-replace-url={props.url} />}
@@ -859,62 +915,10 @@ export function EscapePage(props: {
             )}
             {props.daily && <DailyPanel daily={props.daily} run={run} />}
             <p class="hint">별이 많을수록 수수께끼가 어려워요(★ → ★★ → ★★★). 맨 앞 입문 사건 3개는 짧고, 나머지는 방 3개, 수수께끼 5개, 물건 합치기, 범인·방법·동기까지 맞혀야 해요(대화로 푸는 사건은 물건 대신 사람에게 말을 걸어요).</p>
-            <div class="esc-cases">
-              {ESCAPE_CASES.map((c, i) => {
-                const best = props.best.get(c.id);
-                const need = escapeNeed(escapeUnlockIndex(c.id));
-                if (need.cards > 0 && !meets(need, props.dogam)) {
-                  return (
-                    <div class="esc-file locked" title={needText(need, props.dogam)}>
-                      <span class="esc-file-btn">
-                        <span class="esc-file-tab">{'★'.repeat(c.level ?? 1)}</span>
-                        <span class="esc-case-emoji" aria-hidden="true">
-                          🔒
-                        </span>
-                        <b>잠긴 사건</b>
-                        <span class="esc-file-need">📖 {shortNeed(need)}</span>
-                      </span>
-                    </div>
-                  );
-                }
-                const re = props.re?.get(c.id);
-                return (
-                  <div class="esc-file-wrap">
-                  <form method="post" action="/api/escape/start" class={`esc-file${best ? ' done' : ''}`}>
-                    <input type="hidden" name="case" value={c.id} />
-                    {run && <>
-                      <input type="hidden" name="switch" value="1" />
-                      <input type="hidden" name="run" value={run.row.id} />
-                      <input type="hidden" name="rev" value={run.row.rev} />
-                    </>}
-                    <button type="submit" title={c.intro}>
-                      <span class="esc-file-tab">{'★'.repeat(c.level ?? 1)}</span>
-                      <span class="esc-case-emoji" aria-hidden="true">
-                        {c.emoji}
-                      </span>
-                      <b>{c.title}</b>
-                      <span class="esc-file-place">📍 {c.place}</span>
-                      {best ? <span class={`esc-file-stamp g-${best}`}>{best}</span> : <span class="esc-file-new">미해결</span>}
-                    </button>
-                  </form>
-                  {best && (
-                    <form method="post" action="/api/escape/start" class="esc-re-form">
-                      <input type="hidden" name="case" value={c.id} />
-                      <input type="hidden" name="re" value="1" />
-                      {run && <>
-                        <input type="hidden" name="switch" value="1" />
-                        <input type="hidden" name="run" value={run.row.id} />
-                        <input type="hidden" name="rev" value={run.row.rev} />
-                      </>}
-                      <button type="submit" class="btn btn-small esc-re-btn" title={`힌트 없이, 답을 ${RE_LIVES}번 틀리면 실패`}>
-                        🔁 재수사{re?.flawless ? ' 💮' : ''}{re?.best != null ? ` · ${clock(re.best)}` : ''}
-                      </button>
-                    </form>
-                  )}
-                  </div>
-                );
-              })}
-            </div>
+            <div class="esc-cases">{ESCAPE_CASES.filter((c) => !isMystery(c.id)).map(fileOf)}</div>
+            <h2 class="jr-pick-title esc-mystery-title">🔎 추리 사건</h2>
+            <p class="hint">수수께끼는 한두 개뿐이고, 증언을 듣고 현장을 살펴 범인을 밝히는 사건이에요. 사람의 말과 부딪치는 단서를 찾으면 숨긴 이야기를 털어놓아요. 틀린 단서를 고르면 실수로 세요.</p>
+            <div class="esc-cases">{ESCAPE_CASES.filter((c) => isMystery(c.id)).map(fileOf)}</div>
           </section>
         )}
         <FictionNote />

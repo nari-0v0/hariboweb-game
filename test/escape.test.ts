@@ -77,9 +77,9 @@ function play(c: EscCase): { s: EscState; steps: EscAction[] } {
 }
 
 describe('사건파일 방탈출 내용', () => {
-  it("사건이 51개예요", () => {
-    expect(ESCAPE_CASES).toHaveLength(51);
-    expect(new Set(ESCAPE_CASES.map((c) => c.id)).size).toBe(51);
+  it("사건이 54개예요", () => {
+    expect(ESCAPE_CASES).toHaveLength(54);
+    expect(new Set(ESCAPE_CASES.map((c) => c.id)).size).toBe(54);
   });
   it.each(ESCAPE_CASES.map((c) => [c.id, c] as const))('%s: 실수 없이 끝까지 풀리고 S등급', (_, c) => {
     const { s } = play(c);
@@ -115,7 +115,7 @@ describe('사건파일 방탈출 내용', () => {
     }
   });
   it('만든 사건: 용의자 특징 단서 세 개를 모두 맞춰야 범인이 한 명 남아요', () => {
-    for (const c of ESCAPE_CASES.filter((x) => x.solution && !x.id.endsWith("-talk"))) {
+    for (const c of ESCAPE_CASES.filter((x) => x.solution && !x.id.endsWith("-talk") && !/^m\d+$/.test(x.id))) {
       const file = c.objects.find((o) => o.id === 'file')!.look.split('\n').slice(1);
       expect(file).toHaveLength(4);
       // 단서 문장 끝 "범인은 …다." 의 핵심어가 특징표에 있는 사람만 남겨요
@@ -396,7 +396,7 @@ describe('사건파일 방탈출 저장과 보상', () => {
   });
   it('도감 카드가 모자라면 잠긴 사건은 시작할 수 없어요', async () => {
     const { db } = database();
-    const last = ESCAPE_CASES[ESCAPE_CASES.length - 2]!; // ★★★ 목록 맨 끝 쪽
+    const last = ESCAPE_CASES.filter((c) => !/^m\d+$/.test(c.id)).at(-2)!; // ★★★ 목록 맨 끝 쪽
     expect(last.level).toBe(3);
     expect(await beginEscape(db, 'me', last.id)).toBeNull();
   });
@@ -607,7 +607,7 @@ describe('사건파일 난이도', () => {
   it('★부터 ★★★까지 별이 낮은 사건이 먼저 나오고, 세 단계가 모두 있어요', async () => {
     const { BANK } = await import('../src/escape-bank');
     const { riddleHardness } = await import('../src/escape-level');
-    const lv = ESCAPE_CASES.map((c) => c.level ?? 1);
+    const lv = ESCAPE_CASES.filter((c) => !/^m\d+$/.test(c.id)).map((c) => c.level ?? 1); // 추리 사건은 따로 뒤에 붙어요
     expect([...lv].sort((a, b) => a - b)).toEqual(lv);
     expect(lv.filter((x) => x === 1).length).toBe(20);
     expect(lv.filter((x) => x === 2).length).toBe(18);

@@ -68,8 +68,24 @@ export const ESCAPE_STEPS: Need[] = [
 export const ESCAPE_STEP_SIZE = 5;
 
 export const journeyNeed = (ch: number): Need => JOURNEY_NEEDS[Math.max(1, ch) - 1] ?? JOURNEY_NEEDS[JOURNEY_NEEDS.length - 1]!;
-export const escapeNeed = (index: number): Need =>
-  ESCAPE_STEPS[Math.floor(Math.max(0, index) / ESCAPE_STEP_SIZE)] ?? ESCAPE_STEPS[ESCAPE_STEPS.length - 1]!;
+// 추리 사건(나리 2026-11-21, 50개 추가): 앞 사건과 따로 5개씩 묶어 열려요. 숫자는 나리 확인 전 임시예요.
+export const MYSTERY_BASE = 10_000;
+export const MYSTERY_STEPS: Need[] = [
+  { cards: 10 },
+  { cards: 15 },
+  { cards: 20 },
+  { cards: 25 },
+  { cards: 30 },
+  { cards: 30, lv: 10, lvCards: 3 },
+  { cards: 35, lv: 10, lvCards: 5 },
+  { cards: 40, lv: 15, lvCards: 3 },
+  { cards: 45, lv: 15, lvCards: 5 },
+  { cards: 55, lv: 20, lvCards: 5 },
+];
+export const escapeNeed = (index: number): Need => {
+  if (index >= MYSTERY_BASE) return MYSTERY_STEPS[Math.floor((index - MYSTERY_BASE) / ESCAPE_STEP_SIZE)] ?? MYSTERY_STEPS[MYSTERY_STEPS.length - 1]!;
+  return ESCAPE_STEPS[Math.floor(Math.max(0, index) / ESCAPE_STEP_SIZE)] ?? ESCAPE_STEPS[ESCAPE_STEPS.length - 1]!;
+};
 
 export const lvCount = (p: DogamProgress, lv: number) => p.levels.filter((l) => l >= lv).length;
 

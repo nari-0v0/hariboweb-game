@@ -1,7 +1,7 @@
 import { dayStartMs } from './day';
 import { dogamProgress, escapeNeed, meets } from './unlock';
 import { DAILY_OPEN, dailyChipsEarned, dailyPick, dailyVariant, kstDay, prevDay, shownStreak } from './escape-daily';
-import { BOOSTER_DAILY_COINS, ESC_XP, escVariantOf, escapeUnlockIndex, actEscape, decodeEscape, escCase, escGrade, escJelly, startEscape, type EscAction, type EscCase, type EscGrade, type EscState } from './escape';
+import { BOOSTER_DAILY_COINS, ESC_XP, escVariantOf, escapeUnlockIndex, reOk, actEscape, decodeEscape, escCase, escGrade, escJelly, startEscape, type EscAction, type EscCase, type EscGrade, type EscState } from './escape';
 
 export type EscRow = { id: string; user_id: string; case_id: string; state: string; rev: number; status: string; grade: string | null; xp: number; jelly: number; started_at?: string; ended_at?: string | null; chips?: number | null };
 export type EscRun = { row: EscRow; def: EscCase; state: EscState };
@@ -69,7 +69,7 @@ export async function beginEscape(
 ): Promise<string | null> {
   if (!escCase(caseId)) return null;
   if (!(await escapeOpen(db, user, caseId))) return null;
-  if (re && !(await solvedOnce(db, user, caseId))) return null;
+  if (re && (!reOk(caseId) || !(await solvedOnce(db, user, caseId)))) return null;
   // 판 번호(전에 이 사건을 시작한 횟수)는 넣는 순간에도 같을 때만 넣어요. 두 탭에서 동시에 시작해
   // 횟수가 바뀌었으면 다시 세서 해요(같은 판이 두 번 나오지 않게).
   for (let attempt = 0; attempt < 3; attempt++) {
