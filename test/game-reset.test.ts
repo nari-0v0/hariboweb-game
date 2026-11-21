@@ -85,6 +85,14 @@ describe('게임 기록 초기화권', () => {
     expect(sql.prepare("SELECT price, status FROM purchases WHERE user_id = ? AND item_id = 'reset:games'").get(A)).toEqual({ price: 20, status: 'done' });
   });
 
+  it('오늘 한 오늘의 사건 기록은 남겨서 초기화로 또 하지 않아요(3차 점검)', async () => {
+    const { sql, db } = setup(30);
+    const now = new Date('2026-11-21T05:00:00Z');
+    sql.prepare("INSERT INTO escape_daily (user_id, day, run_id, case_id) VALUES (?, '2026-11-21', 'r1', 'c01'), (?, '2026-11-20', 'r0', 'c01')").run(A, A);
+    expect(await buyGameReset(db, A, 20, now)).toBe('done');
+    expect(sql.prepare('SELECT day FROM escape_daily WHERE user_id = ?').all(A)).toEqual([{ day: '2026-11-21' }]);
+  });
+
   it('젤리가 모자라면 아무것도 지우지 않아요', async () => {
     const { sql, db } = setup(19);
     fillGames(sql, A);

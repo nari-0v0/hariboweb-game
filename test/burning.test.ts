@@ -195,6 +195,7 @@ describe('사건파일 힌트 동전', () => {
     const s = actEscape(c, startEscape(c), { a: 'coin', k: 0 }, true)!;
     expect(coinsLeft(s)).toBe(2);
     expect(s.msg).toContain('2개');
+    expect(s.got).toBe(2); // 도장도 「+2」(3차 점검)
   });
 });
 

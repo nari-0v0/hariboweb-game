@@ -361,6 +361,7 @@ export type EscState = {
   bigHints?: string[]; // 「더 쉬운 힌트」를 본 수수께끼 물건 id
   seenHints?: number[]; // 이미 본 힌트(c.hints 번호). 계속 보여 주고, 다시 봐도 동전·감점 없어요
   fx?: EscFx; // 방금 행동의 화면 움직임(다음 행동 때 지워져요)
+  got?: number; // 방금 찾은 힌트 동전 개수(버닝타임이면 2)
   vr?: number; // 다시 푸는 판 번호(EscCase.vr과 같아요)
   re?: 1; // 재수사 판(힌트 없음, 답을 RE_LIVES번 틀리면 실패)
   failed?: 1; // 재수사에 실패해서 끝난 판
@@ -562,6 +563,7 @@ function actEscapeBase(c: EscCase, old: EscState, act: EscAction, burn = false):
     // 버닝타임엔 동전 하나를 찾으면 두 개를 받아요
     const extra = burn ? BURN_HINT_COINS - 1 : 0;
     if (extra > 0) s.bonus = (s.bonus ?? 0) + extra;
+    s.got = 1 + extra; // 도장에 「+2」처럼 받은 개수를 보여 줘요(3차 점검)
     s.focus = null;
     s.msg = `반짝! ${extra > 0 ? `🔥 버닝타임이라 힌트 동전을 ${1 + extra}개 받았어요` : '힌트 동전을 찾았어요'}. (가진 동전 ${coinsLeft(s)}개) 동전으로 힌트를 보면 등급이 깎이지 않아요.`;
     s.tone = 'good';

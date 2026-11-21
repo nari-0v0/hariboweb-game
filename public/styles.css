@@ -1532,7 +1532,8 @@ main.wide { max-width: 1320px; }
   .esc-side { margin-top: 0; }
 }
 .esc-shelf .esc-cases { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
-.esc-going { margin: 6px 0 12px; padding: 8px 10px; border: 3px solid var(--ink); background: var(--paper-2); line-height: 2; }
+.esc-going { margin: 6px 0 12px; padding: 8px 10px; border: 3px solid var(--ink); background: var(--paper-2); line-height: 2; color: var(--ink); }
+.esc-game .esc-going .hint { color: var(--ink-soft); }
 .esc-file { margin: 0; }
 .esc-file button { position: relative; display: grid; justify-items: center; gap: 2px; width: 100%; height: 100%; padding: 22px 8px 10px; border: 3px solid var(--ink); background: #f3d9a4; color: var(--ink); font: inherit; text-align: center; cursor: pointer; clip-path: polygon(0 10px, 38% 10px, 44% 0, 100% 0, 100% 100%, 0 100%); box-shadow: inset 0 -5px 0 #d8b67a; }
 .esc-file button:hover { translate: 0 -2px; }
@@ -1632,6 +1633,8 @@ main.wide { max-width: 1320px; }
 .esc-ui-board.mini { width: calc(var(--w) * 18px); gap: 1px; padding: 1px; }
 .esc-ui-board.mini .esc-ui-cell { font-size: .6rem; }
 .esc-ui-cell { aspect-ratio: 1; display: grid; place-items: center; min-width: 0; padding: 0; background: #f4fbff; border: 2px solid #8fb2cf; font: inherit; font-size: clamp(.8rem, 4vw, 1.25rem); font-weight: 700; color: var(--ink); position: relative; }
+/* 칸 하나에 그림 여러 개(c30 과일 3개)가 두 줄로 나뉘면 놓인 순서를 읽기 어려워요(3차 점검) */
+.esc-ui-board.mark:not(.mini) .esc-ui-cell { white-space: nowrap; font-size: clamp(.6rem, 3vw, 1.1rem); }
 .esc-ui-cell.btn-cell { cursor: pointer; }
 .esc-ui-cell.wall { background: #5b5470; border-color: #5b5470; }
 .esc-ui-cell.void { background: transparent; border-color: transparent; }

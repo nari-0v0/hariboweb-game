@@ -52,7 +52,8 @@ export async function buyGameReset(db: D1Database, userId: string, price = RESET
     del('escape_runs'),
     del('escape_rewards'),
     del('escape_re'),
-    del('escape_daily'),
+    // 오늘의 사건은 오늘 한 줄을 남겨요(초기화로 오늘 사건을 또 하지 않게, 3차 점검). 지난 날은 지워요.
+    db.prepare(`DELETE FROM escape_daily WHERE user_id = ?2 AND day <> ?3 AND ${won}`).bind(id, userId, kstDay(now)),
     del('escape_daily_stats'),
     // 원정대(장비·재료·훈련·젤코인·펫·탑은 journey_bank 한 줄에 있어요)
     del('journey_runs'),
