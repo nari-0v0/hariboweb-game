@@ -153,7 +153,8 @@ function Action(props: { item: ShopItem; state: State; cards: number; members: n
     );
   // 잔액이 모자라도 버튼은 막지 않아요. 누르면 "젤리가 부족해요" 안내가 떠요.
   return (
-    <form method="post" action="/api/shop/buy">
+    // 누르면 한 번 물어봐요(public/app.js, 나리 2026-11-21 "확인 창 넣는 게 좋을 것 같음")
+    <form method="post" action="/api/shop/buy" data-buy={item.kind === 'theme' ? `${item.name} 테마` : item.name} data-price={String(item.price)}>
       <input type="hidden" name="item" value={item.id} />
       <button class="btn btn-small btn-buy" type="submit">
         🍬 {item.price}
@@ -256,7 +257,7 @@ export function ShopPage(props: {
                         </button>
                       </form>
                     ) : (
-                      <form method="post" action="/api/shop/service">
+                      <form method="post" action="/api/shop/service" data-buy={item.name} data-price={String(price)}>
                         <input type="hidden" name="item" value={item.id} />
                         <input type="hidden" name="price" value={String(price)} />
                         <button class="btn btn-small btn-buy" type="submit">

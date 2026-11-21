@@ -2535,3 +2535,6 @@ main.wide { max-width: 1320px; }
   .jr-hud > .jr-hud-day { padding-top: 7px; }
   .jr-hud .jr-lab { margin-right: 2px; }
 }
+
+/* 상점에서 살 때 묻는 창(public/app.js) */
+.buy-ask .buy-ask-name { font-weight: 700; color: var(--pink-text); }
