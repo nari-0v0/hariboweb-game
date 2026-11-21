@@ -186,37 +186,18 @@ addEventListener('pageshow', (e) => {
       again.querySelectorAll('input[name="kit"]').forEach((k) => { k.checked = false; });
       again.requestSubmit ? again.requestSubmit() : again.submit();
     };
-    // 켠 지 1시간이 지났으면 다시 떠나지 않고 「계속하기」를 눌러야 이어져요(누르면 다시 1시간).
-    if (Date.now() - since >= HOUR) {
-      setTimeout(() => {
-        if (!get()) return;
-        const ask = document.createElement('div');
-        ask.className = 'jr-autonext jr-autoask';
-        ask.setAttribute('role', 'alertdialog');
-        ask.setAttribute('aria-label', '자동 계속 확인');
-        ask.innerHTML = '<b>🤖 자동으로 1시간 돌았어요. 계속 돌릴까요?</b><button type="button" class="btn" data-go>계속하기</button><button type="button" class="btn btn-ghost" data-stop>그만하기</button>';
-        ask.querySelector('[data-stop]').addEventListener('click', () => { set(false); ask.remove(); });
-        ask.querySelector('[data-go]').addEventListener('click', () => {
-          if (!get()) { ask.remove(); return; }
-          mark(Date.now());
-          ask.querySelectorAll('button').forEach((b) => { b.disabled = true; });
-          depart();
-        });
-        document.body.append(ask);
-        ask.querySelector('[data-go]').focus({ preventScroll: true });
-      }, finalWait);
-      return;
-    }
-    const box = document.createElement('div');
-    box.className = 'jr-autonext';
-    box.setAttribute('role', 'status');
-    box.innerHTML = '<span class="jr-autonext-spin" aria-hidden="true"></span><b>🤖 자동: <span data-left>5</span>초 뒤 같은 장으로 다시 떠나요</b><button type="button" class="btn btn-ghost">그만하기</button>';
-    let left = 5;
-    let t = 0;
-    const stop = () => { clearInterval(t); box.remove(); };
-    box.querySelector('button').addEventListener('click', () => { set(false); stop(); });
-    setTimeout(() => {
-      if (!get()) return;
+    // 다른 탭에서 「계속하기」를 눌렀을 수 있어서, 쓸 때마다 저장된 시각을 다시 읽어요(Codex #303).
+    const fresh = () => { try { since = Number(localStorage.getItem(SINCE)) || since; } catch {} return Date.now() - since < HOUR; };
+    // 보통은 5초 세고 같은 장으로 다시 떠나요.
+    const countdown = () => {
+      const box = document.createElement('div');
+      box.className = 'jr-autonext';
+      box.setAttribute('role', 'status');
+      box.innerHTML = '<span class="jr-autonext-spin" aria-hidden="true"></span><b>🤖 자동: <span data-left>5</span>초 뒤 같은 장으로 다시 떠나요</b><button type="button" class="btn btn-ghost">그만하기</button>';
+      let left = 5;
+      let t = 0;
+      const stop = () => { clearInterval(t); box.remove(); };
+      box.querySelector('button').addEventListener('click', () => { set(false); stop(); });
       document.body.append(box);
       t = setInterval(() => {
         left -= 1;
@@ -225,6 +206,36 @@ addEventListener('pageshow', (e) => {
         stop();
         depart();
       }, 1000);
+    };
+    // 켠 지 1시간이 지났으면 다시 떠나지 않고 「계속하기」를 눌러야 이어져요(누르면 다시 1시간).
+    const ask = () => {
+      const box = document.createElement('div');
+      box.className = 'jr-autonext jr-autoask';
+      box.setAttribute('role', 'alertdialog');
+      box.setAttribute('aria-label', '자동 계속 확인');
+      box.innerHTML = '<b>🤖 자동으로 1시간 돌았어요. 계속 돌릴까요?</b><button type="button" class="btn" data-go>계속하기</button><button type="button" class="btn btn-ghost" data-stop>그만하기</button>';
+      // 다른 탭에서 계속하기를 누르면 이 창은 닫고 보통처럼 5초 뒤 떠나요. 그만하기를 누르면 이 창도 닫아요.
+      const onStore = (e) => {
+        if (e.key === KEY && e.newValue !== '1') { mem = false; close(); return; }
+        if (e.key === SINCE && fresh()) { close(); if (get()) countdown(); }
+      };
+      const close = () => { removeEventListener('storage', onStore); box.remove(); };
+      addEventListener('storage', onStore);
+      box.querySelector('[data-stop]').addEventListener('click', () => { set(false); close(); });
+      box.querySelector('[data-go]').addEventListener('click', () => {
+        if (!get()) { close(); return; }
+        removeEventListener('storage', onStore);
+        if (!fresh()) mark(Date.now());
+        box.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+        depart();
+      });
+      document.body.append(box);
+      box.querySelector('[data-go]').focus({ preventScroll: true });
+    };
+    setTimeout(() => {
+      if (!get()) return;
+      if (fresh()) countdown();
+      else ask();
     }, finalWait);
   }
   const sync = () => {
