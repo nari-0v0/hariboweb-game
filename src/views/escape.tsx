@@ -782,7 +782,6 @@ function Result(props: { run: EscRun; going: boolean; record?: ReRecord }) {
           <p class="hint">
             실수 {run.state.mistakes}번 · 동전 없이 본 힌트 {run.state.hints}번 · 찾은 힌트 동전 {(run.state.coins?.length ?? 0) + (run.state.bonus ?? 0)}개
             {run.state.gift ? ` · 💎 선물 동전 ${run.state.gift}개` : ''}
-            {run.state.carried ? ` · 그만둔 판의 실수·힌트 ${run.state.carried}번 포함` : ''}
           </p>
           <p class="hint">등급: {gradeRule(run.state)}</p>
         </div>
