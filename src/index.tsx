@@ -70,7 +70,7 @@ import { gameProgressStats } from './game-progress-stats';
 import { claimedCardSteps, settleCardRewards } from './card-rewards';
 import { RankPage, rankTab } from './views/rank';
 import { BLOCK_MAX_PENDING, BLOCK_MORE, blockCandidates, cancelBlock, decideBlock, flipBlock, listUnpostedBlocks, markBlockPosted, myBlocks, requestBlock } from './assign-block';
-import { checkNote, cleanNote, listUnpostedAiLogs, logAiCheck, markAiLogsPosted, markPraiseSeen, praiseBox, praiseDayLabel, PRAISE_NOTE_MAX } from './praise-note';
+import { checkNote, cleanNote, hidePraiseNote, listUnpostedAiLogs, logAiCheck, markAiLogsPosted, markPraiseSeen, praiseBox, praiseDayLabel, PRAISE_NOTE_MAX } from './praise-note';
 import type { BlockForm } from './views/bingo';
 import { GuidePage } from './views/guide';
 import { UpdatesPage } from './views/updates';
@@ -863,6 +863,14 @@ members.post('/alerts/clear', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
   await clearReadAlerts(c.env.DB, c.get('viewer').user_id);
   return c.req.header('X-Alert-Box') === '1' ? alertsView(c, true) : c.redirect('/alerts');
+});
+
+// 받은 칭찬 한마디 숨기기(받은 사람만, 되돌리기 없음)
+members.post('/me/praise/:id/hide', async (c) => {
+  if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);
+  const id = Number(c.req.param('id'));
+  if (Number.isSafeInteger(id) && id > 0) await hidePraiseNote(c.env.DB, c.get('viewer').user_id, id);
+  return c.redirect('/me/praise');
 });
 
 members.post('/alerts/:id/delete', async (c) => {

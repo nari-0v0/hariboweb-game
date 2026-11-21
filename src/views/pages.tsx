@@ -127,7 +127,8 @@ function TierRoad(props: { level: number }) {
 // 칭찬함: 누가 보냈는지는 보여 주지 않아요
 export const PRAISE_PREVIEW = 3;
 
-function PraiseList(props: { items: PraiseBox['items'] }) {
+// 받은 한마디가 기분 나쁘면 받은 사람이 칭찬함 페이지에서 숨길 수 있어요(나리 2026-11-21). 숨기면 다시 볼 수 없어서 한 번 더 물어봐요.
+function PraiseList(props: { items: PraiseBox['items']; hide?: boolean }) {
   return (
     <ul class="pr-list">
       {props.items.map((i) => (
@@ -137,6 +138,16 @@ function PraiseList(props: { items: PraiseBox['items'] }) {
             <time datetime={i.day}>{praiseDayLabel(i.day)}</time>
           </div>
           {i.note && <p class="pr-note">“{i.note}”</p>}
+          {props.hide && i.note && (
+            <details class="pr-hide">
+              <summary>한마디 숨기기</summary>
+              <form method="post" action={`/me/praise/${i.id}/hide`}>
+                <span>숨기면 다시 볼 수 없어요. 칭찬은 그대로 남아요.</span>
+                <button type="submit" class="btn btn-small">숨기기</button>
+              </form>
+            </details>
+          )}
+          {i.hidden && <p class="pr-hidden muted">숨긴 한마디예요.</p>}
         </li>
       ))}
     </ul>
@@ -182,7 +193,7 @@ export function PraisePage(props: { viewer: Member; box: PraiseBox }) {
         {box.items.length === 0 ? (
           <p class="muted">아직 받은 칭찬이 없어요. 디스코드 도감 패널의 "칭찬하기"로 같이 논 사람을 칭찬할 수 있어요.</p>
         ) : (
-          <PraiseList items={box.items} />
+          <PraiseList items={box.items} hide />
         )}
         {box.total > box.items.length && <p class="hint">최근 {box.items.length}개만 보여요.</p>}
         <p class="pr-more">

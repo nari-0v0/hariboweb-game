@@ -386,3 +386,37 @@ it('AI 검사 중 초기화되면 초기화 전 칭찬·젤리를 다시 지급�
   expect(await praiseBox(db, C)).toMatchObject({ unread: 0, total: 0 });
   expect(sql.prepare('SELECT dogam_jelly FROM profiles WHERE user_id = ?').get(C)).toBeUndefined();
 });
+
+it('칭찬함에서 받은 한마디를 숨기기 버튼으로 숨겨요 (나리 2026-11-21)', async () => {
+  const { db, sql } = fakeD1();
+  sql.prepare("UPDATE members SET gender_chosen_at = 'chosen' WHERE user_id = ?").run(A);
+  await givePraise(db, B, A, '2026-11-12', '나쁜 말');
+  await givePraise(db, C, A, '2026-11-12', '좋은 말');
+  const env = { DB: db, SESSION_SECRET: 'test' } as Env;
+  const session = await signSession('test', { uid: A, exp: Date.now() + 60_000 });
+  const page = await (await app.request('/me/praise', { headers: { Cookie: `hs=${session}` } }, env)).text();
+  const ids = [...page.matchAll(/action="\/me\/praise\/(\d+)\/hide"/g)].map((m) => m[1]);
+  expect(ids).toHaveLength(2);
+  const bad = (await praiseBox(db, A)).items.find((i) => i.note === '나쁜 말')!;
+  const post = (uid: string) =>
+    signSession('test', { uid, exp: Date.now() + 60_000 }).then((s) =>
+      app.request(`/me/praise/${bad.id}/hide`, {
+        method: 'POST',
+        headers: { Cookie: `hs=${s}`, Origin: 'http://localhost' },
+      }, env),
+    );
+  // 다른 사람 사이트에서 보낸 요청은 막아요
+  const cross = await app.request(`/me/praise/${bad.id}/hide`, { method: 'POST', headers: { Cookie: `hs=${session}`, Origin: 'https://evil.example' } }, env);
+  expect(cross.status).toBe(403);
+  // 다른 사람은 내 칭찬을 숨길 수 없어요
+  await post(B);
+  expect((await praiseBox(db, A)).items.find((i) => i.id === bad.id)?.note).toBe('나쁜 말');
+  const res = await post(A);
+  expect(res.status).toBe(302);
+  expect(res.headers.get('Location')).toBe('/me/praise');
+  const after = await (await app.request('/me/praise', { headers: { Cookie: `hs=${session}` } }, env)).text();
+  expect(after).not.toContain('나쁜 말');
+  expect(after).toContain('좋은 말');
+  expect(after).toContain('숨긴 한마디예요');
+  expect([...after.matchAll(/action="\/me\/praise\/(\d+)\/hide"/g)]).toHaveLength(1);
+});
