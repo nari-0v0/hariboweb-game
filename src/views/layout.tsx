@@ -37,7 +37,7 @@ export function Layout(props: {
         <link rel="preload" href="/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin="" />
         {props.preloadImages?.map((href) => <link rel="preload" href={href} as="image" fetchpriority="high" />)}
         <link rel="icon" type="image/png" href="/char/deco/explorer.png" />
-        <link rel="stylesheet" href="/styles.css?v=jrhud-1121" />
+        <link rel="stylesheet" href="/styles.css?v=qa-1121" />
         <script src="/app.js?v=jrleave3-1121" defer></script>
         {props.scripts?.map((script) => typeof script === 'string'
           ? <script src={script} defer></script>
@@ -77,6 +77,10 @@ export function Layout(props: {
                 <span>업데이트</span>
                 <span>현황</span>
                 <i class="upd-dot" aria-hidden="true" hidden />
+              </a>
+              {/* 자주 묻는 질문(나리 2026-11-21) */}
+              <a class="upd-btn qa-btn" href="/qa" aria-label="자주 묻는 질문">
+                <span>{'Q&A'}</span>
               </a>
               {/* 알림함: 안 읽은 알림이 있으면 빨간 점. 누르면 팝업(app.js), 자바스크립트가 없으면 /alerts 화면 */}
               <a
