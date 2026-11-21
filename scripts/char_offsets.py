@@ -91,7 +91,7 @@ MANUAL: dict[str, float] = {
     "deco/mech-drill.png": 4.0,  # 나리 2026-11-21: 오른쪽으로 쏠려 보여 왼쪽으로 조금
     "deco/mech-violet-axe.png": -2.0,
     "deco/mech-flame-sword.png": 0.0,
-    "deco/mech-dark-axe.png": 0.0,
+    "deco/mech-dark-axe.png": -3.0,  # 나리 2026-11-21: 왼쪽으로 쏠려 보여 오른쪽으로 살짝
     "deco/mech-red-twin.png": 0.0,
     "deco/mech-gatling.png": 0.0,
     "deco/mech-blue-twin.png": 0.0,
