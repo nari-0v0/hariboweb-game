@@ -33,4 +33,10 @@ export const UPDATES: Update[] = [
   { day: '2026-11-19', text: '🔎 사건파일 「오늘의 사건」 추가 · 🗼 끝없는 탑 층 보상을 10층마다 1개부터 다시 세도록 변경 · 📋 업데이트 현황 추가' },
 ];
 // 점을 띄울지 비교하는 값(맨 위 줄이 바뀌면 달라져요)
-export const updatesMark = () => (UPDATES[0] ? `${UPDATES[0].day}:${UPDATES.length}` : '');
+// 맨 위 줄 글자까지 넣어 표시값을 만들어요(줄을 하나 빼고 하나 더해 개수가 같아도 새 줄로 알아봐요).
+const shortHash = (text: string) => {
+  let h = 0;
+  for (let i = 0; i < text.length; i++) h = (Math.imul(h, 31) + text.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+};
+export const updatesMark = () => (UPDATES[0] ? `${UPDATES[0].day}:${UPDATES.length}:${shortHash(UPDATES[0].text)}` : '');
