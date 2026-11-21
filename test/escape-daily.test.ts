@@ -199,3 +199,21 @@ describe('오늘의 사건 DB', () => {
     expect(await beginDaily(db, 'gone', T0)).toBeNull();
   });
 });
+
+describe('그만두고 다시 하기(2026-11-21 3차 점검)', () => {
+  it('처음 풀기 전에 그만둔 판의 실수·힌트도 첫 해결 등급에 더해요', async () => {
+    const { db, sql } = database();
+    const c = ESCAPE_CASES[0]!;
+    const first = (await beginEscape(db, 'me', c.id))!;
+    sql.prepare("UPDATE escape_runs SET state = json_set(state, '$.mistakes', 3) WHERE id = ?").run(first);
+    await quitEscape(db, 'me', first);
+    const id = (await beginEscape(db, 'me', c.id))!;
+    const run = (await getEscape(db, 'me', id))!;
+    const { steps } = solve(run.def);
+    let rev = run.row.rev;
+    for (const a of steps) expect(await actEscapeRun(db, 'me', id, rev++, a, T0)).toBe('ok');
+    const row = sql.prepare('SELECT grade, state FROM escape_runs WHERE id = ?').get(id) as { grade: string; state: string };
+    expect(row.grade).toBe('A'); // 이번 판은 실수 0이지만 그만둔 판 실수 3번
+    expect(JSON.parse(row.state).carried).toBe(3);
+  });
+});

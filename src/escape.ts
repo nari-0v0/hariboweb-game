@@ -362,6 +362,7 @@ export type EscState = {
   seenHints?: number[]; // 이미 본 힌트(c.hints 번호). 계속 보여 주고, 다시 봐도 동전·감점 없어요
   fx?: EscFx; // 방금 행동의 화면 움직임(다음 행동 때 지워져요)
   got?: number; // 방금 찾은 힌트 동전 개수(버닝타임이면 2)
+  carried?: number; // 처음 풀기 전에 그만둔 판들의 실수·힌트 합(등급에 더해요, 2026-11-21 3차 점검)
   vr?: number; // 다시 푸는 판 번호(EscCase.vr과 같아요)
   re?: 1; // 재수사 판(힌트 없음, 답을 RE_LIVES번 틀리면 실패)
   failed?: 1; // 재수사에 실패해서 끝난 판
@@ -417,7 +418,7 @@ export const BOOSTER_GRADE_SPARE = 1;
 export const BOOSTER_DAILY_COINS = 1;
 export const gradeRule = (s: Pick<EscState, 'bst'>) => (s.bst ? GRADE_RULE_BOOSTER : GRADE_RULE);
 export const escGrade = (s: EscState): EscGrade => {
-  const p = s.mistakes + s.hints - (s.bst ? BOOSTER_GRADE_SPARE : 0);
+  const p = s.mistakes + s.hints + (s.carried ?? 0) - (s.bst ? BOOSTER_GRADE_SPARE : 0);
   return p <= 1 ? 'S' : p <= 3 ? 'A' : p <= 6 ? 'B' : 'C';
 };
 export const canAnswer = (c: EscCase, s: EscState) => c.question.needs.every((n) => s.clues.includes(n));

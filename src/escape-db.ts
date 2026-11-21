@@ -148,6 +148,29 @@ export async function quitEscape(db: D1Database, user: string, id: string, rev?:
   return (r.meta.changes ?? 0) > 0;
 }
 
+// 아직 보상을 받지 않은 사건에서 그만둔 보통 판들의 실수·힌트 합(재수사·오늘의 사건 판은 빼요)
+async function quitPenalty(db: D1Database, user: string, caseId: string): Promise<number> {
+  const { results } = await db
+    .prepare(
+      `SELECT state FROM escape_runs WHERE user_id = ?1 AND case_id = ?2 AND status = 'quit'
+         AND NOT EXISTS (SELECT 1 FROM escape_rewards WHERE user_id = ?1 AND case_id = ?2)
+         AND NOT EXISTS (SELECT 1 FROM escape_paid WHERE user_id = ?1 AND case_id = ?2)`,
+    )
+    .bind(user, caseId)
+    .all<{ state: string }>();
+  let n = 0;
+  for (const r of results) {
+    try {
+      const s = JSON.parse(r.state) as Partial<EscState>;
+      if (s.re || s.daily) continue;
+      n += (Number.isSafeInteger(s.mistakes) ? s.mistakes! : 0) + (Number.isSafeInteger(s.hints) ? s.hints! : 0);
+    } catch {
+      // 읽을 수 없는 판은 세지 않아요
+    }
+  }
+  return n;
+}
+
 // 행동 하나. rev = 화면에 보이던 판의 순번(옛 화면·두 번 누르기 막기).
 // 해결하면 사건마다 처음 한 번만 경험치·젤리를 주고, 판 저장과 보상은 한 번에(전부 되거나 전부 안 되게) 반영해요.
 export async function actEscapeRun(db: D1Database, user: string, id: string, rev: number, act: EscAction, now = new Date(), burn = false): Promise<'ok' | 'stale' | 'bad'> {
@@ -158,6 +181,11 @@ export async function actEscapeRun(db: D1Database, user: string, id: string, rev
   const t = now.toISOString();
   const token = crypto.randomUUID();
   if (s.re && s.done) return finishRe(db, user, id, rev, run.def.id, s, t, token);
+  // 처음 푸는 사건이면, 그전에 그만둔 판의 실수·힌트도 등급에 더해요(그만두고 다시 시작해 실수를 지우지 않게).
+  if (s.done && !s.daily) {
+    const carried = await quitPenalty(db, user, run.def.id);
+    if (carried > 0) s.carried = carried;
+  }
   const g = s.done ? escGrade(s) : null;
   // 아직 진행 중인 판은 진행 내용만 저장해요(색인 칸을 건드리지 않아 DB 쓰기가 3줄 → 1줄).
   if (!s.done) {
