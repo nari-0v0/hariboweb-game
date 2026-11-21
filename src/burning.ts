@@ -49,8 +49,11 @@ export async function burnWindowsForSync(db: D1Database, nowMs = Date.now()): Pr
       .bind(new Date(nowMs - HISTORY_MS).toISOString())
       .all<{ started_at: string; until: string }>();
     for (const r of results ?? []) {
-      if (Date.parse(r.started_at) < Date.parse(r.until) && !all.some((w) => w.from === r.started_at && w.until === r.until)) {
-        all.push({ from: r.started_at, until: r.until });
+      // 예전 기록의 끝은 지금 버닝 시작을 넘지 않게 잘라요(끝나기 전에 새로 켜고 일찍 끝내도 2배가 이어지지 않게, Codex #313).
+      let until = r.until;
+      if (current && Date.parse(current.from) > Date.parse(r.started_at) && Date.parse(current.from) < Date.parse(until)) until = current.from;
+      if (Date.parse(r.started_at) < Date.parse(until) && !all.some((w) => w.from === r.started_at && w.until === until)) {
+        all.push({ from: r.started_at, until });
       }
     }
   } catch {
