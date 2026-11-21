@@ -1,0 +1,553 @@
+import { byCode, comma } from '../num';
+import { titleName } from '../titles';
+import { withBoosterMark } from '../booster';
+import { nextCardReward } from '../card-rewards';
+import type { Member } from '../env';
+import type { DogamEntry, Profile } from '../db';
+import { TIERS, levelName, progress, tierFor, tierLabel } from '../levels';
+import { characterUrl, poolOf } from '../character';
+import { canUseTheme, type ShopItem } from '../shop';
+import { THEMES } from '../themes';
+import { Card, formatHours } from './card';
+import { Layout } from './layout';
+import { COMMUNITY_URL } from '../contact';
+import { type PraiseBox, PRAISE_BOX_NOTICE, praiseDayLabel } from '../praise-note';
+
+const SAMPLE_STATS: [string, string][] = [
+  ['레벨', '20'],
+  ['통화', '100시간'],
+  ['내전', '12회'],
+];
+
+const TIER_STEPS = TIERS.filter((t) => t.min > 1).map((t) => [t.min, t.label] as const).reverse();
+
+function DiscordIcon() {
+  return (
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M20.3 4.4A19.8 19.8 0 0 0 15.4 3l-.6 1.3a18.4 18.4 0 0 0-5.6 0L8.6 3a19.7 19.7 0 0 0-4.9 1.5C.6 9.1-.3 13.7.1 18.2a19.9 19.9 0 0 0 6 3l1.3-2a12.9 12.9 0 0 1-2-1l.5-.4a14.2 14.2 0 0 0 12.2 0l.5.4c-.6.4-1.3.7-2 1l1.3 2a19.8 19.8 0 0 0 6-3c.5-5.2-.8-9.7-3.6-13.8ZM8 15.5c-1.2 0-2.2-1.1-2.2-2.4S6.8 10.7 8 10.7s2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Zm8 0c-1.2 0-2.2-1.1-2.2-2.4s1-2.4 2.2-2.4 2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Z"
+      />
+    </svg>
+  );
+}
+
+export function LandingPage(props: { error?: string; notMember?: boolean; devLogin: boolean }) {
+  return (
+    <Layout title="환영해요">
+      <section class="hero">
+        <div class="hero-text">
+          <p class="eyebrow">하리보 디스코드 멤버 전용</p>
+          <h1>
+            같이 놀수록
+            <br />
+            <mark>카드가 자라는</mark> 도감
+          </h1>
+          <p class="lead">통화방에서, 내전에서 함께한 시간만큼 서로의 카드가 반짝반짝 빛나요. 친구 카드를 모아 나만의 도감을 채워 보세요.</p>
+          {props.error && <p class="notice error">{props.error}</p>}
+          {props.notMember && (
+            <div class="notice error land-join">
+              <p>아직 하리보 디스코드 서버 멤버가 아니에요. 하리보 카카오톡 방에 먼저 들어와서 서버에 함께해 주세요!</p>
+              <a class="btn btn-primary" href={COMMUNITY_URL} target="_blank" rel="noopener">
+                💬 하리보 카톡방 들어가기
+              </a>
+            </div>
+          )}
+          <p class="land-lock">🔒 도감은 디스코드로 로그인해야 볼 수 있어요. 하리보 디스코드 서버 멤버만 들어올 수 있어요.</p>
+          <a class="btn btn-discord land-login" href="/auth/login">
+            <DiscordIcon /> 디스코드로 로그인하고 보러가기
+          </a>
+          <p class="hint">
+            처음이라면 <a href="/guide">사용설명서</a>를 먼저 읽어 보세요.
+          </p>
+          {props.devLogin && (
+            <form class="dev" method="get" action="/auth/dev">
+              <input name="id" placeholder="개발용 디스코드 ID" aria-label="개발용 디스코드 ID" />
+              <input name="name" placeholder="이름" aria-label="이름" />
+              <button class="btn btn-ghost" type="submit">개발용 로그인</button>
+            </form>
+          )}
+        </div>
+        <div class="fan" aria-hidden="true">
+          <Card id="210987654321098765" character="girl-14-0" kind="pair" name="얼음공주" theme="ice" intro="새벽 롤 같이 해요" xp={3000} no="027" stats={SAMPLE_STATS} />
+          <Card id="345678901234567890" character="girl-31-0" kind="pair" name="장미단" theme="rose" intro="내전 MVP 노려요" xp={11000} no="104" stats={SAMPLE_STATS} />
+          <Card id="123456789012345678" character="boy-03-0" kind="pair" name="하리보" theme="basic" intro="반가워요!" xp={26000} no="001" stats={SAMPLE_STATS} />
+        </div>
+      </section>
+      <section class="steps">
+        <div class="step">
+          <span class="step-no">1</span>
+          <h3>같이 놀기</h3>
+          <p>같은 통화방에서 마이크를 켜고 5분 이상 연달아 같이 있거나 같은 내전에 나가면 서로의 카드 경험치가 올라요.</p>
+        </div>
+        <div class="step">
+          <span class="step-no">2</span>
+          <h3>카드 키우기</h3>
+          <p>첫 만남에서 친구, 절친, 단짝까지. 레벨이 오를수록 카드가 화려해져요.</p>
+        </div>
+        <div class="step">
+          <span class="step-no">3</span>
+          <h3>도감 채우기</h3>
+          <p>아직 못 만난 멤버는 실루엣으로 보여요. 같이 놀면 카드가 생겨요.</p>
+        </div>
+      </section>
+    </Layout>
+  );
+}
+
+function XpBar(props: { xp: number }) {
+  const p = progress(props.xp);
+  return (
+    <div class="xp">
+      <div class="xp-head">
+        <span class="lv">Lv.{p.level}</span>
+        <span class="hint">{p.next === null ? '최고 레벨이에요' : `다음 레벨까지 ${p.next - p.current} XP`}</span>
+      </div>
+      <div class="bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(p.ratio * 100)}>
+        <div class="bar-fill" style={`width:${Math.max(3, Math.round(p.ratio * 100))}%`}></div>
+      </div>
+    </div>
+  );
+}
+
+function TierRoad(props: { level: number }) {
+  return (
+    <ol class="road">
+      {TIER_STEPS.map(([lv, label]) => (
+        <li class={props.level >= lv ? 'done' : undefined}>
+          <span class="dot"></span>
+          <b>Lv.{lv}</b>
+          <span>{label}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+// 칭찬함: 누가 보냈는지는 보여 주지 않아요
+export const PRAISE_PREVIEW = 3;
+
+function PraiseList(props: { items: PraiseBox['items'] }) {
+  return (
+    <ul class="pr-list">
+      {props.items.map((i) => (
+        <li class={i.unread ? 'pr-item new' : 'pr-item'}>
+          <div class="pr-top">
+            <b>누군가 나를 칭찬했어요</b>
+            <time datetime={i.day}>{praiseDayLabel(i.day)}</time>
+          </div>
+          {i.note && <p class="pr-note">“{i.note}”</p>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// 내 카드: 최근 3개만 미리 보여 주고, 전체는 칭찬함 페이지에서 봐요(여기서는 읽음 처리를 하지 않아요)
+function PraiseBoxSection(props: { box: PraiseBox }) {
+  const { box } = props;
+  return (
+    <section class="panel pr-box" id="praise">
+      <div class="panel-head">
+        <h2>💛 칭찬함</h2>
+        {box.unread > 0 && <span class="chip pr-new">새 칭찬 {box.unread}개</span>}
+      </div>
+      {box.items.length === 0 ? (
+        <p class="muted">아직 받은 칭찬이 없어요. 디스코드 도감 패널의 "칭찬하기"로 같이 논 사람을 칭찬할 수 있어요.</p>
+      ) : (
+        <>
+          <PraiseList items={box.items.slice(0, PRAISE_PREVIEW)} />
+          <p class="pr-more">
+            <a class="btn btn-small" href="/me/praise">
+              더 보러가기{box.total > 0 ? ` (${box.total}개)` : ''} →
+            </a>
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
+// 칭찬함 전체 페이지: 열면 새 칭찬이 모두 읽음이 돼요
+export function PraisePage(props: { viewer: Member; box: PraiseBox }) {
+  const { box } = props;
+  return (
+    <Layout title="칭찬함" viewer={props.viewer} active="me">
+      <section class="panel pr-box">
+        <div class="panel-head">
+          <h1>💛 칭찬함</h1>
+          {box.unread > 0 && <span class="chip pr-new">새 칭찬 {box.unread}개</span>}
+        </div>
+        <p class="hint">{PRAISE_BOX_NOTICE}</p>
+        {box.items.length === 0 ? (
+          <p class="muted">아직 받은 칭찬이 없어요. 디스코드 도감 패널의 "칭찬하기"로 같이 논 사람을 칭찬할 수 있어요.</p>
+        ) : (
+          <PraiseList items={box.items} />
+        )}
+        {box.total > box.items.length && <p class="hint">최근 {box.items.length}개만 보여요.</p>}
+        <p class="pr-more">
+          <a class="btn btn-small" href="/me">← 내 카드로</a>
+        </p>
+      </section>
+    </Layout>
+  );
+}
+
+// 다음 도감 카드 보상까지 몇 장(멍쑤님 아이디어, 나리 2026-11-17)
+function CardGoal({ owned, claimed }: { owned: number; claimed: ReadonlySet<number> }) {
+  const next = nextCardReward(owned, claimed);
+  if (!next) return <p class="muted">🃏 도감 카드 보상을 모두 받았어요!</p>;
+  if (next.waiting)
+    return (
+      <p class="muted card-goal">
+        🃏 카드 {next.cards}장 보상(도감 젤리 +{next.jelly})을 확인하고 있어요. 잠시 뒤 다시 열어 보세요.
+      </p>
+    );
+  return (
+    <p class="muted card-goal">
+      🃏 다음 도감 보상: 카드 <b>{next.cards}장</b>까지 <b>{next.cards - owned}장</b> 남았어요 → 도감 젤리 +{next.jelly}
+      {next.title ? `, 칭호 「${next.title}」` : ''}
+    </p>
+  );
+}
+
+// 내 카드 화면에서 가진 캐릭터(기본 캐릭터 + 산 꾸밈 캐릭터 + 열린 도감 보상 캐릭터) 중 하나를 골라요.
+// 기본 캐릭터는 그대로 남아 있어서 언제든 돌아갈 수 있어요.
+export function MySkins(props: { viewer: Member; profile: Profile; skins: ShopItem[]; notice?: string }) {
+  const { viewer, profile } = props;
+  const pick = (key: string, img: string, name: string) => {
+    const on = (profile.deco_id ?? '') === key;
+    return (
+      <div class={`shop-item ${on ? 'using' : 'usable'}`}>
+        <img src={img} alt="" loading="lazy" />
+        <span class="shop-name">{name}</span>
+        {on ? (
+          <span class="tag on">사용 중</span>
+        ) : (
+          <form method="post" action="/api/me/deco">
+            <input type="hidden" name="deco" value={key} />
+            <input type="hidden" name="back" value="me" />
+            <button class="btn btn-small" type="submit">
+              쓰기
+            </button>
+          </form>
+        )}
+      </div>
+    );
+  };
+  return (
+    <section class="panel" id="skins">
+      <h2>내 캐릭터 고르기</h2>
+      {props.notice === 'ok' && <p class="notice ok">캐릭터를 바꿨어요!</p>}
+      {(props.notice === 'locked' || props.notice === 'error') && <p class="notice">아직 쓸 수 없는 캐릭터예요.</p>}
+      <p class="muted">
+        가진 캐릭터 {props.skins.length + 1}개 중에서 카드에 보일 캐릭터를 골라요. 새 캐릭터는 <a href="/shop/deco">젤리 상점의 꾸미기</a>에서 사거나 도감 카드를 모으면 열려요.
+      </p>
+      <div class="shop-grid">
+        {pick('', characterUrl(profile.character_id, viewer.user_id, null), '기본 캐릭터')}
+        {props.skins.map((item) => pick(item.key, `/char/deco/${item.key}.png`, item.name))}
+      </div>
+    </section>
+  );
+}
+
+export function MePage(props: { viewer: Member; profile: Profile; items: Set<string>; owned: number; total: number; saved: boolean; praise: PraiseBox; claimed: ReadonlySet<number>; skins: ShopItem[]; skinNotice?: string }) {
+  const { viewer, profile } = props;
+  const level = progress(profile.solo_xp).level;
+  return (
+    <Layout title="내 카드" viewer={viewer} active="me">
+      <div class="split">
+        <div class="stage-wrap">
+          <Card
+            id={viewer.user_id}
+            character={profile.character_id}
+            deco={profile.deco_id}
+            kind="own"
+            size="large"
+            name={viewer.display_name}
+            title={titleName(profile.title_id)}
+            theme={profile.theme_id}
+            intro={profile.intro}
+            xp={profile.solo_xp}
+            stats={[
+              ['레벨', String(level)],
+              ['도감', `${props.owned}/${props.total}`],
+              ['경험치', comma(profile.solo_xp)],
+            ]}
+          />
+        </div>
+        <div class="side">
+          <section class="panel">
+            <div class="panel-head">
+              <h1>{viewer.display_name}</h1>
+              <span class={`chip tier-chip t-${tierFor(level)}`}>{tierLabel(tierFor(level))}</span>
+            </div>
+            <p class="muted">출석, 빙고, 사건파일·원정대처럼 혼자 하는 활동으로 내 카드가 자라요.</p>
+            <XpBar xp={profile.solo_xp} />
+            <TierRoad level={level} />
+            <CardGoal owned={props.owned} claimed={props.claimed} />
+          </section>
+
+          <PraiseBoxSection box={props.praise} />
+
+          <MySkins viewer={viewer} profile={profile} skins={props.skins} notice={props.skinNotice} />
+
+          <section class="panel">
+            <h2>카드 꾸미기</h2>
+            {props.saved && <p class="notice ok">저장했어요!</p>}
+            <div class="pool-pick">
+              <span class="pool-label">내 캐릭터</span>
+              <span class="chip">{poolOf(profile.character_id) === 'boy' ? '남자' : '여자'}</span>
+              <small class="hint">
+                성별은 <a href="/shop#gender">젤리 상점 매점</a>의 "성별 바꾸기"로 바꿀 수 있어요.
+              </small>
+            </div>
+            <form method="post" action="/api/me/profile" class="stack">
+              <label class="field">
+                <span>한 줄 소개</span>
+                <input name="intro" maxlength={30} value={profile.intro} placeholder="예: 저녁에 롤 같이 해요" />
+                <small class="hint">30자까지</small>
+              </label>
+              <fieldset class="themes">
+                <legend>카드 테마</legend>
+                <div class="theme-grid">
+                  {THEMES.map((t) => {
+                    const locked = !canUseTheme(t.id, props.items);
+                    return (
+                      <label class={locked ? 'theme locked' : 'theme'} data-preview-theme={t.id}>
+                        <input type="radio" name="theme" value={t.id} checked={profile.theme_id === t.id} disabled={locked} />
+                        <span class={`theme-img swatch theme-${t.id}`}>
+                          <span class="swatch-inner"></span>
+                          {locked && (
+                            <span class="lock" aria-hidden="true">
+                              <svg viewBox="0 0 24 24">
+                                <path
+                                  fill="currentColor"
+                                  d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 0 1 6 0v3H9Z"
+                                />
+                              </svg>
+                            </span>
+                          )}
+                        </span>
+                        <span class="theme-name">{t.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <small class="hint">
+                  테마를 누르면 내 카드에 미리 입혀 봐요. 잠긴 테마와 꾸밈 캐릭터는 <a href="/shop/deco">젤리 상점의 꾸미기</a>에서 열 수 있어요.
+                </small>
+              </fieldset>
+              <button class="btn btn-primary" type="submit">저장하기</button>
+            </form>
+          </section>
+        </div>
+      </div>
+    </Layout>
+  );
+}
+
+export function DogamPage(props: {
+  viewer: Member;
+  owner: Member;
+  entries: DogamEntry[];
+  claimed?: ReadonlySet<number>; // 내 도감일 때 받은 카드 장수 보상 단계
+  owned: number;
+  total: number;
+  // 다른 사람 도감을 볼 때 그 사람 본인 카드(맨 앞 칸)
+  ownerProfile?: Profile;
+}) {
+  const mine = props.owner.user_id === props.viewer.user_id;
+  const self = !mine ? props.ownerProfile : undefined;
+  const pct = props.total ? Math.round((props.owned / props.total) * 100) : 0;
+  const left = props.entries.filter((e) => !e.active).length;
+  const title = mine ? '내 도감' : `${props.owner.display_name}님의 도감`;
+  // 도감 번호: 서버에 들어온 순서
+  const order = [...props.entries].sort(
+    (a, b) => byCode(a.joined_at ?? '9999', b.joined_at ?? '9999') || byCode(a.user_id, b.user_id),
+  );
+  const dexNo = new Map(order.map((e, i) => [e.user_id, String(i + 1).padStart(3, '0')]));
+  const filter = (id: string, label: string, n: number, checked = false) => (
+    <label class="filter">
+      <input type="radio" name="f" id={id} checked={checked} />
+      <span>
+        {label} <em>{n}</em>
+      </span>
+    </label>
+  );
+  return (
+    <Layout title={title} viewer={props.viewer} active={mine ? 'dogam' : undefined}>
+      <div class="dogam">
+        <section class="panel dogam-head">
+          <div class="ring" style={`--p:${pct}`}>
+            <span>
+              <b>{pct}</b>%
+            </span>
+          </div>
+          <div>
+            <h1>{title}</h1>
+            <p class="muted">
+              지금 서버 멤버 {props.total}명 중 <b>{props.owned}명</b>의 카드를 모았어요.
+            </p>
+            {mine && props.claimed && <CardGoal owned={props.owned} claimed={props.claimed} />}
+            <p class="hint">
+              🆙 카드 레벨 올리는 법: 같은 통화방에서 둘 다 마이크를 켜고 5분 넘게 연달아 함께 있으면 카드가 모이고, 1분마다 두 사람 카드 모두 경험치 +1이에요(처음 5분도 포함). 한 사람과 하루 180까지(3시간)이고,
+              같은 내전에 함께 참가하면 +30이에요.
+            </p>
+            <p class="hint">캐릭터의 성별은 본인이 고른 것이라 실제 성별과 다를 수 있어요.</p>
+            <div class="filters" role="radiogroup" aria-label="보기">
+              {filter('f-all', '전체', props.entries.length, true)}
+              {filter('f-owned', '모은 카드', props.entries.filter((e) => e.owned && e.active).length)}
+              {filter('f-unknown', '못 만난 멤버', props.total - props.owned)}
+              {left > 0 && filter('f-left', '떠난 멤버', left)}
+            </div>
+          </div>
+        </section>
+        <div class="grid">
+          {self && (
+            <div class="grid-item is-self">
+              <Card
+                id={props.owner.user_id}
+                character={self.character_id}
+                deco={self.deco_id}
+                kind="own"
+                label="본인 카드"
+                name={props.owner.display_name}
+                title={titleName(self.title_id)}
+                theme={self.theme_id}
+                intro={self.intro}
+                xp={self.solo_xp}
+                stats={[
+                  ['레벨', String(progress(self.solo_xp).level)],
+                  ['도감', `${props.owned}/${props.total}`],
+                  ['경험치', comma(self.solo_xp)],
+                ]}
+              />
+            </div>
+          )}
+          {props.entries.map((e) => {
+            const state = !e.active ? 'left' : e.owned ? 'owned' : 'unknown';
+            const lv = progress(e.xp).level;
+            return (
+              <div class={`grid-item is-${state}`}>
+                <Card
+                  id={e.user_id}
+                  character={e.character_id}
+                  deco={e.deco_id}
+                  no={dexNo.get(e.user_id)}
+                  kind={e.owned ? 'pair' : 'unknown'}
+                  faded={!e.active}
+                  name={e.active ? withBoosterMark(e.display_name, e.booster) : e.display_name}
+                  title={e.active ? titleName(e.title_id) : null}
+                  theme={e.theme_id}
+                  intro={e.intro}
+                  xp={e.xp}
+                  vt={e.owned && mine ? `card-${e.user_id}` : undefined}
+                  href={e.owned ? `/card/${e.user_id}${mine ? '' : `?from=${props.owner.user_id}`}` : undefined}
+                  stats={
+                    e.owned
+                      ? [
+                          ['레벨', String(lv)],
+                          ['통화', formatHours(e.voice_seconds)],
+                          ['내전', `${e.scrims}회`],
+                        ]
+                      : [
+                          ['레벨', '?'],
+                          ['통화', '?'],
+                          ['내전', '?'],
+                        ]
+                  }
+                />
+                {e.is_newbie && e.active ? <span class="chip small sprout">새싹</span> : null}
+                {mine && e.active ? (
+                  <a class="peek" href={`/dogam/${e.user_id}`}>
+                    도감 구경하기 →
+                  </a>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+        {props.entries.length === 0 && (
+          <section class="panel empty">
+            <p>아직 다른 멤버가 없어요.</p>
+          </section>
+        )}
+      </div>
+    </Layout>
+  );
+}
+
+export function CardPage(props: { viewer: Member; owner: Member; target: Member; entry: DogamEntry }) {
+  const { entry, owner, target } = props;
+  const mine = owner.user_id === props.viewer.user_id;
+  const p = progress(entry.xp);
+  return (
+    <Layout title={target.display_name} viewer={props.viewer}>
+      <a class="back" href={mine ? '/dogam' : `/dogam/${owner.user_id}`}>
+        ← {mine ? '내 도감' : `${owner.display_name}님의 도감`}
+      </a>
+      <div class="split">
+        <div class="stage-wrap">
+          <Card
+            id={target.user_id}
+            character={entry.character_id}
+            deco={entry.deco_id}
+            kind="pair"
+            size="large"
+            faded={!target.active}
+            name={target.display_name}
+            title={target.active ? titleName(entry.title_id) : null}
+            theme={entry.theme_id}
+            intro={entry.intro}
+            xp={entry.xp}
+            vt={mine ? `card-${target.user_id}` : undefined}
+            stats={[
+              ['레벨', String(p.level)],
+              ['통화', formatHours(entry.voice_seconds)],
+              ['내전', `${entry.scrims}회`],
+            ]}
+          />
+        </div>
+        <div class="side">
+          <section class="panel">
+            <p class="eyebrow">{mine ? `나와 ${target.display_name}님은` : `${owner.display_name}님과 ${target.display_name}님은`}</p>
+            <h1 class="relation">
+              {levelName(p.level)}
+              <span class={`chip tier-chip t-${tierFor(p.level)}`}>{tierLabel(tierFor(p.level))}</span>
+            </h1>
+            <XpBar xp={entry.xp} />
+            <TierRoad level={p.level} />
+          </section>
+          <div class="tiles">
+            <div class="tile">
+              <span class="tile-label">처음 만난 날</span>
+              <b>{entry.first_met ? new Date(Date.parse(entry.first_met) + 9 * 3_600_000).toISOString().slice(0, 10).replace(/-/g, '.') : '-'}</b>
+            </div>
+            <div class="tile">
+              <span class="tile-label">함께 통화</span>
+              <b>{formatHours(entry.voice_seconds)}</b>
+            </div>
+            <div class="tile">
+              <span class="tile-label">함께한 내전</span>
+              <b>{entry.scrims}회</b>
+            </div>
+          </div>
+          {!target.active && <p class="notice">서버를 떠난 멤버예요. 다시 들어오면 서로의 카드를 처음부터 다시 모아요.</p>}
+        </div>
+      </div>
+    </Layout>
+  );
+}
+
+export function MessagePage(props: { viewer?: Member | null; title: string; message: string }) {
+  return (
+    <Layout title={props.title} viewer={props.viewer}>
+      <section class="panel message">
+        <h1>{props.title}</h1>
+        <p class="muted">{props.message}</p>
+        <a class="btn btn-primary" href="/">처음으로</a>
+      </section>
+    </Layout>
+  );
+}

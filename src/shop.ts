@@ -1,0 +1,179 @@
+import { DECO_CHARACTERS } from './characters';
+import { THEMES } from './themes';
+
+// 젤리 상점 물건. 값은 여기서만 바꾸면 돼요.
+// 테마는 젤리로 사고, 꾸밈 캐릭터는 대부분 젤리로 사요. 판타지 캐릭터는 도감 카드를 모으면 열려요.
+// 테마와 꾸밈 캐릭터는 물건마다 값이 달라요(나리: 테마 20~, 캐릭터 30~). 표에 없는 새 물건은 제일 싼 값이에요.
+export const PRICES = {
+  theme: 20, // 테마 시작값
+  deco: 30, // 꾸밈 캐릭터 시작값
+  gender: 30, // 성별 바꾸기(처음 한 번 고르는 건 무료)
+  reroll: 10, // 캐릭터 리롤권: 같은 성별 빈 캐릭터 중 무작위로 바로 확정(나리 2026-11-20)
+  reset: 20, // 게임 기록 초기화권: 겜블장·원정대·사건파일 처음부터(나리 2026-11-20)
+} as const;
+
+export const THEME_PRICES: Record<string, number> = {
+  moonnight: 20,
+  rose: 22,
+  teaparty: 24,
+  ice: 26,
+  mermaid: 28,
+  forest: 30,
+  space: 35,
+  blackgold: 40,
+  cyber: 45,
+  racing: 50,
+};
+
+const DECO_TIERS: [number, string[]][] = [
+  [30, ['hoodie', 'pink-knit', 'student', 'sailor', 'office', 'winter', 'winter-scarf', 'red-cap', 'prep', 'camper', 'bookworm', 'courier']],
+  [35, ['teacher', 'professor', 'nurse', 'barista', 'baker', 'chef', 'painter', 'photographer', 'soccer', 'basketball', 'tennis', 'baseball', 'swimmer', 'varsity', 'beret-girl', 'sailor-boy', 'sunflower', 'skater',
+    // 직업 캐릭터 13종 소녀·소년(나리 2026-11-20): 다른 직업 캐릭터와 같은 값
+    ...['astronaut', 'beekeeper', 'calligrapher', 'clockmaker', 'conductor', 'construction-worker', 'diver', 'farmer', 'lighthouse-keeper', 'puppeteer', 'firefighter', 'glassblower', 'brewer'].flatMap((j) => [`${j}-girl`, `${j}-boy`])]],
+  [40, ['rabbit', 'bear', 'puppy', 'calico', 'frog', 'chick', 'duck', 'sheep', 'hamster', 'cow', 'monkey', 'koala', 'seal', 'penguin', 'deer', 'raccoon']],
+  [45, ['fox', 'wolf', 'tiger', 'panda', 'polar-bear', 'red-panda', 'shark', 'dino', 'bunny-hoodie', 'bunny-pajama', 'cat-girl', 'wolf-jacket', 'gamer-girl', 'streamer', 'guitarist', 'ballerina', 'detective', 'explorer', 'techwear']],
+  [50, ['maid', 'butler', 'rocker', 'black-dress', 'cyber', 'idol']],
+  [60, ['gothic', 'lolita', 'kimono', 'admiral', 'dragon']],
+];
+export const DECO_PRICES: Record<string, number> = Object.fromEntries(DECO_TIERS.flatMap(([price, ids]) => ids.map((id) => [id, price])));
+
+// 판타지 캐릭터는 도감 카드를 모을수록 하나씩 열려요(순서는 REWARD_SLOTS).
+export const REWARD_STEP = 3; // 멤버가 적을 때도 캐릭터마다 최소 이만큼은 모아야 해요
+// 처음 26종은 1~26칸에 있고, 메카 11종(나리 2026-11-21)은 그 사이 반 칸(예: 2.5칸)에 들어가요.
+// 그래서 메카를 넣어도 처음 26종이 열리는 카드 수는 그대로예요(이미 열린 캐릭터가 다시 잠기지 않아요).
+export const REWARD_SPAN = 26;
+// N번째(1부터) 보상이 있는 칸을 2배 한 값(정수). 처음 26종은 2·칸, 메카는 2·칸+1
+export function rewardHalf(rank: number): number {
+  return REWARD_HALVES[rank - 1] ?? 2 * REWARD_SPAN;
+}
+// 판타지 캐릭터 N번째가 열리는 도감 카드 수: 지금 서버 인원(나 빼고)에 칸 비율을 곱해 고르게 늘어나요.
+// 마지막 캐릭터는 도감을 다 채워야 열려요. 사람이 늘거나 줄면 같이 바뀌어요.
+export function rewardNeed(rank: number, members: number): number {
+  const others = Math.max(0, members - 1);
+  const half = rewardHalf(rank);
+  // 도감을 다 채우면(나 빼고 모든 멤버 카드) 어떤 캐릭터든 열려요. 최소 장수가 인원보다 커지면 인원까지만 요구해요.
+  return Math.min(Math.max(1, others), Math.max(Math.ceil((half * REWARD_STEP) / 2), Math.ceil((half * others) / (2 * REWARD_SPAN))));
+}
+
+export type ShopItem = {
+  id: string; // theme:rose, deco:maid
+  kind: 'theme' | 'deco';
+  key: string;
+  name: string;
+  price: number | null; // null이면 살 수 없고 보상으로만 열려요
+  rewardRank: number | null; // 판타지 캐릭터 몇 번째인지(1부터). 필요한 카드 수는 rewardNeed로 계산해요
+};
+
+// 판타지 보상 순서. [캐릭터, 칸×2]
+const REWARD_SLOTS: [string, number][] = [
+  ['wizard', 2], ['witch', 4],
+  ['mech-cannon', 5], // 메카(나리 2026-11-21): 기존 캐릭터 사이사이
+  ['knight', 6], ['valkyrie', 8],
+  ['mech-green-knight', 9],
+  ['archer', 10], ['rogue', 12],
+  ['mech-lancer', 13],
+  ['assassin', 14], ['elf', 16], ['dark-elf', 18],
+  ['mech-rifle', 19],
+  ['fairy', 20], ['angel', 22],
+  ['mech-drill', 23],
+  ['demon', 24], ['dragon-tamer', 26],
+  ['mech-violet-axe', 27],
+  ['necromancer', 28], ['priestess', 30],
+  ['mech-flame-sword', 31],
+  ['monk', 32], ['pirate', 34],
+  ['mech-dark-axe', 35],
+  ['prince', 36], ['princess', 38],
+  ['mech-red-twin', 39],
+  ['queen', 40], ['king', 42], ['summoner', 44],
+  ['mech-gatling', 45],
+  ['alchemist', 46], ['star-mage', 48],
+  ['mech-blue-twin', 49],
+  ['reaper', 50],
+  ['robot', 52], // 로봇 기사(나리 2026-11-17): 맨 마지막 보상이라 도감을 다 채워야 열려요
+];
+const fantasyOrder = REWARD_SLOTS.map(([id]) => id);
+const REWARD_HALVES = REWARD_SLOTS.map(([, half]) => half);
+export const REWARD_COUNT = fantasyOrder.length;
+
+export const SHOP_ITEMS: ShopItem[] = [
+  ...THEMES.filter((t) => t.id !== 'basic').map(
+    (t): ShopItem => ({ id: `theme:${t.id}`, kind: 'theme', key: t.id, name: t.name, price: THEME_PRICES[t.id] ?? PRICES.theme, rewardRank: null }),
+  ),
+  ...DECO_CHARACTERS.map((d): ShopItem => {
+    const reward = fantasyOrder.indexOf(d.id);
+    return {
+      id: `deco:${d.id}`,
+      kind: 'deco',
+      key: d.id,
+      name: d.name,
+      price: reward >= 0 ? null : (DECO_PRICES[d.id] ?? PRICES.deco),
+      rewardRank: reward >= 0 ? reward + 1 : null,
+    };
+  }),
+];
+// 보상 캐릭터는 그림 목록 순서가 아니라 열리는 순서(REWARD_SLOTS)대로 놓아요(상점·내 캐릭터 고르기 목록 순서)
+{
+  const at = SHOP_ITEMS.flatMap((i, n) => (i.rewardRank !== null ? [n] : []));
+  const sorted = at.map((n) => SHOP_ITEMS[n]!).sort((a, b) => a.rewardRank! - b.rewardRank!);
+  at.forEach((n, k) => (SHOP_ITEMS[n] = sorted[k]!));
+}
+
+const BY_ID = new Map(SHOP_ITEMS.map((i) => [i.id, i]));
+
+export function shopItem(id: unknown): ShopItem | undefined {
+  return typeof id === 'string' ? BY_ID.get(id) : undefined;
+}
+
+export const decoItemId = (key: string) => `deco:${key}`;
+export const themeItemId = (key: string) => `theme:${key}`;
+
+// 이 멤버가 쓸 수 있는지: 산 물건이거나, 도감 카드를 충분히 모은 보상
+export function canUse(item: ShopItem, owned: Set<string>, cardsOwned: number, members: number): boolean {
+  if (owned.has(item.id)) return true;
+  return item.rewardRank !== null && cardsOwned >= rewardNeed(item.rewardRank, members);
+}
+
+// 이 멤버가 가진 꾸밈 캐릭터(산 것 + 열린 도감 보상). 내 카드 화면의 "내 캐릭터 고르기"에 보여 줘요.
+export function usableDecos(owned: Set<string>, cardsOwned: number, members: number): ShopItem[] {
+  return SHOP_ITEMS.filter((i) => i.kind === 'deco' && canUse(i, owned, cardsOwned, members));
+}
+
+export function canUseTheme(theme: string, owned: Set<string>): boolean {
+  if (theme === 'basic') return true;
+  const item = shopItem(themeItemId(theme));
+  return !!item && owned.has(item.id);
+}
+
+// ── 디스코드에 적용되는 물건(벌점·경고 지우기, 닉네임 변경권) ─────────────
+// 도감 젤리로 사면 하리보봇이 디스코드 쪽에 적용해요. 적용할 수 없으면(지울 벌점이 없음 등) 젤리를 돌려줘요.
+// 벌점·경고 지우기는 살 때마다 값이 1.5배씩 올라요(나리 계획).
+export type ServiceKey = 'penalty' | 'warning' | 'nickname';
+export type ServiceItem = { id: string; key: ServiceKey; name: string; base: number; grow: number; text: string; done: string };
+
+export const SERVICES: ServiceItem[] = [
+  { id: 'svc:penalty', key: 'penalty', name: '벌점 1점 지우기', base: 200, grow: 1.5, text: '하리보 벌점을 1점 지워요. 살 때마다 값이 1.5배씩 올라요.', done: '벌점 1점이 지워졌습니다.' },
+  { id: 'svc:warning', key: 'warning', name: '경고 1점 지우기', base: 400, grow: 1.5, text: '하리보 경고를 1점 지워요. 살 때마다 값이 1.5배씩 올라요.', done: '경고 1점이 지워졌습니다.' },
+  {
+    id: 'svc:nickname',
+    key: 'nickname',
+    name: '닉네임 변경권',
+    base: 5,
+    grow: 1,
+    text: '디스코드 닉네임(앞부분)을 바꾸는 변경권이에요. 여기 매점에서 바로 써요. 겜블장 변경권과는 따로예요.',
+    done: '닉네임 변경권 1장을 받았습니다. 아래 닉네임 변경권 칸에서 바로 쓸 수 있어요.',
+  },
+];
+
+const SERVICE_BY_ID = new Map(SERVICES.map((s) => [s.id, s]));
+
+export function serviceItem(id: unknown): ServiceItem | undefined {
+  return typeof id === 'string' ? SERVICE_BY_ID.get(id) : undefined;
+}
+
+// 이번에 살 값: 지금까지 산 횟수만큼 1.5배씩(올림)
+export function servicePrice(item: ServiceItem, bought: number): number {
+  return Math.ceil(item.base * item.grow ** Math.max(0, bought));
+}
+
+// 살 수 있는 테마·꾸밈 캐릭터는 싼 것부터, 값이 같으면 가나다 순으로 보여 줘요(나리 2026-11-20)
+export const shopOrder = (a: ShopItem, b: ShopItem) => (a.price ?? 0) - (b.price ?? 0) || a.name.localeCompare(b.name, 'ko');
