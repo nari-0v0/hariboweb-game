@@ -2,7 +2,7 @@ import { kstDay } from './db';
 import { dayStartMs } from './day';
 import { MAX_CHAPTER } from './journey-chapters';
 import { BURN_FARM_MIN } from './burning';
-import { dogamProgress, journeyOpenTo, releasedTop } from './unlock';
+import { dogamProgressCached, journeyOpenTo, releasedTop } from './unlock';
 import { isPetId, parsePets, type PetBag, type PetId } from './pets';
 import { DAILY_RUN_CAP, DAILY_REWARD_JOURNEYS, FIRST_CLEAR_BONUS, GEAR_MAX, NO_GEAR, gearNeed, hasMats, canSellMat, matSellLevel, matSellPrice, type Gear, type GearId, NO_PERKS, PERKS, perkMax, actJourney, bankRate, decodeJourney, journeyJelly, journeyXp, perkCost, startJourney, kitCost, type KitId, type JourneyAction, type JourneyState, type PerkId, type Perks } from './journey';
 
@@ -38,7 +38,7 @@ export async function journeyRecord(db: D1Database, user: string, day = kstDay()
   const r = await db
     .prepare(
       `SELECT COALESCE((SELECT chapter FROM journey_runs WHERE user_id = ?1 AND status = 'done' AND cleared = 1 ORDER BY chapter DESC LIMIT 1), 0) AS top,
-         (SELECT COUNT(*) FROM journey_runs WHERE user_id = ?1 AND status = 'done' AND reward_day = ?2 AND xp > 0)
+         (SELECT COUNT(*) FROM journey_runs WHERE user_id = ?1 AND reward_day = ?2 AND xp > 0)
            + COALESCE((SELECT xp_used FROM game_resets WHERE user_id = ?1 AND xp_day = ?2), 0) AS today,
          (SELECT chapter FROM journey_runs WHERE user_id = ?1 AND status != 'going' ORDER BY started_at DESC LIMIT 1) AS last,
          b.best, b.clears, b.farmed
@@ -143,7 +143,7 @@ export async function sellMats(db: D1Database, user: string, ch: number, seen: n
 
 // 강화 한 단계. 동전이 모자라거나 끝까지 올렸거나 다른 화면에서 먼저 샀으면 false.
 export async function buyPerk(db: D1Database, user: string, id: PerkId, now = new Date(), seen?: number): Promise<boolean> {
-  const [bank, top, dogam] = await Promise.all([journeyBank(db, user), journeyTop(db, user), dogamProgress(db, user)]);
+  const [bank, top, dogam] = await Promise.all([journeyBank(db, user), journeyTop(db, user), dogamProgressCached(db, user)]);
   const lv = bank[id];
   if (seen !== undefined && seen !== lv) return false;
   const cost = perkCost(lv);
@@ -183,7 +183,7 @@ export async function beginJourney(db: D1Database, user: string, chapter = 1, no
   // 그 사이 다른 탭에서 초기화하면 INSERT의 세대 검사로 막아요(초기화 전 해금으로 잠긴 장에 가지 않게).
   const gen = Number((await db.prepare('SELECT count FROM game_resets WHERE user_id = ?').bind(user).first<{ count: number }>())?.count ?? 0);
   // 앞 장을 깼고(unlocked), 도감 조건도 채운 장까지만 떠날 수 있어요.
-  const [top, dogam] = await Promise.all([journeyTop(db, user), dogamProgress(db, user)]);
+  const [top, dogam] = await Promise.all([journeyTop(db, user), dogamProgressCached(db, user)]);
   const unlocked = unlockedFrom(top);
   const level = Math.min(unlocked, journeyOpenTo(dogam, now));
   if (!Number.isSafeInteger(chapter) || chapter < 1) return null;

@@ -95,6 +95,23 @@ export function journeyOpenTo(p: DogamProgress, now: Date = new Date()): number 
   return ch;
 }
 
+// 원정대는 자동 진행 때 한 판마다 화면을 다시 불러요. 모든 장이 열린 사람은 도감 진행을 1분 동안 같은 값으로 써요(D1 읽기 줄이기, 2026-11-21 점검).
+const PROGRESS_TTL_MS = 60_000;
+const progressCache = new WeakMap<D1Database, Map<string, { at: number; p: DogamProgress }>>();
+export async function dogamProgressCached(db: D1Database, userId: string, nowMs: number = Date.now()): Promise<DogamProgress> {
+  let byUser = progressCache.get(db);
+  if (!byUser) progressCache.set(db, (byUser = new Map()));
+  const hit = byUser.get(userId);
+  if (hit && nowMs - hit.at < PROGRESS_TTL_MS) return hit.p;
+  const p = await dogamProgress(db, userId);
+  // 원정대의 모든 장 조건을 이미 채운 사람만 기억해요. 그 밖의 사람은 카드가 늘면 바로 다음 장이 열려야 해요.
+  if (JOURNEY_NEEDS.every((need) => meets(need, p))) {
+    if (byUser.size > 500) byUser.clear();
+    byUser.set(userId, { at: nowMs, p });
+  }
+  return p;
+}
+
 export async function dogamProgress(db: D1Database, userId: string): Promise<DogamProgress> {
   const { results } = await db
     .prepare(

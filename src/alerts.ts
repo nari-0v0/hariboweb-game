@@ -51,8 +51,8 @@ const kstDate = (ms: number) => {
   return `${d.getUTCMonth() + 1}.${d.getUTCDate()}`;
 };
 
-// 시즌 기간(한국 날짜). 끝은 마지막 날(끝 시각 바로 전)로 보여요.
-export const seasonLabel = (start: string, end: string) => `${kstDate(Date.parse(start))}~${kstDate(Date.parse(end) - 1)}`;
+// 시즌 기간(한국 날짜). 끝은 마지막 게임일(아침 6시에 바뀌니 끝 시각 6시간 전)로 보여요.
+export const seasonLabel = (start: string, end: string) => `${kstDate(Date.parse(start))}~${kstDate(Date.parse(end) - 6 * 3_600_000 - 1)}`;
 
 // 사람마다 한 개의 결과 알림. 팀원(나간 사람 빼고)과 납치 대소동 참여자만 받아요.
 export function seasonResultAlerts(

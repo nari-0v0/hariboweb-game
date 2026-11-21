@@ -67,7 +67,9 @@ export async function rescueChips(db: D1Database, user: string, now: string): Pr
 
 // 디스코드 겜블장 지갑에서 옮겨 온 젤칩(옮겼으면, 처음 왔을 때 안내용)
 export async function movedChips(db: D1Database, user: string): Promise<number> {
-  const r = await db.prepare('SELECT jelly FROM gamble_jelly_moves WHERE user_id = ? AND moved_at IS NOT NULL').bind(user).first<{ jelly: number }>();
+  // 나갔다 다시 들어온 멤버는 옮긴 젤칩을 다시 받지 않으니(0067), 지금 계정에 실제로 들어 있을 때만 알려요.
+  const r = await db.prepare(`SELECT j.jelly FROM gamble_jelly_moves j JOIN gamble_accounts a ON a.user_id = j.user_id
+    WHERE j.user_id = ? AND j.moved_at IS NOT NULL AND a.chips >= 1000 + j.jelly`).bind(user).first<{ jelly: number }>();
   return Number(r?.jelly ?? 0);
 }
 
@@ -112,6 +114,9 @@ export async function betChips(db: D1Database, user: string, game: Game, bet: nu
   return gambleRound(db, user, token);
 }
 
+// 시간이 다 된 카드 21은 마감 바로 전(1ms 전)에 끝난 것으로 쳐요. 그래야 판을 건 날·시즌에 들어가요(마감 = 다음 날·시즌 시작).
+const settledAtDeadline = (expires: string) => new Date(Date.parse(expires) - 1).toISOString();
+
 function handStatements(db: D1Database, round: Round, move: CardMove, now: string, expired: boolean): D1PreparedStatement[] {
   const hand: Hand = JSON.parse(round.state);
   const multiplier = playHand(hand, move);
@@ -119,7 +124,7 @@ function handStatements(db: D1Database, round: Round, move: CardMove, now: strin
     db.prepare(`UPDATE gamble_rounds SET state = ?, revision = revision + 1, multiplier = ?, settled_at = ?
       WHERE user_id = ? AND token = ? AND revision = ? AND settled_at IS NULL
         AND ((? = 1 AND expires_at <= ?) OR (? = 0 AND expires_at > ?))`)
-      .bind(JSON.stringify(hand), multiplier, multiplier === null ? null : expired ? round.expires_at : now,
+      .bind(JSON.stringify(hand), multiplier, multiplier === null ? null : expired ? settledAtDeadline(round.expires_at) : now,
         round.user_id, round.token, round.revision, Number(expired), now, Number(expired), now),
     awardMilestones(db, round.user_id, now),
   ];
@@ -214,7 +219,7 @@ export async function gambleRanks(db: D1Database, now: string) {
 export async function awardGambleSeason(db: D1Database, seasonId: string, end: string, now: string) {
   // 정산 시각이 시즌에 속하는 미완료 판도 순위를 확정하기 전에 계산해요.
   const { results } = await db.prepare(`SELECT * FROM gamble_rounds
-    WHERE game = 'cards' AND settled_at IS NULL AND expires_at < ?`).bind(end).all<Round>();
+    WHERE game = 'cards' AND settled_at IS NULL AND expires_at <= ?`).bind(end).all<Round>();
   for (const round of results) await updateHand(db, round, 'stand', now, true);
   await db.batch([
     db.prepare(`INSERT OR IGNORE INTO gamble_season_winners (season_id, user_id, won, awarded_at)

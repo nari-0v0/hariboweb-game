@@ -374,7 +374,7 @@ export function GambleRoom(props: {
   const notice = noticeText(props.notice);
   const cardsShown = game === 'cards' ? handImages(hand ?? result) : [];
   return (
-    <Layout title={GAMES[game]} viewer={props.viewer} active="gamble" scripts={[{ src: '/gamble.js?v=9', type: 'module' }]}
+    <Layout title={GAMES[game]} viewer={props.viewer} active="gamble" scripts={[{ src: '/gamble.js?v=10', type: 'module' }]}
       preloadImages={[gameBackground(game, 'room'), ...[MAIN_ART[game]].flatMap((name) => GAMBLE_ART[name]?.image ?? []), ...cardsShown]}>
       <div class="gb-page gb-room-page">
         <div class="gb-room-bar">

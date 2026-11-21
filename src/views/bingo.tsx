@@ -271,7 +271,8 @@ export function BingoPage(props: { viewer: Member; view: BingoView | null; extra
       </Layout>
     );
   }
-  const endShown = new Date(Date.parse(v.week.end) - 1).toISOString();
+  // 주는 아침 6시에 바뀌어요: 끝 시각(다음 주 아침 6시)에서 6시간을 빼야 마지막 날이 나와요.
+  const endShown = new Date(Date.parse(v.week.end) - 6 * 3_600_000 - 1).toISOString();
   const lineCells = new Set(v.lines.flatMap((i) => LINES[i]!));
   return (
     <Layout title="하리보 빙고" viewer={props.viewer} active="bingo">

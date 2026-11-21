@@ -66,7 +66,8 @@ function initBet(form) {
 
   addEventListener('pagehide', () => { state = 'idle'; });
   addEventListener('pageshow', (event) => {
-    if (event.persisted) form.inert = false;
+    // 뒤로 가기로 돌아온 화면은 이미 쓴 베팅 표를 들고 있어서 새로 불러와요.
+    if (event.persisted) location.reload();
   });
 }
 
