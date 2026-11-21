@@ -1005,6 +1005,7 @@ members.post('/api/shop/service', async (c) => {
   }
   if (result === 'changed') return c.redirect('/shop?n=price_changed');
   if (result === 'done') return c.redirect('/shop#nick');
+  if (result === 'has_ticket') return c.redirect('/shop?n=nick_have#nick');
   return c.redirect(`/shop?n=${result === 'pending' ? 'service_pending' : result === 'busy' ? 'service_busy' : 'not_enough_jelly'}`);
 });
 

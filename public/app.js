@@ -151,6 +151,21 @@ addEventListener('pageshow', (e) => {
   // 자동은 끌 때까지 계속 켜져 있어요(나리 2026-11-21, 처음처럼). 그만두기를 누르면 꺼져요.
   // 판이 끝나면 결과를 보여 주고 5초 기다린 뒤(남은 초를 보여 줘요) 같은 장으로 다시 떠나요. 준비물은 사지 않아요.
   if (new URLSearchParams(location.search).get('n') === 'quit') set(false);
+  // 그만두기를 누르면 바로 자동을 꺼요. 자동 요청이 가는 중이면 끝나길 기다렸다가 새 순번으로 그만둬요(Codex 전체 점검).
+  document.addEventListener('submit', (e) => {
+    const f = e.target;
+    if (!(f instanceof HTMLFormElement) || !f.matches('form.jr-quit')) return;
+    set(false);
+    clearTimeout(timer);
+    if (!busy) return;
+    e.preventDefault();
+    const wait = setInterval(() => {
+      if (busy) return;
+      clearInterval(wait);
+      const latest = document.querySelector('form.jr-quit');
+      if (latest) latest.submit();
+    }, 100);
+  }, true);
   const again = document.querySelector('.jr-result form.jr-chapters');
   if (again && get()) {
     // 결과가 실제로 보이는 때부터 5초를 세요(움직임 줄이기면 결과가 바로 보여요. 아래 마지막 싸움 처리와 같은 규칙)
@@ -199,14 +214,18 @@ addEventListener('pageshow', (e) => {
       if (!res.ok || url.searchParams.has('n') && url.searchParams.get('n') !== 'stale') {
         // 멈춘 이유(오류 안내 등)를 볼 수 있게 그 화면으로 가요.
         set(false);
-        location.href = res.url;
+        // 리다이렉트 없이 오류(500·503)면 res.url은 POST 전용 주소라, 그 대신 지금 화면을 다시 열어요.
+        if (res.redirected) location.href = res.url;
+        else location.reload();
         return;
       }
       const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
       const next = doc.getElementById('journey');
       const cur = document.getElementById('journey');
       if (!next || !cur || url.searchParams.has('r')) {
-        location.href = res.url; // 원정이 끝나면 결과 화면으로(자동은 켜진 채로, 결과 화면에서 5초 뒤 다시 떠나요)
+        // 원정이 끝나면 결과 화면으로(자동은 켜진 채로, 결과 화면에서 5초 뒤 다시 떠나요). POST 주소면 지금 화면을 다시 열어요.
+        if (res.redirected) location.href = res.url;
+        else location.reload();
         return;
       }
       const open = cur.querySelector('details')?.open;
@@ -473,4 +492,24 @@ document.addEventListener('click', (e) => {
   };
   open();
   addEventListener('hashchange', open);
+})();
+
+// 상점 결과 알림 창: '확인'을 키보드(Enter·스페이스·Esc)로도 닫아요. 열리면 '확인'에 초점을 둬요.
+(() => {
+  const box = document.getElementById('popup-close');
+  const ok = document.querySelector('label[for="popup-close"]');
+  if (!box || !ok) return;
+  const close = () => {
+    box.checked = true;
+  };
+  ok.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      close();
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !box.checked) close();
+  });
+  if (!box.checked) ok.focus({ preventScroll: true });
 })();

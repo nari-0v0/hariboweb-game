@@ -556,7 +556,7 @@ export async function requestService(
   price: number,
   bought: number,
   instant = false, // 도감 안에서 끝나는 물건(닉네임 변경권)은 봇 없이 바로 완료
-): Promise<'pending' | 'done' | 'busy' | 'not_enough_jelly' | 'changed'> {
+): Promise<'pending' | 'done' | 'busy' | 'not_enough_jelly' | 'changed' | 'has_ticket'> {
   const id = crypto.randomUUID();
   const t = now();
   await db.batch([
@@ -567,7 +567,9 @@ export async function requestService(
          WHERE EXISTS (SELECT 1 FROM profiles WHERE user_id = ?2 AND dogam_jelly >= ?4)
            AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)
            AND NOT EXISTS (SELECT 1 FROM purchases WHERE user_id = ?2 AND item_id = ?3 AND status = 'pending')
-           AND (SELECT COUNT(*) FROM purchases WHERE user_id = ?2 AND item_id = ?3 AND status = 'done') = ?6`,
+           AND (SELECT COUNT(*) FROM purchases WHERE user_id = ?2 AND item_id = ?3 AND status = 'done') = ?6
+           -- 닉네임 변경권은 남은 장이 있으면 더 사지 않아요(두 번 눌러 두 장 사는 일 막기)
+           AND NOT (?3 = 'svc:nickname' AND ${NICK_LEFT.replaceAll('?1', '?2')} > 0)`,
       )
       .bind(id, userId, itemId, price, t, bought, instant ? 'done' : 'pending'),
     db
@@ -577,6 +579,7 @@ export async function requestService(
   if (await db.prepare('SELECT 1 FROM purchases WHERE id = ?').bind(id).first()) return instant ? 'done' : 'pending';
   const busy = await db.prepare("SELECT 1 FROM purchases WHERE user_id = ? AND item_id = ? AND status = 'pending'").bind(userId, itemId).first();
   if (busy) return 'busy';
+  if (itemId === 'svc:nickname' && ((await db.prepare(`SELECT ${NICK_LEFT} AS n`).bind(userId).first<{ n: number }>())?.n ?? 0) > 0) return 'has_ticket';
   // 값을 계산한 뒤에 봇이 앞 구매를 끝냈으면 값이 올랐어요. 새 값으로 다시 계산하게 알려요.
   const done = await db
     .prepare("SELECT COUNT(*) AS n FROM purchases WHERE user_id = ? AND item_id = ? AND status = 'done'")
