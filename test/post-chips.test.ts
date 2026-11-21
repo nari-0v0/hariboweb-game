@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { claimDaily } from '../src/gamble-db';
-import { grantPostChips, parsePostChip } from '../src/post-chips';
+import { grantPostChips, parsePostChip, revokePostChips } from '../src/post-chips';
 
 function fakeD1() {
   const sql = new DatabaseSync(':memory:');
@@ -93,6 +93,25 @@ describe('구인구직·디스타그램 글 젤칩', () => {
     expect((await grantPostChips(db, post(ID(3), { user: B }), NOW)).result).toBe('no_member');
     expect(chips()).toBeUndefined();
     expect(chips(B)).toBeUndefined();
+  });
+
+  it('글이 지워지면 다시 빼요(0개 밑으로는 안 내려가요), 지운 글도 하루 4번에 세요', async () => {
+    const { db, sql, chips } = setup();
+    await grantPostChips(db, post(ID(1)), NOW);
+    await grantPostChips(db, post(ID(2)), NOW);
+    expect(chips()).toBe(200);
+    expect(await revokePostChips(db, ID(1), NOW)).toEqual({ result: 'revoked', taken: 100 });
+    expect(chips()).toBe(100);
+    expect(await revokePostChips(db, ID(1), NOW)).toEqual({ result: 'already', taken: 100 });
+    expect(chips()).toBe(100);
+    expect(await revokePostChips(db, ID(9), NOW)).toEqual({ result: 'not_found', taken: 0 });
+    // 이미 써 버렸으면 남은 만큼만
+    sql.prepare('UPDATE gamble_accounts SET chips = 30 WHERE user_id = ?').run(A);
+    expect(await revokePostChips(db, ID(2), NOW)).toEqual({ result: 'revoked', taken: 30 });
+    expect(chips()).toBe(0);
+    await grantPostChips(db, post(ID(3)), NOW);
+    expect(await grantPostChips(db, post(ID(4)), NOW)).toEqual({ result: 'applied', left: 0 });
+    expect((await grantPostChips(db, post(ID(5)), NOW)).result).toBe('limit');
   });
 
   it('형식이 틀리면 거절', () => {

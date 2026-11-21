@@ -106,7 +106,7 @@ import { GEAR, PERKS, cleanKit, type GearId, type PerkId } from './journey';
 import { clearReadAlerts, deleteAlert, listAlerts, markAlertsRead } from './alerts';
 import { AlertBox, AlertsPage } from './views/alerts';
 import { grantJelly, parseGrant } from './jelly-grant';
-import { grantPostChips, parsePostChip } from './post-chips';
+import { grantPostChips, parsePostChip, revokePostChips } from './post-chips';
 import { activeEscape, actEscapeRun, beginDaily, beginEscape, dailyInfo, escapeOpen, escapeRecord, getEscape, quitEscape, reRecord, type EscRun } from './escape-db';
 import { UI_MAX } from './escape-ui';
 
@@ -457,6 +457,19 @@ app.post('/api/bot/post-chips', async (c) => {
   if (!parsed.ok) return c.json({ error: parsed.error }, 400);
   const out = await grantPostChips(c.env.DB, parsed.value, Date.now());
   return c.json({ ok: true, ...out });
+});
+
+// 젤칩을 받은 글이 지워졌어요: 다시 빼요. 모르는 글 번호는 not_found(봇은 지워진 글마다 보내도 돼요).
+app.post('/api/bot/post-chips/revoke', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  let raw: { id?: unknown };
+  try {
+    raw = (await c.req.json()) ?? {};
+  } catch {
+    return c.json({ error: 'JSON이 아니에요' }, 400);
+  }
+  if (typeof raw.id !== 'string' || !/^\d{17,20}$/.test(raw.id)) return c.json({ error: 'id(글 번호)가 잘못됐어요' }, 400);
+  return c.json({ ok: true, ...(await revokePostChips(c.env.DB, raw.id, Date.now())) });
 });
 
 const isDiscordId = (v: unknown): v is string => typeof v === 'string' && /^\d{17,20}$/.test(v);

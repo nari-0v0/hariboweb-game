@@ -1,7 +1,7 @@
 import { gameDay } from './day';
 
 // 구인구직 포럼·디스타그램에 사람이 직접 글을 쓰면 겜블장 젤칩을 줘요(나리 2026-11-21).
-// 봇이 글을 보고 10분 뒤에도 남아 있으면 POST /api/bot/post-chips 로 보내요(docs/bot-sync.md).
+// 봇이 글을 보자마자 POST /api/bot/post-chips 로 보내고, 글이 지워지면 POST /api/bot/post-chips/revoke 로 다시 빼요(docs/bot-sync.md).
 // 도감 젤리와는 상관없어요. 받은 사람에게 알림은 보내지 않아요.
 export const POST_CHIPS = 100;
 export const POST_CHIPS_PER_DAY = 4; // 구인구직·디스타그램 합쳐서
@@ -55,4 +55,14 @@ export async function grantPostChips(db: D1Database, p: PostChip, nowMs: number)
   if (r.meta.changes === 1) return { result: 'applied', left };
   const again = await db.prepare('SELECT 1 FROM post_chips WHERE id = ?').bind(p.id).first();
   return { result: again ? 'duplicate' : 'limit', left };
+}
+
+export type RevokeResult = { result: 'revoked' | 'already' | 'not_found'; taken: number };
+
+// 글이 지워졌어요: 준 젤칩을 다시 빼요(0개 밑으로는 안 내려가요). 같은 글 번호는 한 번만 빼요.
+export async function revokePostChips(db: D1Database, id: string, nowMs: number): Promise<RevokeResult> {
+  const r = await db.prepare('UPDATE post_chips SET revoked_at = ?2 WHERE id = ?1 AND revoked_at IS NULL').bind(id, new Date(nowMs).toISOString()).run();
+  const row = await db.prepare('SELECT taken FROM post_chips WHERE id = ?').bind(id).first<{ taken: number | null }>();
+  if (!row) return { result: 'not_found', taken: 0 };
+  return { result: r.meta.changes === 1 ? 'revoked' : 'already', taken: Number(row.taken ?? 0) };
 }
