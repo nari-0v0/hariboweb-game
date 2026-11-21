@@ -53,7 +53,7 @@ const profileOf = (sql: DatabaseSync, id: string) =>
 
 const full = (): BingoStats => ({
   voice: 9999, crowd: 9999, night: 9999, weekend: 9999, voiceDays: 7, attendDays: 7, partners: 99,
-  bestPair: 9999, newFriends: 9, praiseGiven: 99, praiseGot: 99, panel: 1, web: 1,
+  bestPair: 9999, praiseGiven: 99, praiseGot: 99, panel: 1, web: 1,
 });
 
 describe('주', () => {
@@ -124,7 +124,7 @@ describe('기록 모으기', () => {
     expect(stats).toMatchObject({ voice: 3, crowd: 3, night: 3, attendDays: 1, partners: 0, bestPair: 3 });
   });
 
-  it('칭찬, 패널 열기, 처음 만난 사람을 읽어요', async () => {
+  it('칭찬, 패널 열기를 읽어요', async () => {
     const { sql, db } = fakeD1();
     const week = fallbackWeek(NOW);
     sql.exec(`INSERT INTO praises (day, from_id, to_id, jelly, created_at) VALUES ('2026-11-02', '${A}', '${B}', 1, '2026-11-02T01:00:00.000Z#a'), ('2026-11-03', '${A}', '${C}', 1, '2026-11-03T01:00:00.000Z#b'), ('2026-11-01', '${A}', '${D}', 1, '2026-11-01T01:00:00.000Z#c')`);
@@ -133,7 +133,7 @@ describe('기록 모으기', () => {
     expect(await markFlag(db, A, 'panel', NOW)).toBe(true);
     expect(await markFlag(db, A, 'panel', NOW)).toBe(false);
     const s = await loadStats(db, week, [A, B]);
-    expect(s.get(A)).toMatchObject({ praiseGiven: 2, partners: 1, bestPair: 40, newFriends: 1, panel: 1, web: 0 });
+    expect(s.get(A)).toMatchObject({ praiseGiven: 2, partners: 1, bestPair: 40, panel: 1, web: 0 });
     expect(s.get(B)).toMatchObject({ praiseGot: 1, partners: 1 });
   });
 });

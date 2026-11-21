@@ -2115,7 +2115,7 @@ main.wide { max-width: 1320px; }
 .rk-head h1 { margin: 0; font-size: 1.6rem; }
 .rk-head p { margin: 0; font-size: .85rem; color: var(--ink-soft); }
 .rk-tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
-.rk-tabs a { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 2px 6px; font-weight: 700; font-size: .85rem; color: var(--ink); text-decoration: none; background: var(--paper); border: 3px solid var(--ink); box-shadow: inset 0 -4px 0 rgba(42, 32, 48, .12); clip-path: var(--notch); }
+.rk-tabs a { word-break: keep-all; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 2px 6px; font-weight: 700; font-size: .85rem; color: var(--ink); text-decoration: none; background: var(--paper); border: 3px solid var(--ink); box-shadow: inset 0 -4px 0 rgba(42, 32, 48, .12); clip-path: var(--notch); }
 .rk-tabs a span { font-size: 1.3rem; line-height: 1; }
 .rk-tabs a.on { background: var(--yellow); translate: 0 2px; box-shadow: inset 0 3px 0 rgba(255, 255, 255, .5); }
 .rk-pair { display: grid; gap: 12px; }
@@ -2149,7 +2149,8 @@ main.wide { max-width: 1320px; }
 .pd-p1 .pd-value { color: #b5531b; }
 .pd-me { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; padding: 4px 10px; font-size: .85rem; background: var(--pink-soft); border: 3px solid var(--ink); clip-path: var(--notch); }
 .pd-me img { height: 34px; width: auto; image-rendering: pixelated; }
-.pd-me-v { margin-left: auto; font-weight: 700; }
+.pd-me-v { margin-left: auto; font-weight: 700; text-align: right; word-break: keep-all; }
+.pd-me > span:not(.pd-me-v) { white-space: nowrap; }
 .gb-rank { display: grid; gap: 12px; padding: 1rem; background: #fffaf2; border: 2px solid #273551; box-shadow: 3px 3px 0 #273551; }
 .gb-rank .gb-rank-links { margin: 0; font-size: .85rem; }
 .rk-trio { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
@@ -2228,7 +2229,7 @@ main.wide { max-width: 1320px; }
 .jp-mat.unknown { opacity: .55; }
 .jp-mat:has(.jp-sell) { flex-wrap: wrap; }
 .jp-sell { flex: 1 0 100%; padding: 1px 6px; border: 2px solid var(--ink); background: #fff; font: inherit; font-size: .72rem; cursor: pointer; }
-.jp-pop { width: min(320px, calc(100vw - 32px)); box-sizing: border-box; padding: 16px; color: var(--ink); background: var(--paper, #fff); border: 3px solid var(--ink); box-shadow: 0 6px 0 rgba(0, 0, 0, .18); font-size: .9rem; white-space: normal; }
+.jp-pop { text-align: left; width: min(320px, calc(100vw - 32px)); box-sizing: border-box; padding: 16px; color: var(--ink); background: var(--paper, #fff); border: 3px solid var(--ink); box-shadow: 0 6px 0 rgba(0, 0, 0, .18); font-size: .9rem; white-space: normal; }
 .jp-pop::backdrop { background: rgba(30, 40, 60, .35); }
 .jp-pop-title { display: block; font-weight: 700; font-size: 1.05rem; margin-bottom: 8px; }
 .jp-pop-text { display: block; overflow-wrap: anywhere; }
@@ -2376,10 +2377,10 @@ main.wide { max-width: 1320px; }
 .al-page .al-box { background: #cfe9ff; border: 4px solid var(--ink); }
 .al-item.al-new { background: #fff6d9; }
 .al-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
-.al-title { font-weight: 700; font-size: .92rem; overflow-wrap: anywhere; }
+.al-title { font-weight: 700; font-size: .92rem; word-break: keep-all; overflow-wrap: anywhere; }
 .al-tag { display: inline-block; padding: 0 5px; margin-right: 2px; font-size: .7rem; color: #fff; background: #ff3b30; }
 .al-when { flex: none; font-size: .78rem; color: var(--ink-soft); }
-.al-body { margin: 4px 0 6px; font-size: .86rem; white-space: pre-line; overflow-wrap: anywhere; }
+.al-body { margin: 4px 0 6px; font-size: .86rem; white-space: pre-line; word-break: keep-all; overflow-wrap: anywhere; }
 .al-item form { text-align: right; }
 .al-del { white-space: nowrap; border: 2px solid var(--ink); background: var(--paper-2); font: inherit; font-size: .78rem; padding: 1px 8px; cursor: pointer; position: relative; }
 /* 작은 버튼은 그대로 두고 누르는 자리만 위아래로 넓혀요(손가락 40px 이상, 2026-11-21 점검) */
@@ -2394,7 +2395,13 @@ main.wide { max-width: 1320px; }
   .topbar .brand-text { font-size: .86rem; }
   .topbar-right { gap: 4px; flex: none; }
 }
-@media (max-width: 340px) { .topbar .brand-text { display: none; } }
+@media (max-width: 340px) {
+  .topbar .brand-text { display: none; }
+  .jp-doll { grid-template-columns: 44px 96px 44px; gap: 4px; }
+  .jp-slot { width: 44px; height: 44px; font-size: 1.25rem; }
+  .jp-hero-pic { height: 108px; }
+  .jp-hero-pic img { width: 88px; height: 88px; }
+}
 
 /* 메뉴 위 고정 공지 띠(나리 2026-11-18). 띠가 있으면 위 메뉴·팝업을 띠 높이(--nb)만큼 내려요. */
 .has-notice { --nb: 34px; }

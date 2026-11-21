@@ -581,13 +581,27 @@ function Play(props: { run: JourneyRun; art: string; name: string; preview?: boo
           )}
         </details>
       </div>
-      <form method="post" action={preview ? undefined : '/api/journey/quit'} class="jr-quit">
-        <input type="hidden" name="run" value={run.row.id} />
-        <input type="hidden" name="rev" value={String(run.row.rev)} />
-        <button class="btn btn-small btn-ghost" type="submit">
+      <div class="jr-quit">
+        <button class="btn btn-small btn-ghost" type="button" popovertarget="jr-quit-pop">
           원정 그만두기 (보상 없음)
         </button>
-      </form>
+        <span class="jp-pop" id="jr-quit-pop" popover="auto">
+          <span class="jp-pop-title">정말 그만둘까요?</span>
+          <span class="jp-pop-text">이번 판에서 모은 젤코인과 재료를 모두 잃어요. 그만둔 판도 오늘 판 수에 들어가요.</span>
+          <span class="jp-pop-btns">
+            <button class="btn btn-small" type="button" popovertarget="jr-quit-pop" popovertargetaction="hide">
+              계속하기
+            </button>
+            <form method="post" action={preview ? undefined : '/api/journey/quit'}>
+              <input type="hidden" name="run" value={run.row.id} />
+              <input type="hidden" name="rev" value={String(run.row.rev)} />
+              <button class="btn btn-small" type="submit">
+                그만두기
+              </button>
+            </form>
+          </span>
+        </span>
+      </div>
     </section>
   );
 }
@@ -919,7 +933,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
       {props.tab === 'bag' && (
         <div class="jp-pane">
           <PaneTitle id="bag" />
-          <p class="hint">장마다 나오는 강화 재료예요. 장비를 올릴 때 써요. 숫자는 지금 가방에 있는 전체 개수예요. N장 재료는 +N 강화에 쓰이고, 바로 다음 단계(+N+1) 강화에도 2개씩 더 들어가요. 장비 셋이 모두 +(N+1)을 넘으면 N장 재료를 젤코인으로 팔 수 있어요.</p>
+          <p class="hint">장마다 나오는 강화 재료예요. 장비를 올릴 때 써요. 숫자는 지금 가방에 있는 전체 개수예요. N장 재료는 +N 강화에 쓰이고, 바로 다음 단계(+N+1) 강화에도 2개씩 더 들어가요. 장비 셋이 모두 +(N+1) 이상이면 N장 재료를 젤코인으로 팔 수 있어요.</p>
       <div class="jp-bag">
         {MATERIALS.map((m, i) => {
           const ch = i + 1;
@@ -1097,7 +1111,7 @@ export function JourneyPage(props: {
 }) {
   const { run, result, record } = props;
   const name = props.viewer.display_name;
-  const home = chapterOf(record.unlocked);
+  const home = chapterOf(Math.min(record.unlocked, journeyOpenTo(props.dogam)));
   return (
     <Layout title="하리보 원정대" viewer={props.viewer} active="expedition">
       <Popup lines={props.notice && Object.hasOwn(NOTICES, props.notice) ? NOTICES[props.notice] ?? [] : []} />

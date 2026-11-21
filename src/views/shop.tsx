@@ -208,8 +208,10 @@ export function ShopPage(props: {
   const decoBuy = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price !== null).sort(byPrice);
   const decoReward = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price === null);
   const nameOf = (id: string) => SHOP_ITEMS.find((i) => i.id === id)?.name ?? serviceItem(id)?.name ?? (id === 'change:gender' ? '성별 바꾸기' : id === 'change:reroll' ? '캐릭터 리롤권' : id === 'reset:games' ? '게임 기록 초기화권' : id);
-  const popup = props.results.flatMap((p) => resultLines(p, nameOf(p.item_id)));
   const notice = props.notice && Object.hasOwn(NOTICES, props.notice) ? NOTICES[props.notice] : undefined;
+  // 리롤·초기화 안내가 뜨면 같은 물건의 "구매 완료" 줄은 겹치니 빼요(4차 점검)
+  const covered = props.notice === 'rerolled' ? 'change:reroll' : props.notice === 'reset_done' ? 'reset:games' : null;
+  const popup = props.results.filter((p) => p.item_id !== covered).flatMap((p) => resultLines(p, nameOf(p.item_id)));
   if (notice) popup.unshift(...notice);
 
   const head = <ShopHead jelly={profile.dogam_jelly} tab={props.tab} />;

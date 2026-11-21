@@ -264,6 +264,8 @@ export function withoutTestMembers(p: SyncPayload): SyncPayload {
     ...p,
     members: p.members.map((m) => (isTestMember(m.id) ? { ...m, is_newbie: false, ...(m.green === undefined ? {} : { green: false }) } : m)),
     pair_xp: p.pair_xp.filter((x) => !isTestMember(x.a) && !isTestMember(x.b)),
+    // 빙고·시즌 통화 기록도 테스트 계정과 함께한 시간은 세지 않아요(카드와 같은 규칙)
+    room_minutes: p.room_minutes.map((r) => ({ ...r, members: r.members.filter((id) => !isTestMember(id)) })).filter((r) => r.members.length >= 2),
   };
 }
 

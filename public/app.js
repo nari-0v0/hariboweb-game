@@ -207,7 +207,7 @@ addEventListener('pageshow', (e) => {
   // 그만두기를 누르면 바로 자동을 꺼요. 자동 요청이 가는 중이면 끝나길 기다렸다가 새 순번으로 그만둬요(Codex 전체 점검).
   document.addEventListener('submit', (e) => {
     const f = e.target;
-    if (!(f instanceof HTMLFormElement) || !f.matches('form.jr-quit')) return;
+    if (!(f instanceof HTMLFormElement) || !f.matches('.jr-quit form')) return;
     set(false);
     clearTimeout(timer);
     if (!busy) return;
@@ -215,7 +215,7 @@ addEventListener('pageshow', (e) => {
     const wait = setInterval(() => {
       if (busy) return;
       clearInterval(wait);
-      const latest = document.querySelector('form.jr-quit');
+      const latest = document.querySelector('.jr-quit form');
       if (latest) latest.submit();
     }, 100);
   }, true);
