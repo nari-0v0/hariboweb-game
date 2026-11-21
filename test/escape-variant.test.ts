@@ -40,7 +40,7 @@ describe('사건파일 다시 푸는 판', () => {
     expect(culpritChanged).toBeGreaterThan(ids.length / 2);
   });
 
-  it('물건 찾기 카드도 처음 판과 같은 수수께끼·같은 정답 물건이에요', () => {
+  it('물건 찾기 카드는 처음 판과 다른 수수께끼·다른 정답 물건이에요(나리 2026-11-21)', () => {
     let cards = 0;
     for (const id of ids) {
       const a = escCase(id)!;
@@ -52,7 +52,12 @@ describe('사건파일 다시 푸는 판', () => {
       const base = card(a);
       if (!base) continue;
       cards++;
-      for (const vr of [1, 2, 3]) expect(card(escCase(id, vr)!), `${id}#${vr}`).toEqual(base);
+      for (const vr of [1, 2, 3]) {
+        const re = card(escCase(id, vr)!);
+        expect(re, `${id}#${vr}`).not.toBeNull();
+        expect(re![0], `${id}#${vr}`).not.toBe(base[0]);
+        expect(`${re![2]}:${re![1]}`, `${id}#${vr}`).not.toBe(`${base[2]}:${base[1]}`);
+      }
     }
     expect(cards).toBeGreaterThan(0);
   });
