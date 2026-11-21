@@ -1720,11 +1720,17 @@ main.wide { max-width: 1320px; }
 .esc-ui-cell.num input { width: 100%; height: 100%; border: 0; background: transparent; text-align: center; font: inherit; font-size: inherit; color: #2a5fa8; }
 .esc-ui-cell.num.given { background: #fffbe6; }
 .esc-ui-cell .cage-label { position: absolute; left: 2px; top: 0; font-size: .55rem; font-weight: 400; }
-.esc-ui-cell.cage0 { background: #ffeef3; } .esc-ui-cell.cage1 { background: #eef8ff; } .esc-ui-cell.cage2 { background: #f1ffe9; } .esc-ui-cell.cage3 { background: #fff7e0; } .esc-ui-cell.cage4 { background: #f3eaff; } .esc-ui-cell.cage5 { background: #e9fffb; }
+/* 구역·묶음 색은 서로 확실히 다르게(연한 파스텔끼리는 화면에 따라 거의 같아 보였어요). 글자는 진한 색 그대로 읽혀요. */
+.esc-ui-cell.cage0 { background: #ffb3c4; } .esc-ui-cell.cage1 { background: #a8dcff; } .esc-ui-cell.cage2 { background: #c6f0a0; } .esc-ui-cell.cage3 { background: #ffe28a; } .esc-ui-cell.cage4 { background: #d9c2ff; } .esc-ui-cell.cage5 { background: #ffcf9e; }
 .esc-ui-ineq { position: absolute; translate: -50% -50%; font-size: .75rem; font-weight: 700; color: #b0306a; pointer-events: none; }
 .esc-ui-clue { display: grid; place-items: center; font-size: .65rem; color: var(--ink); background: #e8f0ff; white-space: pre-line; line-height: 1.1; text-align: center; }
-.esc-ui-cell.reg0 { background: #ffeef3; } .esc-ui-cell.reg1 { background: #eef8ff; } .esc-ui-cell.reg2 { background: #f1ffe9; } .esc-ui-cell.reg3 { background: #fff7e0; }
-.esc-ui-cell.reg4 { background: #f3eaff; } .esc-ui-cell.reg5 { background: #e9fffb; } .esc-ui-cell.reg6 { background: #ffe9dc; } .esc-ui-cell.reg7 { background: #eaeaea; }
+.esc-ui-cell.reg0 { background: #ffb3c4; } .esc-ui-cell.reg1 { background: #a8dcff; } .esc-ui-cell.reg2 { background: #c6f0a0; } .esc-ui-cell.reg3 { background: #ffe28a; }
+.esc-ui-cell.reg4 { background: #d9c2ff; } .esc-ui-cell.reg5 { background: #ffcf9e; } .esc-ui-cell.reg6 { background: #8ee6d8; } .esc-ui-cell.reg7 { background: #d0d0d0; }
+/* 구역이 있는 판: 칸 사이는 얇은 선, 다른 구역과 닿는 곳은 굵은 검은 선. */
+.esc-ui-board.zoned { gap: 0; padding: 0; background: var(--ink); }
+.esc-ui-board.zoned .esc-ui-cell { border: 1px solid rgba(42, 32, 48, .35); }
+.esc-ui-board.zoned .esc-ui-cell.void { border-color: transparent; background: #b9d6ee; }
+.esc-ui-board.zoned .br { border-right: 4px solid var(--ink); } .esc-ui-board.zoned .bb { border-bottom: 4px solid var(--ink); }
 .esc-ui-dials { display: flex; gap: 8px; }
 .esc-ui-dials .dial { display: grid; place-items: center; width: 52px; height: 52px; border: 3px solid var(--ink); border-radius: 50%; background: #fffbe6; font-size: 1.3rem; font-weight: 700; }
 .esc-ui-board.color .esc-ui-cell, .esc-ui-board.divide .esc-ui-cell { border-color: transparent; }
