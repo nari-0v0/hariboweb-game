@@ -654,7 +654,7 @@ app.get('/api/bot/ranking', async (c) => {
 });
 
 // 디스코드 고정 패널 "우리 팀": 빙고 가운데 칸 팀 퀘스트와 서버 퀘스트(초록하리보 납치 대소동!).
-// 팀 퀘스트: 30분 이상 함께한 팀원이 need명 이상이면 나는 달성. my_mates = 나와 30분 이상 함께한 팀원 수.
+// 팀 퀘스트: TEAM_GOAL_MIN분 이상 함께한 팀원이 need명 이상이면 나는 달성. my_mates = 나와 TEAM_GOAL_MIN분 이상 함께한 팀원 수.
 app.get('/api/bot/team/:id', async (c) => {
   if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
   const id = c.req.param('id');
@@ -669,19 +669,19 @@ app.get('/api/bot/team/:id', async (c) => {
     team: t
       ? {
           no: t.no + 1,
-          // mates: 그 팀원이 30분 이상 함께한 팀원 수(need명이면 달성). 패널에서 팀원마다 진행을 보여 줘요.
-          members: t.members.filter((m) => !m.left).map((m) => ({ id: m.id, name: m.name, mates: matesOf(m.id, allIds, pairMinutes, t.resets) })),
+          // mates: 그 팀원이 TEAM_GOAL_MIN분 이상 함께한 팀원 수(need명이면 달성). 패널에서 팀원마다 진행을 보여 줘요.
+          members: t.members.filter((m) => !m.left).map((m) => ({ id: m.id, name: m.name, mates: matesOf(m.id, allIds, pairMinutes, t.resets, t.goalMin) })),
           target: t.target,
           achievers: t.achievers.map((a) => ({ id: a, name: names.get(a) ?? '알 수 없음' })),
           complete: t.complete,
           bonus: t.bonus,
           me: myTeamState(t, id),
           need: t.need,
-          my_mates: matesOf(id, allIds, pairMinutes, t.resets),
+          my_mates: matesOf(id, allIds, pairMinutes, t.resets, t.goalMin),
         }
       : null,
     server: x.server ? { target: x.server.target, kidnapped: x.server.kidnapped.length, met: x.server.met, joined: x.server.participants.includes(id) } : null,
-    rules: { goal_min: TEAM_GOAL_MIN, kidnap_min: KIDNAP_MIN, team_jelly: TEAM_JELLY, server_jelly: SERVER_JELLY },
+    rules: { goal_min: t?.goalMin ?? TEAM_GOAL_MIN, kidnap_min: KIDNAP_MIN, team_jelly: TEAM_JELLY, server_jelly: SERVER_JELLY },
     page_url: baseUrl(c) + '/bingo',
   });
 });

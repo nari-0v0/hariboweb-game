@@ -165,31 +165,33 @@ function ServerQuestBar(props: { extras: BingoExtras; me: string }) {
   );
 }
 
-// 나와 팀원이 이번 시즌에 함께한 시간: 30분을 채운 팀원이 need명이면 나는 달성
+// 나와 팀원이 이번 시즌에 함께한 시간: TEAM_GOAL_MIN분을 채운 팀원이 need명이면 나는 달성
 function MyMates(props: { team: NonNullable<BingoExtras['team']>; me: string }) {
+  const goal = props.team.goalMin ?? TEAM_GOAL_MIN;
   const mates = myMates(props.team, props.me);
   const met = matesOf(
     props.me,
     props.team.members.map((m) => m.id),
     new Map(props.team.pairs.map((p) => [pairKey(p.a, p.b), p.minutes])),
     props.team.resets,
+    goal,
   );
   return (
     <div class="bgo-partners">
       <b>
-        나와 {TEAM_GOAL_MIN}분 이상 함께한 팀원 {met}명 (목표 {props.team.need}명)
+        나와 {goal}분 이상 함께한 팀원 {met}명 (목표 {props.team.need}명)
       </b>
       {mates.length ? (
         <ul aria-label="팀원과 함께한 시간">
           {mates.map((x) => (
-            <li class={x.minutes >= TEAM_GOAL_MIN ? 'done' : undefined}>
+            <li class={x.minutes >= goal ? 'done' : undefined}>
               <span class="bgo-partner-name">
-                {x.minutes >= TEAM_GOAL_MIN ? '✓ ' : ''}
+                {x.minutes >= goal ? '✓ ' : ''}
                 {x.name}
                 {x.left ? ' (떠남)' : ''}
               </span>
               <span class="bgo-partner-min">
-                · {Math.min(x.minutes, TEAM_GOAL_MIN)}/{TEAM_GOAL_MIN}분
+                · {Math.min(x.minutes, goal)}/{goal}분
               </span>
             </li>
           ))}
@@ -230,7 +232,9 @@ function TeamPanel(props: { extras: BingoExtras; view: BingoView; me: string }) 
         </ul>
       </div>
       <p class="bgo-team-text">
-        팀원 {t.need}명(팀 인원의 절반)과 각각 같은 통화방에서 {TEAM_GOAL_MIN}분 이상 함께하면 나는 달성! 팀원 절반이 달성하면 팀 완료예요.
+        {(t.goalMin ?? TEAM_GOAL_MIN) === TEAM_GOAL_MIN
+          ? `팀원 누구와든 이번 주 같은 통화방에서 ${TEAM_GOAL_MIN / 60}시간 이상 함께하면 나는 달성! 팀에서 ${t.target}명이 달성하면 팀 완료예요.`
+          : `팀원 ${t.need}명(팀 인원의 절반)과 각각 같은 통화방에서 ${t.goalMin}분 이상 함께하면 나는 달성! 팀원 절반이 달성하면 팀 완료예요.`}
       </p>
       {t.bonus ? (
         <p class="bgo-team-bonus">우리 팀은 2명보다 적어서 가운데 칸을 보너스 칸으로 채웠어요. (팀 퀘스트 보상은 없어요)</p>
