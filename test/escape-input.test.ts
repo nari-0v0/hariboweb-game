@@ -22,9 +22,9 @@ describe('사건파일 답 입력', () => {
     }
   });
 
-  it('글자로 적는 답(7.5)은 단위를 붙여 적어도 맞고, 다른 값은 여전히 실수예요', () => {
+  // 지금은 숫자만 아닌 답(예전 체리의 7.5)이 없어요(6차 점검에서 겹치는 수수께끼를 바꿈). 다시 생기면 이 검사가 지켜요.
+  it('글자로 적는 답(소수 등)은 단위를 붙여 적어도 맞고, 다른 값은 여전히 실수예요', () => {
     const text = locks.filter(({ o }) => o.lock?.kind === 'code' && !o.lock.choices && !o.lock.order && !o.lock.grid && !o.lock.ui && !/^[0-9]+$/.test(o.lock.code));
-    expect(text.length).toBeGreaterThan(0);
     for (const { c, o } of text) {
       const lk = o.lock as { code: string; ask: string };
       for (const v of [lk.code, `${lk.code}${lk.ask}`, `${lk.code} ${lk.ask}`, `${lk.code}°`]) expect(actEscape(c, at(c, o), { a: 'code', o: o.id, v })!.opened, v).toContain(o.id);
