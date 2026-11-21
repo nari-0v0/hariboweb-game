@@ -46,13 +46,15 @@ export async function grantPostChips(db: D1Database, p: PostChip, nowMs: number)
       `INSERT OR IGNORE INTO post_chips (id, user_id, kind, day, chips, posted_at, created_at)
        SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7
        WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)
-         AND (SELECT COUNT(*) FROM post_chips WHERE user_id = ?2 AND day = ?4) < ?8`,
+         AND (SELECT COUNT(*) FROM post_chips WHERE user_id = ?2 AND day = ?4) < ?8
+       RETURNING id`,
     )
     .bind(p.id, p.user, p.kind, day, POST_CHIPS, p.at, t, POST_CHIPS_PER_DAY)
-    .run();
+    .first<{ id: string }>();
   const used = await usedOn(db, p.user, day);
   const left = Math.max(0, POST_CHIPS_PER_DAY - used);
-  if (r.meta.changes === 1) return { result: 'applied', left };
+  // D1의 meta.changes는 트리거가 바꾼 줄까지 세서, 새로 넣은 줄은 RETURNING으로 확인해요(Codex 리뷰).
+  if (r) return { result: 'applied', left };
   const again = await db.prepare('SELECT 1 FROM post_chips WHERE id = ?').bind(p.id).first();
   return { result: again ? 'duplicate' : 'limit', left };
 }
@@ -61,8 +63,8 @@ export type RevokeResult = { result: 'revoked' | 'already' | 'not_found'; taken:
 
 // 글이 지워졌어요: 준 젤칩을 다 빼요. 모자라면 빚으로 남아 마이너스로 보여요(나리 2026-11-21). 같은 글 번호는 한 번만 빼요.
 export async function revokePostChips(db: D1Database, id: string, nowMs: number): Promise<RevokeResult> {
-  const r = await db.prepare('UPDATE post_chips SET revoked_at = ?2 WHERE id = ?1 AND revoked_at IS NULL').bind(id, new Date(nowMs).toISOString()).run();
+  const r = await db.prepare('UPDATE post_chips SET revoked_at = ?2 WHERE id = ?1 AND revoked_at IS NULL RETURNING id').bind(id, new Date(nowMs).toISOString()).first<{ id: string }>();
   const row = await db.prepare('SELECT taken FROM post_chips WHERE id = ?').bind(id).first<{ taken: number | null }>();
   if (!row) return { result: 'not_found', taken: 0 };
-  return { result: r.meta.changes === 1 ? 'revoked' : 'already', taken: Number(row.taken ?? 0) };
+  return { result: r ? 'revoked' : 'already', taken: Number(row.taken ?? 0) };
 }
