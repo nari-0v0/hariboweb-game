@@ -213,7 +213,19 @@ app.get('/updates', async (c) => page(c, <UpdatesPage viewer={await viewerWithBu
 
 // 로그인 전에 열려던 화면(디스코드 패널·카톡 링크). 로그인 뒤 그 화면으로 보내요(2026-11-21 3차 점검).
 const NEXT_COOKIE = 'dogam_next';
-const safeNext = (v: string | undefined) => (v && v.startsWith('/') && !v.startsWith('//') && !v.startsWith('/\\') && !v.startsWith('/auth') && v.length <= 300 ? v : null);
+// 주소로 한 번 풀어서 같은 사이트 안의 경로만 받아요. 탭·줄바꿈(%09·%0a)이 든 값은 브라우저가 글자를 지워
+// //다른사이트가 될 수 있어서 처음부터 막아요(4차 점검). 한글 같은 글자는 다시 %로 바꿔서 Location에 넣어요.
+const safeNext = (v: string | undefined) => {
+  if (!v || !v.startsWith('/') || v.length > 300 || /[\x00-\x1f\x7f\\]/.test(v)) return null;
+  let u: URL;
+  try {
+    u = new URL(v, 'https://dogam.invalid');
+  } catch {
+    return null;
+  }
+  if (u.origin !== 'https://dogam.invalid' || u.pathname.startsWith('//') || u.pathname.startsWith('/auth')) return null;
+  return u.pathname + u.search;
+};
 
 app.get('/auth/login', (c) => {
   const state = randomToken();

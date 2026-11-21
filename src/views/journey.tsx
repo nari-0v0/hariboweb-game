@@ -1111,7 +1111,8 @@ export function JourneyPage(props: {
 }) {
   const { run, result, record } = props;
   const name = props.viewer.display_name;
-  const home = chapterOf(Math.min(record.unlocked, journeyOpenTo(props.dogam)));
+  const homeN = Math.min(record.unlocked, journeyOpenTo(props.dogam));
+  const home = chapterOf(homeN);
   return (
     <Layout title="하리보 원정대" viewer={props.viewer} active="expedition">
       <Popup lines={props.notice && Object.hasOwn(NOTICES, props.notice) ? NOTICES[props.notice] ?? [] : []} />
@@ -1149,7 +1150,7 @@ export function JourneyPage(props: {
                 <span>🏔️ 가장 높이 {record.best > 0 ? `Lv.${record.best}` : '아직 없음'}</span>
                 <span>🏆 대장 {record.clears}번</span>
                 <span>
-                  📍 {record.unlocked}장 {home.name}
+                  📍 {homeN}장 {home.name}
                 </span>
               </div>
             </div>
