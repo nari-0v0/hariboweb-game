@@ -31,6 +31,13 @@ describe('member characters', () => {
     expect(characterUrl('basic-boy-0', '123')).toBe(`/char/${fallbackCharacter('123')}.png`);
   });
 
+  it('keeps leaver fallback art inside the first 50 girls and 50 boys (new art does not change it)', () => {
+    for (const id of ids(300)) expect(fallbackCharacter(id)).toMatch(/^(girl|boy)-(0[1-9]|[1-4]\d|50)-[0-3]$/);
+    expect(isCharacterId('girl-75-0')).toBe(true);
+    expect(isCharacterId('boy-75-3')).toBe(true);
+    expect(isCharacterId('boy-76-0')).toBe(false);
+  });
+
   it('never moves a member off a character they already have (only missing or removed art)', () => {
     expect(shouldRepick('girl-07-0')).toBe(false);
     // 여분 색이어도, 빈 디자인이 생겨도 저절로 안 바뀌어요(나리 2026-11-17)
@@ -41,14 +48,14 @@ describe('member characters', () => {
 
   it('picks inside the chosen girl or boy pool', () => {
     const taken = new Set<string>();
-    for (const id of ids(60)) {
+    for (const id of ids(80)) {
       const c = pickCharacter(id, taken, 'boy');
       expect(poolOf(c)).toBe('boy');
       expect(isCharacterId(c)).toBe(true);
       taken.add(c);
     }
-    // 소년 50명이 다 차면 소년 여분 색으로 넘어가요
-    expect([...taken].filter((c) => c.endsWith('-0')).length).toBe(50);
+    // 소년 75명이 다 차면 소년 여분 색으로 넘어가요
+    expect([...taken].filter((c) => c.endsWith('-0')).length).toBe(75);
     expect(shouldRepick('boy-01-2')).toBe(false);
   });
 
