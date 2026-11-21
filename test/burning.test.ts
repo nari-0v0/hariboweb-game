@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { burnEndText, burnReply, burnWindow, burningUntil, resetBurningCache } from '../src/burning';
+import { burnEndText, burnReply, burnWindow, burnWindowsForSync, burningUntil, resetBurningCache } from '../src/burning';
 import { bingoStatements } from '../src/bingo';
 import { actJourney, matOfferPrice, offerInfo, startJourney, stat, type JourneyState } from '../src/journey';
 import { MATERIALS } from '../src/journey';
@@ -73,6 +73,30 @@ describe('버닝타임', () => {
     expect(day[3]).toBe(3); // 평소 1분 + 버닝 1분×2
     const pair = out.find((a) => a[1] === '1' && a[2] === '2')!;
     expect(pair[3]).toBe(3);
+  });
+
+  it('새 버닝타임을 켜도 예전 버닝 때 늦게 온 통화는 2배로 쳐요(점검 2026-11-21)', async () => {
+    const { sql, db } = fakeD1();
+    const first = { from: new Date(T0).toISOString(), until: new Date(T0 + 60 * MIN).toISOString() };
+    sql.prepare('UPDATE burning SET started_at = ?, until = ? WHERE id = 1').run(first.from, first.until);
+    const second = { from: new Date(T0 + 120 * MIN).toISOString(), until: new Date(T0 + 180 * MIN).toISOString() };
+    sql.prepare('UPDATE burning SET started_at = ?, until = ? WHERE id = 1').run(second.from, second.until);
+    const { current, all } = await burnWindowsForSync(db, T0 + 130 * MIN);
+    expect(current).toEqual(second);
+    expect(all).toEqual([second, first]);
+    const fake = { prepare: () => ({ bind: (...a: unknown[]) => a }) } as unknown as D1Database;
+    const late = [{ at: new Date(T0 + 10 * MIN).toISOString(), room: 'r', members: ['1', '2'] }];
+    const out = bingoStatements(fake, late, [], [], all).stmts as unknown as unknown[][];
+    expect(out.find((a) => a[1] === '1')![3]).toBe(2);
+    // 같은 버닝을 일찍 끝내면(until만 바꿈) 예정 시각은 남기지 않아요
+    const third = { from: second.from, until: new Date(T0 + 150 * MIN).toISOString() };
+    sql.prepare('UPDATE burning SET until = ? WHERE id = 1').run(third.until);
+    const early = await burnWindowsForSync(db, T0 + 160 * MIN);
+    expect(early.all).toEqual([third, first]);
+    const after = bingoStatements(fake, [{ at: new Date(T0 + 160 * MIN).toISOString(), room: 'r', members: ['1', '2'] }], [], [], early.all).stmts as unknown as unknown[][];
+    expect(after.find((a) => a[1] === '1')![3]).toBe(1);
+    // 3일 지난 기록은 안 봐요
+    expect((await burnWindowsForSync(db, T0 + 4 * 86_400_000)).all).toEqual([third]);
   });
 });
 
@@ -156,5 +180,16 @@ describe('사건파일 힌트 동전', () => {
     const s = actEscape(c, startEscape(c), { a: 'coin', k: 0 }, true)!;
     expect(coinsLeft(s)).toBe(2);
     expect(s.msg).toContain('2개');
+  });
+});
+
+describe('정식 시작 초기화 스크립트', () => {
+  it('재수사·첫 보상·초기화권 기록도 지워요(점검 2026-11-21)', () => {
+    const { sql } = fakeD1();
+    sql.prepare("INSERT INTO escape_paid (user_id, case_id) VALUES ('1', 'c1')").run();
+    sql.prepare("INSERT INTO game_resets (user_id, count, last_at, journey_jelly_top) VALUES ('1', 1, '2026-11-20T00:00:00Z', 9)").run();
+    sql.exec(readFileSync('scripts/launch-reset.sql', 'utf8'));
+    expect(sql.prepare('SELECT COUNT(*) AS n FROM escape_paid').get()).toEqual({ n: 0 });
+    expect(sql.prepare('SELECT COUNT(*) AS n FROM game_resets').get()).toEqual({ n: 0 });
   });
 });

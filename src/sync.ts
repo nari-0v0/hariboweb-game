@@ -284,7 +284,7 @@ async function boosterList(db: D1Database, members: SyncPayload['members']) {
 }
 
 // groupQuests: 예전 모둠 퀘스트 8개를 새 시즌에도 만들기(테스트용, 기본은 안 만들어요)
-export type SyncOptions = { scrimQuests?: boolean; groupQuests?: boolean; burn?: BurnWindow | null };
+export type SyncOptions = { scrimQuests?: boolean; groupQuests?: boolean; burn?: BurnWindow | readonly BurnWindow[] | null };
 
 export async function applySync(
   db: D1Database,
