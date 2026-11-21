@@ -233,7 +233,7 @@ function TeamPanel(props: { extras: BingoExtras; view: BingoView; me: string }) 
       </div>
       <p class="bgo-team-text">
         {(t.goalMin ?? TEAM_GOAL_MIN) === TEAM_GOAL_MIN
-          ? `팀원 누구와든 이번 주 같은 통화방에서 ${TEAM_GOAL_MIN / 60}시간 이상 함께하면 나는 달성! 팀에서 ${t.target}명이 달성하면 팀 완료예요.`
+          ? `팀원 ${t.need}명과 각각 이번 주 같은 통화방에서 ${TEAM_GOAL_MIN / 60}시간 이상 함께하면 나는 달성! 팀에서 ${t.target}명이 달성하면 팀 완료예요.`
           : `팀원 ${t.need}명(팀 인원의 절반)과 각각 같은 통화방에서 ${t.goalMin}분 이상 함께하면 나는 달성! 팀원 절반이 달성하면 팀 완료예요.`}
       </p>
       {t.bonus ? (
