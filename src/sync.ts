@@ -495,6 +495,7 @@ export async function applySync(
     stmts.push(db.prepare('DELETE FROM jelly_grants WHERE user_id = ? AND applied_at IS NULL').bind(id));
     stmts.push(db.prepare('UPDATE jelly_grants SET amount = 0, reason = NULL WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM card_count_rewards WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM post_chips WHERE user_id = ?').bind(id));
   }
 
   // 도감 젤리: 카드 장수 단계(5·10·15…장)에 처음 닿으면 한 번(src/card-rewards.ts).

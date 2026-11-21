@@ -106,6 +106,7 @@ import { GEAR, PERKS, cleanKit, type GearId, type PerkId } from './journey';
 import { clearReadAlerts, deleteAlert, listAlerts, markAlertsRead } from './alerts';
 import { AlertBox, AlertsPage } from './views/alerts';
 import { grantJelly, parseGrant } from './jelly-grant';
+import { grantPostChips, parsePostChip } from './post-chips';
 import { activeEscape, actEscapeRun, beginDaily, beginEscape, dailyInfo, escapeOpen, escapeRecord, getEscape, quitEscape, reRecord, type EscRun } from './escape-db';
 import { UI_MAX } from './escape-ui';
 
@@ -441,6 +442,21 @@ app.post('/api/bot/jelly-grants', async (c) => {
   if (!parsed.ok) return c.json({ error: parsed.error }, 400);
   const out = await grantJelly(c.env.DB, parsed.value, Date.now());
   return c.json({ ok: out.result !== 'no_member', ...out });
+});
+
+// 구인구직·디스타그램에 쓴 글 젤칩(나리 2026-11-21). 같은 글 번호는 한 번만, 하루 4번까지(src/post-chips.ts).
+app.post('/api/bot/post-chips', async (c) => {
+  if (!(await isBot(c))) return c.json({ error: 'unauthorized' }, 401);
+  let raw: unknown;
+  try {
+    raw = await c.req.json();
+  } catch {
+    return c.json({ error: 'JSON이 아니에요' }, 400);
+  }
+  const parsed = parsePostChip(raw);
+  if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+  const out = await grantPostChips(c.env.DB, parsed.value, Date.now());
+  return c.json({ ok: true, ...out });
 });
 
 const isDiscordId = (v: unknown): v is string => typeof v === 'string' && /^\d{17,20}$/.test(v);
