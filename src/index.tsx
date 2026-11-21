@@ -74,6 +74,8 @@ import { checkNote, cleanNote, hidePraiseNote, listUnpostedAiLogs, logAiCheck, m
 import type { BlockForm } from './views/bingo';
 import { GuidePage } from './views/guide';
 import { UpdatesPage } from './views/updates';
+import { QaPage } from './views/qa';
+import { qaTab } from './qa';
 import { TitlesPage } from './views/titles';
 import { titleById, titleProgress } from './titles';
 import {
@@ -211,6 +213,7 @@ async function viewerWithBurn(c: Context<AppEnv>) {
 }
 app.get('/guide', async (c) => page(c, <GuidePage viewer={await viewerWithBurn(c)} />));
 app.get('/updates', async (c) => page(c, <UpdatesPage viewer={await viewerWithBurn(c)} />));
+app.get('/qa', async (c) => page(c, <QaPage viewer={await viewerWithBurn(c)} tab={qaTab(c.req.query('c'))} />));
 
 // 로그인 전에 열려던 화면(디스코드 패널·카톡 링크). 로그인 뒤 그 화면으로 보내요(2026-11-21 3차 점검).
 const NEXT_COOKIE = 'dogam_next';
