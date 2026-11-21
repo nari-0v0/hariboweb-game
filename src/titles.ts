@@ -93,7 +93,7 @@ const LADDERS: Ladder[] = [
   { group: '시즌', id: 'season', rule: (count) => ({ kind: 'seasons', count }),
     steps: steps([1, 2, 3, 5, 10, 20], '신입 재학생 고학년 고참 원년 화석') },
   { group: '빙고', id: 'bingo', rule: (count) => ({ kind: 'bingo', count }),
-    steps: steps([1, 5, 10, 20, 30, 50, 75, 100, 150, 200], '첫빙고 빙고 럭키 빙고러 빙고광 빙고킹 행운아 잭팟 대박빙고 빙고신') },
+    steps: steps([1, 5, 10, 20, 30, 50, 75, 100, 150, 200], '첫빙고 빙고 럭키 빙고러 빙고광 빙고킹 행운아 빙고부자 대박빙고 빙고신') },
   { group: '빙고', id: 'full', rule: (count) => ({ kind: 'bingoFull', count }),
     steps: steps([1, 3, 5, 10, 20], '판쓸이 꽉꽉 올빙고 빙고장인 빙고전설') },
   { group: '칭찬', id: 'got', rule: (count) => ({ kind: 'praiseGot', count }),
@@ -113,7 +113,7 @@ export const GAMBLE_TITLES: Title[] = [
   gambleTitle('chips-1000000', '재벌', 'chips', 1_000_000),
   gambleTitle('all-in-1', '올인', 'all_in_wins', 1),
   gambleTitle('all-in-10', '강심장', 'all_in_wins', 10),
-  gambleTitle('jackpot', '칠칠칠', 'jackpots', 1),
+  gambleTitle('jackpot', '잭팟', 'jackpots', 1),
   gambleTitle('natural', '블랙잭', 'naturals', 10),
   { id: GAMBLE_WINNER_ID, name: '도박신', group: '겜블장', rule: { kind: 'gambleSeason' } },
 ];
