@@ -57,7 +57,13 @@ export function RankPage(props: { viewer: Member; ranks: Rankings; tab: RankTab 
           <PodiumBoard title="가장 멀리 간 원정" icon="🏔️" podium={r.journey}
             show={(v) => `${Math.ceil(v / DAYS)}장 · ${((v - 1) % DAYS) + 1}일째`} />
         )}
-        {tab === 'escape' && <PodiumBoard title="해결한 사건" icon="🕵️" podium={r.escape} show={(v) => `${n(v)}건`} />}
+        {tab === 'escape' && (
+          <div class="rk-pair">
+            <PodiumBoard title="해결한 사건" icon="🕵️" podium={r.escape} show={(v) => `${n(v)}건`} />
+            <PodiumBoard title="오늘의 사건 해결한 날" icon="📅" podium={r.escapeDaily} show={(v) => `${n(v)}일`}
+              empty="아직 오늘의 사건을 해결한 사람이 없어요. 첫 1등이 되어 보세요!" />
+          </div>
+        )}
         {tab === 'gamble' && (
           <div class="rk-pair">
             {r.gamble.seasonTop && (

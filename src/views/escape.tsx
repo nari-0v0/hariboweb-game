@@ -7,6 +7,7 @@ import { ROOM_BLUR } from '../room-blur.gen';
 import { FictionNote } from './fiction';
 import { escapeNeed, meets, needText, shortNeed, type DogamProgress } from '../unlock';
 import { Layout } from './layout';
+import { DAILY_CHIP_RULE, RE_CHIP_RULE } from '../escape-daily';
 import { Popup, type PopupLine } from './shop';
 import { uiForClient } from '../escape-ui';
 
@@ -723,7 +724,7 @@ function DailyPanel(props: { daily: DailyInfo; run: EscRun | null }) {
             <span class="hint">
               {goingDaily
                 ? `오늘의 사건을 푸는 중이에요. 힌트 없이 답을 ${RE_LIVES}번 틀리면 실패예요.`
-                : `내가 해결한 사건 중 하나를 범인·단서·물건 자리를 새로 섞었어요. 하루 한 번, 힌트 없이 답을 ${RE_LIVES}번 틀리면 실패예요. 시작하면 오늘 기회를 써요${run ? '(하던 사건은 덮여요)' : ''}. 보상 없이 기록만 남아요.`}
+                : `내가 해결한 사건 중 하나를 범인·단서·물건 자리를 새로 섞었어요. 하루 한 번, 힌트 없이 답을 ${RE_LIVES}번 틀리면 실패예요. 시작하면 오늘 기회를 써요${run ? '(하던 사건은 덮여요)' : ''}. ${DAILY_CHIP_RULE}`}
             </span>
           </p>
           <button type="submit" class="btn btn-primary btn-small">{goingDaily ? '▶ 이어 하기' : '📅 오늘의 사건 풀기'}</button>
@@ -757,7 +758,8 @@ function ReResult(props: { run: EscRun; going: boolean; record?: ReRecord }) {
         </div>
       </div>
       <p class="esc-ending">{s.msg}</p>
-      <p class="hint">{s.daily ? '오늘의 사건은 하루에 한 번이에요. 보상 없이 기록만 남고, 내일 새 사건이 와요.' : '재수사는 보상 없이 기록만 남아요. 등급 기록도 그대로예요.'}</p>
+      {!!run.row.chips && <p class="esc-ending"><b>🎰 겜블장 젤칩 {run.row.chips}개를 받았어요!</b></p>}
+      <p class="hint">{s.daily ? `오늘의 사건은 하루에 한 번이에요. ${DAILY_CHIP_RULE} 내일 새 사건이 와요.` : `재수사는 ${RE_CHIP_RULE} 등급 기록은 그대로예요.`}</p>
       <a class="btn btn-primary" href={props.going ? '/cases/room' : '#case-list'}>
         {props.going ? '진행 중인 사건 이어 하기' : '다른 사건 고르기'}
       </a>
@@ -831,8 +833,8 @@ export function EscapePage(props: {
               <p>방 곳곳 빈 자리를 눌러 보면 숨은 힌트 동전이 있어요. 실수(틀린 비밀번호·장치 답·범인 답)와 동전 없이 본 힌트를 더해 등급을 매겨요({GRADE_RULE}). 물건 합치기나 물건 대 보기는 틀려도 실수가 아니에요.</p>
               <p>💎 디스코드 서버 부스터는 등급 기준이 1번씩 넉넉하고(S는 2번까지), 그날 처음 시작한 사건에서 힌트 동전 {BOOSTER_DAILY_COINS}개를 들고 시작해요.</p>
               <p>사건마다 처음 해결하면 내 카드 경험치 {ESC_XP}, S·A 등급이면 도감 젤리 1개도 받아요.</p>
-              <p>해결한 사건은 🔁 재수사로 다시 풀 수 있어요. 힌트 없이, 답을 3번 틀리면 실패예요. 보상은 없고 가장 빠른 시간과 무결점 도장(💮, 한 번도 안 틀림)이 남아요.</p>
-              {props.daily && <p>📅 오늘의 사건: 매일 내가 해결한 사건 하나가 범인·단서·물건 자리가 새로 섞여 나와요. 하루 한 번, 재수사처럼 힌트 없이 풀어요. 보상은 없고 해결한 날 수와 연속 기록이 남아요.</p>}
+              <p>해결한 사건은 🔁 재수사로 다시 풀 수 있어요. 힌트 없이, 답을 3번 틀리면 실패예요. 답을 1번까지만 틀리고 해결하면 사건마다 처음 한 번 겜블장 젤칩 100개를 받고, 가장 빠른 시간과 무결점 도장(💮, 한 번도 안 틀림)이 남아요.</p>
+              {props.daily && <p>📅 오늘의 사건: 매일 내가 해결한 사건 하나가 범인·단서·물건 자리가 새로 섞여 나와요. 하루 한 번, 재수사처럼 힌트 없이 풀어요. 답을 1번까지만 틀리고 해결하면 겜블장 젤칩 100개를 받고, 해결한 날 수와 연속 기록이 남아요.</p>}
               <p>한 번 열었던 사건을 다시 열면 수수께끼는 같지만 범인·단서·물건 숨은 자리·시계 시각이 새로 바뀌어요. 맨 앞 입문 사건 3개와 대화로 푸는 사건은 그대로예요.</p>
             </div>
           </details>

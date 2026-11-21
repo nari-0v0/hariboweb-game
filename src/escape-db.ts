@@ -1,9 +1,9 @@
 import { dayStartMs } from './day';
 import { dogamProgress, escapeNeed, meets } from './unlock';
-import { DAILY_OPEN, dailyPick, dailyVariant, kstDay, prevDay, shownStreak } from './escape-daily';
+import { DAILY_OPEN, dailyChipsEarned, dailyPick, dailyVariant, kstDay, prevDay, shownStreak } from './escape-daily';
 import { BOOSTER_DAILY_COINS, ESC_XP, escVariantOf, escapeUnlockIndex, actEscape, decodeEscape, escCase, escGrade, escJelly, startEscape, type EscAction, type EscCase, type EscGrade, type EscState } from './escape';
 
-export type EscRow = { id: string; user_id: string; case_id: string; state: string; rev: number; status: string; grade: string | null; xp: number; jelly: number; started_at?: string; ended_at?: string | null };
+export type EscRow = { id: string; user_id: string; case_id: string; state: string; rev: number; status: string; grade: string | null; xp: number; jelly: number; started_at?: string; ended_at?: string | null; chips?: number | null };
 export type EscRun = { row: EscRow; def: EscCase; state: EscState };
 
 function decode(row: EscRow | null): EscRun | null {
@@ -26,7 +26,13 @@ async function dropBrokenEscape(db: D1Database, user: string, t: string): Promis
     .run();
 }
 export async function getEscape(db: D1Database, user: string, id: string): Promise<EscRun | null> {
-  return decode(await db.prepare('SELECT * FROM escape_runs WHERE user_id = ? AND id = ?').bind(user, id).first<EscRow>());
+  // chips: 이 판으로 받은 겜블장 젤칩(오늘의 사건·재수사, 0072). 결과 화면에 보여 줘요.
+  return decode(
+    await db
+      .prepare('SELECT r.*, (SELECT c.chips FROM escape_chips c WHERE c.user_id = r.user_id AND c.run_id = r.id) AS chips FROM escape_runs r WHERE r.user_id = ? AND r.id = ?')
+      .bind(user, id)
+      .first<EscRow>(),
+  );
 }
 
 // 사건마다 가장 좋은 등급(해결한 판만)
@@ -258,6 +264,18 @@ async function finishRe(db: D1Database, user: string, id: string, rev: number, c
         .bind(id, token, caseId, s.mistakes === 0 ? 1 : 0),
     );
   }
+  // 답을 1번까지만 틀리고 해결하면 겜블장 젤칩(멍쑤님 제안, 나리 2026-11-21).
+  // 오늘의 사건은 그날 한 번, 재수사는 사건마다 처음 한 번(표의 열쇠). 이 판이 방금 해결로 적혔을 때만(mutation).
+  const chips = dailyChipsEarned(won, s.mistakes);
+  if (chips > 0)
+    stmts.push(
+      db
+        .prepare(
+          `INSERT OR IGNORE INTO escape_chips (user_id, kind, ref, run_id, chips, created_at)
+           SELECT ?1, ?2, ?3, ?4, ?5, ?6 WHERE EXISTS (SELECT 1 FROM escape_runs WHERE id = ?4 AND user_id = ?1 AND mutation = ?7 AND status = 'done')`,
+        )
+        .bind(user, s.daily ? 'daily' : 're', s.daily ?? caseId, id, chips, t, token),
+    );
   const r = await db.batch(stmts);
   return (r[0]?.meta.changes ?? 0) === 1 ? 'ok' : 'stale';
 }

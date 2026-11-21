@@ -96,6 +96,7 @@ export type Rankings = {
   jellypiAll: Podium;
   journey: Podium; // 원정대 가장 높이 간 레벨
   escape: Podium; // 해결한 사건 수
+  escapeDaily: Podium; // 오늘의 사건을 해결한 날 수(나리 2026-11-21)
   gamble: { chips: Podium; best: Podium; allIn: Podium; seasonTop: { name: string; value: number; char?: string } | null };
 };
 
@@ -114,7 +115,7 @@ export async function loadRankings(db: D1Database, userId: string, nowMs: number
        WHERE (?1 IS NULL OR j.season_id = ?1) AND ${notTestMember('j.user_id')} GROUP BY j.user_id ORDER BY value DESC, MAX(j.created_at) ASC, j.user_id`,
       seasonId,
     );
-  const [dogam, journey, escape, jpSeason, jpAll, gamble, gambleMine] = await Promise.all([
+  const [dogam, journey, escape, escapeDaily, jpSeason, jpAll, gamble, gambleMine] = await Promise.all([
     !want('dogam') ? none : rows(
       db,
       // 높은 레벨 카드 수도 같은 줄에서 같이 세요(카드 표를 두 번 읽지 않게).
@@ -138,6 +139,13 @@ export async function loadRankings(db: D1Database, userId: string, nowMs: number
        JOIN members m ON m.user_id = e.user_id AND m.active = 1 LEFT JOIN profiles p ON p.user_id = e.user_id
        WHERE ${notTestMember('e.user_id')} GROUP BY e.user_id ORDER BY value DESC, MAX(e.claimed_at) ASC, e.user_id`,
     ),
+    // 오늘의 사건 해결한 날 수: 해결할 때 쌓아 둔 한 줄(escape_daily_stats)만 읽어요. 같으면 지금 연속이 긴 사람 먼저.
+    !want('escape') ? none : rows(
+      db,
+      `SELECT d.user_id, ${WHO}, d.days AS value FROM escape_daily_stats d
+       JOIN members m ON m.user_id = d.user_id AND m.active = 1 LEFT JOIN profiles p ON p.user_id = d.user_id
+       WHERE d.days > 0 AND ${notTestMember('d.user_id')} ORDER BY value DESC, d.last_day DESC, d.streak DESC, d.user_id`,
+    ),
     season && want('bingo') ? jellypi(season.id) : none,
     want('bingo') ? jellypi(null) : none,
     want('gamble') ? gambleRanks(db, now) : Promise.resolve([]),
@@ -151,6 +159,7 @@ export async function loadRankings(db: D1Database, userId: string, nowMs: number
     jellypiAll: toPodium(jpAll, userId),
     journey: toPodium(journey, userId),
     escape: toPodium(escape, userId),
+    escapeDaily: toPodium(escapeDaily, userId),
     gamble: {
       chips: { ...plainPodium(chips), me: gambleMine[0] ?? null },
       best: { ...plainPodium(best), me: gambleMine[1] ?? null },
