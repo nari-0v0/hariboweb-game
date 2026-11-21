@@ -190,6 +190,8 @@ addEventListener('pageshow', (e) => {
   const here = () => { try { return sessionStorage.getItem(TAB) === '1'; } catch { return true; } };
   const setHere = (on) => { try { on ? sessionStorage.setItem(TAB, '1') : sessionStorage.removeItem(TAB); } catch {} };
   if (!/^\/(?:expedition\/go|api\/journey\/)/.test(location.pathname)) setHere(false);
+  // 자동이 다음 화면으로 넘어가는 사이 다른 탭·앱으로 갔으면 새 화면은 처음부터 안 보이는 채로 열려요. 그때도 꺼요(Codex #337).
+  if (document.visibilityState === 'hidden') setHere(false);
   const get = () => {
     if (mem && stored) {
       try { if (localStorage.getItem(KEY) !== '1') mem = false; } catch {}
@@ -414,6 +416,8 @@ addEventListener('pageshow', (e) => {
     const box = e.target instanceof Element && e.target.closest('[data-auto-toggle]');
     if (!box) return;
     box.querySelector('.jr-auto-err')?.remove();
+    // 화면 이동을 누른 뒤 취소(Esc 등)해서 이 화면에 남았으면, 직접 다시 켤 때 멈춤을 풀어요(Codex #337).
+    leaving = false;
     set(e.target.checked);
     sync();
   });
