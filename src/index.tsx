@@ -97,7 +97,7 @@ import { burnReply, burnWindow, burnWindowsForSync, burningUntil } from './burni
 import { dbLimitKind, maintenanceOn, maintenanceSkips, maintenanceWhen, type DbLimit } from './maintenance';
 import { EscapePage } from './views/escape';
 import { JourneyPage } from './views/journey';
-import { DAY_CAP, NO_COINS, STALE_PICK, activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, journeyTop, quitJourney, sellMats, upgradeGear } from './journey-db';
+import { DAY_CAP, NO_COINS, STALE_PICK, activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, journeyTop, quitJourney, runsToday, sellMats, upgradeGear } from './journey-db';
 import { buyPet, equipPet, levelPet, parseTowerLast, towerAttempt, towerAuto, towerRanking } from './tower-db';
 import { cleanBoosts } from './tower';
 import { isPetId } from './pets';
@@ -1300,17 +1300,18 @@ const JR_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 members.get('/expedition/go', async (c) => {
   const viewer = c.get('viewer');
   c.header('Cache-Control', 'no-store');
-  const [run, record, profile, bank, dogam] = await Promise.all([
+  const [run, record, profile, bank, dogam, runs] = await Promise.all([
     activeJourney(c.env.DB, viewer.user_id),
     journeyRecord(c.env.DB, viewer.user_id),
     getProfile(c.env.DB, viewer.user_id),
     journeyBank(c.env.DB, viewer.user_id),
     dogamProgress(c.env.DB, viewer.user_id),
+    runsToday(c.env.DB, viewer.user_id),
   ]);
   const rid = c.req.query('r') ?? '';
   const done = JR_ID.test(rid) ? await getJourney(c.env.DB, viewer.user_id, rid) : null;
   const art = characterUrl(profile.character_id, viewer.user_id, profile.deco_id);
-  return page(c, <JourneyPage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} record={record} bank={bank} dogam={dogam} notice={c.req.query('n')} prep={c.req.query('prep')} />);
+  return page(c, <JourneyPage viewer={viewer} art={art} run={run} result={done?.row.status === 'done' ? done : null} record={record} bank={bank} dogam={dogam} runsToday={runs} notice={c.req.query('n')} prep={c.req.query('prep')} />);
 });
 members.post('/api/journey/start', async (c) => {
   if (!sameOrigin(c)) return c.text('잘못된 요청이에요', 403);

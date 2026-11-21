@@ -1117,10 +1117,12 @@ export function JourneyPage(props: {
   record: JourneyRecord;
   bank: JourneyBank;
   dogam: DogamProgress;
+  runsToday?: number;
   notice?: string;
   prep?: string;
 }) {
   const { run, result, record } = props;
+  const runs = props.runsToday ?? 0;
   const name = props.viewer.display_name;
   const homeN = Math.min(record.unlocked, journeyOpenTo(props.dogam));
   const home = chapterOf(homeN);
@@ -1132,6 +1134,9 @@ export function JourneyPage(props: {
           <h1>🧭 하리보 원정대</h1>
           <span class="jr-reward" title="오늘 보상 받은 판">
             🎁 {Math.min(record.rewardedToday, DAILY_REWARD_JOURNEYS)}/{DAILY_REWARD_JOURNEYS}
+          </span>
+          <span class={`jr-reward jr-runs${runs >= DAILY_RUN_CAP ? ' full' : ''}`} title={`오늘 떠난 원정(하루 ${DAILY_RUN_CAP}판까지, 아침 6시에 다시 세요)`}>
+            🧭 {Math.min(runs, DAILY_RUN_CAP)}/{DAILY_RUN_CAP}판
           </span>
           <details class="jr-help">
             <summary aria-label="하는 법">?</summary>

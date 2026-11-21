@@ -1409,7 +1409,8 @@ main.wide { max-width: 1320px; }
    도감 문서 상자 대신 게임기 화면처럼: 위 HUD, 큰 무대(체력·레벨은 무대 위에), 아래 대화창 + 큰 버튼. */
 .jr-title { display: flex; align-items: center; gap: 10px; margin: 4px 0 -4px; }
 .jr-title h1 { margin: 0; flex: 1; font-size: clamp(1.3rem, 3vw, 1.7rem); text-shadow: 2px 2px 0 #fff; }
-.jr-reward { padding: 0 8px; border: 3px solid var(--ink); background: #fff; font-size: .85rem; font-weight: 700; }
+.jr-reward { padding: 0 8px; border: 3px solid var(--ink); background: #fff; font-size: .85rem; font-weight: 700; white-space: nowrap; }
+.jr-runs.full { background: #ffd6d6; }
 .jr-help { position: relative; }
 .jr-help summary { list-style: none; display: grid; place-items: center; width: 34px; height: 34px; border: 3px solid var(--ink); background: var(--yellow); font-weight: 700; cursor: pointer; clip-path: var(--notch); }
 .jr-help summary::-webkit-details-marker { display: none; }
