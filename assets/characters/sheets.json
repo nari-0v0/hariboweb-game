@@ -1252,6 +1252,152 @@
      "양조사 소년"
     ]
    ]
+  },
+  {
+   "file": "deco/mecha/mech-cannon.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "mech-cannon",
+     "초록 대포 메카"
+    ]
+   ]
+  },
+  {
+   "file": "deco/mecha/mech-green-knight.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "mech-green-knight",
+     "초록 기사 메카"
+    ]
+   ]
+  },
+  {
+   "file": "deco/mecha/mech-lancer.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "mech-lancer",
+     "보라 창 메카"
+    ]
+   ]
+  },
+  {
+   "file": "deco/mecha/mech-rifle.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "mech-rifle",
+     "빔 라이플 메카"
+    ]
+   ]
+  },
+  {
+   "file": "deco/mecha/mech-drill.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "mech-drill",
+     "붉은 드릴 메카"
+    ]
+   ],
+   "center": 37.6
+  },
+  {
+   "file": "deco/mecha/mech-violet-axe.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "mech-violet-axe",
+     "보라 도끼 메카"
+    ]
+   ]
+  },
+  {
+   "file": "deco/mecha/mech-flame-sword.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "mech-flame-sword",
+     "불꽃 검 메카"
+    ]
+   ]
+  },
+  {
+   "file": "deco/mecha/mech-dark-axe.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "mech-dark-axe",
+     "암흑 도끼 메카"
+    ]
+   ],
+   "center": 59.8
+  },
+  {
+   "file": "deco/mecha/mech-red-twin.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "mech-red-twin",
+     "붉은 쌍검 메카"
+    ]
+   ]
+  },
+  {
+   "file": "deco/mecha/mech-gatling.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "mech-gatling",
+     "황금 개틀링 메카"
+    ]
+   ]
+  },
+  {
+   "file": "deco/mecha/mech-blue-twin.png",
+   "single": true,
+   "rows": [
+    1
+   ],
+   "characters": [
+    [
+     "mech-blue-twin",
+     "푸른 쌍검 메카"
+    ]
+   ],
+   "center": 44.9
   }
  ]
 }

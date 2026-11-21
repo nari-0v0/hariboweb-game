@@ -82,6 +82,19 @@ MANUAL: dict[str, float] = {
     "deco/star-mage.png": 1.0,  # 나리 2026-11-21: 3.3은 너무 왼쪽, -1.5는 너무 오른쪽
     "deco/angel.png": 0.0,  # 나리 2026-11-21: 조금 더 오른쪽으로
     "deco/reaper.png": -2.5,  # 나리 2026-11-21: 살짝 왼쪽으로(-4.3에서)
+    # 메카(나리 2026-11-21 "가운데 맞추기"): 얼굴이 없어 자동 값이 무기·방패에 끌려가요. 얼굴(눈) 가운데를 눈으로 잰 값.
+    # 붉은 드릴·암흑 도끼·푸른 쌍검은 그림 자체에 투명 칸을 덧대 맞췄어요(sheets.json center).
+    "deco/mech-cannon.png": 0.0,
+    "deco/mech-green-knight.png": 0.0,
+    "deco/mech-lancer.png": 2.0,
+    "deco/mech-rifle.png": 0.0,
+    "deco/mech-drill.png": 4.0,  # 나리 2026-11-21: 오른쪽으로 쏠려 보여 왼쪽으로 조금
+    "deco/mech-violet-axe.png": -2.0,
+    "deco/mech-flame-sword.png": 0.0,
+    "deco/mech-dark-axe.png": -3.0,  # 나리 2026-11-21: 왼쪽으로 쏠려 보여 오른쪽으로 살짝
+    "deco/mech-red-twin.png": 0.0,
+    "deco/mech-gatling.png": 0.0,
+    "deco/mech-blue-twin.png": 0.0,
 }
 
 

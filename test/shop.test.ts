@@ -15,10 +15,16 @@ describe('jelly shop items', () => {
     expect(new Set(SHOP_ITEMS.map((i) => i.id)).size).toBe(SHOP_ITEMS.length);
   });
 
-  it('makes the 26 fantasy characters 도감 rewards at 3, 6, 9… cards', () => {
+  it('makes the 26 fantasy characters + 11 mecha 도감 rewards in unlock order', () => {
     const rewards = SHOP_ITEMS.filter((i) => i.price === null);
-    expect(rewards.length).toBe(26);
+    expect(rewards.length).toBe(37);
+    expect(REWARD_COUNT).toBe(37);
     expect(rewards.map((i) => i.rewardRank)).toEqual(rewards.map((_, n) => n + 1));
+    expect(rewards.filter((i) => i.key.startsWith('mech-')).length).toBe(11);
+    expect(rewards.at(-1)!.key).toBe('robot'); // 로봇 기사는 그대로 맨 마지막
+    // 메카는 기존 캐릭터 사이사이에(두 메카가 붙어 있지 않아요)
+    const keys = rewards.map((i) => i.key);
+    keys.forEach((k, n) => k.startsWith('mech-') && expect(keys[n + 1]!.startsWith('mech-')).toBe(false));
     // 나리: 꾸밈 캐릭터는 30개부터, 값이 여러 가지예요. 파는 캐릭터는 모두 값 표에 있어요
     const sold = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price !== null);
     expect(sold.every((i) => i.price! >= PRICES.deco && DECO_PRICES[i.key] === i.price)).toBe(true);
@@ -47,6 +53,19 @@ describe('jelly shop items', () => {
     // 인원이 적어 최소 장수(3장씩)가 인원보다 크면, 도감을 다 채웠을 때 마지막 캐릭터까지 열려요
     expect(rewardNeed(REWARD_COUNT, 60)).toBe(59);
     expect(rewardNeed(1, 60)).toBe(REWARD_STEP);
+  });
+
+  it('keeps the card counts of the first 26 rewards exactly as before the mecha (nobody loses an unlocked one)', () => {
+    const OLD = ['wizard', 'witch', 'knight', 'valkyrie', 'archer', 'rogue', 'assassin', 'elf', 'dark-elf', 'fairy', 'angel', 'demon', 'dragon-tamer', 'necromancer', 'priestess', 'monk', 'pirate', 'prince', 'princess', 'queen', 'king', 'summoner', 'alchemist', 'star-mage', 'reaper', 'robot'];
+    const oldNeed = (rank: number, members: number) => {
+      const others = Math.max(0, members - 1);
+      return Math.min(Math.max(1, others), Math.max(rank * REWARD_STEP, Math.ceil((rank * others) / 26)));
+    };
+    for (const members of [1, 2, 5, 10, 30, 60, 99, 100, 150, 300])
+      OLD.forEach((key, n) => expect(rewardNeed(shopItem(`deco:${key}`)!.rewardRank!, members)).toBe(oldNeed(n + 1, members)));
+    // 지금 인원(99명)에서 메카가 열리는 장수(나리가 확인한 표)
+    const mecha = SHOP_ITEMS.filter((i) => i.key.startsWith('mech-')).map((i) => rewardNeed(i.rewardRank!, 99));
+    expect(mecha).toEqual([10, 17, 25, 36, 44, 51, 59, 66, 74, 85, 93]);
   });
 
   it('keeps the basic theme free and locks the rest until bought', () => {

@@ -65,23 +65,26 @@ function box(p: Png) {
 }
 
 const sheets = JSON.parse(readFileSync('assets/characters/sheets.json', 'utf8')) as {
-  deco: { file: string; single?: boolean; characters: [string, string][] }[];
+  deco: { file: string; single?: boolean; center?: number; characters: [string, string][] }[];
 };
 const singles = sheets.deco.filter((s) => s.single);
 const JOBS = ['astronaut', 'beekeeper', 'calligrapher', 'clockmaker', 'conductor', 'construction-worker', 'diver', 'farmer', 'lighthouse-keeper', 'puppeteer', 'firefighter', 'glassblower', 'brewer'];
 
 describe('낱장 꾸밈 캐릭터 그림', () => {
   it('직업 캐릭터 13종 × 소녀·소년이 모두 낱장으로 들어가 있어요', () => {
-    const ids = singles.map((s) => s.characters[0]![0]);
+    const ids = singles.map((s) => s.characters[0]![0]).filter((id) => !id.startsWith('mech-'));
     expect(ids).toEqual(JOBS.flatMap((j) => [`${j}-girl`, `${j}-boy`]));
     for (const s of singles) expect(s.characters.length).toBe(1);
   });
 
-  it.each(singles.map((s) => [s.characters[0]![0], s.file] as const))('%s: 빈 테두리만 자르고 떨어진 소품도 남아요', (id, file) => {
+  it.each(singles.map((s) => [s.characters[0]![0], s.file, s.center] as const))('%s: 빈 테두리만 자르고 떨어진 소품도 남아요', (id, file, center) => {
     const src = readPng(`assets/characters/${file}`);
     const out = readPng(`public/char/deco/${id}.png`);
     const want = box(src);
-    expect([out.w, out.h]).toEqual([want.w, want.h]);
+    // center가 있으면 얼굴이 가운데 오게 한쪽에 투명 칸을 덧대요(메카, 나리 2026-11-21)
+    const pad = center === undefined ? 0 : Math.round(Math.abs(2 * (want.w * center) / 100 - want.w));
+    const padLeft = center !== undefined && center < 50 ? pad : 0;
+    expect([out.w, out.h]).toEqual([want.w + pad, want.h]);
     // 원본에서 또렷한 픽셀(알파 128 이상)은 같은 자리에 모두 남아요: 시트 모드처럼 떨어진 조각을 지우면 빠져요.
     // (아주 옅은 가장자리 번짐은 색 128개로 줄일 때 투명으로 합쳐질 수 있어요)
     const left = Math.min(...[...Array(src.w).keys()].filter((x) => [...Array(src.h).keys()].some((y) => src.alpha[y * src.w + x]! > 0)));
@@ -89,7 +92,7 @@ describe('낱장 꾸밈 캐릭터 그림', () => {
     let lost = 0;
     for (let y = 0; y < src.h; y++)
       for (let x = 0; x < src.w; x++)
-        if (src.alpha[y * src.w + x]! >= 128 && out.alpha[(y - top) * out.w + (x - left)]! === 0) lost++;
+        if (src.alpha[y * src.w + x]! >= 128 && out.alpha[(y - top) * out.w + (x - left + padLeft)]! === 0) lost++;
     expect(lost).toBe(0);
     const meta = DECO_CHARACTERS.find((d) => d.id === id)!;
     expect([meta.w, meta.h]).toEqual([out.w, out.h]);
@@ -102,9 +105,19 @@ describe('낱장 꾸밈 캐릭터 그림', () => {
     }
   });
 
+  it('메카 11종은 상점에서 팔지 않고 도감 보상으로만 열려요', () => {
+    const mecha = singles.map((s) => s.characters[0]![0]).filter((id) => id.startsWith('mech-'));
+    expect(mecha.length).toBe(11);
+    for (const id of mecha) {
+      expect(DECO_PRICES[id], id).toBeUndefined();
+      expect(SHOP_ITEMS.find((i) => i.id === `deco:${id}`)?.price, id).toBeNull();
+    }
+  });
+
   it('새 직업 캐릭터는 다른 직업 캐릭터와 같은 35젤리에 팔아요', () => {
     for (const s of singles) {
       const id = s.characters[0]![0];
+      if (id.startsWith('mech-')) continue; // 메카는 팔지 않는 도감 보상이에요
       expect(DECO_PRICES[id], id).toBe(DECO_PRICES.chef);
       expect(SHOP_ITEMS.find((i) => i.id === `deco:${id}`)?.price).toBe(35);
     }
