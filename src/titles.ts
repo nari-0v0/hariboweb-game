@@ -179,7 +179,7 @@ export function titleProgress(t: Title, s: TitleStats): TitleProgress {
   const count = (n: number, need: number, text: string, unit: string): TitleProgress => ({
     ok: n >= need,
     text,
-    now: `${n}/${need}${unit}`,
+    now: `${comma(n)}/${comma(need)}${unit}`,
   });
   switch (r.kind) {
     case 'gambleSeason':
@@ -203,7 +203,7 @@ export function titleProgress(t: Title, s: TitleStats): TitleProgress {
     }
     case 'friends': {
       const need = xpForLevel(r.level);
-      return count(s.friendXps.filter((xp) => xp >= need).length, r.count, `Lv${r.level} 넘은 카드 ${r.count}장`, '장');
+      return count(s.friendXps.filter((xp) => xp >= need).length, r.count, `Lv${r.level} 이상 카드 ${r.count}장`, '장');
     }
     case 'cards':
       return count(s.cards, r.count, `도감 카드 ${r.count}장 모으기`, '장');

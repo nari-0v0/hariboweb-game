@@ -466,7 +466,8 @@ function nextDay(s: JourneyState): Line[] {
     s.pending = { kind: 'event', id };
     lines.push({ icon: EVENTS[id].icon, text: `${EVENTS[id].title}! 어떻게 할까요?` });
   } else if (kind === 'shop') {
-    const ids = (Object.keys(OFFERS) as Offer['id'][]).filter((id) => id !== 'mat');
+    // 두루마리는 다음 날 스킬을 고르는 물건이라, 다음 날이 보스인 날에는 팔지 않아요(사도 쓸 데가 없어요)
+    const ids = (Object.keys(OFFERS) as Offer['id'][]).filter((id) => id !== 'mat' && !(id === 'scroll' && s.day >= DAYS - 1));
     const offers: Offer[] = [];
     while (offers.length < 3) {
       const id = ids.splice(Math.floor(r() * ids.length), 1)[0]!;
@@ -544,7 +545,8 @@ export function autoChoice(s: JourneyState): JourneyAction | null {
     const yes = p.id === 'spring' ? hp > 0.4 : p.id === 'coin' ? coin() : p.id === 'bear' ? s.coins >= 10 : hp > 0.6;
     return { a: 'pick', n: yes ? 0 : 1 };
   }
-  const can = (id: Offer['id']) => p.offers.findIndex((o) => o.id === id && o.price <= s.coins);
+  // 이미 고를 레벨업이 밀려 있으면 두루마리는 당장 쓸모가 없어요
+  const can = (id: Offer['id']) => (id === 'scroll' && s.queuedLevels > 0 ? -1 : p.offers.findIndex((o) => o.id === id && o.price <= s.coins));
   for (const id of (low ? ['potion', 'heart', 'scroll', 'sword', 'armor', 'mat'] : ['scroll', 'sword', 'heart', 'armor', 'mat']) as Offer['id'][]) {
     const n = can(id);
     if (n >= 0) return { a: 'buy', n };

@@ -16,7 +16,6 @@ export const FULL_JELLY = 3;
 export const FULL_LINE = 8;
 // 이번 주 "N명과 같이 통화"에 셀 최소 시간, "처음 보는 사람"과 통화해야 하는 시간, 하루 통화로 칠 시간
 const PARTNER_MIN = 10;
-const NEW_FRIEND_MIN = 30;
 const VOICE_DAY_MIN = 30;
 
 // ── 주 ──
@@ -125,7 +124,6 @@ export type BingoStats = {
   attendDays: number;
   partners: number; // 10분 이상 같이 통화한 사람 수
   bestPair: number; // 한 사람과 제일 오래 통화한 분
-  newFriends: number; // 이번 주에 처음 만나서 30분 넘게 통화한 사람 수
   praiseGiven: number;
   praiseGot: number;
   panel: number;
@@ -134,7 +132,7 @@ export type BingoStats = {
 
 export const emptyStats = (): BingoStats => ({
   voice: 0, crowd: 0, night: 0, weekend: 0, voiceDays: 0, attendDays: 0, partners: 0,
-  bestPair: 0, newFriends: 0, praiseGiven: 0, praiseGot: 0, panel: 0, web: 0,
+  bestPair: 0, praiseGiven: 0, praiseGot: 0, panel: 0, web: 0,
 });
 
 export type Diff = 'easy' | 'normal' | 'hard';
@@ -338,7 +336,7 @@ export async function loadStats(db: D1Database, week: Week, userIds: string[]): 
   const out = new Map(userIds.map((u) => [u, emptyStats()]));
   if (!userIds.length) return out;
   const ids = JSON.stringify(userIds);
-  const [days, pairs, newCards, praises, flags] = await Promise.all([
+  const [days, pairs, praises, flags] = await Promise.all([
     db
       .prepare('SELECT user_id, day, minutes, crowd, night, attended FROM bingo_day WHERE week = ?1 AND user_id IN (SELECT value FROM json_each(?2))')
       .bind(week.id, ids)
@@ -354,12 +352,6 @@ export async function loadStats(db: D1Database, week: Week, userIds: string[]): 
       )
       .bind(week.id, ids)
       .all<{ user_id: string; other: string; minutes: number }>(),
-    db
-      .prepare(
-        `SELECT owner_id, target_id FROM cards WHERE owner_id IN (SELECT value FROM json_each(?1)) AND first_met >= ?2 AND first_met < ?3`,
-      )
-      .bind(ids, week.start, week.end)
-      .all<{ owner_id: string; target_id: string }>(),
     db
       .prepare(
         `SELECT from_id AS user_id, 'given' AS kind, COUNT(*) AS n FROM praises
@@ -391,15 +383,11 @@ export async function loadStats(db: D1Database, week: Week, userIds: string[]): 
     if (r.minutes >= VOICE_DAY_MIN) s.voiceDays++;
     if (r.attended) s.attendDays++;
   }
-  const pairMin = new Map<string, number>();
   for (const r of pairs.results) {
     const s = out.get(r.user_id)!;
-    pairMin.set(`${r.user_id}|${r.other}`, r.minutes);
     if (r.minutes >= PARTNER_MIN) s.partners++;
     s.bestPair = Math.max(s.bestPair, r.minutes);
   }
-  for (const r of newCards.results)
-    if ((pairMin.get(`${r.owner_id}|${r.target_id}`) ?? 0) >= NEW_FRIEND_MIN) out.get(r.owner_id)!.newFriends++;
   for (const r of praises.results) {
     const s = out.get(r.user_id)!;
     if (r.kind === 'given') s.praiseGiven = r.n;

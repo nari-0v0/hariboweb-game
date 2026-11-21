@@ -37,8 +37,9 @@ export function TowerPage(props: { viewer: Member; art: string; bank: JourneyBan
   const mat = towerMat(floor, top);
   const fought: JourneyState | null = last ? { ...me, fx: last.fight.fx } : null;
   const plan = last ? fightPlan(last.fight.fx) : null;
-  // 진 층을 다시 할 때만 쓴 물약을 미리 골라 둬요(이긴 뒤 다음 층에서 모르고 또 사지 않게).
-  const picked = new Set(last && !last.won ? last.boosts : []);
+  // 물약은 미리 골라 두지 않아요. 같은 층·같은 능력치·같은 물약이면 결과가 늘 같아서,
+  // 진 뒤에 같은 물약을 다시 골라 두면 똑같이 지고 젤코인만 또 나갔어요(6차 점검).
+  const picked = new Set<string>();
   return (
     <Layout title="끝없는 탑" viewer={props.viewer} active="expedition">
       <Popup lines={props.notice && Object.hasOwn(NOTICES, props.notice) ? NOTICES[props.notice] ?? [] : []} />

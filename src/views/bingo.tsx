@@ -209,7 +209,7 @@ function TeamPanel(props: { extras: BingoExtras; view: BingoView; me: string }) 
     return (
       <section class="panel bgo-team bgo-wide">
         <h2>👫 팀 퀘스트</h2>
-        <p>이번 시즌 팀이 아직 없어요. 통화방에서 놀면 팀이 생겨요.</p>
+        <p>이번 주 팀에 들어 있지 않아요. 팀은 매주 초록하리보 멤버로 새로 짜요.</p>
       </section>
     );
   }

@@ -264,6 +264,8 @@ export function withoutTestMembers(p: SyncPayload): SyncPayload {
     ...p,
     members: p.members.map((m) => (isTestMember(m.id) ? { ...m, is_newbie: false, ...(m.green === undefined ? {} : { green: false }) } : m)),
     pair_xp: p.pair_xp.filter((x) => !isTestMember(x.a) && !isTestMember(x.b)),
+    // 빙고·시즌 통화 기록도 테스트 계정과 함께한 시간은 세지 않아요(카드와 같은 규칙)
+    room_minutes: p.room_minutes.map((r) => ({ ...r, members: r.members.filter((id) => !isTestMember(id)) })).filter((r) => r.members.length >= 2),
   };
 }
 
@@ -346,6 +348,7 @@ export async function applySync(
   const addPair = db.prepare(
     `INSERT INTO cards (owner_id, target_id, xp, voice_seconds, scrims, first_met, updated_at)
      SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
+       AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2)
      ON CONFLICT (owner_id, target_id) DO UPDATE SET xp = xp + ?3, voice_seconds = voice_seconds + ?4,
        scrims = scrims + ?5, first_met = MIN(first_met, ?6), updated_at = ?7`,
   );
@@ -369,7 +372,8 @@ export async function applySync(
   );
   const earned = new Map<string, number>();
   for (const j of p.jelly_earned) earned.set(j.id, (earned.get(j.id) ?? 0) + j.amount);
-  for (const [id, amount] of earned) stmts.push(addJelly.bind(id, amount, t));
+  // 같은 사람이 여러 줄로 와도 한 묶음에 MAX_JELLY_EARNED까지만 줘요(위 주석의 약속, 6차 점검)
+  for (const [id, amount] of earned) stmts.push(addJelly.bind(id, Math.min(amount, MAX_JELLY_EARNED), t));
 
   // 도감 젤리: 카드 레벨업. 경험치를 올린 다음, 아직 젤리를 안 준 10레벨 단계만큼 주고 준 레벨을 적어요.
   const level = levelSql('xp');
@@ -431,6 +435,9 @@ export async function applySync(
     stmts.push(db.prepare('DELETE FROM story_rewards WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM rooms WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM jellypi WHERE user_id = ?').bind(id));
+    // 팀 나누기에만 쓰는 본인 통화 시간 기록도 지워요(다시 들어오면 처음부터, 2026-11-21 3차 점검)
+    stmts.push(db.prepare('DELETE FROM member_voice_day WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM member_voice_slot WHERE user_id = ?').bind(id));
     // 빙고도 처음부터예요(같은 빙고 기간에 다시 들어와도 예전 칸·받은 줄이 남지 않게, 나리 2026-11-16).
     // 다른 사람과 함께한 통화(bingo_pair)는 상대의 빙고 기록이기도 해서 남겨요.
     // 대신 나갈 때까지 쌓인 분을 적어 두고, 다시 들어온 사람의 빙고에서는 그만큼 빼고 세요.

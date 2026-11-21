@@ -303,6 +303,7 @@ export function MePage(props: { viewer: Member; profile: Profile; items: Set<str
               </small>
             </div>
             <form method="post" action="/api/me/profile" class="stack">
+              <input type="hidden" name="theme_was" value={profile.theme_id} />
               <label class="field">
                 <span>한 줄 소개</span>
                 <input name="intro" maxlength={30} value={profile.intro} placeholder="예: 저녁에 롤 같이 해요" />

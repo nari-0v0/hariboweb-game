@@ -127,7 +127,7 @@ export function GenderChangePage(props: { viewer: Member; to: CharacterPool; cha
 }
 
 // 상점 "캐릭터 리롤권" 확인 화면(나리 2026-11-20): 무작위라 미리보기 없이, 지금 캐릭터만 보여 줘요
-export function RerollPage(props: { viewer: Member; pool: CharacterPool; character: string; jelly: number }) {
+export function RerollPage(props: { viewer: Member; pool: CharacterPool; character: string; jelly: number; available?: boolean }) {
   const { viewer } = props;
   return (
     <Layout title="캐릭터 리롤권" viewer={viewer} active="shop">
@@ -143,13 +143,18 @@ export function RerollPage(props: { viewer: Member; pool: CharacterPool; charact
         <p class="notice">
           도감 젤리 {PRICES.reroll}개가 빠져요(지금 {props.jelly}개).
         </p>
+        {props.available === false && (
+          <p class="notice" role="alert">
+            지금은 바꿀 수 있는 빈 캐릭터가 없어서 살 수 없어요. 새 캐릭터 그림이 들어오면 다시 살 수 있어요.
+          </p>
+        )}
         <div class="choose-actions">
           <a class="btn btn-ghost" href="/shop">
             그만두기
           </a>
           <form method="post" action="/api/shop/reroll">
             <input type="hidden" name="character" value={props.character} />
-            <button class="btn btn-primary" type="submit">
+            <button class="btn btn-primary" type="submit" disabled={props.available === false}>
               🍬 {PRICES.reroll} 새로 뽑기
             </button>
           </form>
@@ -160,7 +165,7 @@ export function RerollPage(props: { viewer: Member; pool: CharacterPool; charact
 }
 
 // 상점 "게임 기록 초기화권" 확인 화면(나리 2026-11-20). 되돌릴 수 없어서 체크해야 살 수 있어요.
-export function GameResetPage(props: { viewer: Member; jelly: number; chips: number | null; unclaimed?: boolean; gen: number; unchecked?: boolean }) {
+export function GameResetPage(props: { viewer: Member; jelly: number; chips: number | null; handBet?: number; unclaimed?: boolean; gen: number; unchecked?: boolean }) {
   const { viewer } = props;
   return (
     <Layout title="게임 기록 초기화권" viewer={viewer} active="shop">
@@ -172,9 +177,10 @@ export function GameResetPage(props: { viewer: Member; jelly: number; chips: num
             🎰 <b>겜블장</b>: 젤칩이 시작 칩 1000개가 되고 판 기록과 이번 시즌 겜블 순이익 기록이 사라져요
             {props.chips !== null && props.chips !== 1000 ? ` (지금 ${props.chips.toLocaleString('ko-KR')}개 → 1000개)` : ''}.{props.chips !== null && props.chips > 0 ? ' 디스코드에서 옮겨 온 젤칩과 점검 보상 젤칩도 따로 남지 않아요.' : ''}
             {props.unclaimed && ' 아직 받지 않은 시작 젤칩 1000개는 이 1000개로 쳐서 따로 받지 않아요.'}
+            {!!props.handBet && ` 하고 있는 카드 21 판도 없어지고 건 젤칩 ${props.handBet.toLocaleString('ko-KR')}개는 돌아오지 않아요.`}
           </li>
           <li>🧭 <b>원정대</b>: 깬 장, 장비, 재료, 훈련, 젤코인, 펫, 끝없는 탑 층이 모두 처음으로.</li>
-          <li>🔎 <b>사건파일</b>: 푼 사건, 재수사·오늘의 사건 기록이 모두 처음으로.</li>
+          <li>🔎 <b>사건파일</b>: 푼 사건, 재수사 기록이 모두 처음으로. 오늘 한 오늘의 사건은 그대로 남아서 오늘은 다시 못 해요.</li>
         </ul>
         <p class="hint">그대로 남는 것: 도감 카드, 도감 젤리, 산 칭호·테마·꾸밈 캐릭터, 기본 캐릭터, 이미 받은 칭호.</p>
         <p class="hint">사건파일은 이미 푼 사건을 다시 풀어도 경험치·도감 젤리를 또 받지 않아요. 원정대는 이미 깬 장의 도감 젤리를 또 받지 않고, 하루 경험치는 평소처럼(오늘 받은 판 수는 이어서) 받아요.</p>

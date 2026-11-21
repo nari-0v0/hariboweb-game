@@ -489,7 +489,7 @@ function Play(props: { run: EscRun; art: string; name: string }) {
                 )}
                 {s.fx === 'coin' && (
                   <b class="esc-stamp coin" aria-hidden="true">
-                    🪙 +1
+                    🪙 +{s.got ?? 1}
                   </b>
                 )}
                 {lens && s.fx !== 'move' && <Loupe bg={bg} h={lens} msg={s.msg} name={focusObj!.name} hots={hots} />}
@@ -679,6 +679,8 @@ function Play(props: { run: EscRun; art: string; name: string }) {
   );
 }
 
+// 좁은 재수사 버튼용 짧은 시간(62:05). 휴대폰에서 초가 잘리던 것(3차 점검)
+const clock = (secs: number) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
 const mmss = (secs: number) => `${Math.floor(secs / 60)}분 ${String(secs % 60).padStart(2, '0')}초`;
 // 재수사 결과: 등급 대신 걸린 시간과 무결점 도장
 // 오늘의 사건 칸(사건 목록 맨 위)
@@ -813,7 +815,7 @@ export function EscapePage(props: {
 }) {
   const { run, result } = props;
   return (
-    <Layout title="하리보 사건파일" viewer={props.viewer} active="cases" scripts={run ? ['/escape.js?v=once-1', '/escape-ui.js?v=11'] : undefined}>
+    <Layout title="하리보 사건파일" viewer={props.viewer} active="cases" scripts={run ? ['/escape.js?v=once-2', '/escape-ui.js?v=11'] : undefined}>
       {props.url && <i hidden data-replace-url={props.url} />}
       <Popup lines={props.notice && Object.hasOwn(NOTICES, props.notice) ? NOTICES[props.notice] ?? [] : []} />
       <div class="stack esc" data-fresh>
@@ -903,7 +905,7 @@ export function EscapePage(props: {
                         <input type="hidden" name="rev" value={run.row.rev} />
                       </>}
                       <button type="submit" class="btn btn-small esc-re-btn" title={`힌트 없이, 답을 ${RE_LIVES}번 틀리면 실패`}>
-                        🔁 재수사{re?.flawless ? ' 💮' : ''}{re?.best != null ? ` · ${mmss(re.best)}` : ''}
+                        🔁 재수사{re?.flawless ? ' 💮' : ''}{re?.best != null ? ` · ${clock(re.best)}` : ''}
                       </button>
                     </form>
                   )}

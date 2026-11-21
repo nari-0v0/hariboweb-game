@@ -21,7 +21,7 @@
   let sending = false;
   addEventListener('submit', (e) => {
     const f = e.target;
-    if (!(f instanceof HTMLFormElement) || !/\/api\/escape\/act$/.test(new URL(f.action, location.href).pathname)) return;
+    if (!(f instanceof HTMLFormElement) || !/\/api\/escape\/(act|start|daily|quit)$/.test(new URL(f.action, location.href).pathname)) return;
     if (e.defaultPrevented) return;
     if (sending) {
       e.preventDefault();

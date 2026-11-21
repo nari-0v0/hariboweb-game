@@ -6,7 +6,7 @@
 // - 처음 깼을 때 주던 도감 젤리·경험치는 다시 깨도 또 주지 않아요(game_resets.journey_jelly_top, escape_paid).
 // - 원정대 하루 경험치 판 수와 하루 100판 떠난 수도 그날은 이어서 세요(game_resets.xp_day, xp_used, runs_used). 장비를 읽은 뒤 초기화되면 그 판은 떠나지 않아요(count = 세대).
 import { DAILY_CHIPS } from './gamble';
-import { gambleDay } from './gamble-db';
+import { awardEndedGambleSeasons, gambleDay } from './gamble-db';
 import { kstDay } from './db';
 import { dayStartMs } from './day';
 import { PRICES } from './shop';
@@ -18,6 +18,8 @@ export const RESET_PRICE = PRICES.reset;
 export async function buyGameReset(db: D1Database, userId: string, price = RESET_PRICE, now = new Date(), gen?: number): Promise<'done' | 'not_enough_jelly' | 'changed'> {
   const id = crypto.randomUUID();
   const t = now.toISOString();
+  // 끝났지만 아직 도박신을 정하지 않은 시즌(봇 동기화 전)이 있으면 먼저 정해요. 판 기록을 지우면 그 시즌 우승이 바뀌어요(2026-11-21 3차 점검).
+  await awardEndedGambleSeasons(db, now.getTime()).catch((e) => console.error('초기화 전 겜블 시즌 정산 실패', e));
   const won = 'EXISTS (SELECT 1 FROM purchases WHERE id = ?1)';
   const del = (table: string) => db.prepare(`DELETE FROM ${table} WHERE user_id = ?2 AND ${won}`).bind(id, userId);
   await db.batch([
@@ -50,7 +52,8 @@ export async function buyGameReset(db: D1Database, userId: string, price = RESET
     del('escape_runs'),
     del('escape_rewards'),
     del('escape_re'),
-    del('escape_daily'),
+    // 오늘의 사건은 오늘 한 줄을 남겨요(초기화로 오늘 사건을 또 하지 않게, 3차 점검). 지난 날은 지워요.
+    db.prepare(`DELETE FROM escape_daily WHERE user_id = ?2 AND day <> ?3 AND ${won}`).bind(id, userId, kstDay(now)),
     del('escape_daily_stats'),
     // 원정대(장비·재료·훈련·젤코인·펫·탑은 journey_bank 한 줄에 있어요)
     del('journey_runs'),

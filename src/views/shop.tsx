@@ -41,7 +41,7 @@ const NOTICES: Record<string, PopupLine[]> = {
 const NICK_FAIL_TEXT: Record<string, string> = {
   invalid: '서버 닉네임 규칙(글자 수·자음모음만 쓰기 등)에 맞지 않아 바꾸지 못했어요.',
   banned: '쓸 수 없는 단어가 들어 있어 바꾸지 못했어요.',
-  forbidden: '방장 계정이나 하리보봇보다 높은 역할은 디스코드 규칙상 봇이 닉네임을 바꿀 수 없어요. 디스코드에서 직접 바꿔 주세요(변경권은 그대로 남아요).',
+  forbidden: '방장 계정이나 하리보봇보다 높은 역할은 디스코드 규칙상 봇이 닉네임을 바꿀 수 없어요. 디스코드에서 직접 바꿔 주세요.',
   left: '서버에 없어서 바꾸지 못했어요.',
 };
 
@@ -208,8 +208,10 @@ export function ShopPage(props: {
   const decoBuy = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price !== null).sort(byPrice);
   const decoReward = SHOP_ITEMS.filter((i) => i.kind === 'deco' && i.price === null);
   const nameOf = (id: string) => SHOP_ITEMS.find((i) => i.id === id)?.name ?? serviceItem(id)?.name ?? (id === 'change:gender' ? '성별 바꾸기' : id === 'change:reroll' ? '캐릭터 리롤권' : id === 'reset:games' ? '게임 기록 초기화권' : id);
-  const popup = props.results.flatMap((p) => resultLines(p, nameOf(p.item_id)));
   const notice = props.notice && Object.hasOwn(NOTICES, props.notice) ? NOTICES[props.notice] : undefined;
+  // 리롤·초기화 안내가 뜨면 같은 물건의 "구매 완료" 줄은 겹치니 빼요(4차 점검)
+  const covered = props.notice === 'rerolled' ? 'change:reroll' : props.notice === 'reset_done' ? 'reset:games' : null;
+  const popup = props.results.filter((p) => p.item_id !== covered).flatMap((p) => resultLines(p, nameOf(p.item_id)));
   if (notice) popup.unshift(...notice);
 
   const head = <ShopHead jelly={profile.dogam_jelly} tab={props.tab} />;
@@ -221,7 +223,7 @@ export function ShopPage(props: {
           {head}
           <section class="panel">
             <h2>잡다매점</h2>
-            <p class="muted">사면 하리보봇이 디스코드에 바로 적용해요. 지울 게 없으면 젤리를 돌려드려요.</p>
+            <p class="muted">벌점·경고 지우기는 사면 하리보봇이 디스코드에 바로 적용해요(지울 게 없으면 젤리를 돌려드려요). 닉네임 변경권은 같은 칸에서 새 닉네임을 적고 사용하기를 눌러요.</p>
             <div class="service-list">
               {SERVICES.map((item) => {
                 const pending = props.services.pending.has(item.id);

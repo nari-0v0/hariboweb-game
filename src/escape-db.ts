@@ -300,6 +300,8 @@ export async function beginDaily(
   if (mine) return going?.row.id === mine.run_id ? mine.run_id : 'played';
   if (going && !replace) return null;
   if (replace && (!going || going.row.id !== replace.id || going.row.rev !== replace.rev)) return null;
+  // 읽을 수 없는 진행 중 판이 남아 있으면 새 판을 막으니 먼저 정리해요(일반 사건 시작과 같게, 3차 점검)
+  if (!going && !replace) await dropBrokenEscape(db, user, now.toISOString());
   const caseId = await dailyCase(db, user, day);
   if (seen && seen.caseId !== caseId) return 'stale';
   const def = caseId && escCase(caseId, dailyVariant(day));

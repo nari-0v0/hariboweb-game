@@ -49,7 +49,11 @@ export async function loadTitleStats(db: D1Database, userId: string, nowIso: str
     voiceSeconds: cardRows.reduce((a, r) => a + Number(r.voice_seconds), 0),
     bingoFull: Number((bingo?.results[0] as { full?: number } | undefined)?.full ?? 0),
     friendXps: xps,
-    cards: await countOwnedCards(db, userId),
+    // 카드 장수 칭호는 젤리를 받은 단계면 이미 얻은 거예요. 칭호 화면을 열기 전에 친구가 떠나 장수가 줄어도 잃지 않게(4차 점검).
+    cards: Math.max(
+      await countOwnedCards(db, userId),
+      Number((await db.prepare('SELECT MAX(cards) AS n FROM card_count_rewards WHERE user_id = ?').bind(userId).first<{ n: number | null }>())?.n ?? 0),
+    ),
     seasons: (seasons!.results as { done: number; total: number }[]).map((r) => ({ done: Number(r.done), total: Number(r.total) })),
     fullClears: n(clears),
     bingoLines: n(bingo),

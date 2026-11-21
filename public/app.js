@@ -205,9 +205,17 @@ addEventListener('pageshow', (e) => {
   // 판이 끝나면 결과를 보여 주고 5초 기다린 뒤(남은 초를 보여 줘요) 같은 장으로 다시 떠나요. 준비물은 사지 않아요.
   if (['quit', 'daycap'].includes(new URLSearchParams(location.search).get('n') ?? '')) set(false);
   // 그만두기를 누르면 바로 자동을 꺼요. 자동 요청이 가는 중이면 끝나길 기다렸다가 새 순번으로 그만둬요(Codex 전체 점검).
+  // 그만두기 확인 창을 여는 순간 자동을 멈춰요(창이 떠 있는 동안 판이 계속 진행되지 않게). 「계속하기」를 고르면 손으로 이어 가요.
+  document.addEventListener('click', (e) => {
+    const b = e.target instanceof Element ? e.target.closest('[popovertarget="jr-quit-pop"]:not([popovertargetaction="hide"])') : null;
+    if (!b) return;
+    set(false);
+    clearTimeout(timer);
+    sync();
+  }, true);
   document.addEventListener('submit', (e) => {
     const f = e.target;
-    if (!(f instanceof HTMLFormElement) || !f.matches('form.jr-quit')) return;
+    if (!(f instanceof HTMLFormElement) || !f.matches('.jr-quit form')) return;
     set(false);
     clearTimeout(timer);
     if (!busy) return;
@@ -215,7 +223,7 @@ addEventListener('pageshow', (e) => {
     const wait = setInterval(() => {
       if (busy) return;
       clearInterval(wait);
-      const latest = document.querySelector('form.jr-quit');
+      const latest = document.querySelector('.jr-quit form');
       if (latest) latest.submit();
     }, 100);
   }, true);

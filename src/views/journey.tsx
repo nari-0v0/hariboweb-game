@@ -561,7 +561,7 @@ function Play(props: { run: JourneyRun; art: string; name: string; preview?: boo
           <label class="jr-auto" hidden data-auto-toggle={preview ? undefined : ''}>
             <input type="checkbox" />
             <span>
-              <b>🤖 자동</b> 켜 두면 스킬·갈림길·상점까지 알아서 골라요. 끌 때까지 계속 켜져 있고, 한 판이 끝나면 5초 뒤 같은 장으로 다시 떠나요. 켠 지 1시간이 지나면 「계속하기」를 눌러야 이어져요
+              <b>🤖 자동</b> 알아서 골라요 · 판이 끝나면 5초 뒤 같은 장으로 · 1시간마다 「계속하기」
             </span>
           </label>
         </div>
@@ -581,13 +581,27 @@ function Play(props: { run: JourneyRun; art: string; name: string; preview?: boo
           )}
         </details>
       </div>
-      <form method="post" action={preview ? undefined : '/api/journey/quit'} class="jr-quit">
-        <input type="hidden" name="run" value={run.row.id} />
-        <input type="hidden" name="rev" value={String(run.row.rev)} />
-        <button class="btn btn-small btn-ghost" type="submit">
+      <div class="jr-quit">
+        <button class="btn btn-small btn-ghost" type="button" popovertarget="jr-quit-pop">
           원정 그만두기 (보상 없음)
         </button>
-      </form>
+        <span class="jp-pop" id="jr-quit-pop" popover="auto">
+          <span class="jp-pop-title">정말 그만둘까요?</span>
+          <span class="jp-pop-text">이번 판에서 모은 젤코인과 재료를 모두 잃어요. 그만둔 판도 오늘 판 수에 들어가요.</span>
+          <span class="jp-pop-btns">
+            <button class="btn btn-small" type="button" popovertarget="jr-quit-pop" popovertargetaction="hide">
+              계속하기
+            </button>
+            <form method="post" action={preview ? undefined : '/api/journey/quit'}>
+              <input type="hidden" name="run" value={run.row.id} />
+              <input type="hidden" name="rev" value={String(run.row.rev)} />
+              <button class="btn btn-small" type="submit">
+                그만두기
+              </button>
+            </form>
+          </span>
+        </span>
+      </div>
     </section>
   );
 }
@@ -708,6 +722,17 @@ function Result(props: { run: JourneyRun; art: string; name: string; unlocked: n
           ? `보상: 내 카드 경험치 +${run.row.xp}${run.row.jelly ? `, 도감 젤리 +${run.row.jelly}` : ''}`
           : `이 판을 끝낸 날에는 경험치 보상(하루 ${DAILY_REWARD_JOURNEYS}번)을 이미 다 받아서 이번 판은 경험치가 없어요. 다음 날 다시 받을 수 있어요.${run.row.jelly ? ` 원정대 완주 보상: 도감 젤리 +${run.row.jelly}` : ''}`}
       </p>
+      {!props.going && (s.ch ?? 1) <= Math.min(props.unlocked, journeyOpenTo(props.dogam)) && (
+        // 휴대폰에서 장 목록(15장)을 지나 3화면 아래까지 내려가지 않아도 같은 장으로 바로 떠나요(4차 점검). 준비물은 사지 않아요.
+        <form method="post" action="/api/journey/start" class="jr-again-quick">
+          <input type="hidden" name="kl" value={Math.min(props.unlocked, journeyOpenTo(props.dogam))} />
+          <input type="hidden" name="ch" value={s.ch ?? 1} />
+          <button class="btn btn-primary" type="submit">
+            🎒 {s.ch ?? 1}장 바로 다시 떠나기
+          </button>
+          <span class="hint"> 준비물 없이 떠나요. 다른 장이나 준비물은 아래에서 골라요.</span>
+        </form>
+      )}
       {props.going
         ? <a class="btn btn-primary" href="/expedition/go#now">진행 중인 원정 이어 하기</a>
         : <ChapterPick unlocked={props.unlocked} top={props.top} dogam={props.dogam} farmed={props.farmed} coins={props.coins} last={s.ch ?? 1} again burn={props.burn} />}
@@ -919,7 +944,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
       {props.tab === 'bag' && (
         <div class="jp-pane">
           <PaneTitle id="bag" />
-          <p class="hint">장마다 나오는 강화 재료예요. 장비를 올릴 때 써요. 숫자는 지금 가방에 있는 전체 개수예요. N장 재료는 +N 강화에 쓰이고, 바로 다음 단계(+N+1) 강화에도 2개씩 더 들어가요. 장비 셋이 모두 +(N+1)을 넘으면 N장 재료를 젤코인으로 팔 수 있어요.</p>
+          <p class="hint">장마다 나오는 강화 재료예요. 장비를 올릴 때 써요. 숫자는 지금 가방에 있는 전체 개수예요. N장 재료는 +N 강화에 쓰이고, 바로 다음 단계(+N+1) 강화에도 2개씩 더 들어가요. 장비 셋이 모두 +(N+1) 이상이면 N장 재료를 젤코인으로 팔 수 있어요.</p>
       <div class="jp-bag">
         {MATERIALS.map((m, i) => {
           const ch = i + 1;
@@ -1097,7 +1122,8 @@ export function JourneyPage(props: {
 }) {
   const { run, result, record } = props;
   const name = props.viewer.display_name;
-  const home = chapterOf(record.unlocked);
+  const homeN = Math.min(record.unlocked, journeyOpenTo(props.dogam));
+  const home = chapterOf(homeN);
   return (
     <Layout title="하리보 원정대" viewer={props.viewer} active="expedition">
       <Popup lines={props.notice && Object.hasOwn(NOTICES, props.notice) ? NOTICES[props.notice] ?? [] : []} />
@@ -1135,7 +1161,7 @@ export function JourneyPage(props: {
                 <span>🏔️ 가장 높이 {record.best > 0 ? `Lv.${record.best}` : '아직 없음'}</span>
                 <span>🏆 대장 {record.clears}번</span>
                 <span>
-                  📍 {record.unlocked}장 {home.name}
+                  📍 {homeN}장 {home.name}
                 </span>
               </div>
             </div>

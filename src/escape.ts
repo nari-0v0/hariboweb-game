@@ -102,7 +102,7 @@ const HANDMADE: EscCase[] = [
         look: '오븐 문이 잠겨 있어요. 작은 열쇠 구멍이 보여요.',
         lock: { kind: 'item', item: 'smallkey' },
         openText: '작은 열쇠로 오븐을 열었어요. 창고 열쇠, 손전등, 출입 장부가 들어 있어요.',
-        again: '서랍은 비어 있어요.',
+        again: '오븐은 비어 있어요.',
         take: ['storagekey', 'flashlight'],
         clue: 'log',
       },
@@ -170,8 +170,8 @@ const HANDMADE: EscCase[] = [
         id: 'piano', scene: 'music', at: 'pianoLow', name: '피아노 아래 덮개', emoji: '🎹', x: 22, y: 62, big: true,
         look: '피아노 아래 덮개에 숫자 자물쇠가 달려 있어요.',
         lock: { kind: 'code', code: '1355', ask: '숫자 4자리' },
-        openText: '딸깍! 의자 속에서 드라이버를 찾았어요.',
-        again: '의자 속은 비어 있어요.',
+        openText: '딸깍! 덮개 안에서 드라이버를 찾았어요.',
+        again: '덮개 안은 비어 있어요.',
         take: ['driver'],
       },
       {
@@ -238,8 +238,8 @@ const HANDMADE: EscCase[] = [
         id: 'box', scene: 'reading', at: 'cab', name: '자물쇠 서랍장', emoji: '🧰', x: 64, y: 70,
         look: '숫자 3자리 자물쇠가 달린 서랍장이에요.',
         lock: { kind: 'code', code: '497', ask: '숫자 3자리' },
-        openText: '딸깍! 금고 안에 보관실 열쇠가 있어요.',
-        again: '금고는 비어 있어요.',
+        openText: '딸깍! 서랍장 안에 보관실 열쇠가 있어요.',
+        again: '서랍장은 비어 있어요.',
         take: ['archivekey'],
       },
       { id: 'lamp', scene: 'reading', at: 'candle', name: '촛불', emoji: '🕯️', x: 34, y: 12, look: '촛대 밑에 영수증과 여분 건전지가 있어요. 영수증: 「고지도 — 반납 처리됨. 처리: 사서 로봇」', again: '촛불이 따뜻하게 흔들려요.', take: ['battery'], clue: 'receipt' },
@@ -272,7 +272,7 @@ const HANDMADE: EscCase[] = [
     hints: [
       { until: 'box', text: '지구본 순서대로 책 색깔을 고르세요. 바다=파랑, 해=노랑, 노을=빨강 → 4 9 7' },
       { until: 'door1', text: '서랍장에서 나온 열쇠로 보관실 문을 열어 보세요.' },
-      { until: 'lamp', text: '책상 위 불빛 근처를 살펴보세요.' },
+      { until: 'lamp', text: '벽 촛불 근처를 살펴보세요.' },
       { until: 'robot', text: '꺼진 로봇에 넣을 것이 있어요.' },
       { until: '', text: '보관 상자 쪽지와 로봇의 말을 함께 생각해 보세요.' },
     ],
@@ -361,6 +361,7 @@ export type EscState = {
   bigHints?: string[]; // 「더 쉬운 힌트」를 본 수수께끼 물건 id
   seenHints?: number[]; // 이미 본 힌트(c.hints 번호). 계속 보여 주고, 다시 봐도 동전·감점 없어요
   fx?: EscFx; // 방금 행동의 화면 움직임(다음 행동 때 지워져요)
+  got?: number; // 방금 찾은 힌트 동전 개수(버닝타임이면 2)
   vr?: number; // 다시 푸는 판 번호(EscCase.vr과 같아요)
   re?: 1; // 재수사 판(힌트 없음, 답을 RE_LIVES번 틀리면 실패)
   failed?: 1; // 재수사에 실패해서 끝난 판
@@ -562,6 +563,7 @@ function actEscapeBase(c: EscCase, old: EscState, act: EscAction, burn = false):
     // 버닝타임엔 동전 하나를 찾으면 두 개를 받아요
     const extra = burn ? BURN_HINT_COINS - 1 : 0;
     if (extra > 0) s.bonus = (s.bonus ?? 0) + extra;
+    s.got = 1 + extra; // 도장에 「+2」처럼 받은 개수를 보여 줘요(3차 점검)
     s.focus = null;
     s.msg = `반짝! ${extra > 0 ? `🔥 버닝타임이라 힌트 동전을 ${1 + extra}개 받았어요` : '힌트 동전을 찾았어요'}. (가진 동전 ${coinsLeft(s)}개) 동전으로 힌트를 보면 등급이 깎이지 않아요.`;
     s.tone = 'good';

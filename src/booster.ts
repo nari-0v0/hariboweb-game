@@ -37,6 +37,9 @@ export const boosterNameSql = (alias = 'm') =>
 export const withBoosterMark = (name: string, booster: unknown) => (Number(booster) === 1 ? `${name} ${BOOSTER_MARK}` : name);
 
 // 동기화 묶음에서 부스트 여부가 온 사람마다. 멤버를 적은(active = 1) 다음에 실행해요.
+// 부스터 혜택을 처음 연 달(이달에 부스트 중이던 사람은 모두 이번 달 몫을 받았어요)
+export const BOOSTER_LAUNCH_MONTH = '2026-11';
+
 export function boosterStatements(db: D1Database, list: { id: string; booster: boolean; since?: string | null }[], nowMs: number): D1PreparedStatement[] {
   const t = new Date(nowMs).toISOString();
   const month = kstMonth(nowMs);
@@ -54,10 +57,11 @@ export function boosterStatements(db: D1Database, list: { id: string; booster: b
      SELECT ?1, ${BOOSTER_JELLY}, ?3 WHERE ${due} AND ?4 IS NOT NULL -- ?4는 알림과 같은 자리 맞추기용
      ON CONFLICT (user_id) DO UPDATE SET dogam_jelly = dogam_jelly + ${BOOSTER_JELLY}, updated_at = ?3`,
   );
-  // 처음 줄 때는 이번 달(?3)을 적어서 같은 달에 결제일이 또 와도 두 번 주지 않고, 그다음부터는 결제일의 달(?2)을 적어요.
-  // (결제일 다음 날 동기화로 받아도 그 달 결제일 몫으로 남아서, 다음 결제일을 놓치지 않게. Codex #299)
+  // 혜택을 처음 연 달(2026-11)에 이미 부스트 중이던 사람만 이번 달(?3)을 적어서 그달 결제일에 또 주지 않고,
+  // 그 밖에는 언제나 결제일의 달(?2)을 적어요. 월말에 부스트를 시작해 다음 달 초에 처음 동기화돼도
+  // 그 다음 결제일 몫을 놓치지 않게요(2026-11-21 3차 점검, Codex #299).
   const mark = db.prepare(
-    `UPDATE members SET booster_gift_month = CASE WHEN booster_gift_month IS NULL THEN ?3 ELSE ?2 END
+    `UPDATE members SET booster_gift_month = CASE WHEN booster_gift_month IS NULL AND ?3 = '${BOOSTER_LAUNCH_MONTH}' THEN ?3 ELSE ?2 END
      WHERE user_id = ?1 AND active = 1 AND booster = 1 AND COALESCE(booster_gift_month, '') < ?2`,
   );
   // 부스트를 끊었으면 고른 「부스터」 칭호를 떼요(봇이 닉네임에서도 떼요)

@@ -99,14 +99,15 @@ describe('동기화로 받는 부스터 혜택', () => {
     const m = [{ id: A, name: 'a', booster: true, booster_since: since }];
     await sync(db, at('2027-01-05T03:00:00Z'), m); // 처음 지급(1월)
     expect(jelly(sql, A)).toBe(1);
-    await sync(db, at('2027-02-28T03:00:00Z'), m); // 2월 28일 정오: 결제일(20시) 전
-    expect(jelly(sql, A)).toBe(1);
-    await sync(db, at('2027-03-01T03:00:00Z'), m); // 3월 1일: 2월 몫
+    // 1월 5일에 받은 건 12월 31일 결제 몫이라, 1월 31일 결제 몫은 따로 받아요(3차 점검: 예전엔 1월 몫이 빠졌어요)
+    await sync(db, at('2027-02-28T03:00:00Z'), m); // 2월 28일 정오: 2월 결제일(20시) 전, 1월 몫
     expect(jelly(sql, A)).toBe(2);
+    await sync(db, at('2027-03-01T03:00:00Z'), m); // 3월 1일: 2월 몫
+    expect(jelly(sql, A)).toBe(3);
     // 알림 번호는 젤리를 준 달(결제일 몫)과 같아요. 3월 1일에 받은 2월 몫이 3월 번호를 쓰면 3월 몫 알림과 겹쳐요(2026-11-21 점검).
     expect(sql.prepare("SELECT ref FROM alerts WHERE user_id = ? AND ref LIKE 'booster-%' ORDER BY created_at DESC LIMIT 1").get(A)).toEqual({ ref: 'booster-2027-02' });
     await sync(db, at('2027-03-31T12:00:00Z'), m); // 3월 31일 21시: 3월 몫
-    expect(jelly(sql, A)).toBe(3);
+    expect(jelly(sql, A)).toBe(4);
     expect(sql.prepare("SELECT ref FROM alerts WHERE user_id = ? AND ref = 'booster-2027-03'").all(A)).toHaveLength(1);
   });
 
