@@ -112,7 +112,7 @@ describe('테스트 계정(실험 98)', () => {
 
   it('도감 순위: 테스트 계정이 예전에 모은 카드로 순위에 오르지 않아요(Codex #323)', async () => {
     const { sql, db } = fakeD1();
-    for (const id of [A, B, T]) sql.prepare("INSERT INTO members (user_id, display_name, active, updated_at) VALUES (?, ?, 1, 'x')").run(id, `이름${id.slice(0, 2)}`);
+    for (const id of [A, B, T]) sql.prepare("INSERT INTO members (user_id, display_name, active, updated_at) VALUES (?, ?, 1, 'x')").run(id, `이름${id!.slice(0, 2)}`);
     sql.prepare("INSERT INTO cards (owner_id, target_id, xp, first_met, updated_at) VALUES (?, ?, 10, '2026-11-20T00:00:00Z', 'x')").run(T, A);
     sql.prepare("INSERT INTO cards (owner_id, target_id, xp, first_met, updated_at) VALUES (?, ?, 10, '2026-11-20T00:00:00Z', 'x')").run(B, A);
     const r = JSON.stringify(await loadRankings(db, A, Date.parse('2026-11-21T05:00:00Z'), 'dogam'));
