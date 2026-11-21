@@ -161,13 +161,16 @@ export async function buyPerk(db: D1Database, user: string, id: PerkId, now = ne
 export const NO_COINS = 'nocoins';
 // 화면을 연 뒤 고른 장이 잠겼거나 준비물 값이 바뀌었으면(STALE) 떠나지 않고 새 화면을 보여 줘요.
 export const STALE_PICK = 'stalepick';
-// 오늘(도감 날짜, 한국 아침 6시에 바뀌어요) 이미 DAILY_RUN_CAP판을 떠났으면 새 원정을 만들지 않아요. 하던 판은 끝까지 할 수 있어요.
+// 오늘(도감 날짜, 한국 아침 6시에 바뀌어요) 이미 DAILY_RUN_CAP판을 떠났으면(게임 기록 초기화 전에 떠난 판도 세요) 새 원정을 만들지 않아요. 하던 판은 끝까지 할 수 있어요.
 export const DAY_CAP = 'daycap';
 const kstDayStart = (now: Date) => new Date(dayStartMs(kstDay(now))).toISOString();
 export async function runsToday(db: D1Database, user: string, now = new Date()): Promise<number> {
   const r = await db
-    .prepare('SELECT COUNT(*) AS n FROM journey_runs WHERE user_id = ? AND started_at >= ?')
-    .bind(user, kstDayStart(now))
+    .prepare(
+      `SELECT (SELECT COUNT(*) FROM journey_runs WHERE user_id = ?1 AND started_at >= ?2)
+         + COALESCE((SELECT runs_used FROM game_resets WHERE user_id = ?1 AND xp_day = ?3), 0) AS n`,
+    )
+    .bind(user, kstDayStart(now), kstDay(now))
     .first<{ n: number }>();
   return Number(r?.n ?? 0);
 }
@@ -208,9 +211,10 @@ export async function beginJourney(db: D1Database, user: string, chapter = 1, no
         `INSERT OR IGNORE INTO journey_runs (id, user_id, state, started_at, updated_at, chapter)
          SELECT ?1, ?2, ?3, ?4, ?4, ?5 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?2 AND active = 1)
            AND COALESCE((SELECT count FROM game_resets WHERE user_id = ?2), 0) = ?6
-           AND (SELECT COUNT(*) FROM journey_runs WHERE user_id = ?2 AND started_at >= ?7) < ${DAILY_RUN_CAP}${paid}`,
+           AND (SELECT COUNT(*) FROM journey_runs WHERE user_id = ?2 AND started_at >= ?7)
+             + COALESCE((SELECT runs_used FROM game_resets WHERE user_id = ?2 AND xp_day = ?8), 0) < ${DAILY_RUN_CAP}${paid}`,
       )
-      .bind(id, user, JSON.stringify(state), t, ch, gen, dayStart);
+      .bind(id, user, JSON.stringify(state), t, ch, gen, dayStart, kstDay(now));
   if (cost > 0) {
     // 젤코인이 넉넉할 때만 판을 만들고, 만들어진 판이 있을 때만 젤코인을 빼요(한 번에 처리).
     await db.batch([

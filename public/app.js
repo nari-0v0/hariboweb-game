@@ -148,8 +148,19 @@ addEventListener('pageshow', (e) => {
   const HOUR = 60 * 60 * 1000;
   let since = 0;
   try { since = Number(localStorage.getItem(SINCE)) || 0; } catch {}
-  const mark = (t) => { since = t; try { t ? localStorage.setItem(SINCE, String(t)) : localStorage.removeItem(SINCE); } catch {} };
-  if (mem && (!since || since > Date.now())) mark(Date.now());
+  // 저장했는지 돌려줘요(다시 읽어서 확인).
+  const mark = (t) => {
+    since = t;
+    try {
+      t ? localStorage.setItem(SINCE, String(t)) : localStorage.removeItem(SINCE);
+      return (Number(localStorage.getItem(SINCE)) || 0) === t;
+    } catch { return false; }
+  };
+  // 켠 시각을 저장하지 못하면(저장 공간이 가득 참 등) 화면마다 1시간이 새로 시작되니, 자동을 꺼요(Codex #303).
+  if (mem && (!since || since > Date.now()) && !mark(Date.now())) {
+    mem = false;
+    try { localStorage.removeItem(KEY); } catch {}
+  }
   const get = () => mem;
   const set = (on) => {
     if (on && !mem) mark(Date.now());
@@ -204,7 +215,9 @@ addEventListener('pageshow', (e) => {
         box.querySelector('[data-left]').textContent = String(Math.max(0, left));
         if (left > 0 || !get()) return;
         stop();
-        depart();
+        // 세는 사이(또는 탭이 멈춘 사이) 1시간이 지났으면 떠나지 않고 물어봐요(Codex #303).
+        if (fresh()) depart();
+        else ask();
       }, 1000);
     };
     // 켠 지 1시간이 지났으면 다시 떠나지 않고 「계속하기」를 눌러야 이어져요(누르면 다시 1시간).

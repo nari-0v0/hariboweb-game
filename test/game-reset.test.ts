@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buyReroll } from '../src/db';
 import { buyGameReset } from '../src/game-reset';
-import { journeyRecord } from '../src/journey-db';
+import { DAY_CAP, beginJourney, journeyRecord, runsToday } from '../src/journey-db';
+import { DAILY_RUN_CAP } from '../src/journey';
 import { kstDay } from '../src/db';
 import { actEscape, ESCAPE_CASES } from '../src/escape';
 import { CHARACTERS, CHARACTER_VARIANTS } from '../src/characters';
@@ -142,6 +143,24 @@ describe('초기화와 원정대 하루 경험치 판 수', () => {
     expect((await journeyRecord(db, A, day)).rewardedToday).toBe(2);
     // 다음 날은 다시 0부터
     expect((await journeyRecord(db, A, '2099-01-01')).rewardedToday).toBe(0);
+  });
+
+  it('오늘 떠난 원정 판 수(하루 100판)도 초기화 뒤에 이어서 세요(Codex #303)', async () => {
+    const { sql, db } = setup(60);
+    const now = new Date('2026-11-21T05:00:00Z'); // 한국 14시
+    const ins = sql.prepare("INSERT INTO journey_runs (id, user_id, state, started_at, updated_at, chapter, status) VALUES (?, ?, '{}', ?, ?, 1, 'done')");
+    for (let i = 0; i < 60; i++) ins.run(`a${i}`, A, '2026-11-20T22:00:00.000Z', '2026-11-20T22:00:00.000Z');
+    expect(await runsToday(db, A, now)).toBe(60);
+    expect(await buyGameReset(db, A, 20, now)).toBe('done');
+    expect(count(sql, 'journey_runs')).toBe(0);
+    expect(await runsToday(db, A, now)).toBe(60);
+    for (let i = 0; i < DAILY_RUN_CAP - 60; i++) ins.run(`b${i}`, A, '2026-11-21T04:00:00.000Z', '2026-11-21T04:00:00.000Z');
+    expect(await beginJourney(db, A, 1, now)).toBe(DAY_CAP);
+    // 같은 날 또 초기화해도 더해서 세요
+    expect(await buyGameReset(db, A, 20, now)).toBe('done');
+    expect(await runsToday(db, A, now)).toBe(DAILY_RUN_CAP);
+    // 다음 도감 날짜(한국 아침 6시 뒤)는 0부터
+    expect(await runsToday(db, A, new Date('2026-11-21T21:00:01Z'))).toBe(0);
   });
 });
 

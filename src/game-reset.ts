@@ -4,10 +4,11 @@
 // - 사건파일: 푼 기록·재수사·오늘의 사건 기록 전부 처음으로.
 // - 그대로: 도감 카드(내 카드·짝 카드 모두), 도감 젤리, 산 칭호·테마·꾸밈 캐릭터, 기본 캐릭터, 이미 받은 칭호.
 // - 처음 깼을 때 주던 도감 젤리·경험치는 다시 깨도 또 주지 않아요(game_resets.journey_jelly_top, escape_paid).
-// - 원정대 하루 경험치 판 수도 그날은 이어서 세요(game_resets.xp_day, xp_used). 장비를 읽은 뒤 초기화되면 그 판은 떠나지 않아요(count = 세대).
+// - 원정대 하루 경험치 판 수와 하루 100판 떠난 수도 그날은 이어서 세요(game_resets.xp_day, xp_used, runs_used). 장비를 읽은 뒤 초기화되면 그 판은 떠나지 않아요(count = 세대).
 import { DAILY_CHIPS } from './gamble';
 import { gambleDay } from './gamble-db';
 import { kstDay } from './db';
+import { dayStartMs } from './day';
 import { PRICES } from './shop';
 
 export const RESET_ITEM_ID = 'reset:games';
@@ -33,15 +34,17 @@ export async function buyGameReset(db: D1Database, userId: string, price = RESET
     // 이미 받은 첫 클리어 보상을 적어 둬요(지우기 전에)
     db
       .prepare(
-        `INSERT INTO game_resets (user_id, count, last_at, journey_jelly_top, xp_day, xp_used)
+        `INSERT INTO game_resets (user_id, count, last_at, journey_jelly_top, xp_day, xp_used, runs_used)
          SELECT ?2, 1, ?3, COALESCE((SELECT MAX(chapter) FROM journey_runs WHERE user_id = ?2 AND status = 'done' AND cleared = 1), 0),
-           ?4, (SELECT COUNT(*) FROM journey_runs WHERE user_id = ?2 AND reward_day = ?4 AND xp > 0) WHERE ${won}
+           ?4, (SELECT COUNT(*) FROM journey_runs WHERE user_id = ?2 AND reward_day = ?4 AND xp > 0),
+           (SELECT COUNT(*) FROM journey_runs WHERE user_id = ?2 AND started_at >= ?5) WHERE ${won}
          ON CONFLICT (user_id) DO UPDATE SET count = count + 1, last_at = excluded.last_at,
            journey_jelly_top = MAX(journey_jelly_top, excluded.journey_jelly_top),
            xp_used = CASE WHEN game_resets.xp_day = excluded.xp_day THEN game_resets.xp_used + excluded.xp_used ELSE excluded.xp_used END,
+           runs_used = CASE WHEN game_resets.xp_day = excluded.xp_day THEN game_resets.runs_used + excluded.runs_used ELSE excluded.runs_used END,
            xp_day = excluded.xp_day`,
       )
-      .bind(id, userId, t, kstDay(now)),
+      .bind(id, userId, t, kstDay(now), new Date(dayStartMs(kstDay(now))).toISOString()),
     db.prepare(`INSERT OR IGNORE INTO escape_paid (user_id, case_id) SELECT user_id, case_id FROM escape_rewards WHERE user_id = ?2 AND ${won}`).bind(id, userId),
     // 사건파일
     del('escape_runs'),
