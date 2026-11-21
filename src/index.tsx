@@ -96,7 +96,7 @@ import { burnReply, burnWindow, burnWindowsForSync, burningUntil } from './burni
 import { dbLimitKind, maintenanceOn, maintenanceSkips, maintenanceWhen, type DbLimit } from './maintenance';
 import { EscapePage } from './views/escape';
 import { JourneyPage } from './views/journey';
-import { NO_COINS, STALE_PICK, activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, journeyTop, quitJourney, sellMats, upgradeGear } from './journey-db';
+import { DAY_CAP, NO_COINS, STALE_PICK, activeJourney, actJourneyRun, beginJourney, buyPerk, getJourney, journeyBank, journeyRecord, journeyTop, quitJourney, sellMats, upgradeGear } from './journey-db';
 import { buyPet, equipPet, levelPet, parseTowerLast, towerAttempt, towerAuto, towerRanking } from './tower-db';
 import { cleanBoosts } from './tower';
 import { isPetId } from './pets';
@@ -1252,6 +1252,7 @@ members.post('/api/journey/start', async (c) => {
     const id = await beginJourney(c.env.DB, c.get('viewer').user_id, Number.isSafeInteger(ch) && ch >= 1 ? ch : 1, new Date(), cleanKit(body.kit), Number.isSafeInteger(shown) ? shown : undefined);
     if (id === NO_COINS) return c.redirect('/expedition/go?n=kitcoins', 303);
     if (id === STALE_PICK) return c.redirect('/expedition/go?n=stalepick', 303);
+    if (id === DAY_CAP) return c.redirect('/expedition/go?n=daycap', 303);
     return c.redirect(id ? '/expedition/go#now' : '/expedition/go?n=bad', 303);
   } catch (e) {
     console.error('원정 시작 실패', e);

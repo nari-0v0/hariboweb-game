@@ -143,14 +143,37 @@ addEventListener('pageshow', (e) => {
   // 저장 공간을 못 쓰는 브라우저에서도 이 탭에서는 켠 상태가 유지되게 메모리에도 들고 있어요.
   let mem = false;
   try { mem = localStorage.getItem(KEY) === '1'; } catch {}
+  // 켜 둔 채 자리를 비우지 않게 1시간마다 한 번 확인해요(나리 2026-11-21). 켠 시각을 기억해요.
+  const SINCE = 'jr-auto-since';
+  const HOUR = 60 * 60 * 1000;
+  let since = 0;
+  try { since = Number(localStorage.getItem(SINCE)) || 0; } catch {}
+  // 저장했는지 돌려줘요(다시 읽어서 확인).
+  const mark = (t) => {
+    since = t;
+    try {
+      t ? localStorage.setItem(SINCE, String(t)) : localStorage.removeItem(SINCE);
+      return (Number(localStorage.getItem(SINCE)) || 0) === t;
+    } catch { return false; }
+  };
+  // 켠 시각을 저장하지 못하면(저장 공간이 가득 참 등) 화면마다 1시간이 새로 시작되니, 자동을 꺼요(Codex #303).
+  if (mem && (!since || since > Date.now()) && !mark(Date.now())) {
+    mem = false;
+    try { localStorage.removeItem(KEY); } catch {}
+  }
   const get = () => mem;
-  const set = (on) => { mem = !!on; try { on ? localStorage.setItem(KEY, '1') : localStorage.removeItem(KEY); } catch {} };
+  const set = (on) => {
+    if (on && !mem) mark(Date.now());
+    if (!on) mark(0);
+    mem = !!on;
+    try { on ? localStorage.setItem(KEY, '1') : localStorage.removeItem(KEY); } catch {}
+  };
   let timer = 0;
   let busy = false;
   let fails = 0; // 연결이 잠깐 끊긴 횟수(이어서). 3번이면 멈추고 알려 줘요(점검 W166)
-  // 자동은 끌 때까지 계속 켜져 있어요(나리 2026-11-21, 처음처럼). 그만두기를 누르면 꺼져요.
+  // 자동은 끌 때까지 계속 켜져 있어요(나리 2026-11-21, 처음처럼). 그만두기를 누르면 꺼져요. 단, 켠 지 1시간이 지나면 판이 끝날 때 「계속하기」를 눌러야 이어져요.
   // 판이 끝나면 결과를 보여 주고 5초 기다린 뒤(남은 초를 보여 줘요) 같은 장으로 다시 떠나요. 준비물은 사지 않아요.
-  if (new URLSearchParams(location.search).get('n') === 'quit') set(false);
+  if (['quit', 'daycap'].includes(new URLSearchParams(location.search).get('n') ?? '')) set(false);
   // 그만두기를 누르면 바로 자동을 꺼요. 자동 요청이 가는 중이면 끝나길 기다렸다가 새 순번으로 그만둬요(Codex 전체 점검).
   document.addEventListener('submit', (e) => {
     const f = e.target;
@@ -170,25 +193,62 @@ addEventListener('pageshow', (e) => {
   if (again && get()) {
     // 결과가 실제로 보이는 때부터 5초를 세요(움직임 줄이기면 결과가 바로 보여요. 아래 마지막 싸움 처리와 같은 규칙)
     const finalWait = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : Number(document.querySelector('[data-final-wait]')?.getAttribute('data-final-wait')) || 0;
-    const box = document.createElement('div');
-    box.className = 'jr-autonext';
-    box.setAttribute('role', 'status');
-    box.innerHTML = '<span class="jr-autonext-spin" aria-hidden="true"></span><b>🤖 자동: <span data-left>5</span>초 뒤 같은 장으로 다시 떠나요</b><button type="button" class="btn btn-ghost">그만하기</button>';
-    let left = 5;
-    let t = 0;
-    const stop = () => { clearInterval(t); box.remove(); };
-    box.querySelector('button').addEventListener('click', () => { set(false); stop(); });
-    setTimeout(() => {
-      if (!get()) return;
+    const depart = () => {
+      again.querySelectorAll('input[name="kit"]').forEach((k) => { k.checked = false; });
+      again.requestSubmit ? again.requestSubmit() : again.submit();
+    };
+    // 다른 탭에서 「계속하기」를 눌렀을 수 있어서, 쓸 때마다 저장된 시각을 다시 읽어요(Codex #303).
+    const fresh = () => { try { since = Number(localStorage.getItem(SINCE)) || since; } catch {} return Date.now() - since < HOUR; };
+    // 보통은 5초 세고 같은 장으로 다시 떠나요.
+    const countdown = () => {
+      const box = document.createElement('div');
+      box.className = 'jr-autonext';
+      box.setAttribute('role', 'status');
+      box.innerHTML = '<span class="jr-autonext-spin" aria-hidden="true"></span><b>🤖 자동: <span data-left>5</span>초 뒤 같은 장으로 다시 떠나요</b><button type="button" class="btn btn-ghost">그만하기</button>';
+      let left = 5;
+      let t = 0;
+      const stop = () => { clearInterval(t); box.remove(); };
+      box.querySelector('button').addEventListener('click', () => { set(false); stop(); });
       document.body.append(box);
       t = setInterval(() => {
         left -= 1;
         box.querySelector('[data-left]').textContent = String(Math.max(0, left));
         if (left > 0 || !get()) return;
         stop();
-        again.querySelectorAll('input[name="kit"]').forEach((k) => { k.checked = false; });
-        again.requestSubmit ? again.requestSubmit() : again.submit();
+        // 세는 사이(또는 탭이 멈춘 사이) 1시간이 지났으면 떠나지 않고 물어봐요(Codex #303).
+        if (fresh()) depart();
+        else ask();
       }, 1000);
+    };
+    // 켠 지 1시간이 지났으면 다시 떠나지 않고 「계속하기」를 눌러야 이어져요(누르면 다시 1시간).
+    const ask = () => {
+      const box = document.createElement('div');
+      box.className = 'jr-autonext jr-autoask';
+      box.setAttribute('role', 'alertdialog');
+      box.setAttribute('aria-label', '자동 계속 확인');
+      box.innerHTML = '<b>🤖 자동으로 1시간 돌았어요. 계속 돌릴까요?</b><button type="button" class="btn" data-go>계속하기</button><button type="button" class="btn btn-ghost" data-stop>그만하기</button>';
+      // 다른 탭에서 계속하기를 누르면 이 창은 닫고 보통처럼 5초 뒤 떠나요. 그만하기를 누르면 이 창도 닫아요.
+      const onStore = (e) => {
+        if (e.key === KEY && e.newValue !== '1') { mem = false; close(); return; }
+        if (e.key === SINCE && fresh()) { close(); if (get()) countdown(); }
+      };
+      const close = () => { removeEventListener('storage', onStore); box.remove(); };
+      addEventListener('storage', onStore);
+      box.querySelector('[data-stop]').addEventListener('click', () => { set(false); close(); });
+      box.querySelector('[data-go]').addEventListener('click', () => {
+        if (!get()) { close(); return; }
+        removeEventListener('storage', onStore);
+        if (!fresh()) mark(Date.now());
+        box.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+        depart();
+      });
+      document.body.append(box);
+      box.querySelector('[data-go]').focus({ preventScroll: true });
+    };
+    setTimeout(() => {
+      if (!get()) return;
+      if (fresh()) countdown();
+      else ask();
     }, finalWait);
   }
   const sync = () => {

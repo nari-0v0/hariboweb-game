@@ -2480,6 +2480,9 @@ main.wide { max-width: 1320px; }
 .jr-plus { margin: 0 2px; opacity: .7; }
 .jr-hud .jr-lab { margin-right: 3px; }
 @media (max-width: 480px) { .jr-hud { justify-content: flex-end; } }
+/* 자동 1시간 확인 칸(나리 2026-11-21): 버튼 둘이 휴대폰에서도 한 줄에 들어가요 */
+.jr-autoask b { flex-basis: 100%; text-align: center; }
+.jr-autoask .btn { flex: 1 1 120px; }
 .jr-auto-err { display: block; flex-basis: 100%; margin-top: 4px; color: #b3261e; font-size: .8rem; }
 /* 카카오톡 속 브라우저 안내 띠(2026-11-21, src/kakao.ts가 카톡에서만 넣어요).
    화면 아래에 고정해서 위 메뉴·알림 팝업 위치(--nb)와 겹치지 않아요. 아래 빈칸(.kk-space)만큼 내용이 가려지지 않아요. */

@@ -10,6 +10,8 @@ import { isPetId, petFx, type PetId } from './pets';
 export const DAYS = 20;
 export const ELITE_DAY = 10;
 export const DAILY_REWARD_JOURNEYS = 2; // 하루 첫 2판만 보상
+// 하루에 떠날 수 있는 원정 판 수(한국 날짜, 모든 장 합쳐서). 자동을 켜 둔 채 끝없이 도는 파밍과 서버 부담을 막아요(나리 2026-11-21).
+export const DAILY_RUN_CAP = 100;
 export const journeyXp = (day: number, cleared: boolean, ch = 1) => (cleared ? 12 + 3 * (ch - 1) : Math.min(10, 2 + Math.floor(day / 2)) + (ch - 1));
 // 도감 젤리는 9장 대장을 처음 깼을 때 10개(나리 2026-11-13), 15장(마지막 장) 대장을 처음 깼을 때 10개 더 줘요. 다른 장은 없어요.
 export const JOURNEY_FINISH_JELLY = 10;
@@ -134,9 +136,10 @@ export const PERKS: Record<PerkId, { name: string; icon: string; per: number; ma
 export const perkValue = (id: PerkId, lv: number) => (id === 'def' ? Math.max(0, Math.ceil(lv * PERKS.def.per - 1e-9)) : PERKS[id].per * lv);
 export const PERK_IDS = Object.keys(PERKS) as PerkId[];
 // 젤코인 파밍 막기(나리 2026-11-13): 아직 못 깬 장은 언제나 100%.
-// 이미 깬 장을 다시 돌면 그 장을 다시 돈 횟수에 따라 100% → 75% → 50% → 25% → 10%. 날이 바뀌어도 다시 오르지 않아요.
-// 0%까지 내리면 장비 강화 젤코인이 모자라 막혀서, 맨 끝은 10%로 남겨요.
-export const BANK_RATES = [100, 75, 50, 25, 10];
+// 이미 깬 장을 다시 돌면 그 장을 다시 돈 횟수에 따라 100% → 75% → 50% → 25% → 10% → 5% → 1%. 날이 바뀌어도 다시 오르지 않아요.
+// 나리 2026-11-21: 10%에서 멈추면 판을 많이 돌릴수록 결국 쌓여서 1%까지 내려요. 0%는 아니라 조금은 남아요.
+// (아직 못 깬 장은 져도 100%라, 강화 젤코인은 다음 장에 도전하면서 모을 수 있어요)
+export const BANK_RATES = [100, 75, 50, 25, 10, 5, 1];
 export const bankRate = (farmed: number) => BANK_RATES[Math.min(Math.max(0, farmed), BANK_RATES.length - 1)]!;
 export const perkCost = (lv: number) => 20 + lv * 15; // 지금 단계에서 다음 단계로 가는 값
 
