@@ -431,6 +431,9 @@ export async function applySync(
     stmts.push(db.prepare('DELETE FROM story_rewards WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM rooms WHERE user_id = ?').bind(id));
     stmts.push(db.prepare('DELETE FROM jellypi WHERE user_id = ?').bind(id));
+    // 팀 나누기에만 쓰는 본인 통화 시간 기록도 지워요(다시 들어오면 처음부터, 2026-11-21 3차 점검)
+    stmts.push(db.prepare('DELETE FROM member_voice_day WHERE user_id = ?').bind(id));
+    stmts.push(db.prepare('DELETE FROM member_voice_slot WHERE user_id = ?').bind(id));
     // 빙고도 처음부터예요(같은 빙고 기간에 다시 들어와도 예전 칸·받은 줄이 남지 않게, 나리 2026-11-16).
     // 다른 사람과 함께한 통화(bingo_pair)는 상대의 빙고 기록이기도 해서 남겨요.
     // 대신 나갈 때까지 쌓인 분을 적어 두고, 다시 들어온 사람의 빙고에서는 그만큼 빼고 세요.

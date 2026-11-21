@@ -1,3 +1,4 @@
+import { JOURNEY_FINISH_JELLY } from '../journey';
 import type { Member } from '../env';
 import { KIDNAP_MIN, TEAM_GOAL_MIN, TEAM_MATES, TEAM_TARGET } from '../team';
 import { PRAISE_PER_DAY } from '../db';
@@ -106,7 +107,7 @@ export function GuidePage(props: { viewer: Member | null }) {
               <li>떠돌이 상인이 아주 가끔 그 장의 강화 재료를 비싸게 팔아요.</li>
               <li>스킬 선택, 장비 강화, 훈련 가능</li>
               <li>대장을 처치하면 다음 장 해금</li>
-              <li>최초 최종 클리어 시 특별 보상 지급</li>
+              <li>9장과 마지막 장(15장)을 처음 깨면 도감 젤리 {JOURNEY_FINISH_JELLY}개씩, 15장은 칭호 「시간정복」도 받아요</li>
               <li>🤖 자동을 켜면 스킬·갈림길·상점·동전 던지기까지 알아서 골라요(스킬은 무작위, 동전은 반반). 끌 때까지 켜져 있고, 한 판이 끝나면 5초 뒤 같은 장으로 다시 떠나요. 켜 둔 채 자리를 비우지 않게 1시간마다 한 번 「계속하기」를 눌러야 이어져요. 원정은 하루 100판(아침 6시 기준)까지 떠날 수 있어요. 「그만하기」나 자동 끄기로 멈출 수 있어요.</li>
               <li>원정 중 위 칸에서 이 장 강화 재료를 가방에 몇 개 가졌는지(보유)와 이번 판에 몇 개 얻었는지(얻음) 볼 수 있어요.</li>
             </ul>

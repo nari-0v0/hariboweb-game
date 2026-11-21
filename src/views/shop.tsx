@@ -41,7 +41,7 @@ const NOTICES: Record<string, PopupLine[]> = {
 const NICK_FAIL_TEXT: Record<string, string> = {
   invalid: '서버 닉네임 규칙(글자 수·자음모음만 쓰기 등)에 맞지 않아 바꾸지 못했어요.',
   banned: '쓸 수 없는 단어가 들어 있어 바꾸지 못했어요.',
-  forbidden: '방장 계정이나 하리보봇보다 높은 역할은 디스코드 규칙상 봇이 닉네임을 바꿀 수 없어요. 디스코드에서 직접 바꿔 주세요(변경권은 그대로 남아요).',
+  forbidden: '방장 계정이나 하리보봇보다 높은 역할은 디스코드 규칙상 봇이 닉네임을 바꿀 수 없어요. 디스코드에서 직접 바꿔 주세요.',
   left: '서버에 없어서 바꾸지 못했어요.',
 };
 
@@ -221,7 +221,7 @@ export function ShopPage(props: {
           {head}
           <section class="panel">
             <h2>잡다매점</h2>
-            <p class="muted">사면 하리보봇이 디스코드에 바로 적용해요. 지울 게 없으면 젤리를 돌려드려요.</p>
+            <p class="muted">벌점·경고 지우기는 사면 하리보봇이 디스코드에 바로 적용해요(지울 게 없으면 젤리를 돌려드려요). 닉네임 변경권은 같은 칸에서 새 닉네임을 적고 사용하기를 눌러요.</p>
             <div class="service-list">
               {SERVICES.map((item) => {
                 const pending = props.services.pending.has(item.id);

@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buyWithJelly } from '../src/db';
-import { activeHand, awardGambleSeason, betChips, betTooSoon, claimDaily, expireAllHands, expireHand, gambleAccount, gambleRanks, moveHand, publicHand, rescueChips } from '../src/gamble-db';
+import { activeHand, awardGambleSeason, betChips, betTooSoon, claimDaily, expireAllHands, expireHand, expiredHand, forgetSeasonLeader, gambleAccount, mySeasonNet, gambleRanks, moveHand, publicHand, rescueChips, type Round } from '../src/gamble-db';
 import { cardScore, COIN_PAYOUT, COIN_WIN_PER_MILLE, flipCoin, payback, openingPayout, playHand, SLOTS, slotPayout, WHEEL } from '../src/gamble';
 import { SHOP_ITEMS } from '../src/shop';
 import { loadRankings } from '../src/rankings';
@@ -232,6 +232,8 @@ describe('칩과 판 기록', () => {
     expect(moves.filter(Boolean)).toHaveLength(1);
     expect(await expireHand(db, USER, TOMORROW)).toBe('cards');
     expect(await activeHand(db, USER)).toBeNull();
+    // 아침 6시로 저절로 멈춘 판이라고 화면에 알려요(3차 점검)
+    expect(expiredHand(sql.prepare("SELECT * FROM gamble_rounds WHERE token = 'cards'").get() as Round)).toBe(true);
     expect((await gambleAccount(db, USER))?.plays).toBe(1);
   });
 
@@ -269,8 +271,10 @@ describe('칩과 판 기록', () => {
     expect(sql.prepare('SELECT won FROM gamble_season_winners').get()).toMatchObject({ won: 900 });
     expect(sql.prepare("SELECT item_id FROM owned_items WHERE item_id = 'title:gamble-season-winner'").get()).toBeDefined();
     sql.prepare("UPDATE profiles SET title_id = 'gamble-season-winner' WHERE user_id = ?").run(USER);
-    expect((await gambleRanks(db, TODAY))[0]).toMatchObject([{ name: '「도박신」 테스트', value: 1900 }]);
+    forgetSeasonLeader(db); // 시즌 1등은 1분 동안 기억해요
+    expect((await gambleRanks(db, TODAY))[0]).toMatchObject([{ name: '테스트 「도박신」', value: 1900 }]);
     sql.exec('UPDATE members SET active = 0');
+    forgetSeasonLeader(db);
     expect((await gambleRanks(db, TODAY)).every((rank) => rank.length === 0)).toBe(true);
   });
 
@@ -288,6 +292,8 @@ describe('칩과 판 기록', () => {
     // OTHER: +300 → 순이익 300(딴 판만 세면 USER 900이 1등이었어요)
     add.run(OTHER, 'o1', 300, TOMORROW, 2, TODAY);
     expect((await gambleRanks(db, TODAY))[3]).toMatchObject([{ name: '둘째', value: 300 }]);
+    expect(await mySeasonNet(db, USER, TODAY)).toBe(100);
+    expect(await mySeasonNet(db, OTHER, TODAY)).toBe(300);
     await awardGambleSeason(db, 'season', TOMORROW, TOMORROW);
     expect(sql.prepare('SELECT user_id, won FROM gamble_season_winners').get()).toEqual({ user_id: OTHER, won: 300 });
     // 모두 손해면 아무도 없어요

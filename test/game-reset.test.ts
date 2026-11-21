@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buyReroll } from '../src/db';
+import { buyReroll, rerollAvailable } from '../src/db';
 import { buyGameReset } from '../src/game-reset';
 import { DAY_CAP, beginJourney, journeyRecord, runsToday } from '../src/journey-db';
 import { DAILY_RUN_CAP } from '../src/journey';
@@ -167,6 +167,7 @@ describe('초기화와 원정대 하루 경험치 판 수', () => {
 describe('캐릭터 리롤권', () => {
   it('10젤리로 같은 성별의 빈 캐릭터로 바로 바꾸고, 예전 캐릭터는 풀려요', async () => {
     const { sql, db } = setup(15);
+    expect(await rerollAvailable(db, A)).toBe(true);
     expect(await buyReroll(db, A, 10, 'girl-01-0', () => 0)).toBe('done');
     const p = sql.prepare('SELECT dogam_jelly, character_id, character_sig FROM profiles WHERE user_id = ?').get(A) as { dogam_jelly: number; character_id: string; character_sig: string };
     expect(p.dogam_jelly).toBe(5);
@@ -219,6 +220,7 @@ describe('캐릭터 리롤권', () => {
         sql.prepare("INSERT INTO members (user_id, display_name, active, updated_at) VALUES (?, 'x', 1, 'x')").run(u);
         sql.prepare('INSERT INTO profiles (user_id, character_id, character_sig, updated_at) VALUES (?, ?, ?, ?)').run(u, id, id, 'x');
       }
+    expect(await rerollAvailable(db, A)).toBe(false); // 확인 화면에서 미리 알려요(3차 점검)
     expect(await buyReroll(db, A, 10, 'girl-01-0')).toBe('none');
     expect((sql.prepare('SELECT dogam_jelly FROM profiles WHERE user_id = ?').get(A) as { dogam_jelly: number }).dogam_jelly).toBe(50);
   });

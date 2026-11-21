@@ -179,7 +179,7 @@ export function titleProgress(t: Title, s: TitleStats): TitleProgress {
   const count = (n: number, need: number, text: string, unit: string): TitleProgress => ({
     ok: n >= need,
     text,
-    now: `${n}/${need}${unit}`,
+    now: `${comma(n)}/${comma(need)}${unit}`,
   });
   switch (r.kind) {
     case 'gambleSeason':

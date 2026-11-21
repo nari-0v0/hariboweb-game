@@ -388,6 +388,21 @@ export async function buyGenderChange(
 // 상점 "캐릭터 리롤권"(나리 2026-11-20): 도감 젤리를 빼고 같은 성별의 빈 캐릭터 중 무작위 하나로 바로 바꿔요.
 // 되돌리기는 없고, 예전 캐릭터는 맡겨 두지 않아요(다른 사람이 받을 수 있어요). 성별 바꾸기로 맡겨 둔 캐릭터는 그대로예요.
 export const REROLL_ITEM_ID = 'change:reroll';
+
+// 지금 리롤권을 쓰면 바꿀 캐릭터가 있는지(확인 화면에서 미리 알려 줘요, 2026-11-21 3차 점검).
+export async function rerollAvailable(db: D1Database, userId: string): Promise<boolean> {
+  const all = await readCharacters(db, [userId]);
+  const before = all.find((r) => !r.kept && r.user_id === userId)?.character_id ?? null;
+  const pool = poolOf(before);
+  if (!pool) return false;
+  const { taken, forbidden } = takenSets(all, userId);
+  const { results: used } = await db
+    .prepare('SELECT DISTINCT character_id AS c FROM profiles WHERE character_id IS NOT NULL AND user_id <> ?')
+    .bind(userId)
+    .all<{ c: string }>();
+  for (const r of used) taken.add(r.c);
+  return rerollCharacter(pool, before, taken, forbidden) !== null;
+}
 // expected: 확인 화면에서 본 캐릭터. 두 탭에서 같은 확인 화면으로 두 번 사지 않게 결제 조건에서도 비교해요.
 export async function buyReroll(
   db: D1Database,

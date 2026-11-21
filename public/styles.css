@@ -1466,7 +1466,7 @@ main.wide { max-width: 1320px; }
   padding-bottom: max(calc(clamp(190px, 36vw, 260px) * .19), calc(100% / 3 * .19)); border: 4px solid #1d1930; background: var(--jr-bg) center bottom / cover no-repeat, #bfe6ff; clip-path: var(--notch); }
 .jr-lobby-stage .jr-hero { margin-left: 6%; }
 .jr-lobby-stats { margin-left: auto; display: grid; gap: 4px; justify-items: end; }
-.jr-lobby-stats span { padding: 0 8px; border: 2px solid #1d1930; background: rgba(255, 250, 242, .92); color: var(--ink); font-size: .78rem; }
+.jr-lobby-stats span { word-break: keep-all; padding: 0 8px; border: 2px solid #1d1930; background: rgba(255, 250, 242, .92); color: var(--ink); font-size: .78rem; }
 .jr-pick-title { margin: 14px 0 8px; }
 .jr-game .jr-chapter-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .jr-game .jr-chapter { position: relative; display: grid; justify-items: center; gap: 0; padding: 8px 4px 6px; border: 3px solid #6b6390; background: #3b3556; color: var(--paper); text-align: center; cursor: pointer; }

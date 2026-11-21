@@ -12,8 +12,11 @@ export type GambleAccount = {
 };
 export type Round = {
   user_id: string; token: string; game: Game; bet: number; state: string;
-  expires_at: string; revision: number; multiplier: number | null;
+  expires_at: string; revision: number; multiplier: number | null; settled_at?: string | null;
 };
+
+// 아침 6시 마감으로 저절로 멈춘 카드 21인지(정산 시각이 마감 1ms 전으로 적혀요)
+export const expiredHand = (round: Round) => round.multiplier !== null && round.settled_at === settledAtDeadline(round.expires_at);
 
 // 도감 날짜(한국 시간 아침 6시에 바뀌어요. src/day.ts)
 export function gambleDay(now: string) {
@@ -178,6 +181,14 @@ export function publicHand(round: Round) {
 // 시즌 순이익: 끝난 판마다 받은 젤칩(내림) − 건 젤칩의 합. 진행 중인 판(multiplier가 빈 판)은 SUM에서 빠져요.
 const SEASON_NET = 'SUM((r.bet * CAST(ROUND(r.multiplier * 100) AS INTEGER) / 100) - r.bet)';
 
+// 시즌 순이익(나리 2026-11-21): 시즌 안에 끝난 모든 판의 (받은 젤칩 − 건 젤칩)을 더해요. 잃은 판은 빼고, 순이익이 0보다 큰 사람만요.
+const SEASON_LEADER = `SELECT r.user_id, m.display_name AS name, m.booster, ${SEASON_NET} AS value, p.title_id, p.character_id, p.deco_id
+      FROM gamble_rounds r JOIN members m ON m.user_id = r.user_id AND m.active = 1
+      LEFT JOIN profiles p ON p.user_id = r.user_id
+      JOIN seasons s ON s.id = (SELECT id FROM seasons WHERE starts_at <= ? AND ends_at > ? ORDER BY id DESC LIMIT 1)
+      WHERE r.settled_at >= s.starts_at AND r.settled_at < s.ends_at AND ${notTestMember('r.user_id')}
+      GROUP BY r.user_id HAVING value > 0 ORDER BY value DESC, r.user_id LIMIT 1`;
+
 type RankRow = { user_id: string; name: string; booster: number; value: number; title_id: string | null; character_id: string | null; deco_id: string | null };
 const RANK_FIELDS = ['chips', 'best_win', 'all_in_wins'] as const;
 
@@ -195,24 +206,44 @@ export async function gambleMyRanks(db: D1Database, user: string) {
   });
 }
 
+// 시즌 순이익 1등은 시즌의 모든 판을 읽어요. 겜블장에 들어올 때마다 읽지 않게 1분 동안 기억해요(2026-11-21 3차 점검).
+const seasonLeaderCache = new WeakMap<D1Database, { until: number; rows: RankRow[] }>();
+
+export const forgetSeasonLeader = (db: D1Database) => seasonLeaderCache.delete(db);
+
+async function seasonLeader(db: D1Database, now: string): Promise<RankRow[]> {
+  const t = Date.parse(now);
+  const hit = seasonLeaderCache.get(db);
+  if (hit && hit.until > t) return hit.rows;
+  const { results } = await db.prepare(SEASON_LEADER).bind(now, now).all<RankRow>();
+  seasonLeaderCache.set(db, { until: t + 60_000, rows: results });
+  return results;
+}
+
+// 내 이번 시즌 순이익(도박신 경쟁에서 내 자리). 판이 없으면 0.
+export async function mySeasonNet(db: D1Database, user: string, now: string): Promise<number> {
+  const row = await db
+    .prepare(`SELECT COALESCE(${SEASON_NET}, 0) AS v FROM gamble_rounds r
+      JOIN seasons s ON s.id = (SELECT id FROM seasons WHERE starts_at <= ?2 AND ends_at > ?2 ORDER BY id DESC LIMIT 1)
+      WHERE r.user_id = ?1 AND r.settled_at >= s.starts_at AND r.settled_at < s.ends_at`)
+    .bind(user, now)
+    .first<{ v: number }>();
+  return row?.v ?? 0;
+}
+
 export async function gambleRanks(db: D1Database, now: string) {
   const ranks = await db.batch([
     ...RANK_FIELDS.map((field) => db.prepare(`SELECT a.user_id, m.display_name AS name, m.booster, a.${field} AS value, p.title_id, p.character_id, p.deco_id
       FROM gamble_accounts a JOIN members m ON m.user_id = a.user_id AND m.active = 1
       LEFT JOIN profiles p ON p.user_id = a.user_id
       WHERE a.${field} > 0 AND ${notTestMember('a.user_id')} ORDER BY a.${field} DESC, a.user_id LIMIT 10`)),
-    // 시즌 순이익(나리 2026-11-21): 시즌 안에 끝난 모든 판의 (받은 젤칩 − 건 젤칩)을 더해요. 잃은 판은 빼고, 순이익이 0보다 큰 사람만요.
-    db.prepare(`SELECT r.user_id, m.display_name AS name, m.booster, ${SEASON_NET} AS value, p.title_id, p.character_id, p.deco_id
-      FROM gamble_rounds r JOIN members m ON m.user_id = r.user_id AND m.active = 1
-      LEFT JOIN profiles p ON p.user_id = r.user_id
-      JOIN seasons s ON s.id = (SELECT id FROM seasons WHERE starts_at <= ? AND ends_at > ? ORDER BY id DESC LIMIT 1)
-      WHERE r.settled_at >= s.starts_at AND r.settled_at < s.ends_at AND ${notTestMember('r.user_id')}
-      GROUP BY r.user_id HAVING value > 0 ORDER BY value DESC, r.user_id LIMIT 1`).bind(now, now),
   ]);
+  const lists = [...ranks.map(({ results }) => results as RankRow[]), await seasonLeader(db, now)];
   // 디스코드는 방장 닉네임을 못 바꾸니, 고른 칭호는 닉네임 대신 여기서 「칭호」로 붙여 보여 줘요.
-  return ranks.map(({ results }) => (results as RankRow[]).map(({ user_id, name, booster, value, title_id, character_id, deco_id }) => {
+  // 이름을 앞에 둬요(휴대폰 시상대 칸이 좁아 칭호만 보이고 이름이 잘리던 것, 2026-11-21 3차 점검).
+  return lists.map((rows) => rows.map(({ user_id, name, booster, value, title_id, character_id, deco_id }) => {
     const title = titleById(title_id);
-    return { value, name: (title ? `「${title.name}」 ` : '') + withBoosterMark(stripTitle(name), booster), char: characterUrl(character_id, user_id, deco_id) };
+    return { value, name: withBoosterMark(stripTitle(name), booster) + (title ? ` 「${title.name}」` : ''), char: characterUrl(character_id, user_id, deco_id) };
   }));
 }
 
@@ -236,6 +267,10 @@ export async function awardGambleSeason(db: D1Database, seasonId: string, end: s
 
 // 끝난 지 2주 안 된 시즌 중 겜블 우승이 아직 안 적힌 시즌을 다시 정산해요.
 // (봇이 시즌 끝 전후로 30분 넘게 멈춰서 시즌 마무리 확인을 건너뛰어도 우승 칭호가 빠지지 않게)
+// 정산했는데도 우승이 없던 시즌(순이익이 0보다 큰 사람이 없음)은 이 서버가 다시 읽지 않아요.
+// 끝난 시즌에는 새 판이 들어오지 않으니(마감 판은 정산 때 같이 계산) 결과가 바뀌지 않아요.
+const noWinnerSeasons = new WeakMap<D1Database, Set<string>>();
+
 export async function awardEndedGambleSeasons(db: D1Database, nowMs: number) {
   const t = new Date(nowMs).toISOString();
   const { results } = await db
@@ -245,5 +280,12 @@ export async function awardEndedGambleSeasons(db: D1Database, nowMs: number) {
     )
     .bind(t, new Date(nowMs - 14 * 86_400_000).toISOString())
     .all<{ id: string; ends_at: string }>();
-  for (const r of results) await awardGambleSeason(db, r.id, r.ends_at, t);
+  const skip = noWinnerSeasons.get(db) ?? new Set<string>();
+  noWinnerSeasons.set(db, skip);
+  for (const r of results) {
+    if (skip.has(r.id)) continue;
+    await awardGambleSeason(db, r.id, r.ends_at, t);
+    const won = await db.prepare('SELECT 1 FROM gamble_season_winners WHERE season_id = ?').bind(r.id).first();
+    if (!won) skip.add(r.id);
+  }
 }

@@ -235,7 +235,7 @@ Content-Type: application/json
 
 ## AI 판단 로그 (2026-11-16)
 
-나리 요청: AI가 판단한 것을 모두 비공개 로그 채널에 남겨요. 채널은 /설정의 "같은 판 배정 제외 요청 채널"을 그대로 써요(이름만 "AI 판단 로그 채널"로 바뀜). 같이 배정되지 않기 요청은 위처럼 올라가고, 칭찬 한마디의 AI 판단은 아래 API로 올라가요. DB 기록은 지우지 않아요. 모두 `Authorization: Bearer <BOT_SYNC_SECRET>`.
+나리 요청: AI가 판단한 것을 모두 비공개 로그 채널에 남겨요. 채널은 /설정의 "같은 판 배정 제외 요청 채널"을 그대로 써요(이름만 "AI 판단 로그 채널"로 바뀜). 같이 배정되지 않기 요청은 위처럼 올라가고, 칭찬 한마디의 AI 판단은 아래 API로 올라가요. DB 기록은 지우지 않아요(떠난 멤버의 기록만 떠날 때 같이 지워요). 모두 `Authorization: Bearer <BOT_SYNC_SECRET>`.
 
 - `GET /api/bot/ai-logs` → `{ "logs": [{ "id": 1, "kind": "praise", "from": {"id","name"}, "to": {"id","name"}|null, "text": "멤버가 적은 원래 글", "verdict": "ok|bad|none", "created_at": "ISO" }] }`
   - 아직 안 올린 기록, 오래된 것부터 최대 20개. `bad`는 AI가 걸러 한마디가 빠진 것, `none`은 AI가 답을 못 해 그대로 보낸 것이에요.

@@ -1,8 +1,8 @@
 import { comma } from '../num';
 import type { Member } from '../env';
 import { GAMBLE_ART, SLOT_ART } from '../gamble-art';
-import { BOOSTER_REFILL_CHIPS, CHERRY_PAIR, COIN_PAYOUT, COIN_WIN_PER_MILLE, DAILY_CHIPS, REFILL_CHIPS, ROULETTE, SLOTS, payback, rankOf, type CoinFlip, type CoinSide } from '../gamble';
-import { publicHand, type GambleAccount, type Game, type Round } from '../gamble-db';
+import { BOOSTER_REFILL_CHIPS, CHERRY_PAIR, cardScore, COIN_PAYOUT, COIN_WIN_PER_MILLE, DAILY_CHIPS, REFILL_CHIPS, ROULETTE, SLOTS, payback, rankOf, type CoinFlip, type CoinSide } from '../gamble';
+import { expiredHand, publicHand, type GambleAccount, type Game, type Round } from '../gamble-db';
 import { plainPodium } from '../rankings';
 import { Layout } from './layout';
 import { PodiumBoard } from './podium';
@@ -194,11 +194,12 @@ function Cards({ round }: { round: Round }) {
       <div class="gb-tiles">
         {player.map((card, i) => <PlayingCard card={card} order={playerOrder(i)} />)}
       </div>
-      <p>딜러 카드</p>
+      <p>딜러 카드{settled && <span data-gb-reveal> · {cardScore(dealer)}점</span>}</p>
       <div class="gb-tiles">
         {dealer.map((card, i) => <PlayingCard card={card} order={dealerOrder(i)} flip={!opening && settled && i === 1} />)}
         {!settled && <PlayingCard order={opening ? 3 : undefined} />}
       </div>
+      {expiredHand(round) && <p role="status" data-gb-reveal>아침 6시가 지나 이 판은 저절로 멈췄어요(멈추기로 정산).</p>}
     </div>
   );
 }
@@ -263,6 +264,18 @@ function Result({ round, balance }: { round: Round; balance: number }) {
   );
 }
 
+// 슬롯 칸마다 나올 확률(src/gamble.ts의 weight 그대로 계산해요)
+const SLOT_TOTAL = SLOTS.reduce((n, { weight }) => n + weight, 0);
+const tripleChance = (weight: number) => (weight / SLOT_TOTAL) ** 3;
+const cherryPairChance = () => { const p = SLOTS[0]!.weight / SLOT_TOTAL; return 3 * p * p * (1 - p); };
+const pct = (x: number) => `${x * 100 >= 1 ? (x * 100).toFixed(1) : (x * 100).toPrecision(1)}%`;
+function slotOdds() {
+  return [...SLOTS.map(({ weight, payout }) => `${payout}배 ${pct(tripleChance(weight))}`), `체리 2개 ${pct(cherryPairChance())}`].join(' · ');
+}
+function slotReturn() {
+  return SLOTS.reduce((n, { weight, payout }) => n + tripleChance(weight) * payout, 0) + cherryPairChance() * CHERRY_PAIR;
+}
+
 function GameRules({ game }: { game: Game }) {
   return (
     <details class="gb-rules">
@@ -272,6 +285,7 @@ function GameRules({ game }: { game: Game }) {
         <>
           <div class="gb-tiles">{SLOTS.map(({ payout }, i) => <span class="gb-tile"><Art name={SLOT_ART[i]!} /> {payout}배</span>)}</div>
           <p><Art name="cherry" /> 2개는 {CHERRY_PAIR}배예요.</p>
+          <p>나올 확률: {slotOdds()} · 평균으로 건 젤칩의 약 {Math.round(slotReturn() * 100)}%가 돌아와요.</p>
         </>
       )}
       {game === 'roulette' && <p>1배는 본전이에요. 나올 확률: {ROULETTE.map(({ payout, count }) => `${payout}배 ${count}%`).join(' · ')}</p>}
@@ -318,7 +332,7 @@ export function GambleLocked(props: { viewer: Member }) {
 
 export function GambleLobby(props: {
   viewer: Member; account: GambleAccount | null; inProgress: boolean;
-  ranks: Rank[][]; now: string; daily: number; moved?: number; notice?: string;
+  ranks: Rank[][]; now: string; daily: number; moved?: number; notice?: string; seasonNet?: number;
 }) {
   const balance = props.account?.chips ?? 0;
   const [balanceRank = [], bestRank = [], allInRank = [], seasonRank = []] = props.ranks;
@@ -350,6 +364,9 @@ export function GambleLobby(props: {
             <p class="rk-champ">
               <span aria-hidden="true">👑</span> 이번 시즌 순이익 1등 <b>{seasonRank[0].name}</b> · {chips(seasonRank[0].value)}개
             </p>
+          )}
+          {props.seasonNet !== undefined && (
+            <p class="hint">내 이번 시즌 순이익 <b>{props.seasonNet > 0 ? '+' : ''}{chips(props.seasonNet)}개</b> (도박신은 시즌이 끝날 때 1등이 받아요)</p>
           )}
           <div class="rk-trio">
             <PodiumBoard title="가진 젤칩" icon="🪙" podium={plainPodium(balanceRank)} show={(v) => `${chips(v)}개`} />

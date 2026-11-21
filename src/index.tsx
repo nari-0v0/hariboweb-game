@@ -9,6 +9,7 @@ import {
   assignCharacters,
   buyGenderChange,
   buyReroll,
+  rerollAvailable,
   chooseFirstGender,
   planCharacterPool,
   completion,
@@ -89,7 +90,7 @@ import {
 
 import { GambleLobby, GambleLocked, GambleRoom } from './views/gamble';
 import { DAILY_CHIPS, GAMBLE_LOCKED, gambleTester, isCoinSide, type CoinSide } from './gamble';
-import { activeHand, betChips, betTooSoon, claimDaily, expireAllHands, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, movedChips, moveHand, rescueChips, type Game } from './gamble-db';
+import { activeHand, mySeasonNet, betChips, betTooSoon, claimDaily, expireAllHands, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, movedChips, moveHand, rescueChips, type Game } from './gamble-db';
 import { prefetchAllowed } from './prefetch';
 import { crossSiteImageRequest, imageRequestAllowed } from './image-guard';
 import { burnReply, burnWindow, burnWindowsForSync, burningUntil } from './burning';
@@ -203,6 +204,10 @@ async function viewerWithBurn(c: Context<AppEnv>) {
 app.get('/guide', async (c) => page(c, <GuidePage viewer={await viewerWithBurn(c)} />));
 app.get('/updates', async (c) => page(c, <UpdatesPage viewer={await viewerWithBurn(c)} />));
 
+// 로그인 전에 열려던 화면(디스코드 패널·카톡 링크). 로그인 뒤 그 화면으로 보내요(2026-11-21 3차 점검).
+const NEXT_COOKIE = 'dogam_next';
+const safeNext = (v: string | undefined) => (v && v.startsWith('/') && !v.startsWith('//') && !v.startsWith('/\\') && !v.startsWith('/auth') && v.length <= 300 ? v : null);
+
 app.get('/auth/login', (c) => {
   const state = randomToken();
   setCookie(c, STATE_COOKIE, state, { httpOnly: true, secure: secure(c), sameSite: 'Lax', path: '/auth', maxAge: 600 });
@@ -223,7 +228,9 @@ app.get('/auth/callback', async (c) => {
   if (!profile) return page(c, <MessagePage title="로그인 실패" message="디스코드 연결이 잠깐 끊겼어요. 다시 시도해 주세요." />, 403);
 
   await startSession(c, profile);
-  return c.redirect('/me');
+  const next = safeNext(getCookie(c, NEXT_COOKIE));
+  deleteCookie(c, NEXT_COOKIE, { path: '/' });
+  return c.redirect(next ?? '/me');
 });
 
 // 로컬 개발 전용. .dev.vars에 DEV_LOGIN=1이 있을 때만 열려요.
@@ -720,6 +727,9 @@ members.use('*', async (c, next) => {
   const viewer = await currentViewer(c);
   if (!viewer) {
     if (c.req.method !== 'GET') return c.text('로그인이 필요해요', 401);
+    const url = new URL(c.req.url);
+    const next = safeNext(url.pathname + url.search);
+    if (next && next !== '/me') setCookie(c, NEXT_COOKIE, next, { httpOnly: true, secure: secure(c), sameSite: 'Lax', path: '/', maxAge: 600 });
     return c.redirect('/');
   }
   // 버닝타임이면 모든 화면 위에 띠를 보여요(1분에 한 번만 DB를 읽어요)
@@ -943,7 +953,8 @@ members.get('/shop/reroll', async (c) => {
   const profile = await getProfile(c.env.DB, viewer.user_id);
   const pool = poolOf(profile.character_id);
   if (!pool || !profile.character_id) return c.redirect('/shop?n=error');
-  return page(c, <RerollPage viewer={viewer} pool={pool} character={profile.character_id} jelly={profile.dogam_jelly} />);
+  const available = await rerollAvailable(c.env.DB, viewer.user_id);
+  return page(c, <RerollPage viewer={viewer} pool={pool} character={profile.character_id} jelly={profile.dogam_jelly} available={available} />);
 });
 
 members.post('/api/shop/reroll', async (c) => {
@@ -966,8 +977,8 @@ members.post('/api/shop/reroll', async (c) => {
 // 게임 기록 초기화권(나리 2026-11-20): 확인 화면(체크해야 사요) → 겜블장·원정대·사건파일 처음부터
 members.get('/shop/reset', async (c) => {
   const viewer = c.get('viewer');
-  const [profile, gamble, gen] = await Promise.all([getProfile(c.env.DB, viewer.user_id), gambleAccount(c.env.DB, viewer.user_id), resetCount(c.env.DB, viewer.user_id)]);
-  return page(c, <GameResetPage viewer={viewer} jelly={profile.dogam_jelly} chips={gamble?.chips ?? null} unclaimed={!!gamble && gamble.free_day === null} gen={gen} unchecked={c.req.query('n') === 'unchecked'} />);
+  const [profile, gamble, gen, hand] = await Promise.all([getProfile(c.env.DB, viewer.user_id), gambleAccount(c.env.DB, viewer.user_id), resetCount(c.env.DB, viewer.user_id), activeHand(c.env.DB, viewer.user_id)]);
+  return page(c, <GameResetPage viewer={viewer} jelly={profile.dogam_jelly} chips={gamble?.chips ?? null} handBet={hand?.bet ?? 0} unclaimed={!!gamble && gamble.free_day === null} gen={gen} unchecked={c.req.query('n') === 'unchecked'} />);
 });
 
 members.post('/api/shop/reset', async (c) => {
@@ -1140,12 +1151,13 @@ members.get('/gamble', async (c) => {
   if (expired) return c.redirect(gambleRoomUrl('cards', expired));
   await expireAllHands(db, now).catch((e) => console.error('지난 카드 21 정산 실패', e));
   const daily = await claimDaily(db, user, now);
-  const [account, hand, ranks, moved] = await Promise.all([
+  const [account, hand, ranks, moved, seasonNet] = await Promise.all([
     gambleAccount(db, user), activeHand(db, user), gambleRanks(db, now),
     daily >= DAILY_CHIPS ? movedChips(db, user) : 0,
+    mySeasonNet(db, user, now).catch(() => undefined),
   ]);
   return page(c, <GambleLobby viewer={viewer} account={account} inProgress={!!hand}
-    ranks={ranks} now={now} daily={daily} moved={moved} notice={c.req.query('n')} />);
+    ranks={ranks} now={now} seasonNet={seasonNet} daily={daily} moved={moved} notice={c.req.query('n')} />);
 });
 
 members.get('/gamble/:game', async (c) => {
