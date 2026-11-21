@@ -185,6 +185,7 @@ addEventListener('pageshow', (e) => {
   try { stored = localStorage.getItem(KEY) === (mem ? '1' : null); } catch {}
   // 자동은 원정대 화면을 보고 있는 이 탭에서만 이어져요. 이 탭에서 다른 화면(도감·탑·사건파일 등)을 열면 꺼지고,
   // 원정대로 돌아와도 다시 켜야 돌아요(나리 2026-11-21). 탭마다 따로 기억해요(다른 탭에서 도는 자동은 그대로).
+  // 이 화면이 안 보이게 돼도(다른 탭·앱으로 감) 꺼져요(아래 visibilitychange).
   const TAB = 'jr-auto-tab';
   const here = () => { try { return sessionStorage.getItem(TAB) === '1'; } catch { return true; } };
   const setHere = (on) => { try { on ? sessionStorage.setItem(TAB, '1') : sessionStorage.removeItem(TAB); } catch {} };
@@ -250,6 +251,7 @@ addEventListener('pageshow', (e) => {
     const depart = () => {
       if (leaving) return;
       again.querySelectorAll('input[name="kit"]').forEach((k) => { k.checked = false; });
+      leaving = true;
       again.requestSubmit ? again.requestSubmit() : again.submit();
     };
     // 다른 탭에서 「계속하기」를 눌렀을 수 있어서, 쓸 때마다 저장된 시각을 다시 읽어요(Codex #303).
@@ -333,6 +335,7 @@ addEventListener('pageshow', (e) => {
         // 멈춘 이유(오류 안내 등)를 볼 수 있게 그 화면으로 가요.
         set(false);
         // 리다이렉트 없이 오류(500·503)면 res.url은 POST 전용 주소라, 그 대신 지금 화면을 다시 열어요.
+        leaving = true; // 자동이 스스로 넘기는 화면이에요(아래 「안 보이면 끄기」가 끄지 않게)
         if (res.redirected) location.href = res.url;
         else location.reload();
         return;
@@ -343,6 +346,7 @@ addEventListener('pageshow', (e) => {
       const cur = document.getElementById('journey');
       if (!next || !cur || url.searchParams.has('r')) {
         // 원정이 끝나면 결과 화면으로(자동은 켜진 채로, 결과 화면에서 5초 뒤 다시 떠나요). POST 주소면 지금 화면을 다시 열어요.
+        leaving = true; // 자동이 스스로 넘기는 화면이에요(아래 「안 보이면 끄기」가 끄지 않게)
         if (res.redirected) location.href = res.url;
         else location.reload();
         return;
@@ -390,6 +394,16 @@ addEventListener('pageshow', (e) => {
     if (!e.defaultPrevented && !(e.target instanceof HTMLFormElement && e.target.target)) halt();
   });
   addEventListener('beforeunload', halt);
+  // 원정대 화면이 안 보이게 되면(다른 탭·다른 앱으로 가거나 화면을 끔) 이 탭의 자동을 꺼요(나리 2026-11-21).
+  // 화면을 넘기는 중(위 leaving)이면 끄지 않아요. 자동이 결과 화면·다음 판으로 넘어갈 때도 이 일이 생기니까요.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'hidden' || leaving || !get()) return;
+    setHere(false);
+    clearTimeout(timer);
+    stops.forEach((f) => f());
+    document.querySelectorAll('.jr-autoask').forEach((b) => b.remove());
+    sync();
+  });
   // 뒤로 가기로 이 화면이 그대로 되살아나면(다른 화면에 다녀왔으면 자동은 꺼져 있어요) 지금 상태로 다시 맞춰요.
   addEventListener('pageshow', (e) => {
     if (!e.persisted) return;
