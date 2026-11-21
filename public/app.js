@@ -151,6 +151,21 @@ addEventListener('pageshow', (e) => {
   // 자동은 끌 때까지 계속 켜져 있어요(나리 2026-11-21, 처음처럼). 그만두기를 누르면 꺼져요.
   // 판이 끝나면 결과를 보여 주고 5초 기다린 뒤(남은 초를 보여 줘요) 같은 장으로 다시 떠나요. 준비물은 사지 않아요.
   if (new URLSearchParams(location.search).get('n') === 'quit') set(false);
+  // 그만두기를 누르면 바로 자동을 꺼요. 자동 요청이 가는 중이면 끝나길 기다렸다가 새 순번으로 그만둬요(Codex 전체 점검).
+  document.addEventListener('submit', (e) => {
+    const f = e.target;
+    if (!(f instanceof HTMLFormElement) || !f.matches('form.jr-quit')) return;
+    set(false);
+    clearTimeout(timer);
+    if (!busy) return;
+    e.preventDefault();
+    const wait = setInterval(() => {
+      if (busy) return;
+      clearInterval(wait);
+      const latest = document.querySelector('form.jr-quit');
+      if (latest) latest.submit();
+    }, 100);
+  }, true);
   const again = document.querySelector('.jr-result form.jr-chapters');
   if (again && get()) {
     // 결과가 실제로 보이는 때부터 5초를 세요(움직임 줄이기면 결과가 바로 보여요. 아래 마지막 싸움 처리와 같은 규칙)
