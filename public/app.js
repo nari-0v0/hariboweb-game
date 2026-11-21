@@ -183,14 +183,21 @@ addEventListener('pageshow', (e) => {
   // 저장이 되는 브라우저면 쓸 때마다 저장된 값을 다시 읽어요. 다른 탭에서 끈 것도 바로 따르게요(Codex #313).
   let stored = false;
   try { stored = localStorage.getItem(KEY) === (mem ? '1' : null); } catch {}
+  // 자동은 원정대 화면을 보고 있는 이 탭에서만 이어져요. 이 탭에서 다른 화면(도감·탑·사건파일 등)을 열면 꺼지고,
+  // 원정대로 돌아와도 다시 켜야 돌아요(나리 2026-11-21). 탭마다 따로 기억해요(다른 탭에서 도는 자동은 그대로).
+  const TAB = 'jr-auto-tab';
+  const here = () => { try { return sessionStorage.getItem(TAB) === '1'; } catch { return true; } };
+  const setHere = (on) => { try { on ? sessionStorage.setItem(TAB, '1') : sessionStorage.removeItem(TAB); } catch {} };
+  if (!/^\/(?:expedition\/go|api\/journey\/)/.test(location.pathname)) setHere(false);
   const get = () => {
     if (mem && stored) {
       try { if (localStorage.getItem(KEY) !== '1') mem = false; } catch {}
     }
-    return mem;
+    return mem && here();
   };
   const set = (on) => {
-    if (on && !mem) mark(Date.now());
+    if (on && !get()) mark(Date.now());
+    setHere(on);
     if (!on) mark(0);
     mem = !!on;
     try {
@@ -200,6 +207,15 @@ addEventListener('pageshow', (e) => {
   };
   let timer = 0;
   let busy = false;
+  // 다른 화면으로 넘어가는 중(링크·폼을 눌렀거나 주소를 바꿈)이면 자동이 더는 아무것도 하지 않아요.
+  // 새 화면이 늦게 오는 사이에 자동이 결과 화면이나 다음 판으로 끌고 가지 않게요(나리 2026-11-21).
+  let leaving = false;
+  const stops = new Set();
+  const halt = () => {
+    leaving = true;
+    clearTimeout(timer);
+    stops.forEach((f) => f());
+  };
   let fails = 0; // 연결이 잠깐 끊긴 횟수(이어서). 3번이면 멈추고 알려 줘요(점검 W166)
   // 자동은 끌 때까지 계속 켜져 있어요(나리 2026-11-21, 처음처럼). 그만두기를 누르면 꺼져요. 단, 켠 지 1시간이 지나면 판이 끝날 때 「계속하기」를 눌러야 이어져요.
   // 판이 끝나면 결과를 보여 주고 5초 기다린 뒤(남은 초를 보여 줘요) 같은 장으로 다시 떠나요. 준비물은 사지 않아요.
@@ -232,6 +248,7 @@ addEventListener('pageshow', (e) => {
     // 결과가 실제로 보이는 때부터 5초를 세요(움직임 줄이기면 결과가 바로 보여요. 아래 마지막 싸움 처리와 같은 규칙)
     const finalWait = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : Number(document.querySelector('[data-final-wait]')?.getAttribute('data-final-wait')) || 0;
     const depart = () => {
+      if (leaving) return;
       again.querySelectorAll('input[name="kit"]').forEach((k) => { k.checked = false; });
       again.requestSubmit ? again.requestSubmit() : again.submit();
     };
@@ -245,7 +262,8 @@ addEventListener('pageshow', (e) => {
       box.innerHTML = '<span class="jr-autonext-spin" aria-hidden="true"></span><b>🤖 자동: <span data-left>5</span>초 뒤 같은 장으로 다시 떠나요</b><button type="button" class="btn btn-ghost">그만하기</button>';
       let left = 5;
       let t = 0;
-      const stop = () => { clearInterval(t); box.remove(); };
+      const stop = () => { clearInterval(t); box.remove(); stops.delete(stop); };
+      stops.add(stop);
       box.querySelector('button').addEventListener('click', () => { set(false); stop(); });
       document.body.append(box);
       t = setInterval(() => {
@@ -285,7 +303,7 @@ addEventListener('pageshow', (e) => {
       box.querySelector('[data-go]').focus({ preventScroll: true });
     };
     setTimeout(() => {
-      if (!get()) return;
+      if (leaving || !get()) return;
       if (fresh()) countdown();
       else ask();
     }, finalWait);
@@ -301,15 +319,16 @@ addEventListener('pageshow', (e) => {
     clearTimeout(timer);
     // 싸움 모션이 있으면 다 보여 준 뒤에 다음으로 넘어가요. 싸움 없는 날은 0.5초만 쉬어요(나리 2026-11-15, 예전 1.3초).
     const wait = Number(document.querySelector('[data-wait]')?.getAttribute('data-wait')) || 0;
-    if (on) timer = setTimeout(tick, Math.max(500, wait, fails * 3000)); // 연결이 끊겼으면 3초·6초 뒤 다시 해 봐요
+    if (on && !leaving) timer = setTimeout(tick, Math.max(500, wait, fails * 3000)); // 연결이 끊겼으면 3초·6초 뒤 다시 해 봐요
   };
   async function tick() {
     const form = document.querySelector('form[data-idle]');
-    if (!form || !get() || busy) return;
+    if (!form || !get() || busy || leaving) return;
     busy = true;
     try {
       const res = await fetch(form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin' });
       const url = new URL(res.url);
+      if (leaving) return; // 그사이 다른 화면으로 가는 중이면 끌고 오지 않아요
       if (!res.ok || url.searchParams.has('n') && url.searchParams.get('n') !== 'stale') {
         // 멈춘 이유(오류 안내 등)를 볼 수 있게 그 화면으로 가요.
         set(false);
@@ -319,6 +338,7 @@ addEventListener('pageshow', (e) => {
         return;
       }
       const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+      if (leaving) return;
       const next = doc.getElementById('journey');
       const cur = document.getElementById('journey');
       if (!next || !cur || url.searchParams.has('r')) {
@@ -354,6 +374,26 @@ addEventListener('pageshow', (e) => {
     mem = false;
     clearTimeout(timer);
     document.querySelectorAll('.jr-autonext:not(.jr-autoask)').forEach((b) => b.remove());
+    sync();
+  });
+  // 다른 화면으로 가기 시작하면 멈춰요. window에 달아서 다른 리스너가 막은 클릭·제출(두 번 누르기 등)은 세지 않아요.
+  addEventListener('click', (e) => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = e.target instanceof Element && e.target.closest('a[href]');
+    if (!a || (a.target && a.target !== '_self') || a.hasAttribute('download')) return;
+    const url = new URL(a.href, location.href);
+    if (!/^https?:$/.test(url.protocol)) return;
+    if (url.origin === location.origin && url.pathname === location.pathname && url.search === location.search && url.hash) return; // 같은 화면 안 이동
+    halt();
+  });
+  addEventListener('submit', (e) => {
+    if (!e.defaultPrevented && !(e.target instanceof HTMLFormElement && e.target.target)) halt();
+  });
+  addEventListener('beforeunload', halt);
+  // 뒤로 가기로 이 화면이 그대로 되살아나면(다른 화면에 다녀왔으면 자동은 꺼져 있어요) 지금 상태로 다시 맞춰요.
+  addEventListener('pageshow', (e) => {
+    if (!e.persisted) return;
+    leaving = false;
     sync();
   });
   document.addEventListener('change', (e) => {
