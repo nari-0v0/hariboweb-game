@@ -1777,7 +1777,7 @@ main.wide { max-width: 1320px; }
 .gb-bet-display { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; }
 .gb-bet-amount { font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .gb-bet-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .35rem; }
-.gb-bet-steps .gb-button { min-width: 0; padding: .35rem .1rem; font-size: .75rem; }
+.gb-bet-steps .gb-button { min-width: 0; padding: .35rem .1rem; font-size: .75rem; word-break: keep-all; }
 .gb-bet-steps .gb-button[data-gb-bet="all"] { background: #ffedb0; }
 .gb-bet-steps .gb-button[data-gb-bet="clear"] { background: #fff; }
 .gb-play-button { width: 100%; }

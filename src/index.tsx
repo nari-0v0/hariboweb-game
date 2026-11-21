@@ -90,7 +90,7 @@ import {
 
 import { GambleLobby, GambleLocked, GambleRoom } from './views/gamble';
 import { DAILY_CHIPS, GAMBLE_LOCKED, gambleTester, isCoinSide, type CoinSide } from './gamble';
-import { activeHand, mySeasonNet, betChips, betTooSoon, claimDaily, expireAllHands, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, movedChips, moveHand, rescueChips, type Game } from './gamble-db';
+import { activeHand, forgetSeasonLeader, mySeasonNet, betChips, betTooSoon, claimDaily, expireAllHands, expireHand, gambleAccount, gambleDay, gambleRanks, gambleRound, movedChips, moveHand, rescueChips, type Game } from './gamble-db';
 import { prefetchAllowed } from './prefetch';
 import { crossSiteImageRequest, imageRequestAllowed } from './image-guard';
 import { burnReply, burnWindow, burnWindowsForSync, burningUntil } from './burning';
@@ -1030,6 +1030,8 @@ members.post('/api/shop/reset', async (c) => {
     console.error('게임 기록 초기화 실패', e);
     return c.redirect('/shop?n=error');
   }
+  // 초기화로 겜블 순이익이 지워졌으니 로비의 시즌 1등 기억(1분)을 바로 버려요(7차 점검)
+  if (result === 'done') forgetSeasonLeader(c.env.DB);
   return c.redirect(result === 'done' ? '/shop?n=reset_done' : result === 'changed' ? '/shop?n=reset_changed' : '/shop?n=not_enough_jelly');
 });
 
