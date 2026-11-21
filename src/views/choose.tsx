@@ -175,7 +175,7 @@ export function GameResetPage(props: { viewer: Member; jelly: number; chips: num
         <ul class="reset-list">
           <li>
             🎰 <b>겜블장</b>: 젤칩이 시작 칩 1000개가 되고 판 기록과 이번 시즌 겜블 순이익 기록이 사라져요
-            {props.chips !== null && props.chips !== 1000 ? ` (지금 ${props.chips.toLocaleString('ko-KR')}개 → 1000개)` : ''}.{props.chips !== null && props.chips > 0 ? ' 디스코드에서 옮겨 온 젤칩과 점검 보상 젤칩도 따로 남지 않아요.' : ''}
+            {props.chips !== null && props.chips !== 1000 ? ` (지금 ${props.chips.toLocaleString('ko-KR')}개 → ${1000 + Math.min(0, props.chips)}개${props.chips < 0 ? ', 글을 지워 생긴 마이너스는 초기화해도 남아요' : ''})` : ''}.{props.chips !== null && props.chips > 0 ? ' 디스코드에서 옮겨 온 젤칩과 점검 보상 젤칩도 따로 남지 않아요.' : ''}
             {props.unclaimed && ' 아직 받지 않은 시작 젤칩 1000개는 이 1000개로 쳐서 따로 받지 않아요.'}
             {!!props.handBet && ` 하고 있는 카드 21 판도 없어지고 건 젤칩 ${props.handBet.toLocaleString('ko-KR')}개는 돌아오지 않아요.`}
           </li>

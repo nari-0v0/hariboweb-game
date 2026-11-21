@@ -7,7 +7,7 @@ import { notTestMember } from './test-accounts';
 
 export type Game = 'slot' | 'roulette' | 'cards' | 'coinflip';
 export type GambleAccount = {
-  chips: number; free_day: string | null; rescue_day: string | null;
+  chips: number; debt?: number; free_day: string | null; rescue_day: string | null;
   won: number; best_win: number; all_in_wins: number; plays: number; jackpots: number; naturals: number;
 };
 export type Round = {
@@ -57,7 +57,7 @@ export async function claimDaily(db: D1Database, user: string, now: string): Pro
   ]);
   if (grant!.meta.changes !== 1) return 0;
   if (!before || before.free_day === null) return DAILY_CHIPS;
-  const a = await db.prepare('SELECT chips FROM gamble_accounts WHERE user_id = ?').bind(user).first<{ chips: number }>();
+  const a = await db.prepare('SELECT chips - debt AS chips FROM gamble_accounts WHERE user_id = ?').bind(user).first<{ chips: number }>();
   return Number(a?.chips ?? 0);
 }
 
@@ -76,8 +76,10 @@ export async function movedChips(db: D1Database, user: string): Promise<number> 
   return Number(r?.jelly ?? 0);
 }
 
+// chips는 화면에 보일 젤칩이에요: 글을 지워 빚(debt)이 생기면 마이너스로 보여요(나리 2026-11-21). 걸 수 있는 건 0 이상일 때만.
 export const gambleAccount = (db: D1Database, user: string) =>
-  db.prepare('SELECT * FROM gamble_accounts WHERE user_id = ?').bind(user).first<GambleAccount>();
+  db.prepare(`SELECT user_id, chips - debt AS chips, debt, free_day, rescue_day, won, best_win, all_in_wins, plays, jackpots, naturals
+    FROM gamble_accounts WHERE user_id = ?`).bind(user).first<GambleAccount>();
 
 export const gambleRound = (db: D1Database, user: string, token: string) =>
   db.prepare('SELECT * FROM gamble_rounds WHERE user_id = ? AND token = ?').bind(user, token).first<Round>();
