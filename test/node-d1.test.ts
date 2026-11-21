@@ -63,7 +63,7 @@ describe('Node D1 호환 껍데기', () => {
     const first = await applyMigrations(db, join(process.cwd(), 'migrations'));
     expect(first).toHaveLength(65);
     expect(first[0]).toBe('0001_init.sql');
-    expect(first.at(-1)).toBe('0066_voice_backfill_1107_1116.sql');
+    expect(first.at(-1)).toBe('0066_voice_backfill_1022_1116.sql');
     expect(await applyMigrations(db, join(process.cwd(), 'migrations'))).toEqual([]);
     expect(await db.prepare('SELECT COUNT(*) AS count FROM d1_migrations').first()).toEqual({ count: 65 });
     db.close();

@@ -73,6 +73,40 @@ describe('모둠 나누기', () => {
     expect(sizes(planGroups(people(100), seededRandom('b')))).toEqual(Array(10).fill(10));
   });
 
+  it('나온 날 기록이 있으면 30일 중 3일 이하 나온 사람이 활동 적은 사람(한 번 오래 있어도)', () => {
+    // 18명은 한 달에 1~3일만 왔지만 그날 오래 있었어요(활동 시간은 많아요) → 9팀에 2명씩
+    const list = Array.from({ length: 91 }, (_, i): Person => ({
+      id: id(i + 1),
+      games: ['롤'],
+      activity: i < 18 ? 2000 : 300 + i * 10,
+      days: i < 18 ? 1 + (i % 3) : 4 + (i % 20),
+      days14: i < 18 ? 1 : 4 + (i % 10),
+    }));
+    const plan = planGroups(list, seededRandom('days'));
+    const low = new Map<number, number>();
+    for (const p of list.slice(0, 18)) low.set(plan.get(p.id)!, (low.get(plan.get(p.id)!) ?? 0) + 1);
+    expect([...low.values()].sort()).toEqual(Array(9).fill(2));
+  });
+
+  it('한 달엔 자주 왔어도 최근 2주에 하루만 왔으면 가끔 오는 사람, 2주에 2~3일은 보통 — 단계마다 팀에 고르게', () => {
+    const list = Array.from({ length: 90 }, (_, i): Person => ({
+      id: id(i + 1),
+      games: ['롤'],
+      activity: 3000 - i,
+      days: 20,
+      days14: i < 9 ? 1 : i < 27 ? 2 + (i % 2) : 8,
+    }));
+    const plan = planGroups(list, seededRandom('tier'));
+    const per = (from: number, to: number) => {
+      const m = new Map<number, number>();
+      for (const p of list.slice(from, to)) m.set(plan.get(p.id)!, (m.get(plan.get(p.id)!) ?? 0) + 1);
+      return [...m.values()].sort();
+    };
+    expect(per(0, 9)).toEqual(Array(9).fill(1));
+    expect(per(9, 27)).toEqual(Array(9).fill(2));
+    expect(sizes(plan)).toEqual(Array(9).fill(10));
+  });
+
   it('게임보다 활동량이 먼저: 한 게임만 하는 사람이 활동이 적어도 팀끼리 활동량 합이 비슷해요', () => {
     // 롤만 하는 30명은 활동이 적고, 발로 60명은 많아요. 예전엔 롤 팀에 몰려서 팀 합이 크게 벌어졌어요.
     const list = Array.from({ length: 90 }, (_, i): Person => ({

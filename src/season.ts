@@ -36,7 +36,8 @@ export function seasonFrom(start: string, end: string): Season {
 // ── 모둠 나누기 ──
 
 // slot: 지난 2주에 주로 통화한 시간대(평일/주말 + 저녁/밤/새벽/낮). 없으면 시간대는 안 봐요.
-export type Person = { id: string; games: string[]; activity: number; slot?: string };
+// days: 지난 30일 동안 통화방에 나온 날 수, days14: 지난 2주 동안 나온 날 수(모르면 없음 → 활동 시간으로 대신 봐요)
+export type Person = { id: string; games: string[]; activity: number; slot?: string; days?: number; days14?: number };
 
 // 10명 안팎으로: 91명 → 9모둠(11·10×8), 95명 → 10모둠(10×5·9×5)
 export function groupCount(n: number): number {
@@ -52,47 +53,70 @@ function spread(total: number, groups: number): number[] {
 // 팀 나누기(나리 2026-11-21): 활동량이 고르게가 먼저, 시간대가 다음, 게임 역할은 그래도 같을 때만 봐요.
 // 활동 적은 사람은 팀마다 같은 수로 먼저 나누고, 나머지는 많이 노는 사람부터 활동량 합이 적은 팀에 넣어요.
 // 모둠 인원 차이는 많아야 1명.
-// 활동이 적은 사람(지난 2주 함께 통화 LOW_ACTIVITY_MIN분 미만): 한 팀에 몰리지 않게 팀마다 같은 수(차이 1명까지)로 먼저 나눠요
-// (벙구 의견, 나리 2026-11-21). 나머지 사람은 아래 planCore(활동량 고르게 → 시간대 → 게임)로 남은 자리에 넣어요.
+// 팀마다 고르게 나누는 단계(벙구 의견, 나리 2026-11-21: 한 달로 먼저 끊고, 2주로 한 번 더 끊어요).
+// 1단계 "가끔 와요": 지난 30일 중 나온 날 3일 이하, 또는 지난 2주에 나온 날 1일 이하
+// 2단계 "보통": 지난 2주에 나온 날 2~3일
+// 두 단계는 팀마다 같은 수(차이 1명까지)로 먼저 나눠요. 나머지(2주에 4일 이상)는 아래 planCore(활동 시간 고르게 → 시간대 → 게임)로.
+// 나온 날 기록이 아무에게도 없으면 지난 2주 통화 LOW_ACTIVITY_MIN분 미만을 1단계로 대신 봐요.
+export const LOW_DAYS_WINDOW = 30;
+export const LOW_DAYS = 3;
+export const LOW_DAYS14 = 1;
+export const MID_DAYS14 = 3;
 export const LOW_ACTIVITY_MIN = 60;
+
+export function activityTier(p: Person, byDays: boolean): 0 | 1 | 2 {
+  if (!byDays) return p.activity < LOW_ACTIVITY_MIN ? 0 : 2;
+  const d30 = p.days ?? 0;
+  const d14 = p.days14 ?? 0;
+  if (d30 <= LOW_DAYS || d14 <= LOW_DAYS14) return 0;
+  if (d14 <= MID_DAYS14) return 1;
+  return 2;
+}
 
 export function planGroups(people: Person[], rand: () => number): Map<string, number> {
   const g = groupCount(people.length);
   if (!g) return new Map();
   const cap = spread(people.length, g);
-  const low = people.filter((p) => p.activity < LOW_ACTIVITY_MIN);
-  const rest = people.filter((p) => p.activity >= LOW_ACTIVITY_MIN);
-  if (!low.length || !rest.length) return planCore(people, rand, g, cap);
-  // 팀 인원이 많은 팀이 활동 적은 사람도 먼저 하나 더 받아요(남는 자리 차이가 1명을 넘지 않게)
-  const order = [...Array(g).keys()].sort((a, b) => cap[b]! - cap[a]! || a - b);
-  const lowQuota = Array<number>(g).fill(0);
-  spread(low.length, g).forEach((n, k) => (lowQuota[order[k]!] = n));
-  const out = planCore(rest, rand, g, cap.map((c, i) => c - lowQuota[i]!));
+  const byDays = people.some((p) => (p.days ?? 0) > 0);
+  const tiers = [0, 1].map((k) => people.filter((p) => activityTier(p, byDays) === k));
+  const rest = people.filter((p) => activityTier(p, byDays) === 2);
+  if (!rest.length || tiers.every((t) => !t.length)) return planCore(people, rand, g, cap);
+  // 단계마다 팀 몫을 정해요. 남은 자리가 많은 팀이 먼저 하나 더 받아서 팀 인원 차이가 1명을 넘지 않게요.
+  const room = [...cap];
+  const quotas = tiers.map((list) => {
+    const order = [...Array(g).keys()].sort((a, b) => room[b]! - room[a]! || a - b);
+    const q = Array<number>(g).fill(0);
+    spread(list.length, g).forEach((n, k) => (q[order[k]!] = n));
+    q.forEach((n, i) => (room[i]! -= n));
+    return q;
+  });
+  const out = planCore(rest, rand, g, room);
   const games = Array.from({ length: g }, () => new Set<string>());
   const slots = Array.from({ length: g }, () => new Map<string, number>());
   const act = Array<number>(g).fill(0);
-  for (const p of rest) {
-    const i = out.get(p.id)!;
+  const add = (p: Person, i: number) => {
+    out.set(p.id, i);
     for (const x of p.games) games[i]!.add(x);
     if (p.slot) slots[i]!.set(p.slot, (slots[i]!.get(p.slot) ?? 0) + 1);
     act[i]! += p.activity;
-  }
-  const lowCount = Array<number>(g).fill(0);
-  // 조금이라도 하는 사람부터: 활동 적은 사람이 아직 적은 팀 중 → 같은 시간대가 많은 팀 → 게임 역할이 겹치는 팀 → 활동량 합이 적은 팀
-  for (const p of shuffle(low, rand).sort((a, b) => b.activity - a.activity)) {
-    const open = [...Array(g).keys()].filter((i) => lowCount[i]! < lowQuota[i]!);
-    const fewest = Math.min(...open.map((i) => lowCount[i]!));
-    const pool = shuffle(open.filter((i) => lowCount[i] === fewest), rand).sort(
-      (a, b) =>
-        (p.slot ? (slots[b]!.get(p.slot) ?? 0) - (slots[a]!.get(p.slot) ?? 0) : 0) ||
-        Number(p.games.some((x) => games[b]!.has(x))) - Number(p.games.some((x) => games[a]!.has(x))) ||
-        act[a]! - act[b]!,
-    );
-    const i = pool[0]!;
-    out.set(p.id, i);
-    lowCount[i]!++;
-    act[i]! += p.activity;
-  }
+  };
+  for (const p of rest) add(p, out.get(p.id)!);
+  // 단계 안에서는 조금이라도 더 하는 사람부터: 그 단계 사람이 아직 적은 팀 중 → 같은 시간대가 많은 팀 → 게임 역할이 겹치는 팀 → 활동량 합이 적은 팀
+  tiers.forEach((list, k) => {
+    const count = Array<number>(g).fill(0);
+    for (const p of shuffle(list, rand).sort((a, b) => b.activity - a.activity)) {
+      const open = [...Array(g).keys()].filter((i) => count[i]! < quotas[k]![i]!);
+      const fewest = Math.min(...open.map((i) => count[i]!));
+      const i = shuffle(open.filter((x) => count[x] === fewest), rand).sort(
+        (a, b) =>
+          (p.slot ? (slots[b]!.get(p.slot) ?? 0) - (slots[a]!.get(p.slot) ?? 0) : 0) ||
+          Number(p.games.some((x) => games[b]!.has(x))) - Number(p.games.some((x) => games[a]!.has(x))) ||
+          act[a]! - act[b]!,
+      )[0]!;
+      count[i]!++;
+      add(p, i);
+    }
+  });
   return out;
 }
 
@@ -156,15 +180,18 @@ export async function ensureSeason(db: D1Database, season: Season, nowMs: number
   const t = new Date(nowMs).toISOString();
   const cutoffIso = new Date(Date.parse(season.start) - ACTIVE_DAYS * DAY_MS).toISOString();
   const cutoffDay = kstParts(cutoffIso).day;
+  const daysFrom = kstParts(new Date(Date.parse(season.start) - LOW_DAYS_WINDOW * DAY_MS).toISOString()).day;
   const { results: rows } = await db
     .prepare(
       `SELECT m.user_id, m.games, m.last_login_at, p.updated_at AS profile_at, m.green,
          (SELECT COALESCE(SUM(minutes), 0) FROM member_voice_day v WHERE v.user_id = m.user_id AND v.day >= ?1) AS recent,
+         (SELECT COUNT(*) FROM member_voice_day v WHERE v.user_id = m.user_id AND v.day >= ?3 AND v.minutes > 0) AS days,
+         (SELECT COUNT(*) FROM member_voice_day v WHERE v.user_id = m.user_id AND v.day >= ?1 AND v.minutes > 0) AS days14,
          (SELECT COALESCE(SUM(voice_seconds), 0) / 60 FROM cards c WHERE c.owner_id = m.user_id AND c.updated_at >= ?2) AS fallback
        FROM members m LEFT JOIN profiles p ON p.user_id = m.user_id WHERE m.active = 1`,
     )
-    .bind(cutoffDay, cutoffIso)
-    .all<{ user_id: string; games: string; last_login_at: string | null; profile_at: string | null; green: number | null; recent: number; fallback: number }>();
+    .bind(cutoffDay, cutoffIso, daysFrom)
+    .all<{ user_id: string; games: string; last_login_at: string | null; profile_at: string | null; green: number | null; recent: number; days: number; days14: number; fallback: number }>();
   // 처음 시즌에는 날마다 통화 기록이 아직 없어서 카드 통화 시간으로 대신 재요
   const useRecent = rows.some((r) => r.recent > 0);
   const prior: Prior = await loadPrior(db, season);
@@ -179,7 +206,7 @@ export async function ensureSeason(db: D1Database, season: Season, nowMs: number
     if (exclude.has(r.user_id) || isTestMember(r.user_id)) continue;
     const activity = useRecent ? r.recent : r.fallback;
     const active = greenKnown ? r.green === 1 : activity > 0 || (r.profile_at ?? '') >= cutoffIso || (r.last_login_at ?? '') >= cutoffIso;
-    if (active) people.push({ id: r.user_id, games: parseGames(r.games), activity, slot: prior.slot.get(r.user_id) });
+    if (active) people.push({ id: r.user_id, games: parseGames(r.games), activity, slot: prior.slot.get(r.user_id), days: useRecent ? r.days : undefined, days14: useRecent ? r.days14 : undefined });
   }
   const rand = seededRandom(`season:${season.id}`);
   // 팀(예전 이름 모둠): 게임 역할 겹치게, 많이/적게 노는 사람 섞기, 주로 노는 시간대 겹치게
