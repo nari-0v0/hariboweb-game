@@ -1316,7 +1316,8 @@
      "mech-drill",
      "붉은 드릴 메카"
     ]
-   ]
+   ],
+   "center": 37.6
   },
   {
    "file": "deco/mecha/mech-violet-axe.png",
@@ -1355,7 +1356,8 @@
      "mech-dark-axe",
      "암흑 도끼 메카"
     ]
-   ]
+   ],
+   "center": 59.8
   },
   {
    "file": "deco/mecha/mech-red-twin.png",
@@ -1394,7 +1396,8 @@
      "mech-blue-twin",
      "푸른 쌍검 메카"
     ]
-   ]
+   ],
+   "center": 44.9
   }
  ]
 }

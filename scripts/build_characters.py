@@ -82,12 +82,22 @@ def cut_sheet(path, rows):
     return out
 
 
-def cut_single(path):
-    """투명 배경 낱장 그림(캐릭터 한 명). 벌·물방울처럼 떨어진 소품도 지우지 않고 빈 테두리만 잘라요."""
+def cut_single(path, center=None):
+    """투명 배경 낱장 그림(캐릭터 한 명). 벌·물방울처럼 떨어진 소품도 지우지 않고 빈 테두리만 잘라요.
+
+    center: 얼굴이 잘라 낸 그림 가로의 몇 %에 있는지(눈으로 잰 값). 무기·꼬리가 한쪽으로 길어 카드에서
+    옮기는 것만으로는 얼굴이 가운데 오지 않는 그림은, 반대쪽에 투명한 칸을 덧대 얼굴을 그림 가운데로 맞춰요.
+    """
     img = np.array(Image.open(path).convert("RGBA"))
     ys, xs = np.where(img[..., 3] > 0)
     a = img[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1].copy()
     a[..., :3][a[..., 3] == 0] = 0
+    if center is not None:
+        w = a.shape[1]
+        face = w * center / 100
+        pad = int(round(abs(2 * face - w)))
+        side = (pad, 0) if face < w / 2 else (0, pad)
+        a = np.pad(a, ((0, 0), side, (0, 0)))
     return a
 
 
@@ -100,7 +110,7 @@ def cut_characters(sheets):
             assert key not in seen, f"이름이 겹쳐요: {key}"
             seen.add(key)
         if sheet.get("single"):
-            sprites.append(cut_single(SRC / sheet["file"]))
+            sprites.append(cut_single(SRC / sheet["file"], sheet.get("center")))
         else:
             sprites += cut_sheet(SRC / sheet["file"], sheet["rows"])
         names += [tuple(c) for c in chars]
