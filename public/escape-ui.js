@@ -769,7 +769,9 @@
       const rev = doc.querySelector('.esc-code input[name="rev"]');
       // 같은 문제 화면이 아니면(다른 곳으로 넘어갔거나 오류) 그냥 그 화면으로 가요.
       if (res.redirected || !rev || !doc.querySelector('.esc-ui') || !parts.length) {
-        location.assign(res.url);
+        // 리다이렉트 없는 오류면 POST 주소 대신 지금 사건 화면을 다시 열어요.
+        if (res.redirected) location.assign(res.url);
+        else location.reload();
         return;
       }
       for (const n of parts) document.querySelector(`[data-esc-sync="${n.dataset.escSync}"]`)?.replaceWith(document.importNode(n, true));

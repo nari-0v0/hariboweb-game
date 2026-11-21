@@ -199,14 +199,18 @@ addEventListener('pageshow', (e) => {
       if (!res.ok || url.searchParams.has('n') && url.searchParams.get('n') !== 'stale') {
         // 멈춘 이유(오류 안내 등)를 볼 수 있게 그 화면으로 가요.
         set(false);
-        location.href = res.url;
+        // 리다이렉트 없이 오류(500·503)면 res.url은 POST 전용 주소라, 그 대신 지금 화면을 다시 열어요.
+        if (res.redirected) location.href = res.url;
+        else location.reload();
         return;
       }
       const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
       const next = doc.getElementById('journey');
       const cur = document.getElementById('journey');
       if (!next || !cur || url.searchParams.has('r')) {
-        location.href = res.url; // 원정이 끝나면 결과 화면으로(자동은 켜진 채로, 결과 화면에서 5초 뒤 다시 떠나요)
+        // 원정이 끝나면 결과 화면으로(자동은 켜진 채로, 결과 화면에서 5초 뒤 다시 떠나요). POST 주소면 지금 화면을 다시 열어요.
+        if (res.redirected) location.href = res.url;
+        else location.reload();
         return;
       }
       const open = cur.querySelector('details')?.open;

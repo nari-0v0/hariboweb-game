@@ -619,3 +619,13 @@ describe('남는 재료 팔기(나리 2026-11-19)', () => {
     expect(bank.coins).toBe(-65);
   });
 });
+
+describe('2026-11-21 Codex 전체 점검', () => {
+  it('난수 씨앗은 화면에 보이는 판 번호와 달라요(동전 던지기·샘을 미리 계산하지 못하게)', async () => {
+    const { db } = database();
+    const id = (await beginJourney(db, 'me'))!;
+    const run = (await getJourney(db, 'me', id))!;
+    expect(run.state.seed).not.toBe(id);
+    expect(run.state.seed).toMatch(/^[0-9a-f-]{36}$/);
+  });
+});

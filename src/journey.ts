@@ -342,7 +342,7 @@ export function battle(s: JourneyState, m: Monster, power: number, r: () => numb
       php[php.length - 1] = s.hp; // 물약 회복도 방금 맞은 칸 체력에 넣어요
       lines.push({ icon: KIT.potion.icon, text: `위험할 때 회복 물약을 마셨어요! 체력 +${heal}`, tone: 'good' });
     }
-    if (sk(s, 'thorn')) {
+    if (hit > 0 && sk(s, 'thorn')) { // 피하거나 막아 안 맞았으면 되돌려 주지 않아요
       mhp -= 3 * sk(s, 'thorn');
       left[left.length - 1] = Math.max(0, mhp); // 가시 피해는 방금 맞은 칸 기록에 넣어요(막대가 반격 때 줄어요)
     }
