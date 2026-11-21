@@ -95,6 +95,14 @@ describe('원정대 장 고르기', () => {
     expect(top[0]).toBeGreaterThan(1);
   });
 
+  it('오늘 떠난 원정 판 수를 하루 100판 중 몇 판인지 보여 줘요', async () => {
+    const html = String(await (<JourneyPage viewer={VIEWER} art="/a.png" run={null} result={null} record={RECORD} bank={BANK} dogam={{ cards: 0, levels: [] }} runsToday={37} />));
+    expect(html).toContain('🧭 37/100판');
+    const full = String(await (<JourneyPage viewer={VIEWER} art="/a.png" run={null} result={null} record={RECORD} bank={BANK} dogam={{ cards: 0, levels: [] }} runsToday={120} />));
+    expect(full).toContain('🧭 100/100판');
+    expect(full).toContain('jr-runs full');
+  });
+
   it('마지막으로 돈 장이 그대로 골라져 있어요', async () => {
     expect(checked(await page({ ...RECORD, last: 1 }))).toEqual([1]);
   });
