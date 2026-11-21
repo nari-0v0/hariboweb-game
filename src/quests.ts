@@ -16,6 +16,8 @@ export type GroupCtx = {
   startCurrent: string[];
   voice: { day: string; hour: number; together: number; same: number; minutes: number }[];
   memberDay: { user: string; day: string; minutes: number }[];
+  /** 아침 6시 기준 하루별 분(오늘의 활약용). */
+  memberGameDay?: { user: string; day: string; minutes: number }[];
   pairs: { a: string; b: string; minutes: number }[];
   rooms: number;
   bestRun: number;

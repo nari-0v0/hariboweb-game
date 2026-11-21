@@ -1,4 +1,4 @@
-import { dayStartMs } from './day';
+import { dayStartMs, gameDay } from './day';
 import { awardGambleSeason } from './gamble-db';
 // 시즌 모둠 퀘스트: 모둠 나누기, 봇 기록 모으기, 퀘스트 확인과 보상.
 // 시즌 = 1주(나리 2026-11-21, 커뮤니티 주기 2주를 봇이 7일씩 잘라 보내요). 봇이 동기화 때 시즌 시작·끝을 보내면 처음 한 번 모둠을 만들어요.
@@ -509,6 +509,7 @@ async function groupStatements(
   // 1분 통화방 기록 → 모둠별로
   const voice = new Map<string, number>();
   const memberDay = new Map<string, number>();
+  const memberGameDay = new Map<string, number>();
   const pairs = new Map<string, number>();
   const rooms = new Set<string>();
   const newbieMin = new Map<string, number>();
@@ -532,6 +533,8 @@ async function groupStatements(
       const vk = keyOf(g, day, hour, gm.length, same);
       voice.set(vk, (voice.get(vk) ?? 0) + 1);
       for (const u of gm) memberDay.set(keyOf(g, u, day), (memberDay.get(keyOf(g, u, day)) ?? 0) + 1);
+      const gday = gameDay(Date.parse(r.at));
+      for (const u of gm) memberGameDay.set(keyOf(g, u, gday), (memberGameDay.get(keyOf(g, u, gday)) ?? 0) + 1);
       const sorted = [...gm].sort();
       for (let i = 0; i < sorted.length; i++)
         for (let j = i + 1; j < sorted.length; j++) {
@@ -565,6 +568,14 @@ async function groupStatements(
   for (const [k, n] of memberDay) {
     const [g, u, day] = k.split('|');
     stmts.push(addMemberDay.bind(sid, Number(g), u, day, n));
+  }
+  const addMemberGameDay = db.prepare(
+    `INSERT INTO gq_member_gameday (season_id, group_no, user_id, day, minutes) VALUES (?1, ?2, ?3, ?4, ?5)
+     ON CONFLICT (season_id, group_no, user_id, day) DO UPDATE SET minutes = minutes + ?5`,
+  );
+  for (const [k, n] of memberGameDay) {
+    const [g, u, day] = k.split('|');
+    stmts.push(addMemberGameDay.bind(sid, Number(g), u, day, n));
   }
   const addPair = db.prepare(
     `INSERT INTO gq_pair (season_id, group_no, a, b, minutes) VALUES (?1, ?2, ?3, ?4, ?5)
@@ -666,7 +677,7 @@ export async function loadGroups(
   const season: Season = { id: s.id, start: s.starts_at, end: s.ends_at };
   const q = <T>(sql: string, ...args: unknown[]): Rows<T> => db.prepare(sql).bind(seasonId, groupNo, ...args).all<T>();
   const G = '(?2 IS NULL OR group_no = ?2)';
-  const [members, quests, voice, memberDay, pairs, rooms, runs, scrims, newbie, attend, praises, cards, newOwners, snaps] = await Promise.all([
+  const [members, quests, voice, memberDay, pairs, rooms, runs, scrims, newbie, attend, praises, cards, newOwners, snaps, memberGameDay] = await Promise.all([
     q<{ user_id: string; group_no: number; start_member: number; left_at: string | null; display_name: string | null; last_login_at: string | null; solo_xp: number | null; is_newbie: number | null }>(
       `SELECT s.user_id, s.group_no, s.start_member, s.left_at, m.display_name, m.last_login_at, p.solo_xp, m.is_newbie
        FROM season_members s LEFT JOIN members m ON m.user_id = s.user_id LEFT JOIN profiles p ON p.user_id = s.user_id
@@ -710,6 +721,13 @@ export async function loadGroups(
       `SELECT n.owner_id, n.target_id, n.xp FROM season_snap n JOIN season_members s ON s.season_id = n.season_id AND s.user_id = n.owner_id
        WHERE n.season_id = ?1 AND (?2 IS NULL OR s.group_no = ?2)`,
     ),
+    // 오늘의 활약은 시즌이 0시에 바뀌어도 같은 게임일(아침 6시~)이면 이어서 세요: 앞 시즌 기록도 지금 팀으로 합쳐요.
+    q<{ group_no: number; user_id: string; day: string; minutes: number }>(
+      `SELECT s.group_no, x.user_id, x.day, SUM(x.minutes) AS minutes FROM gq_member_gameday x
+       JOIN season_members s ON s.season_id = ?1 AND s.user_id = x.user_id AND (?2 IS NULL OR s.group_no = ?2)
+       WHERE x.day >= ?3 GROUP BY s.group_no, x.user_id, x.day`,
+      gameDay(Date.parse(season.start)),
+    ),
   ]);
 
   const groupOf = new Map(members.results.map((m) => [m.user_id, m.group_no]));
@@ -728,6 +746,7 @@ export async function loadGroups(
       startCurrent: ms.filter((m) => m.start_member && !m.left_at).map((m) => m.user_id),
       voice: inGroup(voice.results),
       memberDay: inGroup(memberDay.results).map((r) => ({ user: r.user_id, day: r.day, minutes: r.minutes })),
+      memberGameDay: inGroup(memberGameDay.results).map((r) => ({ user: r.user_id, day: r.day, minutes: r.minutes })),
       pairs: inGroup(pairs.results),
       rooms: inGroup(rooms.results)[0]?.n ?? 0,
       bestRun: inGroup(runs.results)[0]?.best ?? 0,
@@ -862,12 +881,12 @@ export function rankGroups(groups: GroupState[], mine: number | null): GroupRank
 function activity(g: GroupState, userId: string, today: string): Pick<GroupView, 'me' | 'todayTop'> {
   const me = { today: 0, season: 0 };
   const todayBy = new Map<string, number>();
-  for (const r of g.ctx.memberDay) {
-    if (r.user === userId) {
-      me.season += r.minutes;
-      if (r.day === today) me.today += r.minutes;
-    }
-    if (r.day === today) todayBy.set(r.user, (todayBy.get(r.user) ?? 0) + r.minutes);
+  for (const r of g.ctx.memberDay) if (r.user === userId) me.season += r.minutes;
+  // 「오늘」은 아침 6시 기준 하루예요(gq_member_gameday, 0068).
+  for (const r of g.ctx.memberGameDay ?? []) {
+    if (r.day !== today) continue;
+    if (r.user === userId) me.today += r.minutes;
+    todayBy.set(r.user, (todayBy.get(r.user) ?? 0) + r.minutes);
   }
   const names = new Map(g.members.filter((m) => !m.left).map((m) => [m.id, m.name]));
   const todayTop = [...todayBy]
@@ -910,7 +929,7 @@ export async function groupViewFor(db: D1Database, userId: string, nowMs: number
     }),
     titles: titles.map((r) => r.title),
     ranking: rankGroups(loaded.groups, g.no),
-    ...activity(g, userId, kstParts(now).day),
+    ...activity(g, userId, gameDay(Date.parse(now))),
   };
 }
 
@@ -930,7 +949,7 @@ export async function seasonRanking(db: D1Database, nowMs: number): Promise<Seas
   if (!row) return null;
   const loaded = await loadGroups(db, row.id);
   if (!loaded || loaded.groups.length === 0) return null;
-  const today = kstParts(now).day;
+  const today = gameDay(Date.parse(now));
   const todayTop = loaded.groups
     .flatMap((g) => activity(g, '', today).todayTop.map((t) => ({ ...t, group: g.no })))
     .sort((a, b) => b.minutes - a.minutes || (a.id < b.id ? -1 : 1))

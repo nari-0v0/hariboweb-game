@@ -397,6 +397,36 @@ describe('동기화로 시즌 모둠', () => {
     expect(await seasonRanking(db, Date.parse(r!.season.end))).toBeNull();
   });
 
+  it('오늘의 활약은 아침 6시에 하루가 바뀌어요', async () => {
+    const { sql, db } = fakeD1(20);
+    await applySync(db, payload({ members: members(20), full_members: true }), NOW, OLD);
+    const g1 = (sql.prepare('SELECT user_id FROM season_members WHERE group_no = 1 ORDER BY user_id').all() as { user_id: string }[]).map((r) => r.user_id);
+    // 한국 11월 4일 05:50~05:59 10분(전날 게임일), 06:00~06:04 5분(새 게임일)
+    const start = Date.parse('2026-11-03T20:50:00Z');
+    const minutes = Array.from({ length: 15 }, (_, i) => ({ at: new Date(start + i * 60_000).toISOString(), room: id(999), members: g1.slice(0, 2) }));
+    await applySync(db, payload({ room_minutes: minutes }), start);
+    const before = await seasonRanking(db, Date.parse('2026-11-03T20:59:30Z'));
+    expect(before?.todayTop.map((t) => t.minutes)).toEqual([10, 10]);
+    const after = await seasonRanking(db, Date.parse('2026-11-03T22:00:00Z'));
+    expect(after?.todayTop.map((t) => t.minutes)).toEqual([5, 5]);
+    expect(sql.prepare('SELECT day, minutes FROM gq_member_gameday WHERE user_id = ? ORDER BY day').all(g1[0])).toEqual([
+      { day: '2026-11-03', minutes: 10 },
+      { day: '2026-11-04', minutes: 5 },
+    ]);
+  });
+
+  it('시즌이 0시에 바뀌어도 같은 게임일의 오늘의 활약은 이어서 세요', async () => {
+    const { sql, db } = fakeD1(20);
+    await applySync(db, payload({ members: members(20), full_members: true }), NOW, OLD);
+    const sid = (sql.prepare('SELECT id FROM seasons').get() as { id: string }).id;
+    const g = sql.prepare('SELECT user_id, group_no FROM season_members WHERE season_id = ? ORDER BY user_id LIMIT 1').get(sid) as { user_id: string; group_no: number };
+    // 앞 시즌에 같은 게임일 60분이 있었다고 쳐요.
+    sql.prepare("INSERT INTO gq_member_gameday (season_id, group_no, user_id, day, minutes) VALUES ('old-season', 9, ?, '2026-11-03', 60)").run(g.user_id);
+    sql.prepare("INSERT INTO gq_member_gameday (season_id, group_no, user_id, day, minutes) VALUES (?, ?, ?, '2026-11-03', 10)").run(sid, g.group_no, g.user_id);
+    const r = await seasonRanking(db, NOW);
+    expect(r?.todayTop.find((t) => t.id === g.user_id)?.minutes).toBe(70);
+  });
+
   it('모둠 순위: 깬 퀘스트, 같으면 모둠 통화 시간, 둘 다 같으면 같은 등수', () => {
     const g = (no: number, done: number, minutes: number) =>
       ({

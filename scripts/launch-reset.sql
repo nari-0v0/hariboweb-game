@@ -28,6 +28,7 @@ DELETE FROM member_voice_day;
 DELETE FROM member_voice_slot;
 DELETE FROM gq_voice;
 DELETE FROM gq_member_day;
+DELETE FROM gq_member_gameday;
 DELETE FROM gq_pair;
 DELETE FROM gq_room;
 DELETE FROM gq_run;
