@@ -9,7 +9,10 @@ import { applySync, parseSync } from '../src/sync';
 import {
   bingoExtras,
   loadPrior,
+  OLD_TEAM_RULE,
+  TEAM_RULE,
   matesNeeded,
+  teamRuleFor,
   jellypiRanking,
   kidnapTarget,
   serverProgress,
@@ -79,32 +82,38 @@ const jp = (sql: DatabaseSync, id: string) =>
 describe('팀 퀘스트 계산', () => {
   const E = '5'.repeat(18);
   const mins = (list: [string, string, number][]) => new Map(list.map(([a, b, n]) => [a < b ? `${a}|${b}` : `${b}|${a}`, n]));
-  it('필요한 팀원 수 = 팀 인원 절반(반올림), 최소 1, 나를 뺀 팀원 수 이하 (10명 팀이면 5명)', () => {
-    expect([1, 2, 3, 4, 5, 9, 10, 11].map(matesNeeded)).toEqual([1, 1, 2, 2, 3, 5, 5, 6]);
+  it('필요한 팀원 수 = 1명(혼자면 0명)', () => {
+    expect([1, 2, 3, 4, 5, 9, 10, 11].map(matesNeeded)).toEqual([0, 1, 1, 1, 1, 1, 1, 1]);
   });
 
-  it('30분 이상 함께한 팀원이 절반 이상이면 달성, 팀원 절반이 달성하면 팀 완료', () => {
-    // 4명 팀: 2명과 30분씩
-    const p = teamProgress([A, B, C, D], mins([[A, B, 30], [A, C, 30], [B, C, 30], [C, D, 29]]), new Set());
-    expect(p).toMatchObject({ need: 2, target: 2, achievers: [A, B, C], complete: true, bonus: false });
-    // 1명과만 30분은 아직
-    expect(teamProgress([A, B, C, D], mins([[A, B, 90], [C, D, 90]]), new Set())).toMatchObject({ achievers: [], complete: false });
-    // 5명 팀: 목표 3명(2.5 → 3), 필요한 팀원 3명
-    expect(teamProgress([A, B, C, D, E], new Map(), new Set())).toMatchObject({ need: 3, target: 3 });
+  it('팀원 누구와든 60분 이상이면 나는 달성, 팀에서 4명이 달성하면 팀 완료', () => {
+    const p = teamProgress([A, B, C, D, E], mins([[A, B, 60], [C, D, 60], [D, E, 59]]), new Set());
+    expect(p).toMatchObject({ need: 1, target: 4, achievers: [A, B, C, D], complete: true, bonus: false });
+    // 59분은 아직
+    expect(teamProgress([A, B, C, D, E], mins([[A, B, 60], [C, E, 59]]), new Set())).toMatchObject({ achievers: [A, B], complete: false });
+    // 3명 팀은 3명 모두
+    expect(teamProgress([A, B, C], mins([[A, B, 60], [B, C, 60]]), new Set())).toMatchObject({ target: 3, achievers: [A, B, C], complete: true });
   });
 
-  it('떠난 팀원과 함께한 시간도 세고, 목표·필요 인원은 남은 팀원으로 맞춰요', () => {
-    const p = teamProgress([A, B, C, D], mins([[A, B, 40], [A, D, 40]]), new Set([B]));
-    expect(p).toMatchObject({ candidates: [A, C, D], need: 2, target: 2, achievers: [A] });
+  it('떠난 팀원과 함께한 시간도 세고, 목표는 남은 팀원으로 맞춰요', () => {
+    const p = teamProgress([A, B, C, D], mins([[A, B, 60], [C, D, 40]]), new Set([B]));
+    expect(p).toMatchObject({ candidates: [A, C, D], need: 1, target: 3, achievers: [A] });
+  });
+
+  it('2026-11-21 전에 시작한 시즌은 예전 규칙(팀 절반과 각각 30분, 팀 절반 달성)으로 판정해요', () => {
+    expect(teamRuleFor('2026-11-14')).toBe(OLD_TEAM_RULE);
+    expect(teamRuleFor('2026-11-21')).toBe(TEAM_RULE);
+    const m = mins([[A, B, 30], [A, C, 30], [B, C, 30], [C, D, 29]]);
+    expect(teamProgress([A, B, C, D], m, new Set(), new Map(), OLD_TEAM_RULE)).toMatchObject({ need: 2, target: 2, achievers: [A, B, C], complete: true });
+    expect(teamProgress([A, B, C, D], m, new Set())).toMatchObject({ need: 1, target: 4, achievers: [], complete: false });
   });
 
   it('남은 팀원이 2명보다 적으면 보너스 칸(보상 없음)', () => {
     expect(teamProgress([A], new Map(), new Set())).toMatchObject({ bonus: true, complete: false, target: 0 });
     expect(teamProgress([A, B], new Map(), new Set([B]))).toMatchObject({ bonus: true, target: 0 });
-    expect(teamProgress([A, B], mins([[A, B, 30]]), new Set())).toMatchObject({ bonus: false, need: 1, achievers: [A, B], complete: true });
+    expect(teamProgress([A, B], mins([[A, B, 60]]), new Set())).toMatchObject({ bonus: false, need: 1, achievers: [A, B], complete: true });
   });
 });
-
 describe('서버 퀘스트 계산', () => {
   it('목표 = 초록하리보 절반(최소 1), 납치된 초록하리보와 참여자', () => {
     expect([kidnapTarget(0), kidnapTarget(1), kidnapTarget(5), kidnapTarget(20)]).toEqual([1, 1, 3, 10]);

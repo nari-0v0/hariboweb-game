@@ -216,7 +216,7 @@ const CENTER_TEXT: Record<MyTeam, string> = {
   none: '팀 퀘스트(팀 없음)',
 };
 
-// 가운데 칸: 지난 2주간 10분 미만 통화자와 이번 시즌 30분. 내가 달성했거나 팀이 목표를 채웠거나 보너스 칸이면 채운 칸.
+// 가운데 칸: 팀 퀘스트(TEAM_GOAL_MIN분 함께한 팀원 1명 → TEAM_TARGET명 달성이면 팀 완료). 내가 달성했거나 팀이 목표를 채웠거나 보너스 칸이면 채운 칸.
 export function centerCell(team: MyTeam): BingoCellView {
   const done = centerDone(team);
   return { id: 'team', icon: '👫', text: CENTER_TEXT[team], diff: 'normal', value: done ? 1 : 0, target: 1, done, center: true };
