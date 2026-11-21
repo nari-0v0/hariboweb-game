@@ -335,6 +335,12 @@ function separateManyTeams(plan: Map<string, number>, blocked: Set<string>, keep
   if (search()) for (const [id, no] of chosen) plan.set(id, no);
 }
 
+// 승인된 짝이 아직 같은 팀에 있는지
+export function hasBlockedTogether(plan: Map<string, number>, blocked: Set<string>): boolean {
+  const ids = [...plan.keys()];
+  return ids.some((a, i) => ids.slice(i + 1).some((b) => plan.get(a) === plan.get(b) && blocked.has(blockKey(a, b))));
+}
+
 // 같은 팀에 승인된 짝이 있으면 다른 팀 사람과 한 명씩 바꿔요.
 // 바꾼 뒤 두 팀의 막힌 짝 수가 줄어들 때만 바꿔요(한 팀에 짝이 여럿이어도 하나씩 풀려요).
 // keep(팀원 목록)이 false가 되는 바꾸기는 하지 않아요(팀 퀘스트 짝 같은 다른 조건을 지키려고).

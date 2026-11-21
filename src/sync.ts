@@ -8,7 +8,7 @@ import { ensureSeasonQuests, settleEnded } from './team';
 import { purgeAlerts } from './alerts';
 import { cardRewardStatements } from './card-rewards';
 import { isTestMember } from './test-accounts';
-import { bingoStatements, grantTouched, loadPeriods, prunePairDays, savePeriod, splitCycle } from './bingo';
+import { bingoStatements, grantTouched, loadPeriods, prunePairDays, savePeriod, periodsOf } from './bingo';
 import { type Attendance, type RoomMinute, type ScrimRecord, type Season, ENDED_GRACE_MS, ensureSeason, evaluateSeason, seasonFrom, seasonStatements, seasonTargets } from './season';
 
 // 봇이 보내는 동기화 묶음을 검사하고 D1에 한 번에 반영해요. 자세한 형식은 docs/bot-sync.md
@@ -389,10 +389,10 @@ export async function applySync(
   // 주간 빙고 기록(통화방 1분, 출석)도 같은 트랜잭션에.
   // 나간 사람 처리보다 먼저 넣어요: 같은 묶음에 나가기 직전 기록이 있어도 아래에서 함께 지우고,
   // 짝 통화 기준값(bingo_pair_reset)에도 그 분이 들어가게요.
-  // 빙고 기간 = 생명력 주기(봇이 보내는 season)의 절반. 이번 묶음의 주기를 먼저 적어 둬요.
+  // 빙고 기간 = 봇이 보내는 season(1주, 예전 봇은 2주 주기의 절반). 이번 묶음의 기간을 먼저 적어 둬요.
   const periods = await loadPeriods(db, nowMs);
   if (p.season) {
-    for (const half of splitCycle(p.season.start, p.season.end)) {
+    for (const half of periodsOf(p.season.start, p.season.end)) {
       stmts.push(savePeriod(db, half));
       periods.unshift(half);
     }
@@ -400,7 +400,7 @@ export async function applySync(
     // 보내서, 전에는 이 출석이 임시 주(w…)로 들어가 새 빙고판에서 빠졌어요. 같은 길이로 이어진다고 보고 그 기간 id로
     // 적어 둬요(기간 자체는 저장하지 않아요. 봇이 새 주기를 보내면 같은 id라 그대로 이어지고, 시작 전 기간은 보상 확인도 안 해요).
     const span = Date.parse(p.season.end) - Date.parse(p.season.start);
-    const next = splitCycle(p.season.end, new Date(Date.parse(p.season.end) + span).toISOString())[0];
+    const next = periodsOf(p.season.end, new Date(Date.parse(p.season.end) + span).toISOString())[0];
     if (next) periods.push(next);
   }
   const bingo = bingoStatements(db, p.room_minutes, p.attendance, periods, opts.burn ?? null);

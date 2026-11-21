@@ -42,7 +42,8 @@ export function weekOfDay(day: string): Week {
 }
 
 // ── 빙고 기간 = 생명력 주기의 절반("이번 주") ──
-// 봇이 동기화 때 보내는 주기(season, 2주)를 반으로 나눠 bingo_periods에 적어 두고, 그 기간마다 빙고판이 새로 나와요.
+// 봇이 동기화 때 보내는 주기(season)로 bingo_periods를 적어 두고, 그 기간마다 빙고판이 새로 나와요.
+// 예전 봇은 주기 2주를 통째로 보내서 반으로 나눴고, 2026-11-21부터 봇이 1주씩(팀 시즌) 잘라 보내서 그대로 써요(periodsOf).
 // 그래서 생명력 주기 하나에 빙고판이 2번 나와요.
 // 주기를 아직 모르면(봇이 주기를 안 보냈으면) 월요일 기준 주로 대신해요.
 
@@ -82,6 +83,17 @@ export function splitCycle(start: string, end: string): Week[] {
     { id: id(s, mid), start: iso(s), end: iso(mid) },
     { id: id(mid, e), start: iso(mid), end: iso(e) },
   ];
+}
+
+// 봇이 보낸 시즌 → 빙고 기간. 8일 이하(1주 시즌)면 그대로 하나, 더 길면(예전 2주 주기) 반으로 나눠요.
+export const WEEK_SEASON_MAX_MS = 8 * DAY_MS;
+export function periodsOf(start: string, end: string): Week[] {
+  const s = Date.parse(start);
+  const e = Date.parse(end);
+  if (e - s > WEEK_SEASON_MAX_MS) return splitCycle(start, end);
+  const k = kstParts(new Date(s).toISOString());
+  const id = e - s >= DAY_MS ? k.day : `${k.day}-${String(k.hour).padStart(2, '0')}`;
+  return [{ id, start: new Date(s).toISOString(), end: new Date(e).toISOString() }];
 }
 
 export function savePeriod(db: D1Database, p: Week): D1PreparedStatement {

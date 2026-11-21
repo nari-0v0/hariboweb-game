@@ -19,6 +19,7 @@ function fakeD1() {
   const sql = new DatabaseSync(':memory:');
   const dir = join(process.cwd(), 'migrations');
   for (const f of readdirSync(dir).filter((n) => n.endsWith('.sql')).sort()) sql.exec(readFileSync(join(dir, f), 'utf8'));
+  sql.exec('DELETE FROM member_voice_day; DELETE FROM member_voice_slot;'); // 0066 실제 기록 채우기는 빼고 빈 DB로 시험해요
   const stmt = (query: string, args: unknown[] = []) => ({
     query,
     args,
