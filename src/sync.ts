@@ -348,6 +348,7 @@ export async function applySync(
   const addPair = db.prepare(
     `INSERT INTO cards (owner_id, target_id, xp, voice_seconds, scrims, first_met, updated_at)
      SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7 WHERE EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1)
+       AND EXISTS (SELECT 1 FROM members WHERE user_id = ?2)
      ON CONFLICT (owner_id, target_id) DO UPDATE SET xp = xp + ?3, voice_seconds = voice_seconds + ?4,
        scrims = scrims + ?5, first_met = MIN(first_met, ?6), updated_at = ?7`,
   );

@@ -28,7 +28,7 @@ function Spot(props: { row: PodiumRow | undefined; place: 1 | 2 | 3; show: (v: n
         <b>{r.rank}</b>
         <small>{PLACE[r.rank - 1] ?? ''}</small>
       </span>
-      <span class="pd-name">{r.name}</span>
+      <span class="pd-name" title={r.name}>{r.name}</span>
       <span class="pd-value">{r.label ? r.label.map((l, i) => (i ? [<br />, l] : l)) : props.show(r.value)}</span>
     </li>
   );
