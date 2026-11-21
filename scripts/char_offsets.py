@@ -78,7 +78,8 @@ def feet_offset(path: Path) -> float:
     # 크게 쏠리게 했고(나리 2026-11-21: 로도·도치·둥이·하프 카드가 왼쪽으로 쏠림), 몸통으로 재면 포니테일에 끌려가요.
     # 기본 캐릭터는 소품 없이 두 발로 서 있어서 발 가운데가 곧 몸 가운데예요.
     if path.parent == CHAR:
-        cx = legs_center(alpha, top, height)
+        # 포니테일처럼 머리카락이 한쪽으로 긴 그림은 발 가운데와 그림 가운데의 중간에 둬요(나리 2026-11-21 "B").
+        cx = (legs_center(alpha, top, height) + (alpha.shape[1] - 1) / 2) / 2
     else:
         cx = face_center(img, alpha, top, height)
     if cx is None:

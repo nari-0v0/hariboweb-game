@@ -74,9 +74,9 @@ describe('꾸밈 캐릭터 가운데 맞추기 (멍쑤님 제보 2026-11-20, 얼
   });
 
   it('포니테일 멤버 캐릭터는 여전히 얼굴 쪽으로 옮겨요', () => {
-    expect(CHAR_OFFSETS['girl-36-0.png']).toBeGreaterThan(10);
-    expect(CHAR_OFFSETS['girl-43-0.png']).toBeGreaterThan(10);
-    expect(CHAR_OFFSETS['girl-08-0.png']).toBeLessThan(-6);
+    expect(CHAR_OFFSETS['girl-36-0.png']).toBeGreaterThan(5);
+    expect(CHAR_OFFSETS['girl-43-0.png']).toBeGreaterThan(5);
+    expect(CHAR_OFFSETS['girl-08-0.png']).toBeLessThan(-3);
   });
 
   it('기본 캐릭터는 발 가운데로 재서 손·귀에 끌려 쏠리지 않아요 (나리 2026-11-21 로도·도치·둥이·하프)', () => {
