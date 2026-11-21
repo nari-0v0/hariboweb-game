@@ -7,6 +7,7 @@ import { rng } from './rng';
 import { jo, ro } from './josa';
 import type { EscAction, EscCase, EscObject, Lock } from './escape';
 import { BANK, type BankItem } from './escape-bank';
+import { reItem } from './escape-bank-re';
 import { ROOMS, ROOM_KEYS, roomByName, type Hotspot, type RoomKey } from './case-rooms';
 
 export type StorySeed = {
@@ -315,7 +316,7 @@ function pickRooms(r: R, names: readonly string[]): RoomKey[] {
   return out;
 }
 
-// vr: 다시 푸는 판 번호(나리 2026-11-17, 멍쑤님 제보). 0이면 처음 판, 1부터는 같은 수수께끼로
+// vr: 다시 푸는 판 번호(나리 2026-11-17, 멍쑤님 제보). 0이면 처음 판, 1부터는 숫자·판을 바꾼 수수께끼(escape-bank-re)로
 // 범인·단서·물건 숨은 자리·문제 내는 방식·시계 시각 같은 것만 새로 섞어요(답을 외워서 다시 풀지 못하게).
 // 다시 푸는 판은 요청마다 늘 같은 판이 나와야 해서, 사건끼리 함께 쓰는 수수께끼 카드 기록(USED_RID)을 쓰지 않아요.
 export function buildCase(seed: StorySeed, level = 3, no = 0, vr = 0): EscCase {
@@ -398,7 +399,8 @@ export function buildCase(seed: StorySeed, level = 3, no = 0, vr = 0): EscCase {
   const people: string[] = seed.suspects.map(([name]) => name);
   const make = (k: number, scene: number, reward: Reward, lock?: Spot): Built => {
     const bi = slotItem[k]!;
-    const b = BANK[bi]!;
+    // 다시 푸는 판은 숫자·판을 바꾼 수수께끼를 써요(나리 2026-11-21, 답이 처음 판과 달라야 해요).
+    const b = vr > 0 ? reItem(BANK[bi]!) : BANK[bi]!;
     const no1 = bi + 1;
     const use = b.kind === 'text' ? pres[textSlots.indexOf(k)]! : mech(b);
     formats.push(use);
@@ -414,7 +416,8 @@ export function buildCase(seed: StorySeed, level = 3, no = 0, vr = 0): EscCase {
     if (use === 'far') return far(cx, t, no1, ctx(scene - 1, reward, 'none'), seed.rooms[scene - 1]!);
     if (use === 'clock') return clockQuiz(cx, b.clock!, no1);
     if (use === 'card') {
-      const out = riddle(cardSpot ? { ...cx, card: cardSpot } : cx);
+      // 다시 푸는 판: 처음 판의 정답 물건은 방에서 빼 두고(cardSpot), 다른 물건으로 새 수수께끼를 내요.
+      const out = riddle(cx);
       if (vr === 0) {
         const at = out.spots.find((x) => x.id === out.lockId)!.at!;
         CARD_AT.set(seed.id, { bg: pools[scene]!.key, at });

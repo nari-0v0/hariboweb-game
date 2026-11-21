@@ -9,7 +9,7 @@ vi.mock('../src/escape-daily', async (orig) => ({ ...(await orig<typeof import('
 import { ESCAPE_CASES, escCase, actEscape, canAnswer, isLocked, startEscape, visible, type EscAction, type EscCase, type EscState } from '../src/escape';
 import { actEscapeRun, activeEscape, beginDaily, beginEscape, dailyInfo, getEscape, quitEscape, reRecord } from '../src/escape-db';
 import { STORY_SEEDS } from '../src/escape-stories';
-import { dailyPick, dailyVariant, kstDay, shownStreak } from '../src/escape-daily';
+import { dailyPick, dailyVariant, kstDay, RE_CHIP_REWARD, shownStreak } from '../src/escape-daily';
 
 function database() {
   const sql = new DatabaseSync(':memory:');
@@ -155,6 +155,72 @@ describe('오늘의 사건 DB', () => {
     expect([info.days, info.streak]).toEqual([1, 1]);
     expect((await reRecord(db, 'me')).size).toBe(0);
     expect(await beginDaily(db, 'me', T0)).toBe('played');
+  });
+  it('답을 1번까지만 틀리고 해결하면 겜블장 젤칩 100개, 2번 틀리면 없어요. 같은 날 두 번 받지 않아요(멍쑤님 제안)', async () => {
+    const play = async (wrong: number, at: Date) => {
+      const { db, sql } = database();
+      solvedIt(sql);
+      const id = (await beginDaily(db, 'me', at)) as string;
+      const run = (await getEscape(db, 'me', id))!;
+      const sol = run.def.solution!;
+      const last = sol.at(-1)!;
+      expect(last.a).toBe('answer');
+      const bad = { ...last, n: ((last as { n: number }).n + 1) % run.def.question.options.length } as EscAction;
+      const steps = [...sol.slice(0, -1), ...Array(wrong).fill(bad), last];
+      for (const [i, a] of steps.entries()) expect(await actEscapeRun(db, 'me', id, i, a, at)).toBe('ok');
+      const after = (await getEscape(db, 'me', id))!;
+      expect([after.row.status, after.state.mistakes]).toEqual(['done', wrong]);
+      const chipsShown = after.row.chips ?? 0;
+      const acc = sql.prepare("SELECT chips, free_day FROM gamble_accounts WHERE user_id = 'me'").get() as { chips: number; free_day: string | null } | undefined;
+      const rows = sql.prepare("SELECT COUNT(*) AS n FROM escape_chips WHERE user_id = 'me' AND kind = 'daily'").get() as { n: number };
+      return { acc, rows: rows.n, sql, db, chipsShown };
+    };
+    const zero = await play(0, T0);
+    expect(zero.acc).toEqual({ chips: 100, free_day: null }); // 겜블장에 처음 오면 시작 1000개가 그 위에 더해져요
+    expect([zero.rows, zero.chipsShown]).toEqual([1, 100]);
+    expect((await play(1, T0)).acc?.chips).toBe(100);
+    const two = await play(2, T0);
+    expect(two.acc).toBeUndefined();
+    expect(two.rows).toBe(0);
+    // 이미 있는 겜블장 계정에는 그대로 더해요. 같은 날 줄이 또 오면 무시해요.
+    zero.sql.prepare("UPDATE gamble_accounts SET chips = 500, free_day = '2026-11-19' WHERE user_id = 'me'").run();
+    zero.sql.prepare("INSERT OR IGNORE INTO escape_chips (user_id, kind, ref, run_id, chips, created_at) VALUES ('me', 'daily', '2026-11-19', 'x', 100, 'x')").run();
+    expect((zero.sql.prepare("SELECT chips FROM gamble_accounts WHERE user_id = 'me'").get() as { chips: number }).chips).toBe(500);
+    zero.sql.prepare("INSERT INTO escape_chips (user_id, kind, ref, run_id, chips, created_at) VALUES ('me', 'daily', '2026-11-20', 'y', 100, 'x')").run();
+    expect((zero.sql.prepare("SELECT chips FROM gamble_accounts WHERE user_id = 'me'").get() as { chips: number }).chips).toBe(600);
+  });
+  it.runIf((RE_CHIP_REWARD as number) === 0)('재수사는 수수께끼가 같아서 지금은 젤칩이 없어요(나리 2026-11-21)', async () => {
+    const { db, sql } = database();
+    solvedIt(sql);
+    const id = (await beginEscape(db, 'me', FREE.id, T0, undefined, true)) as string;
+    const run = (await getEscape(db, 'me', id))!;
+    for (const [i, a] of run.def.solution!.entries()) expect(await actEscapeRun(db, 'me', id, i, a, T0)).toBe('ok');
+    const after = (await getEscape(db, 'me', id))!;
+    expect([after.row.status, after.state.mistakes, after.row.chips]).toEqual(['done', 0, null]);
+    expect(sql.prepare('SELECT COUNT(*) AS n FROM gamble_accounts').get()).toEqual({ n: 0 });
+  });
+  it.runIf((RE_CHIP_REWARD as number) === 100)('재수사는 답 1번까지 틀리고 해결하면 사건마다 처음 한 번만 젤칩 100개', async () => {
+    const { db, sql } = database();
+    solvedIt(sql);
+    const clear = async (wrong: number) => {
+      const id = (await beginEscape(db, 'me', FREE.id, T0, undefined, true)) as string;
+      const run = (await getEscape(db, 'me', id))!;
+      const steps = run.def.solution!;
+      const last = steps.at(-1)!;
+      const bad = { ...last, n: ((last as { n: number }).n + 1) % run.def.question.options.length } as EscAction;
+      const all = [...steps.slice(0, -1), ...Array(wrong).fill(bad), last];
+      for (const [i, a] of all.entries()) expect(await actEscapeRun(db, 'me', id, i, a, T0)).toBe('ok');
+      const after = (await getEscape(db, 'me', id))!;
+      expect([after.row.status, after.state.mistakes, after.state.re]).toEqual(['done', wrong, 1]);
+      return after.row.chips ?? 0;
+    };
+    const chips = () => (sql.prepare("SELECT chips FROM gamble_accounts WHERE user_id = 'me'").get() as { chips: number } | undefined)?.chips ?? 0;
+    expect(await clear(2)).toBe(0); // 2번 틀리면 없어요
+    expect(chips()).toBe(0);
+    expect(await clear(1)).toBe(100);
+    expect(chips()).toBe(100);
+    expect(await clear(0)).toBe(0); // 같은 사건은 한 번만
+    expect(chips()).toBe(100);
   });
   it('해결한 날 수와 연속은 날마다 쌓이고, 하루 건너뛰면 연속이 1부터 다시예요', async () => {
     const { db, sql } = database();

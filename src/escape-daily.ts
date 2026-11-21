@@ -1,13 +1,24 @@
 // 오늘의 사건(나리 2026-11-19): 하루에 한 번, 내가 해결한 사건 하나를 범인·단서·물건 자리를 새로 섞어 다시 풀어요.
 // - 재수사와 같은 규칙: 힌트 없음, 답(비밀번호·장치 확인·범인)을 3번 틀리면 실패.
 // - 하루에 한 번만(시작하면 그날 기회를 쓴 거예요). 날짜는 한국 시간 아침 6시에 바뀌어요.
-// - 보상은 없고 기록만(해결한 날 수, 연속 해결, 그날 걸린 시간). 숙제처럼 되지 않게(나리 2026-11-19).
-// - 수수께끼는 같아서 숫자만 바꾼 문제는 만들지 않아요(사건파일이 계산 문제처럼 느껴진다는 나리 의견).
+// - 기록(해결한 날 수, 연속 해결, 그날 걸린 시간)이 남아요. 숙제처럼 되지 않게(나리 2026-11-19).
+// - 보상(멍쑤님 제안, 나리 2026-11-21): 답을 1번까지만 틀리고 해결하면 겜블장 젤칩 100개. 2번 틀리고 해결하면 없어요.
+//   재수사도 같은 기준으로 사건마다 처음 한 번 100개(나리 2026-11-21). 0으로 바꾸면 재수사 젤칩만 꺼져요.
+// - 다시 푸는 판(재수사·오늘의 사건)은 숫자·판을 바꾼 수수께끼를 써요(src/escape-bank-re.ts, 나리 2026-11-21 「숫자만 바꾸기」).
+//   처음 판의 답으로는 풀리지 않아요. 다시 푸는 판끼리는 같은 수수께끼이고, 범인·단서·자리만 판마다 섞여요.
 import { STORY_SEEDS } from './escape-stories';
 import { gameDay } from './day';
 
 // 나리 2026-11-19 켬("오늘의 사건도 배포해줘"). false로 바꿔 배포하면 화면에서 사라지고 시작도 안 돼요.
 export const DAILY_OPEN = true;
+
+// 오늘의 사건·재수사 젤칩: 틀린 답이 이 수 이하로 해결하면 받아요(migrations/0072)
+export const DAILY_CHIP_REWARD = 100;
+export const DAILY_CHIP_MAX_MISTAKES = 1;
+export const RE_CHIP_REWARD = 100;
+export const RE_CHIP_RULE = RE_CHIP_REWARD > 0 ? `답을 ${DAILY_CHIP_MAX_MISTAKES}번까지만 틀리고 해결하면 사건마다 처음 한 번 겜블장 젤칩 ${RE_CHIP_REWARD}개를 받아요.` : '보상 없이 기록만 남아요.';
+export const DAILY_CHIP_RULE = `답을 ${DAILY_CHIP_MAX_MISTAKES}번까지만 틀리고 해결하면 겜블장 젤칩 ${DAILY_CHIP_REWARD}개를 받아요.`;
+export const dailyChipsEarned = (won: boolean, mistakes: number, re = false) => (won && mistakes <= DAILY_CHIP_MAX_MISTAKES ? (re ? RE_CHIP_REWARD : DAILY_CHIP_REWARD) : 0);
 
 // 도감 날짜(한국 시간 아침 6시에 바뀌어요. src/day.ts)
 export const kstDay = (now: Date) => gameDay(now);
