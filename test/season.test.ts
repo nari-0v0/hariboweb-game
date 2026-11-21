@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 import { MAX_PER_CAT, QUESTS, pickQuests, questById, seededRandom } from '../src/quests';
-import { type Person, evaluateSeason, groupCount, groupViewFor, joinGroup, planGroups, rankGroups, seasonRanking } from '../src/season';
+import { type Person, evaluateSeason, groupCount, groupViewFor, joinGroup, planGroups, rankGroups, seasonRanking, tierKeeper } from '../src/season';
+import { blockKey, separateBlocked } from '../src/assign-block';
 import { applySync, parseSync } from '../src/sync';
 
 const NOW = Date.parse('2026-11-03T03:00:00Z'); // 한국 11월 3일 12시
@@ -105,6 +106,44 @@ describe('모둠 나누기', () => {
     expect(per(0, 9)).toEqual(Array(9).fill(1));
     expect(per(9, 27)).toEqual(Array(9).fill(2));
     expect(sizes(plan)).toEqual(Array(9).fill(10));
+  });
+
+  it('모두 가끔/보통이라 나머지가 없어도 단계마다 팀에 고르게', () => {
+    const list = Array.from({ length: 30 }, (_, i): Person => ({
+      id: id(i + 1),
+      games: [i < 25 ? '롤' : '발로란트'],
+      activity: 500 - i,
+      days: 10,
+      days14: i < 6 ? 1 : 2,
+    }));
+    const plan = planGroups(list, seededRandom('no-rest'));
+    const low = new Map<number, number>();
+    for (const p of list.slice(0, 6)) low.set(plan.get(p.id)!, (low.get(plan.get(p.id)!) ?? 0) + 1);
+    expect([...low.values()].sort()).toEqual([2, 2, 2]);
+    expect(sizes(plan)).toEqual([10, 10, 10]);
+  });
+
+  it('막힌 짝을 떼어 놓을 때 가끔/보통 인원이 팀마다 고르게 남아요', () => {
+    const list = Array.from({ length: 30 }, (_, i): Person => ({
+      id: id(i + 1),
+      games: ['롤'],
+      activity: 3000 - i,
+      days: 20,
+      days14: i < 3 ? 1 : i < 9 ? 2 : 8,
+    }));
+    const planned = planGroups(list, seededRandom('block'));
+    // 같은 팀이 된 가끔 오는 사람과 많이 오는 사람을 막힌 짝으로
+    const low = list[0]!.id;
+    const mate = list.find((p, i) => i >= 9 && planned.get(p.id) === planned.get(low))!.id;
+    const plan = separateBlocked(new Map(planned), new Set([blockKey(low, mate)]), tierKeeper(list, planned));
+    expect(plan.get(low)).not.toBe(plan.get(mate));
+    const per = (from: number, to: number) => {
+      const m = new Map<number, number>();
+      for (const p of list.slice(from, to)) m.set(plan.get(p.id)!, (m.get(plan.get(p.id)!) ?? 0) + 1);
+      return [...m.values()].sort();
+    };
+    expect(per(0, 3)).toEqual([1, 1, 1]);
+    expect(per(3, 9)).toEqual([2, 2, 2]);
   });
 
   it('게임보다 활동량이 먼저: 한 게임만 하는 사람이 활동이 적어도 팀끼리 활동량 합이 비슷해요', () => {

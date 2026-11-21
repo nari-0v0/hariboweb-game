@@ -133,3 +133,29 @@ it('새 시즌을 만들면 그보다 늦게 끝나기로 된 앞 시즌을 새 
   expect(sql.prepare("SELECT ends_at FROM seasons WHERE id = '2026-11-05'").get()).toEqual({ ends_at: START });
   expect(sql.prepare('SELECT ends_at FROM seasons WHERE id = ?').get(SEASON.id)).toEqual({ ends_at: END });
 });
+
+it('새 시즌 시작 뒤에 받은 빙고 젤리피는 새 시즌으로 옮기고, 그 전 것은 앞 시즌에 둬요', async () => {
+  const { db, sql } = fakeD1();
+  sql.prepare('UPDATE members SET green = 1').run();
+  sql.prepare("INSERT INTO seasons (id, starts_at, ends_at, created_at) VALUES ('2026-11-05', '2026-11-05T09:00:00.000Z', ?, 'x')").run('2026-11-19T09:00:00.000Z');
+  const add = sql.prepare("INSERT INTO jellypi (user_id, season_id, source, ref, amount, created_at) VALUES (?, '2026-11-05', ?, ?, 1, ?)");
+  add.run(A, 'line', '2026-11-05:0', '2026-11-10T00:00:00.000Z');
+  add.run(B, 'line', '2026-11-12:1', '2026-11-12T10:00:00.000Z');
+  add.run(C, 'team', '2026-11-05', '2026-11-12T10:00:00.000Z');
+  expect(await ensureSeason(db, SEASON, Date.parse(START) + 3_600_000)).toBe(true);
+  const rows = sql.prepare('SELECT user_id, season_id FROM jellypi ORDER BY user_id').all();
+  expect(rows).toEqual([
+    { user_id: A, season_id: '2026-11-05' },
+    { user_id: B, season_id: SEASON.id },
+    { user_id: C, season_id: '2026-11-05' },
+  ]);
+});
+
+it('팀을 짤 때 시즌 시작 날부터의 통화는 세지 않아요(배포가 늦어도 같은 결과)', async () => {
+  const { db, sql } = fakeD1();
+  sql.prepare("INSERT INTO member_voice_day (user_id, day, minutes) VALUES (?, '2026-11-12', 300)").run(C);
+  for (const id of [A, B, D]) sql.prepare("INSERT INTO member_voice_day (user_id, day, minutes) VALUES (?, '2026-11-05', 30)").run(id);
+  expect(await ensureSeason(db, SEASON, Date.parse(START) + 1000)).toBe(true);
+  const ids = (sql.prepare('SELECT user_id FROM season_members WHERE season_id = ? ORDER BY user_id').all(SEASON.id) as { user_id: string }[]).map((r) => r.user_id);
+  expect(ids).toEqual([A, B, D]);
+});

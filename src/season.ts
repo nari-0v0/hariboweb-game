@@ -14,7 +14,7 @@ import {
   shuffle,
 } from './quests';
 import { type Prior, kidnapStatements, loadPrior, slotOf } from './team';
-import { approvedBlocks, blockKey, separateBlocked } from './assign-block';
+import { approvedBlocks, blockKey, hasBlockedTogether, separateBlocked } from './assign-block';
 import { isTestMember } from './test-accounts';
 
 export const GROUP_SIZE = 10;
@@ -73,6 +73,22 @@ export function activityTier(p: Person, byDays: boolean): 0 | 1 | 2 {
   return 2;
 }
 
+// 막힌 짝을 떼어 놓으려고 사람을 바꿀 때 팀마다 "가끔/보통" 인원이 처음 나눈 범위(가장 적은 팀~가장 많은 팀)를 벗어나지 않게 해요.
+export function tierKeeper(people: Person[], plan: Map<string, number>): (ids: string[]) => boolean {
+  const byDays = people.some((p) => (p.days ?? 0) > 0);
+  const tier = new Map(people.map((p) => [p.id, activityTier(p, byDays)]));
+  const teams = [...new Set(plan.values())];
+  const range = [0, 1].map((k) => {
+    const n = teams.map((no) => [...plan].filter(([id, g]) => g === no && tier.get(id) === k).length);
+    return [Math.min(...n), Math.max(...n)] as const;
+  });
+  return (ids) =>
+    range.every(([lo, hi], k) => {
+      const n = ids.filter((id) => tier.get(id) === k).length;
+      return n >= lo && n <= hi;
+    });
+}
+
 export function planGroups(people: Person[], rand: () => number): Map<string, number> {
   const g = groupCount(people.length);
   if (!g) return new Map();
@@ -80,7 +96,7 @@ export function planGroups(people: Person[], rand: () => number): Map<string, nu
   const byDays = people.some((p) => (p.days ?? 0) > 0);
   const tiers = [0, 1].map((k) => people.filter((p) => activityTier(p, byDays) === k));
   const rest = people.filter((p) => activityTier(p, byDays) === 2);
-  if (!rest.length || tiers.every((t) => !t.length)) return planCore(people, rand, g, cap);
+  if (tiers.every((t) => !t.length)) return planCore(people, rand, g, cap);
   // 단계마다 팀 몫을 정해요. 남은 자리가 많은 팀이 먼저 하나 더 받아서 팀 인원 차이가 1명을 넘지 않게요.
   const room = [...cap];
   const quotas = tiers.map((list) => {
@@ -181,16 +197,18 @@ export async function ensureSeason(db: D1Database, season: Season, nowMs: number
   const cutoffIso = new Date(Date.parse(season.start) - ACTIVE_DAYS * DAY_MS).toISOString();
   const cutoffDay = kstParts(cutoffIso).day;
   const daysFrom = kstParts(new Date(Date.parse(season.start) - LOW_DAYS_WINDOW * DAY_MS).toISOString()).day;
+  // 시즌 시작 날(그날 포함)부터의 기록은 세지 않아요(배포가 늦어져도 같은 결과가 나오게).
+  const toDay = kstParts(season.start).day;
   const { results: rows } = await db
     .prepare(
       `SELECT m.user_id, m.games, m.last_login_at, p.updated_at AS profile_at, m.green,
-         (SELECT COALESCE(SUM(minutes), 0) FROM member_voice_day v WHERE v.user_id = m.user_id AND v.day >= ?1) AS recent,
-         (SELECT COUNT(*) FROM member_voice_day v WHERE v.user_id = m.user_id AND v.day >= ?3 AND v.minutes > 0) AS days,
-         (SELECT COUNT(*) FROM member_voice_day v WHERE v.user_id = m.user_id AND v.day >= ?1 AND v.minutes > 0) AS days14,
+         (SELECT COALESCE(SUM(minutes), 0) FROM member_voice_day v WHERE v.user_id = m.user_id AND v.day >= ?1 AND v.day < ?4) AS recent,
+         (SELECT COUNT(*) FROM member_voice_day v WHERE v.user_id = m.user_id AND v.day >= ?3 AND v.day < ?4 AND v.minutes > 0) AS days,
+         (SELECT COUNT(*) FROM member_voice_day v WHERE v.user_id = m.user_id AND v.day >= ?1 AND v.day < ?4 AND v.minutes > 0) AS days14,
          (SELECT COALESCE(SUM(voice_seconds), 0) / 60 FROM cards c WHERE c.owner_id = m.user_id AND c.updated_at >= ?2) AS fallback
        FROM members m LEFT JOIN profiles p ON p.user_id = m.user_id WHERE m.active = 1`,
     )
-    .bind(cutoffDay, cutoffIso, daysFrom)
+    .bind(cutoffDay, cutoffIso, daysFrom, toDay)
     .all<{ user_id: string; games: string; last_login_at: string | null; profile_at: string | null; green: number | null; recent: number; days: number; days14: number; fallback: number }>();
   // 처음 시즌에는 날마다 통화 기록이 아직 없어서 카드 통화 시간으로 대신 재요
   const useRecent = rows.some((r) => r.recent > 0);
@@ -212,11 +230,21 @@ export async function ensureSeason(db: D1Database, season: Season, nowMs: number
   // 팀(예전 이름 모둠): 게임 역할 겹치게, 많이/적게 노는 사람 섞기, 주로 노는 시간대 겹치게
   // 같이 배정되지 않기로 승인된 짝은 떼어 놓아요
   const blocked = await approvedBlocks(db);
-  const plan = separateBlocked(planGroups(people, rand), blocked);
+  // 먼저 "가끔/보통" 고르게 나눈 걸 지키면서 떼어 보고, 그래도 안 되면 떼어 놓는 쪽을 먼저 지켜요.
+  const planned = planGroups(people, rand);
+  let plan = separateBlocked(new Map(planned), blocked, tierKeeper(people, planned));
+  if (hasBlockedTogether(plan, blocked)) plan = separateBlocked(new Map(planned), blocked);
   // 모둠을 만들 사람이 없으면 시즌을 적지 않고 다음 묶음에서 다시 해 봐요
   if (!plan.size) return false;
 
   const stmts: D1PreparedStatement[] = [
+    // 새 시즌 시작 뒤에 받은 빙고 젤리피는 앞 시즌이 아니라 새 시즌 순위에 쌓여요(빙고 기간은 같은 id라 그대로 이어져요).
+    db
+      .prepare(
+        `UPDATE jellypi SET season_id = ?1 WHERE source IN ('line', 'full') AND created_at >= ?2
+           AND season_id IN (SELECT id FROM seasons WHERE starts_at < ?2 AND ends_at > ?2)`,
+      )
+      .bind(season.id, season.start),
     // 앞 시즌이 새 시즌 시작보다 늦게 끝나기로 돼 있으면(2주 시즌을 1주로 바꾼 날) 새 시즌 시작에서 끝내요.
     // 그러면 앞 시즌은 그 시각에 끝난 걸로 정산되고(팀·서버 퀘스트 보상, 겜블 우승), 기록이 두 시즌에 겹쳐 들어가지 않아요.
     db
