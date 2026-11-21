@@ -88,8 +88,15 @@ describe('버닝타임', () => {
     const late = [{ at: new Date(T0 + 10 * MIN).toISOString(), room: 'r', members: ['1', '2'] }];
     const out = bingoStatements(fake, late, [], [], all).stmts as unknown as unknown[][];
     expect(out.find((a) => a[1] === '1')![3]).toBe(2);
+    // 같은 버닝을 일찍 끝내면(until만 바꿈) 예정 시각은 남기지 않아요
+    const third = { from: second.from, until: new Date(T0 + 150 * MIN).toISOString() };
+    sql.prepare('UPDATE burning SET until = ? WHERE id = 1').run(third.until);
+    const early = await burnWindowsForSync(db, T0 + 160 * MIN);
+    expect(early.all).toEqual([third, first]);
+    const after = bingoStatements(fake, [{ at: new Date(T0 + 160 * MIN).toISOString(), room: 'r', members: ['1', '2'] }], [], [], early.all).stmts as unknown as unknown[][];
+    expect(after.find((a) => a[1] === '1')![3]).toBe(1);
     // 3일 지난 기록은 안 봐요
-    expect((await burnWindowsForSync(db, T0 + 4 * 86_400_000)).all).toEqual([second]);
+    expect((await burnWindowsForSync(db, T0 + 4 * 86_400_000)).all).toEqual([third]);
   });
 });
 
