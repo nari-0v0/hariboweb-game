@@ -49,14 +49,11 @@ function spread(total: number, groups: number): number[] {
   return Array.from({ length: groups }, (_, i) => base + (i < extra ? 1 : 0));
 }
 
-// 게임 역할이 겹치는 사람끼리 랜덤으로 묶되, 많이 노는 사람과 적게 노는 사람을 골고루 섞어요.
-// 1) 사람마다 가진 게임 중 제일 많은 사람이 하는 게임을 "대표 게임"으로 정하고,
-// 2) 대표 게임 인원에 맞춰 모둠마다 게임을 하나씩 정한 뒤,
-// 3) 많이 노는 사람부터 같은 게임 모둠 중 활동량 합이 제일 적은 곳에 넣어요(나눠 주기).
-// 모둠 인원 차이는 많아야 1명. 게임 역할이 없는 사람은 모둠마다 고르게 나눠요.
-// 시간대(slot)가 있으면 활동량 합이 적은 두 모둠 중 같은 시간대 사람이 더 많은 곳에 넣어요.
+// 팀 나누기(나리 2026-11-21): 활동량이 고르게가 먼저, 시간대가 다음, 게임 역할은 그래도 같을 때만 봐요.
+// 활동 적은 사람은 팀마다 같은 수로 먼저 나누고, 나머지는 많이 노는 사람부터 활동량 합이 적은 팀에 넣어요.
+// 모둠 인원 차이는 많아야 1명.
 // 활동이 적은 사람(지난 2주 함께 통화 LOW_ACTIVITY_MIN분 미만): 한 팀에 몰리지 않게 팀마다 같은 수(차이 1명까지)로 먼저 나눠요
-// (벙구 의견, 나리 2026-11-21). 나머지 사람은 아래 방식(게임 역할 → 활동량 고르게 → 시간대)으로 남은 자리에 넣어요.
+// (벙구 의견, 나리 2026-11-21). 나머지 사람은 아래 planCore(활동량 고르게 → 시간대 → 게임)로 남은 자리에 넣어요.
 export const LOW_ACTIVITY_MIN = 60;
 
 export function planGroups(people: Person[], rand: () => number): Map<string, number> {
@@ -81,12 +78,15 @@ export function planGroups(people: Person[], rand: () => number): Map<string, nu
     act[i]! += p.activity;
   }
   const lowCount = Array<number>(g).fill(0);
-  // 조금이라도 하는 사람부터: 게임 역할이 겹치는 팀 → 같은 시간대가 많은 팀 → 활동량 합이 적은 팀
+  // 조금이라도 하는 사람부터: 활동 적은 사람이 아직 적은 팀 중 → 같은 시간대가 많은 팀 → 게임 역할이 겹치는 팀 → 활동량 합이 적은 팀
   for (const p of shuffle(low, rand).sort((a, b) => b.activity - a.activity)) {
     const open = [...Array(g).keys()].filter((i) => lowCount[i]! < lowQuota[i]!);
-    const sharing = open.filter((i) => p.games.some((x) => games[i]!.has(x)));
-    const pool = shuffle(sharing.length ? sharing : open, rand).sort(
-      (a, b) => (p.slot ? (slots[b]!.get(p.slot) ?? 0) - (slots[a]!.get(p.slot) ?? 0) : 0) || act[a]! - act[b]!,
+    const fewest = Math.min(...open.map((i) => lowCount[i]!));
+    const pool = shuffle(open.filter((i) => lowCount[i] === fewest), rand).sort(
+      (a, b) =>
+        (p.slot ? (slots[b]!.get(p.slot) ?? 0) - (slots[a]!.get(p.slot) ?? 0) : 0) ||
+        Number(p.games.some((x) => games[b]!.has(x))) - Number(p.games.some((x) => games[a]!.has(x))) ||
+        act[a]! - act[b]!,
     );
     const i = pool[0]!;
     out.set(p.id, i);
@@ -96,72 +96,31 @@ export function planGroups(people: Person[], rand: () => number): Map<string, nu
   return out;
 }
 
+// 나머지 사람(나리 2026-11-21): 1) 활동량이 고르게 — 많이 노는 사람부터, 지금 활동량 합이 제일 적은 두 팀(합이 비슷할 때만 둘) 중에
+// 2) 주로 노는 시간대가 같은 사람이 더 많은 팀, 3) 그래도 같으면 게임 역할이 겹치는 사람이 더 많은 팀에 넣어요.
+// (예전엔 게임별로 팀을 먼저 정해서, 한 게임 팀에 활동이 적은 사람만 모이면 팀끼리 활동량이 4배까지 벌어졌어요.)
 function planCore(people: Person[], rand: () => number, g: number, cap: number[]): Map<string, number> {
   const out = new Map<string, number>();
-  if (!people.length) return out;
-  const byActivity = (list: Person[]) => shuffle(list, rand).sort((a, b) => b.activity - a.activity);
-  const withGames = byActivity(people.filter((p) => p.games.length));
-  const without = byActivity(people.filter((p) => !p.games.length));
-  // 역할 없는 사람 몫을 먼저 떼어 둬요(모둠마다 고르게)
-  const quota = spread(without.length, g);
-  const roleCap = cap.map((c, i) => c - quota[i]!);
-
-  // 대표 게임과 모둠별 게임
-  const popularity = new Map<string, number>();
-  for (const p of withGames) for (const x of new Set(p.games)) popularity.set(x, (popularity.get(x) ?? 0) + 1);
-  const main = new Map<string, string>();
-  const mainCount = new Map<string, number>();
-  for (const p of withGames) {
-    const best = [...new Set(p.games)].sort((a, b) => (popularity.get(b) ?? 0) - (popularity.get(a) ?? 0) || (a < b ? -1 : 1))[0]!;
-    main.set(p.id, best);
-    mainCount.set(best, (mainCount.get(best) ?? 0) + 1);
-  }
-  const label: (string | null)[] = Array(g).fill(null);
-  const totalRole = roleCap.reduce((a, b) => a + b, 0);
-  if (totalRole > 0) {
-    // 큰 나머지 방식으로 게임마다 모둠 수를 정해요
-    const share = [...mainCount].map(([game, n]) => ({ game, exact: (n / totalRole) * g }));
-    const counts = new Map(share.map((s) => [s.game, Math.floor(s.exact)]));
-    let left = g - [...counts.values()].reduce((a, b) => a + b, 0);
-    for (const s of [...share].sort((a, b) => (b.exact % 1) - (a.exact % 1) || (a.game < b.game ? -1 : 1))) {
-      if (left <= 0) break;
-      counts.set(s.game, counts.get(s.game)! + 1);
-      left--;
-    }
-    // 역할 몫이 큰 모둠부터 인원이 많은 게임에
-    const order = [...Array(g).keys()].sort((a, b) => roleCap[b]! - roleCap[a]! || a - b);
-    let k = 0;
-    for (const [game, n] of [...counts].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)))
-      for (let i = 0; i < n && k < g; i++) label[order[k++]!] = game;
-  }
-
   const size = Array<number>(g).fill(0);
   const act = Array<number>(g).fill(0);
-  const games = Array.from({ length: g }, () => new Set<string>());
+  const members = Array.from({ length: g }, () => [] as Person[]);
   const slots = Array.from({ length: g }, () => new Map<string, number>());
-  const place = (p: Person, i: number) => {
+  const sameGame = (p: Person, i: number) => members[i]!.filter((q) => q.games.some((x) => p.games.includes(x))).length;
+  for (const p of shuffle(people, rand).sort((a, b) => b.activity - a.activity)) {
+    const open = [...Array(g).keys()].filter((i) => size[i]! < cap[i]!);
+    if (!open.length) break;
+    // 활동량 합이 제일 적은 두 팀 중, 제일 적은 팀과 차이가 이 사람 활동량의 절반 안쪽인 팀만 비슷하다고 봐요
+    const sorted = shuffle(open, rand).sort((a, b) => act[a]! - act[b]! || size[a]! - size[b]!);
+    const two = sorted.slice(0, 2).filter((x) => act[x]! - act[sorted[0]!]! <= p.activity / 2);
+    const i = two.sort(
+      (a, b) =>
+        (p.slot ? (slots[b]!.get(p.slot) ?? 0) - (slots[a]!.get(p.slot) ?? 0) : 0) || sameGame(p, b) - sameGame(p, a),
+    )[0]!;
     out.set(p.id, i);
     size[i]!++;
     act[i]! += p.activity;
-    for (const x of p.games) games[i]!.add(x);
+    members[i]!.push(p);
     if (p.slot) slots[i]!.set(p.slot, (slots[i]!.get(p.slot) ?? 0) + 1);
-  };
-  const lowest = (candidates: number[], slot?: string) => {
-    const sorted = shuffle(candidates, rand).sort((a, b) => act[a]! - act[b]! || size[a]! - size[b]!);
-    if (!slot) return sorted[0]!;
-    return sorted.slice(0, 2).sort((a, b) => (slots[b]!.get(slot) ?? 0) - (slots[a]!.get(slot) ?? 0))[0]!;
-  };
-  for (const p of withGames) {
-    const open = [...Array(g).keys()].filter((i) => size[i]! < roleCap[i]!);
-    if (!open.length) break;
-    const mine = open.filter((i) => label[i] === main.get(p.id));
-    const labelled = open.filter((i) => label[i] !== null && p.games.includes(label[i]!));
-    const sharing = open.filter((i) => p.games.some((x) => games[i]!.has(x)));
-    place(p, lowest(mine.length ? mine : labelled.length ? labelled : sharing.length ? sharing : open, p.slot));
-  }
-  for (const p of [...withGames.filter((x) => !out.has(x.id)), ...without]) {
-    const open = [...Array(g).keys()].filter((i) => size[i]! < cap[i]!);
-    place(p, lowest(open, p.slot));
   }
   return out;
 }

@@ -18,6 +18,7 @@ function fakeD1(memberCount: number) {
   const sql = new DatabaseSync(':memory:');
   const dir = join(process.cwd(), 'migrations');
   for (const f of readdirSync(dir).filter((n) => n.endsWith('.sql')).sort()) sql.exec(readFileSync(join(dir, f), 'utf8'));
+  sql.exec('DELETE FROM member_voice_day; DELETE FROM member_voice_slot;'); // 0066 실제 기록 채우기는 빼고 빈 DB로 시험해요
   const stmt = (query: string, args: unknown[] = []) => ({
     query,
     args,
@@ -72,14 +73,31 @@ describe('모둠 나누기', () => {
     expect(sizes(planGroups(people(100), seededRandom('b')))).toEqual(Array(10).fill(10));
   });
 
-  it('게임 역할이 겹치는 사람끼리 묶어요', () => {
-    // 롤 50명, 발로 50명: 모둠마다 한 게임만 있어야 해요
-    const list = people(100, (i) => [i % 2 ? '롤' : '발로란트']);
+  it('게임보다 활동량이 먼저: 한 게임만 하는 사람이 활동이 적어도 팀끼리 활동량 합이 비슷해요', () => {
+    // 롤만 하는 30명은 활동이 적고, 발로 60명은 많아요. 예전엔 롤 팀에 몰려서 팀 합이 크게 벌어졌어요.
+    const list = Array.from({ length: 90 }, (_, i): Person => ({
+      id: id(i + 1),
+      games: [i < 30 ? '롤' : '발로란트'],
+      activity: i < 30 ? 80 + i : 1000 + i * 20,
+    }));
     const plan = planGroups(list, seededRandom('c'));
-    const gamesBy = new Map<number, Set<string>>();
-    for (const p of list) (gamesBy.get(plan.get(p.id)!) ?? gamesBy.set(plan.get(p.id)!, new Set()).get(plan.get(p.id)!)!).add(p.games[0]!);
-    const mixed = [...gamesBy.values()].filter((s) => s.size > 1).length;
-    expect(mixed).toBeLessThanOrEqual(1);
+    const sum = new Map<number, number>();
+    for (const p of list) sum.set(plan.get(p.id)!, (sum.get(plan.get(p.id)!) ?? 0) + p.activity);
+    expect(Math.max(...sum.values()) / Math.min(...sum.values())).toBeLessThan(1.2);
+  });
+
+  it('활동량이 같으면 게임 역할이 겹치는 팀으로 가요', () => {
+    const list = Array.from({ length: 40 }, (_, i): Person => ({ id: id(i + 1), games: [i % 2 ? '롤' : '발로란트'], activity: 100 }));
+    const plan = planGroups(list, seededRandom('g'));
+    let same = 0;
+    let pairs = 0;
+    for (const a of list)
+      for (const b of list)
+        if (a.id < b.id && plan.get(a.id) === plan.get(b.id)) {
+          pairs++;
+          if (a.games[0] === b.games[0]) same++;
+        }
+    expect(same / pairs).toBeGreaterThan(0.6); // 무작위면 절반쯤
   });
 
   it('많이 노는 사람이 한 모둠에 몰리지 않아요', () => {
@@ -102,14 +120,6 @@ describe('모둠 나누기', () => {
     for (const p of list.slice(0, 29)) low.set(plan.get(p.id)!, (low.get(plan.get(p.id)!) ?? 0) + 1);
     expect(low.size).toBe(9);
     expect(Math.max(...low.values()) - Math.min(...low.values())).toBeLessThanOrEqual(1);
-  });
-
-  it('게임 역할이 없는 사람은 모둠마다 고르게', () => {
-    const list = people(100, (i) => (i < 30 ? [] : ['롤'])).map((p) => ({ ...p, activity: p.activity + 60 })); // 모두 활동 적지 않은 사람
-    const plan = planGroups(list, seededRandom('e'));
-    const none = new Map<number, number>();
-    for (const p of list.slice(0, 30)) none.set(plan.get(p.id)!, (none.get(plan.get(p.id)!) ?? 0) + 1);
-    expect([...none.values()].every((n) => n === 3)).toBe(true);
   });
 
   it('늦게 온 사람은 역할이 겹치는 제일 작은 모둠으로', () => {
