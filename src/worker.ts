@@ -1,6 +1,6 @@
 import app, { originDownResponse } from './index';
 import type { Env } from './env';
-import { forwardToOrigin, workerHandlesPath } from './origin-proxy';
+import { canonicalImageRequest, forwardToOrigin, workerHandlesPath } from './origin-proxy';
 import { maintenanceOn } from './maintenance';
 
 // 광장은 없앴지만 이미 만든 Durable Object 칸은 Cloudflare 정리 단계 전까지 이름을 남겨 둬요.
@@ -23,6 +23,7 @@ export default {
         return originDownResponse(request);
       }
     }
-    return app.fetch(request, env, executionCtx);
+    // 보호 그림은 //char/·%2Fchar/처럼 써도 /char/로 맞춰서 그림 확인을 거치게 해요(2026-11-21 점검).
+    return app.fetch(protectedImage ? canonicalImageRequest(request) : request, env, executionCtx);
   },
 } satisfies ExportedHandler<Env>;

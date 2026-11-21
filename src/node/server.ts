@@ -7,7 +7,7 @@ import { serve, type ServerType } from '@hono/node-server';
 import app from '../index';
 import { safeEqual } from '../crypto';
 import type { Env } from '../env';
-import { workerHandlesPath } from '../origin-proxy';
+import { canonicalImageRequest, plainPath, workerHandlesPath } from '../origin-proxy';
 import { openD1, type NodeD1Database } from './d1';
 import { applyMigrations } from './migrations';
 
@@ -143,18 +143,24 @@ export async function createNodeRuntime(options: NodeRuntimeOptions = {}): Promi
       }
       // 문지기 모드에서는 CSS·JS·글꼴 같은 일반 공개 파일도 Node 원본으로 와요.
       // 보호 그림 폴더는 %63har 처럼 글자를 바꿔 써도 알아보도록 풀어 쓴 경로로 판단해요(그림 보호 검사를 건너뛰지 못하게).
-      let plainPath = new URL(request.url).pathname;
+      // //char/·%2Fchar/·%2fchar/처럼 써도 같은 폴더로 보도록 %표기를 풀고 겹친 /를 하나로 맞춰 판단해요(2026-11-21 점검).
+      const rawPath = new URL(request.url).pathname;
+      let decoded = rawPath;
       try {
-        plainPath = decodeURIComponent(plainPath);
+        decoded = decodeURIComponent(rawPath);
       } catch {
         // 잘못된 %표기는 아래 파일 조회에서도 404가 돼요.
       }
+      const plain = plainPath(rawPath);
       // ..%2Fchar/ 처럼 풀어 쓰면 상위 폴더로 가는 경로는 그림 보호 검사를 건너뛸 수 있어 공개 파일로 주지 않아요.
-      const sneaky = /(?:^|[/\\])\.\.(?:[/\\]|$)|\\/.test(plainPath);
-      if (!sneaky && !workerHandlesPath(plainPath) && (request.method === 'GET' || request.method === 'HEAD')) {
+      const sneaky = /(?:^|[/\\])\.\.(?:[/\\]|$)|\\/.test(decoded) || /(?:^|\/)\.\.(?:\/|$)/.test(plain);
+      const guarded = workerHandlesPath(rawPath);
+      if (!sneaky && !guarded && (request.method === 'GET' || request.method === 'HEAD')) {
         const asset = await env.ASSETS.fetch(request);
         if (asset.status !== 404) return asset;
       }
+      // 보호 그림은 /char/… 모양으로 맞춰 앱의 그림 확인(imageGuard)을 거쳐요.
+      if (guarded) request = canonicalImageRequest(request);
       // 문지기 뒤에서는 Node가 받은 주소가 http://127.0.0.1:8787 같은 내부 주소예요.
       // 다른 사이트 POST 막기(sameOrigin)와 쿠키 Secure 판단이 실제 주소를 보도록 PUBLIC_URL 주소로 바꿔 넘겨요.
       if (publicOrigin) {
