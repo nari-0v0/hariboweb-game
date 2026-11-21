@@ -415,6 +415,18 @@ describe('동기화로 시즌 모둠', () => {
     ]);
   });
 
+  it('시즌이 0시에 바뀌어도 같은 게임일의 오늘의 활약은 이어서 세요', async () => {
+    const { sql, db } = fakeD1(20);
+    await applySync(db, payload({ members: members(20), full_members: true }), NOW, OLD);
+    const sid = (sql.prepare('SELECT id FROM seasons').get() as { id: string }).id;
+    const g = sql.prepare('SELECT user_id, group_no FROM season_members WHERE season_id = ? ORDER BY user_id LIMIT 1').get(sid) as { user_id: string; group_no: number };
+    // 앞 시즌에 같은 게임일 60분이 있었다고 쳐요.
+    sql.prepare("INSERT INTO gq_member_gameday (season_id, group_no, user_id, day, minutes) VALUES ('old-season', 9, ?, '2026-11-03', 60)").run(g.user_id);
+    sql.prepare("INSERT INTO gq_member_gameday (season_id, group_no, user_id, day, minutes) VALUES (?, ?, ?, '2026-11-03', 10)").run(sid, g.group_no, g.user_id);
+    const r = await seasonRanking(db, NOW);
+    expect(r?.todayTop.find((t) => t.id === g.user_id)?.minutes).toBe(70);
+  });
+
   it('모둠 순위: 깬 퀘스트, 같으면 모둠 통화 시간, 둘 다 같으면 같은 등수', () => {
     const g = (no: number, done: number, minutes: number) =>
       ({

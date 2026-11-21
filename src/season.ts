@@ -721,7 +721,13 @@ export async function loadGroups(
       `SELECT n.owner_id, n.target_id, n.xp FROM season_snap n JOIN season_members s ON s.season_id = n.season_id AND s.user_id = n.owner_id
        WHERE n.season_id = ?1 AND (?2 IS NULL OR s.group_no = ?2)`,
     ),
-    q<{ group_no: number; user_id: string; day: string; minutes: number }>(`SELECT group_no, user_id, day, minutes FROM gq_member_gameday WHERE season_id = ?1 AND ${G}`),
+    // 오늘의 활약은 시즌이 0시에 바뀌어도 같은 게임일(아침 6시~)이면 이어서 세요: 앞 시즌 기록도 지금 팀으로 합쳐요.
+    q<{ group_no: number; user_id: string; day: string; minutes: number }>(
+      `SELECT s.group_no, x.user_id, x.day, SUM(x.minutes) AS minutes FROM gq_member_gameday x
+       JOIN season_members s ON s.season_id = ?1 AND s.user_id = x.user_id AND (?2 IS NULL OR s.group_no = ?2)
+       WHERE x.day >= ?3 GROUP BY s.group_no, x.user_id, x.day`,
+      gameDay(Date.parse(season.start)),
+    ),
   ]);
 
   const groupOf = new Map(members.results.map((m) => [m.user_id, m.group_no]));
