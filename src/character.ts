@@ -51,10 +51,12 @@ export function pickCharacter(userId: string, taken: Set<string>, pool?: Charact
 
 // 리롤권(나리 2026-11-20): 같은 묶음에서 아무도 안 쓰는 캐릭터 중 하나를 무작위로. 디자인이 다른 원래 그림(-0)이 먼저고,
 // 그게 다 차면 색만 바꾼 여분에서 골라요. 빈 캐릭터가 없으면 null(사지 않아요).
+// 지금 원래 그림(-0)을 쓰는 사람은 색만 바꾼 여분으로 바꾸지 않아요(젤리를 내고 디자인을 잃게 돼요, 2026-11-21 점검).
 export function rerollCharacter(pool: CharacterPool, current: string | null, taken: Set<string>, forbidden: Set<string>, rand: () => number = Math.random): string | null {
   const bases = basesIn(pool);
   const free = (variant: number) => bases.map((b) => key(b, variant)).filter((id) => id !== current && !taken.has(id) && !forbidden.has(id));
-  for (let v = 0; v < CHARACTER_VARIANTS; v++) {
+  const last = current?.endsWith('-0') ? 1 : CHARACTER_VARIANTS;
+  for (let v = 0; v < last; v++) {
     const list = free(v);
     if (list.length) return list[Math.floor(rand() * list.length)]!;
   }

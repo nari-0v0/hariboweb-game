@@ -40,7 +40,8 @@ class NodeD1Statement {
     const before = Number((db.prepare('SELECT total_changes() AS n').get() as { n: number | bigint }).n);
     const results = db.prepare(this.query).all(...this.values) as T[];
     const after = Number((db.prepare('SELECT total_changes() AS n').get() as { n: number | bigint }).n);
-    const changes = after - before;
+    // D1처럼 트리거가 바꾼 행은 빼고 이 문장이 바꾼 행만 세요(total_changes는 트리거까지 세요).
+    const changes = after > before ? Number((db.prepare('SELECT changes() AS n').get() as { n: number | bigint }).n) : 0;
     const lastRowId = changes > 0 ? Number((db.prepare('SELECT last_insert_rowid() AS id').get() as { id: number | bigint }).id) : 0;
     return { success: true, results, meta: meta(changes, lastRowId, results.length) };
   }

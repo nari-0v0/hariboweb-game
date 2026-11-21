@@ -28,7 +28,7 @@ export function GroupPage(props: { viewer: Member; view: GroupView | null }) {
     );
   }
   const done = v.quests.filter((q) => q.done).length;
-  const endShown = new Date(Date.parse(v.season.end) - 1).toISOString();
+  const endShown = new Date(Date.parse(v.season.end) - 6 * 3_600_000 - 1).toISOString();
   return (
     <Layout title="우리 모둠" viewer={props.viewer} active="group">
       <section class="panel group">

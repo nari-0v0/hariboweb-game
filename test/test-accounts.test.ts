@@ -8,6 +8,7 @@ import { TEST_MEMBER_IDS, isTestMember, notTestMember } from '../src/test-accoun
 import { REWARD_COUNT, rewardNeed, SHOP_ITEMS } from '../src/shop';
 import { dogamProgress } from '../src/unlock';
 import { ensureSeason } from '../src/season';
+import { loadRankings } from '../src/rankings';
 
 vi.mock('../src/plaza-room', () => ({ PlazaRoom: class {} }));
 
@@ -107,6 +108,16 @@ describe('테스트 계정(실험 98)', () => {
     await applySync(db, payload('t4'));
     sql.prepare("INSERT INTO cards (owner_id, target_id, xp, voice_seconds, scrims, first_met, updated_at) VALUES (?, ?, 5, 0, 0, '2026-11-01', '2026-11-01')").run(A, T);
     expect((await dogamProgress(db, A)).cards).toBe(1);
+  });
+
+  it('도감 순위: 테스트 계정이 예전에 모은 카드로 순위에 오르지 않아요(Codex #323)', async () => {
+    const { sql, db } = fakeD1();
+    for (const id of [A, B, T]) sql.prepare("INSERT INTO members (user_id, display_name, active, updated_at) VALUES (?, ?, 1, 'x')").run(id, `이름${id!.slice(0, 2)}`);
+    sql.prepare("INSERT INTO cards (owner_id, target_id, xp, first_met, updated_at) VALUES (?, ?, 10, '2026-11-20T00:00:00Z', 'x')").run(T, A);
+    sql.prepare("INSERT INTO cards (owner_id, target_id, xp, first_met, updated_at) VALUES (?, ?, 10, '2026-11-20T00:00:00Z', 'x')").run(B, A);
+    const r = JSON.stringify(await loadRankings(db, A, Date.parse('2026-11-21T05:00:00Z'), 'dogam'));
+    expect(r).toContain(`이름${B.slice(0, 2)}`);
+    expect(r).not.toContain(`이름${T!.slice(0, 2)}`);
   });
 
   it('시즌 팀: 테스트 계정은 안 들어가고, 이 계정 값 때문에 활동 기준이 바뀌지 않아요', async () => {
