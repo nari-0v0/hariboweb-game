@@ -987,7 +987,7 @@ function PerkPanel(props: { bank: JourneyBank; going: boolean; unlocked: number;
       </div>
 
           <p class="hint jp-drop">
-            아직 못 깬 장: 몬스터가 가끔(강한 적은 더 자주) 재료를 주고, 대장은 꼭 1개 줘요. 그 장을 처음 깨면 2개를 더 받아요.
+            아직 못 깬 장: 몬스터가 가끔(강한 적은 더 자주) 재료를 줘요. 대장을 처음 물리치면 재료 1개에 처음 깬 보상 2개를 더해 3개를 받아요.
             <br />
             이미 깬 장을 다시 돌 때: 몬스터가 재료를 줄 확률이 낮아지고, 대장도 절반 확률로만 줘요.
           </p>
