@@ -37,13 +37,36 @@ export async function burnWindow(db: D1Database, nowMs = Date.now(), fresh = fal
   return { from: row.started_at, until: row.until };
 }
 
+// 봇 동기화 정산용: 지금(또는 가장 최근) 버닝타임과, 그 전에 끝난 버닝타임들(최근 3일).
+// 봇 묶음이 늦게 오는 사이 새 버닝타임을 켜도 예전 버닝 때 통화를 2배로 쳐요.
+const HISTORY_MS = 3 * 86_400_000;
+export async function burnWindowsForSync(db: D1Database, nowMs = Date.now()): Promise<{ current: BurnWindow | null; all: BurnWindow[] }> {
+  const current = await burnWindow(db, nowMs, true);
+  const all: BurnWindow[] = current ? [current] : [];
+  try {
+    const { results } = await db
+      .prepare('SELECT started_at, until FROM burning_history WHERE until > ?1')
+      .bind(new Date(nowMs - HISTORY_MS).toISOString())
+      .all<{ started_at: string; until: string }>();
+    for (const r of results ?? []) {
+      if (Date.parse(r.started_at) < Date.parse(r.until) && !all.some((w) => w.from === r.started_at && w.until === r.until)) {
+        all.push({ from: r.started_at, until: r.until });
+      }
+    }
+  } catch {
+    // 지난 기록 표가 아직 없으면 지금 것만 봐요
+  }
+  return { current, all };
+}
+
 // 지금 버닝타임이면 끝나는 시각(ISO), 아니면 null
 export async function burningUntil(db: D1Database, nowMs = Date.now()): Promise<string | null> {
   const w = await burnWindow(db, nowMs);
   return w && inWindow(w, nowMs) ? w.until : null;
 }
 
-export const inWindow = (w: BurnWindow | null | undefined, atMs: number) => !!w && Date.parse(w.from) <= atMs && atMs < Date.parse(w.until);
+export const inWindow = (w: BurnWindow | readonly BurnWindow[] | null | undefined, atMs: number): boolean =>
+  Array.isArray(w) ? w.some((x) => inWindow(x, atMs)) : !!w && Date.parse((w as BurnWindow).from) <= atMs && atMs < Date.parse((w as BurnWindow).until);
 
 // 화면에 보여 줄 끝나는 시각(한국 시간 "23:40")
 export const burnEndText = (until: string) => {
