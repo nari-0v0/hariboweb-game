@@ -678,3 +678,77 @@ document.addEventListener('click', (e) => {
   });
   if (!box.checked) ok.focus({ preventScroll: true });
 })();
+
+// 상점에서 살 때 한 번 물어봐요(테마·꾸미기·칭호·잡다매점, 나리 2026-11-21).
+// 사는 폼에 data-buy(이름)·data-price(젤리)가 있어요. 「사기」를 누르면 그때 보내요.
+// 캡처 단계에서 막아서, 로딩 화면 등 다른 제출 리스너는 막힌 제출로 보고 아무것도 안 해요.
+(() => {
+  let open = null;
+  const close = () => {
+    if (!open) return;
+    const { box, back, form } = open;
+    open = null;
+    box.remove();
+    removeEventListener('keydown', back, true);
+    form.querySelector('button')?.focus();
+  };
+  document.addEventListener('submit', (e) => {
+    const f = e.target;
+    if (!(f instanceof HTMLFormElement) || !f.hasAttribute('data-buy')) return;
+    if (f.dataset.buyOk === '1') {
+      delete f.dataset.buyOk;
+      return;
+    }
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (open) return;
+    const box = document.createElement('div');
+    box.className = 'popup-wrap buy-ask';
+    const pop = document.createElement('div');
+    pop.className = 'popup panel';
+    pop.setAttribute('role', 'alertdialog');
+    pop.setAttribute('aria-modal', 'true');
+    pop.setAttribute('aria-labelledby', 'buy-ask-title');
+    const h = document.createElement('h2');
+    h.id = 'buy-ask-title';
+    h.textContent = '살까요?';
+    const name = document.createElement('p');
+    name.className = 'buy-ask-name';
+    name.textContent = f.getAttribute('data-buy') || '';
+    const cost = document.createElement('p');
+    cost.textContent = `도감 젤리 🍬 ${f.getAttribute('data-price') || ''}개가 나가요.`;
+    const row = document.createElement('div');
+    row.className = 'popup-actions';
+    const no = document.createElement('button');
+    no.type = 'button';
+    no.className = 'btn btn-ghost';
+    no.textContent = '취소';
+    const yes = document.createElement('button');
+    yes.type = 'button';
+    yes.className = 'btn btn-primary';
+    yes.textContent = '사기';
+    row.append(no, yes);
+    pop.append(h, name, cost, row);
+    box.append(pop);
+    const back = (k) => {
+      if (k.key === 'Escape') close();
+    };
+    open = { box, back, form: f };
+    no.addEventListener('click', close);
+    box.addEventListener('click', (c) => {
+      if (c.target === box) close();
+    });
+    yes.addEventListener('click', () => {
+      yes.disabled = true;
+      no.disabled = true;
+      f.dataset.buyOk = '1';
+      if (f.requestSubmit) f.requestSubmit();
+      else f.submit();
+    });
+    addEventListener('keydown', back, true);
+    document.body.append(box);
+    yes.focus();
+  }, true);
+  // 뒤로 가기로 돌아왔을 때 열린 창이 남아 있지 않게요
+  addEventListener('pageshow', close);
+})();

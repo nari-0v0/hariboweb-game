@@ -36,8 +36,9 @@ function applyText(s: TitleState): { text: string; retry?: boolean } | null {
 
 // 칭호가 500개 가까이라 JSX로 하나씩 그리면 무료 요금제 계산 한도(요청당 10ms)를 넘겨요.
 // 그래서 칭호 칸은 같은 모양의 HTML 글을 바로 이어 붙여요(이름 등 글자는 꼭 esc로 바꿔요).
-const formHtml = (action: 'equip' | 'buy', id: string, label: string, buy: boolean) =>
-  `<form method="post" action="/api/titles/${action}"><input type="hidden" name="title" value="${esc(id)}"/>` +
+// 살 때는 한 번 물어봐요(data-buy·data-price, public/app.js)
+const formHtml = (action: 'equip' | 'buy', id: string, label: string, buy: boolean, ask?: { name: string; price: number }) =>
+  `<form method="post" action="/api/titles/${action}"${ask ? ` data-buy="${esc(`「${ask.name}」 칭호`)}" data-price="${esc(ask.price)}"` : ''}><input type="hidden" name="title" value="${esc(id)}"/>` +
   `<button class="btn btn-small${buy ? ' btn-buy' : ''}" type="submit">${label}</button></form>`;
 
 function titleRowHtml(t: Title, stats: TitleStats, owned: boolean, using: boolean): string {
@@ -48,7 +49,7 @@ function titleRowHtml(t: Title, stats: TitleStats, owned: boolean, using: boolea
     : open
       ? formHtml('equip', t.id, '쓰기', false)
       : t.rule.kind === 'shop'
-        ? formHtml('buy', t.id, `🍬 ${esc(t.rule.price)}`, true)
+        ? formHtml('buy', t.id, `🍬 ${esc(t.rule.price)}`, true, { name: t.name, price: t.rule.price })
         : '<span class="tag reward">잠김</span>';
   return (
     `<div class="title-item${using ? ' using' : open ? ' open' : ' locked'}"><span class="title-chip">${esc(t.name)}</span>` +
@@ -64,7 +65,7 @@ function shopChipHtml(t: Title, owned: boolean, using: boolean): string {
     ? '<span class="tag on">사용 중</span>'
     : owned
       ? formHtml('equip', t.id, '쓰기', false)
-      : formHtml('buy', t.id, `🍬 ${t.rule.kind === 'shop' ? esc(t.rule.price) : ''}`, true);
+      : formHtml('buy', t.id, `🍬 ${t.rule.kind === 'shop' ? esc(t.rule.price) : ''}`, true, t.rule.kind === 'shop' ? { name: t.name, price: t.rule.price } : undefined);
   return `<div class="title-cell${using ? ' using' : owned ? ' open' : ''}"><span class="title-chip">${esc(t.name)}</span>${end}</div>`;
 }
 function ShopChip(props: { t: Title; owned: boolean; using: boolean }) {
