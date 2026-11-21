@@ -63,7 +63,7 @@ img { -webkit-user-drag: none; user-select: none; -webkit-touch-callout: none; }
   box-shadow: inset 0 -6px 0 rgba(42, 32, 48, .08);
 }
 .panel-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
-.panel-head h1 { margin: 0; }
+.panel-head h1 { margin: 0; overflow-wrap: anywhere; min-width: 0; }
 
 /* 위쪽 메뉴 */
 .topbar {
@@ -190,7 +190,7 @@ img { -webkit-user-drag: none; user-select: none; -webkit-touch-callout: none; }
 
 /* 카드 + 옆 판 */
 .split { display: grid; gap: 32px; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); align-items: start; }
-.side { display: grid; gap: 18px; }
+.side { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); }
 .stage-wrap { position: sticky; top: calc(96px + var(--nb, 0px)); }
 @media (max-width: 760px) {
   .split { grid-template-columns: minmax(0, 1fr); gap: 20px; }
