@@ -165,7 +165,7 @@ function ServerQuestBar(props: { extras: BingoExtras; me: string }) {
   );
 }
 
-// 나와 팀원이 이번 시즌에 함께한 시간: 30분을 채운 팀원이 need명이면 나는 달성
+// 나와 팀원이 이번 시즌에 함께한 시간: TEAM_GOAL_MIN분을 채운 팀원이 need명이면 나는 달성
 function MyMates(props: { team: NonNullable<BingoExtras['team']>; me: string }) {
   const mates = myMates(props.team, props.me);
   const met = matesOf(
@@ -230,7 +230,7 @@ function TeamPanel(props: { extras: BingoExtras; view: BingoView; me: string }) 
         </ul>
       </div>
       <p class="bgo-team-text">
-        팀원 {t.need}명(팀 인원의 절반)과 각각 같은 통화방에서 {TEAM_GOAL_MIN}분 이상 함께하면 나는 달성! 팀원 절반이 달성하면 팀 완료예요.
+        팀원 누구와든 이번 주 같은 통화방에서 {TEAM_GOAL_MIN / 60}시간 이상 함께하면 나는 달성! 팀에서 {t.target}명이 달성하면 팀 완료예요.
       </p>
       {t.bonus ? (
         <p class="bgo-team-bonus">우리 팀은 2명보다 적어서 가운데 칸을 보너스 칸으로 채웠어요. (팀 퀘스트 보상은 없어요)</p>

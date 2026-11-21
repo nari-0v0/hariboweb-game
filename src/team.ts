@@ -8,13 +8,15 @@ const DAY_MS = 86_400_000;
 
 // 팀 짜기에서 "주로 노는 시간대"를 볼 때 시즌 시작 전 이만큼의 기록을 봐요
 export const TEAM_PRIOR_DAYS = 14;
-// 팀 퀘스트(나리 2026-11-17): 이번 시즌 같은 통화방에서 합쳐서 TEAM_GOAL_MIN분 이상 함께한 팀원이
-// 팀 인원의 절반(matesNeeded, 10명 팀이면 5명) 이상이면 나는 달성.
-export const TEAM_GOAL_MIN = 30;
+// 팀 퀘스트(나리 2026-11-21, 매주 팀): 이번 시즌 같은 통화방에서 합쳐서 TEAM_GOAL_MIN분 이상 함께한 팀원이
+// 한 명이라도 있으면 나는 달성, 팀에서 TEAM_TARGET명이 달성하면 팀 완료.
+// (11/17~11/20 규칙 "팀 절반과 각각 30분, 절반 달성"은 한 팀도 못 깼어요.)
+export const TEAM_GOAL_MIN = 60;
+export const TEAM_TARGET = 4;
 
-// 달성에 필요한 팀원 수: 지금 남은 팀 인원(나 포함)의 절반(반올림), 최소 1, 나를 뺀 팀원 수 이하
+// 달성에 필요한 "TEAM_GOAL_MIN분 함께한 팀원" 수: 1명(혼자 남은 팀은 0명이라 보너스 칸이에요)
 export function matesNeeded(teamSize: number): number {
-  return Math.max(1, Math.min(teamSize - 1, Math.round(teamSize / 2)));
+  return Math.max(0, Math.min(teamSize - 1, 1));
 }
 // 초록하리보와 같은 통화방에서 이만큼 함께하면 납치 성공
 export const KIDNAP_MIN = 30;
@@ -151,7 +153,7 @@ export function kidnapTarget(newbies: number): number {
 export type TeamProgress = {
   bonus: boolean; // 남은 팀원이 2명보다 적어서 가운데 칸을 저절로 채운 팀
   candidates: string[]; // 지금 남아 있는 팀원
-  need: number; // 나는 달성에 필요한 "30분 이상 함께한 팀원" 수
+  need: number; // 나는 달성에 필요한 "TEAM_GOAL_MIN분 이상 함께한 팀원" 수
   achievers: string[]; // 그중 달성한 사람
   target: number;
   complete: boolean; // 목표를 채움
@@ -165,21 +167,21 @@ export const resetKey = (me: string, other: string) => `${me}|${other}`;
 export const myMinutes = (userId: string, other: string, minutes: Map<string, number>, resets: PairResets = new Map()) =>
   Math.max(0, (minutes.get(pairKey(other, userId)) ?? 0) - (resets.get(resetKey(userId, other)) ?? 0));
 
-// 30분 이상 함께한 팀원 수(떠난 팀원과 함께한 시간도 이미 함께한 거라 세요)
+// TEAM_GOAL_MIN분 이상 함께한 팀원 수(떠난 팀원과 함께한 시간도 이미 함께한 거라 세요)
 export function matesOf(userId: string, members: string[], minutes: Map<string, number>, resets: PairResets = new Map()): number {
   return members.filter((u) => u !== userId && myMinutes(userId, u, minutes, resets) >= TEAM_GOAL_MIN).length;
 }
 
 // members: 이 팀에 한 번이라도 있었던 사람(떠난 사람 포함).
-// 나는 달성 = 30분 이상 함께한 팀원(떠난 팀원과 함께한 것도 세요)이 남은 팀 인원의 절반 이상.
-// 팀 완료 = 남은 팀원의 절반(반올림, 최소 2)이 달성. 남은 팀원이 2명보다 적으면 보너스 칸.
+// 나는 달성 = TEAM_GOAL_MIN분 이상 함께한 팀원(떠난 팀원과 함께한 것도 세요)이 1명 이상.
+// 팀 완료 = TEAM_TARGET명(남은 팀원이 그보다 적으면 남은 팀원 모두)이 달성. 남은 팀원이 2명보다 적으면 보너스 칸.
 export function teamProgress(members: string[], minutes: Map<string, number>, left: Set<string>, resets: PairResets = new Map()): TeamProgress {
   const all = [...new Set(members)];
   const candidates = all.filter((u) => !left.has(u)).sort();
   const need = matesNeeded(candidates.length);
   const achievers = candidates.filter((u) => matesOf(u, all, minutes, resets) >= need);
   const bonus = candidates.length < 2;
-  const target = bonus ? 0 : Math.min(Math.max(2, Math.round(candidates.length / 2)), candidates.length);
+  const target = bonus ? 0 : Math.min(TEAM_TARGET, candidates.length);
   return { bonus, candidates, need, achievers, target, complete: !bonus && achievers.length >= target };
 }
 

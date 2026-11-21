@@ -79,32 +79,30 @@ const jp = (sql: DatabaseSync, id: string) =>
 describe('팀 퀘스트 계산', () => {
   const E = '5'.repeat(18);
   const mins = (list: [string, string, number][]) => new Map(list.map(([a, b, n]) => [a < b ? `${a}|${b}` : `${b}|${a}`, n]));
-  it('필요한 팀원 수 = 팀 인원 절반(반올림), 최소 1, 나를 뺀 팀원 수 이하 (10명 팀이면 5명)', () => {
-    expect([1, 2, 3, 4, 5, 9, 10, 11].map(matesNeeded)).toEqual([1, 1, 2, 2, 3, 5, 5, 6]);
+  it('필요한 팀원 수 = 1명(혼자면 0명)', () => {
+    expect([1, 2, 3, 4, 5, 9, 10, 11].map(matesNeeded)).toEqual([0, 1, 1, 1, 1, 1, 1, 1]);
   });
 
-  it('30분 이상 함께한 팀원이 절반 이상이면 달성, 팀원 절반이 달성하면 팀 완료', () => {
-    // 4명 팀: 2명과 30분씩
-    const p = teamProgress([A, B, C, D], mins([[A, B, 30], [A, C, 30], [B, C, 30], [C, D, 29]]), new Set());
-    expect(p).toMatchObject({ need: 2, target: 2, achievers: [A, B, C], complete: true, bonus: false });
-    // 1명과만 30분은 아직
-    expect(teamProgress([A, B, C, D], mins([[A, B, 90], [C, D, 90]]), new Set())).toMatchObject({ achievers: [], complete: false });
-    // 5명 팀: 목표 3명(2.5 → 3), 필요한 팀원 3명
-    expect(teamProgress([A, B, C, D, E], new Map(), new Set())).toMatchObject({ need: 3, target: 3 });
+  it('팀원 누구와든 60분 이상이면 나는 달성, 팀에서 4명이 달성하면 팀 완료', () => {
+    const p = teamProgress([A, B, C, D, E], mins([[A, B, 60], [C, D, 60], [D, E, 59]]), new Set());
+    expect(p).toMatchObject({ need: 1, target: 4, achievers: [A, B, C, D], complete: true, bonus: false });
+    // 59분은 아직
+    expect(teamProgress([A, B, C, D, E], mins([[A, B, 60], [C, E, 59]]), new Set())).toMatchObject({ achievers: [A, B], complete: false });
+    // 3명 팀은 3명 모두
+    expect(teamProgress([A, B, C], mins([[A, B, 60], [B, C, 60]]), new Set())).toMatchObject({ target: 3, achievers: [A, B, C], complete: true });
   });
 
-  it('떠난 팀원과 함께한 시간도 세고, 목표·필요 인원은 남은 팀원으로 맞춰요', () => {
-    const p = teamProgress([A, B, C, D], mins([[A, B, 40], [A, D, 40]]), new Set([B]));
-    expect(p).toMatchObject({ candidates: [A, C, D], need: 2, target: 2, achievers: [A] });
+  it('떠난 팀원과 함께한 시간도 세고, 목표는 남은 팀원으로 맞춰요', () => {
+    const p = teamProgress([A, B, C, D], mins([[A, B, 60], [C, D, 40]]), new Set([B]));
+    expect(p).toMatchObject({ candidates: [A, C, D], need: 1, target: 3, achievers: [A] });
   });
 
   it('남은 팀원이 2명보다 적으면 보너스 칸(보상 없음)', () => {
     expect(teamProgress([A], new Map(), new Set())).toMatchObject({ bonus: true, complete: false, target: 0 });
     expect(teamProgress([A, B], new Map(), new Set([B]))).toMatchObject({ bonus: true, target: 0 });
-    expect(teamProgress([A, B], mins([[A, B, 30]]), new Set())).toMatchObject({ bonus: false, need: 1, achievers: [A, B], complete: true });
+    expect(teamProgress([A, B], mins([[A, B, 60]]), new Set())).toMatchObject({ bonus: false, need: 1, achievers: [A, B], complete: true });
   });
 });
-
 describe('서버 퀘스트 계산', () => {
   it('목표 = 초록하리보 절반(최소 1), 납치된 초록하리보와 참여자', () => {
     expect([kidnapTarget(0), kidnapTarget(1), kidnapTarget(5), kidnapTarget(20)]).toEqual([1, 1, 3, 10]);
@@ -149,15 +147,15 @@ describe('동기화로 팀·서버 퀘스트', () => {
 
   it('30분 함께하면 가운데 칸, 시즌이 끝나면 목표를 채운 사람만 보상(한 번만)', async () => {
     const { sql, db } = await setup();
-    await applySync(db, payload({ room_minutes: [...minutes(30, [A, B, C]), ...minutes(30, [C, D], NOW + 3_600_000)] }), NOW + 7_200_000);
+    await applySync(db, payload({ room_minutes: [...minutes(60, [A, B, C]), ...minutes(60, [C, D], NOW + 3_600_000)] }), NOW + 7_200_000);
     const season = '2026-11-03';
     const states = await teamStatesFor(db, season, [A, B, C, D]);
-    // 4명 팀: 팀원 2명과 30분씩이면 달성, 목표 2명. A·B·C 달성 → 팀 완료, D는 C하고만 30분이라 "팀 완료, 나는 아직"
+    // 4명 팀: 팀원 누구와든 60분이면 달성, 목표 4명(남은 팀원 모두). A·B·C는 함께, D는 C와 60분 → 팀 완료
     expect(states.get(A)).toBe('done');
     expect(states.get(C)).toBe('done');
-    expect(states.get(D)).toBe('team-done');
+    expect(states.get(D)).toBe('done');
     const extras = await bingoExtras(db, A, START);
-    expect(extras.team).toMatchObject({ complete: true, target: 2 });
+    expect(extras.team).toMatchObject({ complete: true, target: 4 });
     expect(extras.server).toMatchObject({ kidnapped: [D], participants: [C, D], met: true });
 
     const before = Object.fromEntries([A, B, C, D].map((u) => [u, jelly(sql, u)]));
@@ -169,7 +167,7 @@ describe('동기화로 팀·서버 퀘스트', () => {
     expect(jelly(sql, A) - before[A]!).toBe(3);
     expect(jelly(sql, B) - before[B]!).toBe(3);
     expect(jelly(sql, C) - before[C]!).toBe(3 + 5);
-    expect(jelly(sql, D) - before[D]!).toBe(5);
+    expect(jelly(sql, D) - before[D]!).toBe(3 + 5);
     expect([jp(sql, A), jp(sql, C)]).toEqual([3, 3 + 2]);
     // 결과 알림(🔔): 사람마다 한 번, 두 번 정산해도 그대로
     const alerts = sql.prepare('SELECT user_id, ref, title, body FROM alerts ORDER BY user_id').all() as { user_id: string; ref: string; title: string; body: string }[];
@@ -184,7 +182,7 @@ describe('동기화로 팀·서버 퀘스트', () => {
 
   it('시즌 종료 뒤 탈퇴했다 재가입한 사람에게 밀린 옛 시즌 보상을 주지 않아요', async () => {
     const { sql, db } = await setup();
-    await applySync(db, payload({ room_minutes: minutes(30, [B, C, D]) }), NOW + 3_600_000);
+    await applySync(db, payload({ room_minutes: minutes(60, [A, B, C, D]) }), NOW + 3_600_000);
     // 시즌이 끝난 뒤, 정산 전에 나가면 season_members는 옛 시즌에 남아요.
     const left = Date.parse(END) + 5 * 60_000;
     const removed = payload({ removed: [C] });
@@ -204,7 +202,7 @@ describe('동기화로 팀·서버 퀘스트', () => {
 
   it('같은 시즌에 나갔다 다시 들어오면 나가기 전 통화는 본인 팀 달성·납치 참여에 세지 않아요', async () => {
     const { db } = await setup();
-    await applySync(db, payload({ room_minutes: minutes(30, [B, C, D]) }), NOW + 3_600_000);
+    await applySync(db, payload({ room_minutes: minutes(60, [A, B, C, D]) }), NOW + 3_600_000);
     expect((await teamStatesFor(db, '2026-11-03', [B, C])).get(C)).toBe('done');
     const t1 = NOW + 2 * 3_600_000;
     const removed = payload({ removed: [C] });
@@ -219,18 +217,18 @@ describe('동기화로 팀·서버 퀘스트', () => {
     expect(states.get(B)).toBe('done');
     const server = (await bingoExtras(db, C, START)).server;
     expect(server).toMatchObject({ kidnapped: [D], met: true });
-    expect(server?.participants).toEqual([B, D]);
+    expect(server?.participants).toEqual([A, B, D]);
     // 다시 들어온 뒤 30분을 함께하면 다시 세요
-    const again = payload({ members: [member(B), member(C), member(D, true)], room_minutes: minutes(30, [B, C, D], t1 + 120_000) });
+    const again = payload({ members: [member(B), member(C), member(D, true)], room_minutes: minutes(60, [A, B, C, D], t1 + 120_000) });
     again.batch_id = new Date(t1 + 3_600_000).toISOString() + '-again';
     await applySync(db, again, t1 + 3_600_000);
     expect((await teamStatesFor(db, '2026-11-03', [C])).get(C)).toBe('done');
-    expect((await bingoExtras(db, C, START)).server?.participants).toEqual([B, C, D]);
+    expect((await bingoExtras(db, C, START)).server?.participants).toEqual([A, B, C, D]);
   });
 
   it('시즌이 끝난 뒤 정산 전에 달성자가 나가도 그 시즌 팀 달성은 그대로예요', async () => {
     const { sql, db } = await setup();
-    await applySync(db, payload({ room_minutes: [...minutes(30, [A, B, C])] }), NOW + 3_600_000);
+    await applySync(db, payload({ room_minutes: [...minutes(60, [A, B, C, D])] }), NOW + 3_600_000);
     expect((await teamStatesFor(db, '2026-11-03', [B])).get(B)).toBe('done');
     const left = Date.parse(END) + 5 * 60_000;
     const removed = payload({ removed: [A] });
@@ -239,17 +237,17 @@ describe('동기화로 팀·서버 퀘스트', () => {
     expect((sql.prepare('SELECT COUNT(*) AS n FROM season_pair_reset').get() as { n: number }).n).toBe(0);
     const bBefore = jelly(sql, B);
     await settleEnded(db, Date.parse(END) + 31 * 60_000);
-    expect(jelly(sql, B) - bBefore).toBe(3);
+    expect(jelly(sql, B) - bBefore).toBe(3 + 5); // 팀 + 서버(신입 D와 함께했어요)
   });
 
   it('초기화 전에 한 통화는 팀 달성·납치 진행으로 되살아나지 않아요', async () => {
     const { sql, db } = await setup();
     const reset = NOW + 2 * 3_600_000;
     sql.prepare('UPDATE members SET reset_at = ?').run(new Date(reset).toISOString());
-    await applySync(db, payload({ room_minutes: minutes(30, [B, C, D]) }), reset + 3_600_000);
+    await applySync(db, payload({ room_minutes: minutes(60, [A, B, C, D]) }), reset + 3_600_000);
     expect((await bingoExtras(db, C, START)).server).toMatchObject({ kidnapped: [], participants: [], met: false });
     expect((await teamStatesFor(db, '2026-11-03', [C, D])).get(C)).toBe('todo');
-    await applySync(db, payload({ room_minutes: minutes(30, [B, C, D], reset + 60_000) }), reset + 3_600_000);
+    await applySync(db, payload({ room_minutes: minutes(60, [A, B, C, D], reset + 60_000) }), reset + 3_600_000);
     expect((await bingoExtras(db, C, START)).server).toMatchObject({ kidnapped: [D], met: true });
     expect((await teamStatesFor(db, '2026-11-03', [C, D])).get(C)).toBe('done');
   });
@@ -257,7 +255,7 @@ describe('동기화로 팀·서버 퀘스트', () => {
   it('서버 목표를 못 채우면 아무도 못 받아요', async () => {
     const { sql, db } = await setup();
     sql.exec("UPDATE server_quest SET target = 2");
-    await applySync(db, payload({ room_minutes: minutes(30, [B, C, D]) }), NOW + 3_600_000);
+    await applySync(db, payload({ room_minutes: minutes(60, [A, B, C, D]) }), NOW + 3_600_000);
     const before = jelly(sql, C);
     await settleEnded(db, Date.parse(END) + 31 * 60_000);
     // 팀 퀘스트 달성(3)만, 서버(5)는 없음
@@ -284,8 +282,9 @@ describe('동기화로 팀·서버 퀘스트', () => {
 
 describe('팀 완료로 채워진 가운데 칸 보상', () => {
   it('활동이 없던 팀원도 동기화 때 줄 보상을 받아요', async () => {
-    const { sql, db } = fakeD1([A, B, C, D]);
-    await applySync(db, payload({ members: [member(A), member(B), member(C), member(D)], full_members: true }), NOW);
+    const E = '5'.repeat(18);
+    const { sql, db } = fakeD1([A, B, C, D, E]);
+    await applySync(db, payload({ members: [member(A), member(B), member(C), member(D), member(E)], full_members: true }), NOW);
     const period = sql.prepare('SELECT id FROM bingo_periods ORDER BY starts_at LIMIT 1').get() as { id: string };
     // C는 개인 칸을 다 채워 두었어요(가운데 칸만 남음)
     const days = Array.from({ length: 7 }, (_, i) => `2026-11-0${3 + i}`);
@@ -300,8 +299,8 @@ describe('팀 완료로 채워진 가운데 칸 보상', () => {
       }
     }
     sql.prepare("INSERT INTO bingo_flag (week, user_id, flag) VALUES (?, ?, 'panel'), (?, ?, 'web')").run(period.id, C, period.id, C);
-    // A·B·D가 함께 30분 → 셋 다 달성, 팀 목표(2명) 넘김. C는 이번 묶음에 기록이 없어요.
-    await applySync(db, payload({ room_minutes: minutes(30, [A, B, D]) }), NOW + 7_200_000);
+    // A·B·D·E가 함께 60분 → 넷 다 달성, 팀 목표(4명) 채움. C는 이번 묶음에 기록이 없어요.
+    await applySync(db, payload({ room_minutes: minutes(60, [A, B, D, E]) }), NOW + 7_200_000);
     const lines = (sql.prepare('SELECT COUNT(*) AS n FROM bingo_lines WHERE user_id = ?').get(C) as { n: number }).n;
     expect(lines).toBe(9); // 8줄 + 9칸
   });

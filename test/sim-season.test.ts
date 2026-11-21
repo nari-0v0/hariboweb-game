@@ -248,9 +248,10 @@ it('시뮬: 시즌을 넘기며 팀·서버 퀘스트 분과 시즌 끝 보상�
         for (const g of new Set(s.group.values())) {
           const all = [...s.group].filter(([, x]) => x === g).map(([u]) => u);
           const cand = all.filter((u) => !s.left.has(u));
-          const need = Math.max(1, Math.min(cand.length - 1, Math.round(cand.length / 2)));
-          const ach = cand.filter((u) => all.filter((v) => v !== u && (minutes.get(pk(u, v)) ?? 0) - (s.reset.get(`team|${u}|${v}`) ?? 0) >= 30).length >= need);
-          const target = Math.min(Math.max(2, Math.round(cand.length / 2)), cand.length);
+          // 나리 2026-11-21: 팀원 누구와든 60분이면 나는 달성, 팀에서 4명(남은 팀원이 적으면 모두) 달성이면 팀 완료
+          const need = Math.max(0, Math.min(cand.length - 1, 1));
+          const ach = cand.filter((u) => all.filter((v) => v !== u && (minutes.get(pk(u, v)) ?? 0) - (s.reset.get(`team|${u}|${v}`) ?? 0) >= 60).length >= need);
+          const target = Math.min(4, cand.length);
           if (cand.length >= 2 && ach.length >= target) for (const u of ach) teamWin.add(u);
         }
         const kidRows = [...s.kidnap].filter(([, m]) => m >= 30).map(([k]) => k.split('|') as [string, string]);

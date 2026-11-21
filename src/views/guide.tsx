@@ -1,5 +1,5 @@
 import type { Member } from '../env';
-import { KIDNAP_MIN, TEAM_GOAL_MIN } from '../team';
+import { KIDNAP_MIN, TEAM_GOAL_MIN, TEAM_TARGET } from '../team';
 import { PRAISE_PER_DAY } from '../db';
 import { LEVEL_STEP } from '../sync';
 import { GAMBLE_LOCKED } from '../gamble';
@@ -70,11 +70,11 @@ export function GuidePage(props: { viewer: Member | null }) {
             <p>초록하리보와 같은 통화방에서 {KIDNAP_MIN}분 함께하면 납치 성공!</p>
             <p>서버 전체 목표를 달성하면 시즌 종료 시 참여자에게 보상이 지급돼요.</p>
             <h3>🤝 팀 퀘스트</h3>
-            <p>활동 게임과 시간대가 비슷한 멤버끼리 약 10명씩 자동으로 팀이 구성돼요.</p>
+            <p>활동 게임과 시간대가 비슷한 멤버끼리 약 10명씩 매주 자동으로 팀이 구성돼요.</p>
             <p>
-              팀 인원의 절반만큼의 팀원과 각각 {TEAM_GOAL_MIN}분 이상 같은 통화방에 있으면 개인 목표 달성! (10명 팀이면 팀원 5명) 누구와 몇 분 함께했는지는 빙고 팀 퀘스트 칸에서 볼 수 있어요.
+              팀원 누구와든 같은 통화방에 {TEAM_GOAL_MIN / 60}시간 이상 함께 있으면 개인 목표 달성! 누구와 몇 분 함께했는지는 빙고 팀 퀘스트 칸에서 볼 수 있어요.
             </p>
-            <p>팀원들이 목표 인원을 채우면 팀 퀘스트가 완료돼요.</p>
+            <p>팀에서 {TEAM_TARGET}명이 개인 목표를 달성하면 팀 퀘스트가 완료돼요.</p>
             <h3>같이 배정되지 않기</h3>
             <ul>
               <li>함께 배정되고 싶지 않은 멤버 최대 3명 등록</li>
