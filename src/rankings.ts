@@ -111,7 +111,7 @@ export async function loadRankings(db: D1Database, userId: string, nowMs: number
       db,
       `SELECT j.user_id, ${WHO}, SUM(j.amount) AS value FROM jellypi j
        JOIN members m ON m.user_id = j.user_id AND m.active = 1 LEFT JOIN profiles p ON p.user_id = j.user_id
-       WHERE ?1 IS NULL OR j.season_id = ?1 GROUP BY j.user_id ORDER BY value DESC, MAX(j.created_at) ASC, j.user_id`,
+       WHERE (?1 IS NULL OR j.season_id = ?1) AND ${notTestMember('j.user_id')} GROUP BY j.user_id ORDER BY value DESC, MAX(j.created_at) ASC, j.user_id`,
       seasonId,
     );
   const [dogam, journey, escape, jpSeason, jpAll, gamble, gambleMine] = await Promise.all([
@@ -124,18 +124,19 @@ export async function loadRankings(db: D1Database, userId: string, nowMs: number
        LEFT JOIN profiles p ON p.user_id = c.owner_id
        WHERE c.owner_id != c.target_id AND ${notTestMember('c.target_id')} GROUP BY c.owner_id ORDER BY value DESC, MAX(c.first_met) ASC, c.owner_id`,
     ),
-    // 원정대 화면의 내 최고 기록과 같게, 끝난 판(완주·실패)만 세요. 그만둔 판은 빼요.
+    // 원정대 화면의 내 최고 기록과 같게, 끝난 판(완주·실패)만 센 값이에요. 판마다 모아 둔 journey_bank.best(0047)를 읽어요
+    // (전에는 모든 판을 다 읽어서 판이 쌓일수록 읽기가 늘었어요, 2026-11-21 점검).
     !want('journey') ? none : rows(
       db,
-      `SELECT j.user_id, ${WHO}, MAX((j.chapter - 1) * 20 + j.day) AS value FROM journey_runs j
-       JOIN members m ON m.user_id = j.user_id AND m.active = 1 LEFT JOIN profiles p ON p.user_id = j.user_id
-       WHERE j.day > 0 AND j.status = 'done' GROUP BY j.user_id ORDER BY value DESC, SUM(j.cleared) DESC, j.user_id`,
+      `SELECT b.user_id, ${WHO}, b.best AS value FROM journey_bank b
+       JOIN members m ON m.user_id = b.user_id AND m.active = 1 LEFT JOIN profiles p ON p.user_id = b.user_id
+       WHERE b.best > 0 AND ${notTestMember('b.user_id')} ORDER BY value DESC, b.clears DESC, b.user_id`,
     ),
     !want('escape') ? none : rows(
       db,
       `SELECT e.user_id, ${WHO}, COUNT(*) AS value FROM escape_rewards e
        JOIN members m ON m.user_id = e.user_id AND m.active = 1 LEFT JOIN profiles p ON p.user_id = e.user_id
-       GROUP BY e.user_id ORDER BY value DESC, MAX(e.claimed_at) ASC, e.user_id`,
+       WHERE ${notTestMember('e.user_id')} GROUP BY e.user_id ORDER BY value DESC, MAX(e.claimed_at) ASC, e.user_id`,
     ),
     season && want('bingo') ? jellypi(season.id) : none,
     want('bingo') ? jellypi(null) : none,

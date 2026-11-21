@@ -3,9 +3,10 @@ import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buyWithJelly } from '../src/db';
 import { activeHand, awardGambleSeason, betChips, betTooSoon, claimDaily, expireAllHands, expireHand, gambleAccount, gambleRanks, moveHand, publicHand, rescueChips } from '../src/gamble-db';
-import { cardScore, COIN_PAYOUT, payback, openingPayout, playHand, SLOTS, slotPayout, WHEEL } from '../src/gamble';
+import { cardScore, COIN_PAYOUT, COIN_WIN_PER_MILLE, flipCoin, payback, openingPayout, playHand, SLOTS, slotPayout, WHEEL } from '../src/gamble';
 import { SHOP_ITEMS } from '../src/shop';
 import { loadRankings } from '../src/rankings';
+import { TEST_MEMBER_IDS } from '../src/test-accounts';
 
 const TODAY = '2026-11-10T20:59:00.000Z'; // 한국 11/11 5:59(아직 11/10)
 const TOMORROW = '2026-11-10T21:00:00.000Z'; // 한국 11/11 6:00
@@ -83,8 +84,10 @@ describe('겜블장 배당', () => {
     expect(mean).toBeLessThan(1);
   });
 
-  it('동전 던지기는 맞히면 2배, 틀리면 0배이고 평균 1배(배수는 정수)', async () => {
+  it('동전 던지기는 맞히면 2배, 틀리면 0배이고 맞힐 확률 49.5%라 평균 99%(배수는 정수)', async () => {
     expect(COIN_PAYOUT).toBe(2);
+    expect(COIN_PAYOUT * COIN_WIN_PER_MILLE / 1000).toBeCloseTo(0.99);
+    expect(COIN_PAYOUT * COIN_WIN_PER_MILLE / 1000).toBeLessThan(1);
     expect(Number.isInteger(COIN_PAYOUT)).toBe(true);
     const { db } = fixture();
     await claimDaily(db, USER, TODAY);
@@ -93,12 +96,12 @@ describe('겜블장 배당', () => {
     expect(win).toMatchObject({ multiplier: 2 });
     expect(JSON.parse(win!.state)).toEqual({ pick: 'heads', side: 'heads' });
     expect(await gambleAccount(db, USER)).toMatchObject({ chips: 1010, won: 10 });
-    roll(1); // 1 → 발바닥(tails)
+    roll(COIN_WIN_PER_MILLE); // 495 이상이면 못 맞혀요 → 발바닥(tails)
     const lose = await betChips(db, USER, 'coinflip', 10, 'c2', LATER(2), 'heads');
     expect(lose).toMatchObject({ multiplier: 0 });
     expect((await gambleAccount(db, USER))?.chips).toBe(1000);
     expect(await betChips(db, USER, 'coinflip', 10, 'c3', LATER(4))).toBeNull();
-    roll(0);
+    roll(COIN_WIN_PER_MILLE - 1); // 494는 맞혀요(0~494 = 495가지)
     await betChips(db, USER, 'coinflip', 100, 'c4', LATER(6), 'heads');
     expect(await gambleAccount(db, USER)).toMatchObject({ chips: 1100, won: 110, best_win: 100 });
     // 예전 2.05배 기록: 100 × 2.05는 부동소수점으로 204.999…라 그냥 내림하면 204가 돼요. 정확히 205로 계산해요.
@@ -269,6 +272,78 @@ describe('칩과 판 기록', () => {
     expect((await gambleRanks(db, TODAY))[0]).toMatchObject([{ name: '「도박신」 테스트', value: 1900 }]);
     sql.exec('UPDATE members SET active = 0');
     expect((await gambleRanks(db, TODAY)).every((rank) => rank.length === 0)).toBe(true);
+  });
+
+  it('시즌 순위·도박신은 순이익(잃은 판도 빼요)으로 정하고, 순이익이 0 이하면 후보가 아니에요(나리 2026-11-21)', async () => {
+    const { db, sql } = fixture();
+    const OTHER = '100000000000000002';
+    sql.prepare("INSERT INTO members (user_id, display_name, active, updated_at) VALUES (?, '둘째', 1, ?)").run(OTHER, TODAY);
+    sql.prepare("INSERT INTO seasons (id, starts_at, ends_at, created_at) VALUES ('season', ?, ?, ?)").run('2026-11-01T00:00:00.000Z', TOMORROW, TODAY);
+    const add = sql.prepare(`INSERT INTO gamble_rounds (user_id, token, game, bet, all_in, state, expires_at, multiplier, settled_at)
+      VALUES (?, ?, 'roulette', ?, 0, '0', ?, ?, ?)`);
+    sql.prepare('INSERT INTO gamble_accounts (user_id, chips) VALUES (?, 100000), (?, 100000)').run(USER, OTHER);
+    // USER: 한 번 크게 땀(+900) 뒤 크게 잃음(−800) → 순이익 100
+    add.run(USER, 'u1', 100, TOMORROW, 10, TODAY);
+    add.run(USER, 'u2', 800, TOMORROW, 0, TODAY);
+    // OTHER: +300 → 순이익 300(딴 판만 세면 USER 900이 1등이었어요)
+    add.run(OTHER, 'o1', 300, TOMORROW, 2, TODAY);
+    expect((await gambleRanks(db, TODAY))[3]).toMatchObject([{ name: '둘째', value: 300 }]);
+    await awardGambleSeason(db, 'season', TOMORROW, TOMORROW);
+    expect(sql.prepare('SELECT user_id, won FROM gamble_season_winners').get()).toEqual({ user_id: OTHER, won: 300 });
+    // 모두 손해면 아무도 없어요
+    const { db: db2, sql: sql2 } = fixture();
+    sql2.prepare("INSERT INTO seasons (id, starts_at, ends_at, created_at) VALUES ('season', ?, ?, ?)").run('2026-11-01T00:00:00.000Z', TOMORROW, TODAY);
+    sql2.prepare('INSERT INTO gamble_accounts (user_id, chips) VALUES (?, 1000)').run(USER);
+    sql2.prepare(`INSERT INTO gamble_rounds (user_id, token, game, bet, all_in, state, expires_at, multiplier, settled_at)
+      VALUES (?, 'w', 'roulette', 100, 0, '0', ?, 2, ?), (?, 'l', 'roulette', 200, 0, '0', ?, 0, ?)`).run(USER, TOMORROW, TODAY, USER, TOMORROW, TODAY);
+    expect((await gambleRanks(db2, TODAY))[3]).toEqual([]);
+    await awardGambleSeason(db2, 'season', TOMORROW, TOMORROW);
+    expect(sql2.prepare('SELECT * FROM gamble_season_winners').get()).toBeUndefined();
+  });
+
+  it('테스트 계정은 겜블 순위와 시즌 우승에서 빠져요', async () => {
+    const { db, sql } = fixture();
+    const TESTER = TEST_MEMBER_IDS[0]!;
+    sql.prepare("INSERT INTO members (user_id, display_name, active, updated_at) VALUES (?, '실험', 1, ?)").run(TESTER, TODAY);
+    sql.prepare("INSERT INTO seasons (id, starts_at, ends_at, created_at) VALUES ('season', ?, ?, ?)").run('2026-11-01T00:00:00.000Z', TOMORROW, TODAY);
+    sql.prepare('INSERT INTO gamble_accounts (user_id, chips, best_win, all_in_wins) VALUES (?, 99999, 99, 9), (?, 10, 1, 1)').run(TESTER, USER);
+    sql.prepare(`INSERT INTO gamble_rounds (user_id, token, game, bet, all_in, state, expires_at, multiplier, settled_at)
+      VALUES (?, 't', 'roulette', 1000, 0, '0', ?, 10, ?), (?, 'u', 'roulette', 1, 0, '0', ?, 2, ?)`).run(TESTER, TOMORROW, TODAY, USER, TOMORROW, TODAY);
+    const ranks = await gambleRanks(db, TODAY);
+    expect(ranks.map((r) => r.map((x) => x.name))).toEqual([['테스트'], ['테스트'], ['테스트'], ['테스트']]);
+    await awardGambleSeason(db, 'season', TOMORROW, TOMORROW);
+    expect(sql.prepare('SELECT user_id FROM gamble_season_winners').get()).toEqual({ user_id: USER });
+    const mine = await loadRankings(db, USER, Date.parse(TODAY), 'gamble');
+    expect(mine.gamble.chips.me).toMatchObject({ rank: 1 });
+  });
+});
+
+describe('동전·카드 21 확률(2026-11-21 점검)', () => {
+  it('동전은 1000번 중 495번 맞혀요(실제 뽑기로 세어 봐요)', () => {
+    let win = 0;
+    let next = 0;
+    vi.spyOn(crypto, 'getRandomValues').mockImplementation((buffer) => {
+      (buffer as Uint32Array)[0] = next;
+      return buffer;
+    });
+    for (next = 0; next < 1000; next++) {
+      const flip = flipCoin(next % 2 ? 'heads' : 'tails');
+      if (flip.pick === flip.side) win++;
+    }
+    expect(win).toBe(COIN_WIN_PER_MILLE);
+  });
+
+  it('21점이 되면 저절로 멈춰서 딜러와 겨뤄요(한 장 더를 눌러 넘을 수 없어요)', () => {
+    // 내 카드 5+6=11, 한 장 더 → 10 → 21. 딜러 10+7=17이라 더 안 받고 내가 이겨요.
+    const hand = { player: [4, 5], dealer: [9, 6], deck: [3, 9] };
+    expect(playHand(hand, 'hit')).toBe(2);
+    expect(hand.player).toHaveLength(3);
+    expect(hand.dealer).toHaveLength(2);
+    expect(hand.deck).toEqual([3]);
+    // 딜러도 21이면 비겨요(1배)
+    expect(playHand({ player: [4, 5], dealer: [9, 4], deck: [5, 9] }, 'hit')).toBe(1);
+    // 21보다 작으면 계속해요
+    expect(playHand({ player: [4, 5], dealer: [9, 6], deck: [3, 7] }, 'hit')).toBeNull();
   });
 });
 

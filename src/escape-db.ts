@@ -80,7 +80,9 @@ async function withBooster(db: D1Database, user: string, s: EscState, now: Date)
   const dayStart = new Date(dayStartMs(kstDay(now))).toISOString();
   const row = await db
     .prepare(
-      `SELECT booster, EXISTS (SELECT 1 FROM escape_runs WHERE user_id = ?1 AND started_at >= ?2) AS played
+      // 보통 판만 세요. 재수사·오늘의 사건(state.re)을 먼저 해도 첫 보통 사건의 동전은 받아요(2026-11-21 점검).
+      `SELECT booster, EXISTS (SELECT 1 FROM escape_runs WHERE user_id = ?1 AND started_at >= ?2
+         AND json_extract(state, '$.re') IS NULL) AS played
        FROM members WHERE user_id = ?1 AND active = 1`,
     )
     .bind(user, dayStart)

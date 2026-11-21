@@ -231,3 +231,15 @@ describe('초기화 뒤 사건파일 첫 해결 보상', () => {
     expect(typeof actEscape).toBe('function');
   });
 });
+
+it('확인 화면은 지금 젤칩 → 1000개를 늘 보여 주고(1000개가 아닐 때), 아직 안 받은 시작 칩과 시즌 기록도 알려 줘요', async () => {
+  const { GameResetPage } = await import('../src/views/choose');
+  const viewer = { user_id: '1', display_name: 'a', avatar_url: null, joined_at: null, is_newbie: 0, active: 1 } as never;
+  const html = async (chips: number | null, unclaimed = false) => String(await GameResetPage({ viewer, jelly: 30, chips, unclaimed, gen: 0 }).toString());
+  expect(await html(300)).toContain('(지금 300개 → 1000개)');
+  expect(await html(5000)).toContain('(지금 5,000개 → 1000개)');
+  expect(await html(1000)).not.toContain('지금 1,000개');
+  expect(await html(300)).toContain('이번 시즌 겜블 순이익 기록이 사라져요');
+  expect(await html(3000, true)).toContain('아직 받지 않은 시작 젤칩 1000개는 이 1000개로 쳐서 따로 받지 않아요');
+  expect(await html(3000)).not.toContain('아직 받지 않은');
+});

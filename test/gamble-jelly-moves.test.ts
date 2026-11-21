@@ -73,3 +73,31 @@ it('시작 초기화는 겜블 기록만 지우고, 젤리를 옮긴 뒤에는 �
   sql.exec(reset);
   expect(sql.prepare('SELECT chips FROM gamble_accounts').all()).toEqual([{ chips: 3000 }]);
 });
+
+it('이전 때 웹에 없던 사람은 들어오면(새로·다시) 받고, 이미 받은 사람은 다시 들어와도 또 받지 않아요', () => {
+  const sql = freshDb();
+  sql.exec(buildMoveSql([
+    { user_id: A, jelly: 3000 },
+    { user_id: LEFT, jelly: 999 },
+    { user_id: NOT_ON_WEB, jelly: 50 },
+  ], '2026-11-21T00:00:00.000Z'));
+  const acct = (id: string) => sql.prepare('SELECT chips FROM gamble_accounts WHERE user_id = ?').get(id) as { chips: number } | undefined;
+  expect(acct(LEFT)).toBeUndefined();
+  expect(acct(NOT_ON_WEB)).toBeUndefined();
+  // 처음 들어옴(동기화·로그인과 같은 upsert)
+  const upsert = sql.prepare(`INSERT INTO members (user_id, display_name, updated_at, active) VALUES (?, 'n', 'x', 1)
+    ON CONFLICT (user_id) DO UPDATE SET active = 1`);
+  upsert.run(NOT_ON_WEB);
+  expect(acct(NOT_ON_WEB)).toEqual({ chips: 50 });
+  // 떠나 있던 사람이 다시 들어옴
+  upsert.run(LEFT);
+  expect(acct(LEFT)).toEqual({ chips: 999 });
+  // 이미 받은 사람이 떠났다가(겜블 계정 지워짐) 다시 들어와도 또 받지 않아요
+  sql.exec(`UPDATE members SET active = 0 WHERE user_id = '${A}'`);
+  expect(acct(A)).toBeUndefined();
+  upsert.run(A);
+  expect(acct(A)).toBeUndefined();
+  // 이미 들어와 있는 사람의 동기화(active 1 → 1)는 아무 일도 없어요
+  upsert.run(NOT_ON_WEB);
+  expect(acct(NOT_ON_WEB)).toEqual({ chips: 50 });
+});

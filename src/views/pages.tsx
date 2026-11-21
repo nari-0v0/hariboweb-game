@@ -78,7 +78,7 @@ export function LandingPage(props: { error?: string; notMember?: boolean; devLog
         <div class="step">
           <span class="step-no">1</span>
           <h3>같이 놀기</h3>
-          <p>같은 통화방에서 마이크를 켜고 5분 이상 연달아 같이 있거나 같은 내전에 나가면 서로의 카드 경험치가 올라요.</p>
+          <p>같은 통화방에서 둘 다 마이크를 켜고 5분 이상 연달아 같이 있거나 같은 내전에 나가면 서로의 카드 경험치가 올라요.</p>
         </div>
         <div class="step">
           <span class="step-no">2</span>

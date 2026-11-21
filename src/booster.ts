@@ -41,10 +41,12 @@ export function boosterStatements(db: D1Database, list: { id: string; booster: b
   const t = new Date(nowMs).toISOString();
   const month = kstMonth(nowMs);
   // ?2 = 줄 차례인 달(결제일 기준), ?4 = 적어 둘 달(이번 달). 처음 준 달에 결제일이 또 와도 두 번 주지 않아요.
+  // 알림 번호도 젤리와 같은 달(?2)로 붙여요. 이번 달(?4)로 붙이면 월말·월초에 결제일 몫과 달이 어긋나
+  // 다음 결제일 알림이 같은 번호라 빠질 수 있었어요(2026-11-21 점검). ?2는 젤리를 줄 때마다 커져서 번호가 겹치지 않아요.
   const due = `EXISTS (SELECT 1 FROM members WHERE user_id = ?1 AND active = 1 AND booster = 1 AND COALESCE(booster_gift_month, '') < ?2)`;
   const alert = db.prepare(
     `INSERT INTO alerts (user_id, ref, title, body, created_at)
-     SELECT ?1, 'booster-' || ?4, '💎 서버 부스트 고마워요!', '이번 달 감사 선물로 도감 젤리 ${BOOSTER_JELLY}개를 받았어요.', ?3 WHERE ${due}
+     SELECT ?1, 'booster-' || COALESCE(?2, ?4), '💎 서버 부스트 고마워요!', '이번 달 감사 선물로 도감 젤리 ${BOOSTER_JELLY}개를 받았어요.', ?3 WHERE ${due}
      ON CONFLICT (user_id, ref) DO NOTHING`,
   );
   const jelly = db.prepare(

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { nextBet } from '../public/gamble.js';
+import { describe, expect, it, vi } from 'vitest';
+import { guardCardActions, nextBet } from '../public/gamble.js';
 
 describe('겜블장 칩 버튼', () => {
   it('누른 버튼만큼 지금 걸 칩에 더한다', () => {
@@ -18,4 +18,24 @@ describe('겜블장 칩 버튼', () => {
     expect(nextBet(5, 100, 'all')).toBe(100);
     expect(nextBet(100, 100, 'clear')).toBe(0);
   });
+});
+
+it('카드 21 버튼을 빠르게 두 번 눌러도 한 번만 보내요(새 화면이 뜨면 다시 보낼 수 있어요)', () => {
+  const handlers = {};
+  vi.stubGlobal('addEventListener', (type, fn) => { handlers[type] = fn; });
+  try {
+    const form = new EventTarget();
+    guardCardActions(form);
+    const send = () => {
+      const event = new Event('submit', { cancelable: true });
+      form.dispatchEvent(event);
+      return !event.defaultPrevented;
+    };
+    expect(send()).toBe(true);
+    expect(send()).toBe(false);
+    handlers.pageshow();
+    expect(send()).toBe(true);
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

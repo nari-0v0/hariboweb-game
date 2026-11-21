@@ -1,7 +1,7 @@
 import { comma } from '../num';
 import type { Member } from '../env';
 import { GAMBLE_ART, SLOT_ART } from '../gamble-art';
-import { BOOSTER_REFILL_CHIPS, CHERRY_PAIR, COIN_PAYOUT, DAILY_CHIPS, REFILL_CHIPS, ROULETTE, SLOTS, payback, rankOf, type CoinFlip, type CoinSide } from '../gamble';
+import { BOOSTER_REFILL_CHIPS, CHERRY_PAIR, COIN_PAYOUT, COIN_WIN_PER_MILLE, DAILY_CHIPS, REFILL_CHIPS, ROULETTE, SLOTS, payback, rankOf, type CoinFlip, type CoinSide } from '../gamble';
 import { publicHand, type GambleAccount, type Game, type Round } from '../gamble-db';
 import { plainPodium } from '../rankings';
 import { Layout } from './layout';
@@ -10,10 +10,13 @@ import { PodiumBoard } from './podium';
 const GAMES: Record<Game, string> = { slot: '슬롯', roulette: '배수 룰렛', cards: '카드 21(블랙잭)', coinflip: '동전 던지기' };
 const DESCRIPTIONS: Record<Game, string> = {
   slot: '릴 세 개에서 같은 그림을 맞춰요.',
-  coinflip: '곰과 발바닥 중 나올 면을 맞혀요. 확률 50%, 맞히면 2배.',
+  coinflip: `곰과 발바닥 중 나올 면을 맞혀요. 맞힐 확률 ${COIN_WIN_PER_MILLE / 10}%, 맞히면 ${COIN_PAYOUT}배.`,
   roulette: '바늘이 멈춘 칸의 배수를 받아요.',
   cards: '21을 넘기지 않고 딜러보다 가까우면 이겨요.',
 };
+// 젤칩 채우기 규칙(src/gamble-db.ts claimDaily와 같아요, 나리 2026-11-21 확정): 시작 젤칩이나 채우기를 받은 다음 게임일
+// (아침 6시 뒤)부터, 젤칩이 0개면 하루 한 번 채워져요. 처음 받은 날에는 다시 채우지 않아요.
+const REFILL_RULE = `젤칩이 0개면 다음 게임일(아침 6시 뒤)부터 하루 한 번 ${REFILL_CHIPS}개(💎 부스터 ${BOOSTER_REFILL_CHIPS}개)로 채워져요.`;
 const NOTICES: Record<string, string> = {
   bet: '가진 젤칩 안에서 1개 이상 걸어 주세요.',
   active: '진행 중인 카드 21을 먼저 끝내 주세요.',
@@ -22,20 +25,26 @@ const NOTICES: Record<string, string> = {
   pick: '곰이나 발바닥 중 하나를 골라 주세요.',
   rescue: '젤칩을 채워 드렸어요.',
   'rescue-day-changed': '날짜가 바뀌었어요. 지금 잔액을 확인한 뒤 다시 시도해 주세요.',
-  'no-rescue': '오늘 이미 채워 받았거나, 아직 젤칩이나 진행 중인 카드 21이 있어요. 젤칩은 0개 이하일 때 하루 한 번 채워져요.',
+  'no-rescue': `오늘 이미 받았거나, 아직 젤칩이나 진행 중인 카드 21이 있어요. ${REFILL_RULE}`,
 };
 const chips = (n: number) => comma(n);
+
+// 젤칩이 0개인데 지금은 채울 수 없을 때 안내(카드 21이 진행 중이면 그것부터)
+export const emptyText = (handOpen: boolean) => handOpen
+  ? '젤칩이 모두 진행 중인 카드 21에 걸려 있어요. 카드 21을 먼저 끝내 주세요.'
+  : `젤칩은 다음 게임일(아침 6시 뒤)에 0개면 ${REFILL_CHIPS}개(💎 ${BOOSTER_REFILL_CHIPS}개)로 채워져요. 하루 한 번이에요.`;
 
 function Art({ name }: { name: string }) {
   const art = GAMBLE_ART[name]!;
   return art.image ? <img class="gb-art" src={art.image} alt={art.text} /> : <span>{art.text}</span>;
 }
 
-// 받은 젤칩 안내: 처음 시작(DAILY_CHIPS) 또는 0개일 때 하루 한 번 채우기
-const dailyText = (n: number) =>
+// 받은 젤칩 안내: 처음 시작(DAILY_CHIPS) 또는 0개일 때 하루 한 번 채우기.
+// moved = 디스코드 겜블장 지갑에서 옮겨 온 젤칩(처음 왔을 때 같이 알려 줘요).
+export const dailyText = (n: number, moved = 0) =>
   n >= DAILY_CHIPS
-    ? `겜블장 시작 젤칩 ${n}개를 받았어요.`
-    : `젤칩이 다 떨어져서 ${n}개를 채워 드렸어요(0개 이하일 때 하루 한 번).${n >= BOOSTER_REFILL_CHIPS ? ` 💎 부스터 감사 +${BOOSTER_REFILL_CHIPS - REFILL_CHIPS}` : ''}`;
+    ? `겜블장 시작 젤칩 ${chips(n)}개를 받았어요.${moved > 0 ? ` 디스코드 겜블장에서 옮긴 젤칩 ${chips(moved)}개도 들어 있어요.` : ''}`
+    : `젤칩이 다 떨어져서 ${n}개를 채워 드렸어요(0개면 하루 한 번).${n >= BOOSTER_REFILL_CHIPS ? ` 💎 부스터 감사 +${BOOSTER_REFILL_CHIPS - REFILL_CHIPS}` : ''}`;
 const BET_STEPS = [1, 5, 10, 100, 1000, 10000];
 const CARD_RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 
@@ -67,9 +76,10 @@ function CoinPick({ pick }: { pick: CoinSide }) {
   );
 }
 
-function BetForm({ game, balance, previousBet, pick }: { game: Game; balance: number; previousBet?: number; pick?: CoinSide }) {
+function BetForm({ game, balance, keepBet, pick }: { game: Game; balance: number; keepBet?: number; pick?: CoinSide }) {
   // 판이 끝나 결과가 나온 뒤에도 걸 젤칩은 0개에서 다시 골라요(나리 2026-11-14). 앞 판 금액을 그대로 두지 않아요.
-  const bet = 0;
+  // 다만 걸기가 거절됐을 때(너무 빠름 등)는 고른 금액을 그대로 둬요(가진 젤칩까지만, 2026-11-21 점검).
+  const bet = Math.max(0, Math.min(keepBet ?? 0, balance));
   return (
     <form class="gb-form gb-bet-form" action={`/gamble/${game}/play`} method="post" data-gb-balance={balance} data-no-loader="">
       <input type="hidden" name="game" value={game} />
@@ -84,7 +94,8 @@ function BetForm({ game, balance, previousBet, pick }: { game: Game; balance: nu
         <button class="gb-button" type="button" data-gb-bet="all" disabled={!balance}>올인</button>
         <button class="gb-button" type="button" data-gb-bet="clear" disabled={!balance}>지우기</button>
       </div>
-      <button class="gb-button gb-play-button" type="submit" disabled={!bet}>{previousBet !== undefined ? '한 번 더' : game === 'cards' ? '카드 받기' : '확인'}</button>
+      {/* 결과 뒤에도 금액은 0개부터라 "한 번 더" 대신 늘 같은 이름이에요(2026-11-21 점검: 눌러도 안 되는 "한 번 더") */}
+      <button class="gb-button gb-play-button" type="submit" disabled={!bet}>{game === 'cards' ? '카드 받기' : '확인'}</button>
     </form>
   );
 }
@@ -264,9 +275,21 @@ function GameRules({ game }: { game: Game }) {
         </>
       )}
       {game === 'roulette' && <p>1배는 본전이에요. 나올 확률: {ROULETTE.map(({ payout, count }) => `${payout}배 ${count}%`).join(' · ')}</p>}
-      {game === 'coinflip' && <p>곰과 발바닥이 나올 확률은 50%씩이에요. 맞히면 {COIN_PAYOUT}배, 틀리면 건 젤칩을 잃어요.</p>}
-      {game === 'cards' && <p>딜러는 17점부터 멈춰요. 승리 2배 · 첫 두 장이 A와 그림 카드(J·Q·K)면 3배, A와 10이면 2배 · 비기면 1배</p>}
+      {game === 'coinflip' && <p>나올 면을 맞힐 확률은 {COIN_WIN_PER_MILLE / 10}%예요. 맞히면 {COIN_PAYOUT}배, 틀리면 건 젤칩을 잃어요.</p>}
+      {game === 'cards' && <CardRules />}
     </details>
+  );
+}
+
+// 카드 21 규칙(src/gamble.ts openingPayout·playHand와 같아요). 가이드에도 같은 내용이 있어요.
+export function CardRules() {
+  return (
+    <ul class="gb-rule-list">
+      <li>21을 넘기지 않고 딜러보다 21에 가까우면 이겨요. 이기면 2배, 비기면 1배(본전)예요.</li>
+      <li>첫 두 장이 21이면 바로 끝나요: A와 그림 카드(J·Q·K)면 3배, A와 10이면 2배.</li>
+      <li>딜러의 첫 두 장이 21이면 바로 끝나고 0배예요. 나도 첫 두 장이 21이면 비겨서 1배예요.</li>
+      <li>딜러는 17점이 될 때까지 받고 17점부터 멈춰요. 내가 21점이 되면 저절로 멈춰요.</li>
+    </ul>
   );
 }
 
@@ -295,7 +318,7 @@ export function GambleLocked(props: { viewer: Member }) {
 
 export function GambleLobby(props: {
   viewer: Member; account: GambleAccount | null; inProgress: boolean;
-  ranks: Rank[][]; now: string; daily: number; notice?: string;
+  ranks: Rank[][]; now: string; daily: number; moved?: number; notice?: string;
 }) {
   const balance = props.account?.chips ?? 0;
   const [balanceRank = [], bestRank = [], allInRank = [], seasonRank = []] = props.ranks;
@@ -306,8 +329,9 @@ export function GambleLobby(props: {
         <section class="gb-panel gb-lobby-intro">
           <h1>겜블장 <Art name="slot" /></h1>
           <ChipBalance balance={balance} />
-          {props.daily > 0 && <p role="status">{dailyText(props.daily)}</p>}
+          {props.daily > 0 && <p role="status">{dailyText(props.daily, props.moved)}</p>}
           {notice && <p role="status">{notice}</p>}
+          {props.account && balance === 0 && !notice && <p>{emptyText(props.inProgress)}</p>}
           <p>젤칩은 겜블장 전용이에요. 젤리로 바꾸거나 상점에서 쓸 수 없고, 순위와 칭호에만 쓰여요.</p>
         </section>
         <nav class="gb-games" aria-label="게임 고르기">
@@ -324,7 +348,7 @@ export function GambleLobby(props: {
           <h2>🏆 겜블장 순위</h2>
           {seasonRank[0] && (
             <p class="rk-champ">
-              <span aria-hidden="true">👑</span> 이번 시즌 누적 딴 젤칩 1등 <b>{seasonRank[0].name}</b> · {chips(seasonRank[0].value)}개
+              <span aria-hidden="true">👑</span> 이번 시즌 순이익 1등 <b>{seasonRank[0].name}</b> · {chips(seasonRank[0].value)}개
             </p>
           )}
           <div class="rk-trio">
@@ -341,7 +365,7 @@ export function GambleLobby(props: {
 
 export function GambleRoom(props: {
   viewer: Member; game: Game; balance: number; hand: Round | null; result: Round | null;
-  daily: number; notice?: string; url?: string;
+  daily: number; moved?: number; notice?: string; url?: string; keepBet?: number; keepPick?: CoinSide;
 }) {
   const { game, balance } = props;
   const hand = game === 'cards' ? props.hand : null;
@@ -350,14 +374,15 @@ export function GambleRoom(props: {
   const notice = noticeText(props.notice);
   const cardsShown = game === 'cards' ? handImages(hand ?? result) : [];
   return (
-    <Layout title={GAMES[game]} viewer={props.viewer} active="gamble" scripts={[{ src: '/gamble.js?v=8', type: 'module' }]}
+    <Layout title={GAMES[game]} viewer={props.viewer} active="gamble" scripts={[{ src: '/gamble.js?v=9', type: 'module' }]}
       preloadImages={[gameBackground(game, 'room'), ...[MAIN_ART[game]].flatMap((name) => GAMBLE_ART[name]?.image ?? []), ...cardsShown]}>
       <div class="gb-page gb-room-page">
         <div class="gb-room-bar">
           <a href="/gamble">← 겜블장</a>
           <ChipBalance balance={balance} />
           {game !== 'cards' && props.hand && <a class="gb-resume" href="/gamble/cards">진행 중인 카드 21로 가기</a>}
-          {props.daily > 0 && <p role="status">{dailyText(props.daily)}</p>}
+          {/* 결과가 나오기 전(움직이는 동안)에는 잔액처럼 가려요. 채워 줬다는 말이 결과를 미리 알려 주지 않게(2026-11-21 점검) */}
+          {props.daily > 0 && <p class="gb-room-daily" role="status">{dailyText(props.daily, props.moved)}</p>}
         </div>
         <section class="gb-panel gb-room" aria-label={GAMES[game]} data-gb-settled={result ? 'yes' : undefined} data-gb-url={props.url} data-gb-prefetch={game === 'cards' ? ALL_CARD_IMAGES.join(' ') : undefined}
           data-gb-motion={motion?.game} data-gb-key={motion ? `${motion.token}:${motion.revision}:${result ? 'done' : 'active'}` : undefined}>
@@ -377,9 +402,9 @@ export function GambleRoom(props: {
             </>
           ) : (
             <div data-gb-reveal>
-              <BetForm game={game} balance={balance} previousBet={result?.bet}
-                pick={game === 'coinflip' && result ? (JSON.parse(result.state) as CoinFlip).pick : undefined} />
-              {balance === 0 && <p><a href="/gamble">겜블장에서 젤칩 받기</a></p>}
+              <BetForm game={game} balance={balance} keepBet={result ? undefined : props.keepBet}
+                pick={game === 'coinflip' ? (result ? (JSON.parse(result.state) as CoinFlip).pick : props.keepPick) : undefined} />
+              {balance === 0 && <p>{emptyText(!!props.hand)}</p>}
               <noscript>걸 젤칩을 바꾸려면 자바스크립트를 켜 주세요.</noscript>
             </div>
           )}

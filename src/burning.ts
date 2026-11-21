@@ -71,10 +71,12 @@ export async function burningUntil(db: D1Database, nowMs = Date.now()): Promise<
 export const inWindow = (w: BurnWindow | readonly BurnWindow[] | null | undefined, atMs: number): boolean =>
   Array.isArray(w) ? w.some((x) => inWindow(x, atMs)) : !!w && Date.parse((w as BurnWindow).from) <= atMs && atMs < Date.parse((w as BurnWindow).until);
 
-// 화면에 보여 줄 끝나는 시각(한국 시간 "23:40")
-export const burnEndText = (until: string) => {
+// 화면에 보여 줄 끝나는 시각(한국 시간 "23:40"). 오늘(한국 날짜)이 아닌 날 끝나면 날짜도 붙여요("11/22 14:00").
+export const burnEndText = (until: string, nowMs = Date.now()) => {
   const d = new Date(Date.parse(until) + 9 * 3600_000);
-  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+  const today = new Date(nowMs + 9 * 3600_000).toISOString().slice(0, 10);
+  const time = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+  return d.toISOString().slice(0, 10) === today ? time : `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${time}`;
 };
 
 // 봇에게 알려 줄 값

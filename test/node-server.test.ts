@@ -63,6 +63,21 @@ it('Node 서버가 문지기 비밀을 확인하고 앱과 봇 동기화를 처�
     expect(res.headers.get('Content-Type') ?? '', sneaky).not.toContain('image');
   }
 
+  // 슬래시를 겹치거나 %2F·%2f로 써도 그림 확인을 거쳐요(2026-11-21 점검: 전에는 200 image/png로 바로 나갔어요).
+  for (const odd of ['//char/girl-14-0.png', '/%2Fchar/girl-14-0.png', '/%2fchar/girl-14-0.png', '/%5Cchar/girl-14-0.png']) {
+    const res = await fetch(`${url}${odd}`, {
+      headers: { 'X-Origin-Secret': 'origin-test-secret', 'Sec-Fetch-Dest': 'document', Referer: 'https://evil.example/' },
+    });
+    expect(res.headers.get('Content-Type') ?? '', odd).not.toContain('image');
+    expect(res.status, odd).not.toBe(200);
+  }
+  // 우리 화면에서 부른 그림은 다르게 써도 그대로 보여요
+  const odd = await fetch(`${url}//char/girl-14-0.png`, { headers: { 'X-Origin-Secret': 'origin-test-secret' } });
+  expect(odd.status).toBe(200);
+  expect(odd.headers.get('Content-Type')).toBe('image/png');
+  const cross = await fetch(`${url}/char/girl-14-0.png`, { headers: { 'X-Origin-Secret': 'origin-test-secret', 'Sec-Fetch-Site': 'cross-site' } });
+  expect(cross.status).toBe(403);
+
   // 문지기 뒤에서도 실제 주소(PUBLIC_URL) 기준으로 같은 사이트 요청을 알아봐요(내부 주소로 비교하면 모든 POST가 막혀요).
   const sameSite = await fetch(`${url}/auth/logout`, {
     method: 'POST',

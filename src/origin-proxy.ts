@@ -2,8 +2,34 @@ import type { Env } from './env';
 
 type FetchFn = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
+// 경로를 한 가지 모양으로 풀어요: %2F·%5C·%63 같은 %표기를 풀고(두 번 감싼 것까지), \를 /로, 겹친 //를 하나로.
+// //char/x.png, /%2Fchar/x.png, /%2fchar/x.png처럼 써도 보호 그림 폴더로 알아보게요(2026-11-21 점검).
+export function plainPath(pathname: string): string {
+  let p = pathname;
+  for (let i = 0; i < 3; i++) {
+    let next: string;
+    try {
+      next = decodeURIComponent(p);
+    } catch {
+      break;
+    }
+    if (next === p) break;
+    p = next;
+  }
+  return p.replace(/\\/g, '/').replace(/\/{2,}/g, '/');
+}
+
 export function workerHandlesPath(pathname: string): boolean {
-  return /^\/(?:char|case|journey)\//.test(pathname);
+  return /^\/(?:char|case|journey)\//i.test(plainPath(pathname));
+}
+
+// 보호 그림 주소를 //char/·%2Fchar/처럼 다르게 써서 왔으면 /char/… 모양으로 바꿔요. 그래야 앱의 그림 확인(imageGuard)
+// 길로 들어가요. ..가 섞인 경로는 바꾸지 않아요(위 폴더로 가는 길을 열지 않게).
+export function canonicalImageRequest(request: Request): Request {
+  const url = new URL(request.url);
+  const plain = plainPath(url.pathname);
+  if (!workerHandlesPath(plain) || plain === url.pathname || /(?:^|\/)\.\.?(?:\/|$)/.test(plain)) return request;
+  return new Request(url.origin + plain + url.search, request);
 }
 
 // 그림은 Worker의 imageGuard가 계속 확인하고, 나머지는 본문을 읽지 않은 채 원본 서버로 넘겨요.

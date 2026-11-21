@@ -35,7 +35,9 @@ describe('버닝타임', () => {
     sql.prepare('UPDATE burning SET started_at = ?, until = ? WHERE id = 1').run(new Date(T0).toISOString(), until);
     resetBurningCache();
     expect(await burningUntil(db, T0 + MIN)).toBe(until);
-    expect(burnEndText(until)).toBe('12:00');
+    expect(burnEndText(until, T0)).toBe('12:00');
+    // 오늘(한국 날짜)이 아닌 날 끝나면 날짜도 붙여요
+    expect(burnEndText(until, T0 - 86_400_000)).toBe('11/21 12:00');
     resetBurningCache();
     expect(await burningUntil(db, T0 + 121 * MIN)).toBeNull();
     // 끝난 버닝타임도 기간은 남아 있어요(늦게 온 봇 기록용)

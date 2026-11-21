@@ -40,6 +40,39 @@ describe('Worker 문지기 모드', () => {
     expect(workerHandlesPath('/case/room/one.webp')).toBe(true);
     expect(workerHandlesPath('/journey/map.webp')).toBe(true);
     expect(workerHandlesPath('/guide')).toBe(false);
+    // 슬래시를 겹치거나 %2F·%2f·%5C로 써도 보호 그림 폴더로 알아봐요(2026-11-21 점검)
+    for (const p of ['//char/x.png', '/%2Fchar/x.png', '/%2fchar/x.png', '/%5Cchar/x.png', '/%252Fchar/x.png', '/%63har/x.png', '///case/a.webp'])
+      expect(workerHandlesPath(p), p).toBe(true);
+    expect(workerHandlesPath('/styles.css')).toBe(false);
+  });
+
+  it('다르게 쓴 보호 그림 주소도 Worker의 그림 확인을 거쳐요', async () => {
+    const originFetch = vi.fn(async () => new Response('wrong'));
+    const assetFetch = vi.fn(async () => new Response('protected image', { headers: { 'Content-Type': 'image/png' } }));
+    vi.stubGlobal('fetch', originFetch);
+    for (const p of ['//char/girl-01-0.png', '/%2Fchar/girl-01-0.png', '/%2fchar/girl-01-0.png']) {
+      const response = await worker.fetch(
+        new Request(`https://dogam.example${p}`, { headers: { 'Sec-Fetch-Dest': 'document' } }),
+        { ORIGIN_URL: 'http://127.0.0.1:8787', ORIGIN_SECRET: 'door-secret', ASSETS: { fetch: assetFetch } } as unknown as Env,
+        {} as ExecutionContext,
+      );
+      expect(response.status, p).toBe(403);
+      // 다른 사이트에서 부른 요청도 거절해요
+      const cross = await worker.fetch(
+        new Request(`https://dogam.example${p}`, { headers: { 'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Dest': 'image' } }),
+        { ORIGIN_URL: 'http://127.0.0.1:8787', ORIGIN_SECRET: 'door-secret', ASSETS: { fetch: assetFetch } } as unknown as Env,
+        {} as ExecutionContext,
+      );
+      expect(cross.status, p).toBe(403);
+    }
+    const ok = await worker.fetch(
+      new Request('https://dogam.example//char/girl-01-0.png'),
+      { ORIGIN_URL: 'http://127.0.0.1:8787', ORIGIN_SECRET: 'door-secret', ASSETS: { fetch: assetFetch } } as unknown as Env,
+      {} as ExecutionContext,
+    );
+    expect(await ok.text()).toBe('protected image');
+    expect(new URL((assetFetch.mock.calls.at(-1) as unknown as [Request])[0].url).pathname).toBe('/char/girl-01-0.png');
+    expect(originFetch).not.toHaveBeenCalled();
   });
 
   it('ORIGIN_URL이 있으면 일반 앱 요청을 원본 서버로 넘겨요', async () => {

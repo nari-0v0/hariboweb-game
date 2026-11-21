@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { imageRequestAllowed } from '../src/image-guard';
+import { crossSiteImageRequest, imageRequestAllowed } from '../src/image-guard';
 
 const SITE = 'https://hariboweb-game.haribobot.workers.dev';
 
@@ -19,4 +19,12 @@ describe('imageRequestAllowed', () => {
     expect(imageRequestAllowed(`${SITE}/me`, 'document', SITE)).toBe(false);
     expect(imageRequestAllowed('not a url', 'image', SITE)).toBe(false);
   });
+});
+
+it('다른 사이트에서 부른 그림 요청(Sec-Fetch-Site: cross-site)은 거절해요', () => {
+  expect(crossSiteImageRequest('cross-site')).toBe(true);
+  expect(crossSiteImageRequest('same-origin')).toBe(false);
+  expect(crossSiteImageRequest('same-site')).toBe(false);
+  expect(crossSiteImageRequest('none')).toBe(false);
+  expect(crossSiteImageRequest(undefined)).toBe(false); // 봇·디스코드 미리보기
 });

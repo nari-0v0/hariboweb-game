@@ -65,3 +65,41 @@ it('겜블장 젤리 이전 전에 돌리면 아무것도 주지 않고 멈춰�
   expect(one(sql, `SELECT dogam_jelly FROM profiles WHERE user_id = '${A}'`)?.dogam_jelly).toBe(10);
   expect(one(sql, `SELECT COUNT(*) n FROM alerts`)?.n).toBe(0);
 });
+
+it('중간에 끊긴 뒤 다시 돌려도 두 번 주지 않아요(트리거만 만들고 끊김 · 주고 나서 끊김)', () => {
+  const run = buildRewardSql(4, '2026-11-21T10:00:00.000Z');
+  // 문장 단위로 나눠요(트리거 BEGIN…END는 한 덩어리)
+  const parts = run.split(/;\n(?=(?:--|SELECT|DROP|CREATE|INSERT|$))/).filter((p: string) => p.trim()).map((p: string) => (p.trim().endsWith(';') ? p : `${p};`));
+  const create = parts.findIndex((p: string) => p.includes('CREATE TRIGGER'));
+  const grant = parts.findIndex((p: string) => p.includes('INSERT OR IGNORE INTO jelly_grants') && !p.includes('CREATE TRIGGER'));
+  expect(create).toBeGreaterThan(0);
+  expect(grant).toBeGreaterThan(create);
+  // 1) 트리거만 만들고 끊김 → 다시 전체 실행
+  const a = freshDb();
+  for (const p of parts.slice(0, create + 1)) a.exec(p);
+  expect(one(a, `SELECT dogam_jelly FROM profiles WHERE user_id = '${A}'`)?.dogam_jelly).toBe(10);
+  a.exec(run);
+  expect(one(a, `SELECT dogam_jelly FROM profiles WHERE user_id = '${A}'`)?.dogam_jelly).toBe(12);
+  // 2) 주고 나서 트리거를 지우기 전에 끊김 → 다시 전체 실행
+  const b = freshDb();
+  for (const p of parts.slice(0, grant + 1)) b.exec(p);
+  b.exec(run);
+  b.exec(run);
+  for (const sql of [a, b]) {
+    expect(one(sql, `SELECT dogam_jelly FROM profiles WHERE user_id = '${A}'`)?.dogam_jelly).toBe(12);
+    expect(one(sql, `SELECT chips FROM gamble_accounts WHERE user_id = '${A}'`)?.chips).toBe(1500);
+    expect(JSON.parse(String(one(sql, `SELECT mats FROM journey_bank WHERE user_id = '${A}'`)?.mats))).toEqual({ '1': 3, '2': 1, '3': 2 });
+    expect(one(sql, `SELECT COUNT(*) n FROM alerts`)?.n).toBe(2);
+    // 끝나면 트리거는 남지 않아요
+    expect(one(sql, `SELECT COUNT(*) n FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'maint_reward_%'`)?.n).toBe(0);
+  }
+});
+
+it('예전 방식으로 이미 받은 사람(표시 있음)은 새 파일을 돌려도 또 받지 않아요', () => {
+  const sql = freshDb();
+  sql.exec(`INSERT INTO jelly_grants (id, user_id, amount, reason, granted_by, created_at, applied_at)
+    VALUES ('maint-2026-11-21:${A}', '${A}', 2, '11/21 점검 보상', 'x', 'x', 'x')`);
+  sql.exec(buildRewardSql(4, '2026-11-21T10:00:00.000Z'));
+  expect(one(sql, `SELECT dogam_jelly FROM profiles WHERE user_id = '${A}'`)?.dogam_jelly).toBe(10);
+  expect(one(sql, `SELECT dogam_jelly FROM profiles WHERE user_id = '${B}'`)?.dogam_jelly).toBe(2);
+});

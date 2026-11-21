@@ -62,7 +62,7 @@ export function RankPage(props: { viewer: Member; ranks: Rankings; tab: RankTab 
           <div class="rk-pair">
             {r.gamble.seasonTop && (
               <p class="rk-champ">
-                <span aria-hidden="true">👑</span> 이번 시즌 누적 딴 젤칩 1등 <b>{r.gamble.seasonTop.name}</b> · {n(r.gamble.seasonTop.value)}개
+                <span aria-hidden="true">👑</span> 이번 시즌 순이익 1등 <b>{r.gamble.seasonTop.name}</b> · {n(r.gamble.seasonTop.value)}개
               </p>
             )}
             <div class="rk-trio">

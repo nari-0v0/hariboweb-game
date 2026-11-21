@@ -283,6 +283,15 @@ describe('도감 카드 장수 보상', () => {
     expect(sql.prepare('SELECT COUNT(*) AS n FROM character_keep').get()).toEqual({ n: 0 });
   });
 
+  it('나간 사람이 쓴 칭찬 한마디 AI 기록은 지우고, 다른 사람 기록은 남겨요', async () => {
+    const { sql, db } = fakeD1();
+    await applySync(db, cardBatch('a1', others.slice(0, 1)));
+    sql.prepare("INSERT INTO ai_logs (kind, from_id, to_id, text, verdict, created_at) VALUES ('praise', ?, ?, '내 글', 'ok', 'x'), ('praise', ?, ?, '남 글', 'ok', 'x')")
+      .run(others[0]!, A, A, others[0]!);
+    await applySync(db, cardBatch('a2', [], [others[0]!]));
+    expect(sql.prepare('SELECT text FROM ai_logs').all()).toEqual([{ text: '남 글' }]);
+  });
+
   it('같은 묶음에서 떠난 상대 카드는 세지 않아요', async () => {
     const { sql, db } = fakeD1();
     await applySync(db, cardBatch('r4', others.slice(0, 4)));

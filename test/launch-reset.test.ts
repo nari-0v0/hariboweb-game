@@ -47,6 +47,8 @@ it('개시 초기화를 두 번 실행해도 겜블장과 이번 팀은 보존�
     INSERT INTO season_settle VALUES ('old', 'team', 'x', 'x'), ('old', 'server', 'x', 'x');
     INSERT INTO praises (day, from_id, to_id, created_at, note) VALUES ('2026-11-14', 'b', 'a', '2026-11-14T00:00:00.000Z#old', '옛 칭찬');
     INSERT INTO bingo_lines VALUES ('old', 'a', 0, 'x', 'x');
+    INSERT INTO ai_logs (kind, from_id, to_id, text, verdict, created_at) VALUES ('praise', 'b', 'a', '옛 칭찬', 'ok', 'x');
+    INSERT INTO character_keep (user_id, character_id, updated_at) VALUES ('a', 'girl-01', 'x'), ('gone', 'boy-01', 'x');
     INSERT INTO kidnap_min VALUES ('current', 'b', 'a', 30);
     INSERT INTO gq_pair VALUES ('current', 0, 'a', 'b', 30);`);
   const keep = ['gamble_accounts', 'gamble_rounds', 'gamble_season_winners', 'team_pairs', 'server_quest', 'season_settle'];
@@ -66,6 +68,8 @@ it('개시 초기화를 두 번 실행해도 겜블장과 이번 팀은 보존�
     expect(await praiseBox(db, 'a')).toEqual({ unread: 0, total: 0, items: [] });
     // 성별 고른 표시는 나리만 남아요
     expect(sql.prepare('SELECT user_id FROM members WHERE gender_chosen_at IS NOT NULL').all()).toEqual([{ user_id: '323412514224209921' }]);
-    for (const table of ['cards', 'bingo_lines', 'gq_pair', 'kidnap_min']) expect(sql.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get()).toEqual({ n: 0 });
+    // 맡긴 캐릭터는 남은 멤버 것만 남아요
+    expect(sql.prepare('SELECT user_id FROM character_keep').all()).toEqual([{ user_id: 'a' }]);
+    for (const table of ['cards', 'bingo_lines', 'gq_pair', 'kidnap_min', 'ai_logs']) expect(sql.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get()).toEqual({ n: 0 });
   }
 });
