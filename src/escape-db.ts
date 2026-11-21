@@ -265,8 +265,8 @@ async function finishRe(db: D1Database, user: string, id: string, rev: number, c
     );
   }
   // 답을 1번까지만 틀리고 해결하면 겜블장 젤칩(멍쑤님 제안, 나리 2026-11-21).
-  // 오늘의 사건은 그날 한 번, 재수사는 사건마다 처음 한 번(표의 열쇠). 이 판이 방금 해결로 적혔을 때만(mutation).
-  const chips = dailyChipsEarned(won, s.mistakes);
+  // 오늘의 사건은 그날 한 번, 재수사는 RE_CHIP_REWARD > 0일 때 사건마다 처음 한 번(표의 열쇠). 이 판이 방금 해결로 적혔을 때만(mutation).
+  const chips = dailyChipsEarned(won, s.mistakes, !s.daily);
   if (chips > 0)
     stmts.push(
       db
