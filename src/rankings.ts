@@ -122,7 +122,7 @@ export async function loadRankings(db: D1Database, userId: string, nowMs: number
        JOIN members m ON m.user_id = c.owner_id AND m.active = 1
        JOIN members t ON t.user_id = c.target_id AND t.active = 1
        LEFT JOIN profiles p ON p.user_id = c.owner_id
-       WHERE c.owner_id != c.target_id AND ${notTestMember('c.target_id')} GROUP BY c.owner_id ORDER BY value DESC, MAX(c.first_met) ASC, c.owner_id`,
+       WHERE c.owner_id != c.target_id AND ${notTestMember('c.target_id')} AND ${notTestMember('c.owner_id')} GROUP BY c.owner_id ORDER BY value DESC, MAX(c.first_met) ASC, c.owner_id`,
     ),
     // 원정대 화면의 내 최고 기록과 같게, 끝난 판(완주·실패)만 센 값이에요. 판마다 모아 둔 journey_bank.best(0047)를 읽어요
     // (전에는 모든 판을 다 읽어서 판이 쌓일수록 읽기가 늘었어요, 2026-11-21 점검).
