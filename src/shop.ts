@@ -37,14 +37,22 @@ const DECO_TIERS: [number, string[]][] = [
 ];
 export const DECO_PRICES: Record<string, number> = Object.fromEntries(DECO_TIERS.flatMap(([price, ids]) => ids.map((id) => [id, price])));
 
-// 판타지 캐릭터는 도감 카드 3장, 6장, 9장… 모을 때마다 하나씩 열려요(순서는 그림 순서).
+// 판타지 캐릭터는 도감 카드를 모을수록 하나씩 열려요(순서는 REWARD_SLOTS).
 export const REWARD_STEP = 3; // 멤버가 적을 때도 캐릭터마다 최소 이만큼은 모아야 해요
-// 판타지 캐릭터 N번째가 열리는 도감 카드 수: 지금 서버 인원(나 빼고)을 판타지 캐릭터 수로 나눠 고르게 늘어나요.
+// 처음 26종은 1~26칸에 있고, 메카 11종(나리 2026-11-21)은 그 사이 반 칸(예: 2.5칸)에 들어가요.
+// 그래서 메카를 넣어도 처음 26종이 열리는 카드 수는 그대로예요(이미 열린 캐릭터가 다시 잠기지 않아요).
+export const REWARD_SPAN = 26;
+// N번째(1부터) 보상이 있는 칸을 2배 한 값(정수). 처음 26종은 2·칸, 메카는 2·칸+1
+export function rewardHalf(rank: number): number {
+  return REWARD_HALVES[rank - 1] ?? 2 * REWARD_SPAN;
+}
+// 판타지 캐릭터 N번째가 열리는 도감 카드 수: 지금 서버 인원(나 빼고)에 칸 비율을 곱해 고르게 늘어나요.
 // 마지막 캐릭터는 도감을 다 채워야 열려요. 사람이 늘거나 줄면 같이 바뀌어요.
 export function rewardNeed(rank: number, members: number): number {
   const others = Math.max(0, members - 1);
+  const half = rewardHalf(rank);
   // 도감을 다 채우면(나 빼고 모든 멤버 카드) 어떤 캐릭터든 열려요. 최소 장수가 인원보다 커지면 인원까지만 요구해요.
-  return Math.min(Math.max(1, others), Math.max(rank * REWARD_STEP, Math.ceil((rank * others) / REWARD_COUNT)));
+  return Math.min(Math.max(1, others), Math.max(Math.ceil((half * REWARD_STEP) / 2), Math.ceil((half * others) / (2 * REWARD_SPAN))));
 }
 
 export type ShopItem = {
@@ -56,14 +64,35 @@ export type ShopItem = {
   rewardRank: number | null; // 판타지 캐릭터 몇 번째인지(1부터). 필요한 카드 수는 rewardNeed로 계산해요
 };
 
-const FANTASY = new Set([
-  'wizard', 'witch', 'knight', 'valkyrie', 'archer', 'rogue', 'assassin', 'elf', 'dark-elf', 'fairy',
-  'angel', 'demon', 'dragon-tamer', 'necromancer', 'priestess', 'monk', 'pirate', 'prince', 'princess', 'queen',
-  'king', 'summoner', 'alchemist', 'star-mage', 'reaper',
-  'robot', // 로봇 기사(나리 2026-11-17): 맨 마지막 보상이라 도감을 다 채워야 열려요
-]);
-
-const fantasyOrder = DECO_CHARACTERS.filter((d) => FANTASY.has(d.id)).map((d) => d.id as string);
+// 판타지 보상 순서. [캐릭터, 칸×2]
+const REWARD_SLOTS: [string, number][] = [
+  ['wizard', 2], ['witch', 4],
+  ['mech-cannon', 5], // 메카(나리 2026-11-21): 기존 캐릭터 사이사이
+  ['knight', 6], ['valkyrie', 8],
+  ['mech-green-knight', 9],
+  ['archer', 10], ['rogue', 12],
+  ['mech-lancer', 13],
+  ['assassin', 14], ['elf', 16], ['dark-elf', 18],
+  ['mech-rifle', 19],
+  ['fairy', 20], ['angel', 22],
+  ['mech-drill', 23],
+  ['demon', 24], ['dragon-tamer', 26],
+  ['mech-violet-axe', 27],
+  ['necromancer', 28], ['priestess', 30],
+  ['mech-flame-sword', 31],
+  ['monk', 32], ['pirate', 34],
+  ['mech-dark-axe', 35],
+  ['prince', 36], ['princess', 38],
+  ['mech-red-twin', 39],
+  ['queen', 40], ['king', 42], ['summoner', 44],
+  ['mech-gatling', 45],
+  ['alchemist', 46], ['star-mage', 48],
+  ['mech-blue-twin', 49],
+  ['reaper', 50],
+  ['robot', 52], // 로봇 기사(나리 2026-11-17): 맨 마지막 보상이라 도감을 다 채워야 열려요
+];
+const fantasyOrder = REWARD_SLOTS.map(([id]) => id);
+const REWARD_HALVES = REWARD_SLOTS.map(([, half]) => half);
 export const REWARD_COUNT = fantasyOrder.length;
 
 export const SHOP_ITEMS: ShopItem[] = [
@@ -82,6 +111,12 @@ export const SHOP_ITEMS: ShopItem[] = [
     };
   }),
 ];
+// 보상 캐릭터는 그림 목록 순서가 아니라 열리는 순서(REWARD_SLOTS)대로 놓아요(상점·내 캐릭터 고르기 목록 순서)
+{
+  const at = SHOP_ITEMS.flatMap((i, n) => (i.rewardRank !== null ? [n] : []));
+  const sorted = at.map((n) => SHOP_ITEMS[n]!).sort((a, b) => a.rewardRank! - b.rewardRank!);
+  at.forEach((n, k) => (SHOP_ITEMS[n] = sorted[k]!));
+}
 
 const BY_ID = new Map(SHOP_ITEMS.map((i) => [i.id, i]));
 

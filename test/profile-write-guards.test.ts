@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { saveProfile, setTheme, setDeco } from '../src/db';
 import { equipTitle } from '../src/title-db';
 import { markPraiseSeen } from '../src/praise-note';
-import { SHOP_ITEMS } from '../src/shop';
+import { SHOP_ITEMS, rewardNeed, shopItem } from '../src/shop';
 
 const USER = '111111111111111111';
 function setup() {
@@ -58,15 +58,17 @@ describe('초기화 뒤 늦게 끝난 꾸미기 저장', () => {
 });
 
 // 소규모 서버에서 전부 모으기, 큰 서버에서 비율·최소 장수 규칙의 경계를 함께 확인해요.
+// 키는 보상 캐릭터: 1번째(마법사), 기존 13번째(드래곤 조련사), 마지막(로봇 기사), 그리고 사이에 넣은 메카(2026-11-21).
 it.each([
-  [2, 1, 1], [2, 13, 1], [2, 26, 1],
-  [4, 1, 3], [4, 13, 3], [4, 26, 3],
-  [26, 1, 3], [26, 13, 25], [26, 26, 25],
-  [60, 1, 3], [60, 13, 39], [60, 26, 59],
-  [101, 1, 4], [101, 13, 50], [101, 26, 100],
-])('서버 %i명, 보상 %i번째는 카드 %i장부터 실제로 장착할 수 있어요', async (members, rank, need) => {
+  [2, 'wizard', 1], [2, 'dragon-tamer', 1], [2, 'robot', 1],
+  [4, 'wizard', 3], [4, 'dragon-tamer', 3], [4, 'robot', 3], [4, 'mech-cannon', 3],
+  [26, 'wizard', 3], [26, 'dragon-tamer', 25], [26, 'robot', 25], [26, 'mech-cannon', 8], [26, 'mech-blue-twin', 25],
+  [60, 'wizard', 3], [60, 'dragon-tamer', 39], [60, 'robot', 59], [60, 'mech-cannon', 8], [60, 'mech-blue-twin', 59],
+  [101, 'wizard', 4], [101, 'dragon-tamer', 50], [101, 'robot', 100], [101, 'mech-cannon', 10], [101, 'mech-blue-twin', 95],
+])('서버 %i명, 보상 %s는 카드 %i장부터 실제로 장착할 수 있어요', async (members, key, need) => {
+  expect(rewardNeed(shopItem(`deco:${key}`)!.rewardRank!, members)).toBe(need); // 화면 계산과 저장 문장이 같아요
   const { db, sql } = setup();
-  const item = SHOP_ITEMS.find((item) => item.rewardRank === rank)!;
+  const item = shopItem(`deco:${key}`)!;
   for (let i = 1; i < members; i++) {
     const other = `member-${i}`;
     sql.prepare("INSERT INTO members (user_id, display_name, active, updated_at) VALUES (?, ?, 1, 'x')").run(other, other);

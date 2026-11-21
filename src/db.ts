@@ -1,5 +1,5 @@
 import { gameDay } from './day';
-import { REWARD_COUNT, REWARD_STEP, shopItem, decoItemId } from './shop';
+import { REWARD_SPAN, REWARD_STEP, rewardHalf, shopItem, decoItemId } from './shop';
 import { ALERT_KEEP_DAYS } from './alerts';
 import { MAX_LEVEL, XP_SCALE, levelFromXp, xpForLevel } from './levels';
 import type { Member } from './env';
@@ -746,7 +746,8 @@ export async function setDeco(db: D1Database, userId: string, decoId: string | n
   // rewardNeed와 같은 식을 저장 문장 안에서 계산해요. 확인 뒤 카드·인원이 바뀌거나 초기화돼도
   // 지금 조건으로 열린 보상만 달아요(산 캐릭터는 소유권이 있으면 그대로).
   const others = `(SELECT MAX(0, COUNT(*) - 1) FROM members WHERE active = 1 AND ${notTestMember('user_id')})`;
-  const need = rank == null ? null : `MIN(MAX(1, ${others}), MAX(${rank * REWARD_STEP}, CAST((${rank} * ${others} + ${REWARD_COUNT - 1}) / ${REWARD_COUNT} AS INTEGER)))`;
+  const half = rank == null ? 0 : rewardHalf(rank);
+  const need = rank == null ? null : `MIN(MAX(1, ${others}), MAX(${Math.ceil((half * REWARD_STEP) / 2)}, CAST((${half} * ${others} + ${2 * REWARD_SPAN - 1}) / ${2 * REWARD_SPAN} AS INTEGER)))`;
   const reward = need === null ? '0' : `(SELECT COUNT(*) FROM cards c JOIN members m ON m.user_id = c.target_id AND m.active = 1 WHERE c.owner_id = ?1 AND c.target_id != ?1 AND ${notTestMember('c.target_id')}) >= ${need}`;
   const result = await db
     .prepare(

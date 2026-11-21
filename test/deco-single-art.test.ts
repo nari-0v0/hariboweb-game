@@ -72,7 +72,7 @@ const JOBS = ['astronaut', 'beekeeper', 'calligrapher', 'clockmaker', 'conductor
 
 describe('낱장 꾸밈 캐릭터 그림', () => {
   it('직업 캐릭터 13종 × 소녀·소년이 모두 낱장으로 들어가 있어요', () => {
-    const ids = singles.map((s) => s.characters[0]![0]);
+    const ids = singles.map((s) => s.characters[0]![0]).filter((id) => !id.startsWith('mech-'));
     expect(ids).toEqual(JOBS.flatMap((j) => [`${j}-girl`, `${j}-boy`]));
     for (const s of singles) expect(s.characters.length).toBe(1);
   });
@@ -102,9 +102,19 @@ describe('낱장 꾸밈 캐릭터 그림', () => {
     }
   });
 
+  it('메카 11종은 상점에서 팔지 않고 도감 보상으로만 열려요', () => {
+    const mecha = singles.map((s) => s.characters[0]![0]).filter((id) => id.startsWith('mech-'));
+    expect(mecha.length).toBe(11);
+    for (const id of mecha) {
+      expect(DECO_PRICES[id], id).toBeUndefined();
+      expect(SHOP_ITEMS.find((i) => i.id === `deco:${id}`)?.price, id).toBeNull();
+    }
+  });
+
   it('새 직업 캐릭터는 다른 직업 캐릭터와 같은 35젤리에 팔아요', () => {
     for (const s of singles) {
       const id = s.characters[0]![0];
+      if (id.startsWith('mech-')) continue; // 메카는 팔지 않는 도감 보상이에요
       expect(DECO_PRICES[id], id).toBe(DECO_PRICES.chef);
       expect(SHOP_ITEMS.find((i) => i.id === `deco:${id}`)?.price).toBe(35);
     }
