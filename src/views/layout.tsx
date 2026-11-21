@@ -10,6 +10,8 @@ import type { Member } from '../env';
 
 type NavKey = 'me' | 'dogam' | 'shop' | 'group' | 'bingo' | 'titles' | 'expedition' | 'gamble' | 'cases' | 'rank' | 'guide';
 
+const BUY_GUARD = "document.addEventListener('submit',function(e){var f=e.target;if(f&&f.hasAttribute&&f.hasAttribute('data-buy')&&!window.hariboBuyAsk){e.preventDefault();e.stopImmediatePropagation();}},true);";
+
 export function Layout(props: {
   title: string;
   viewer?: Member | null;
@@ -37,8 +39,10 @@ export function Layout(props: {
         <link rel="preload" href="/fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin="" />
         {props.preloadImages?.map((href) => <link rel="preload" href={href} as="image" fetchpriority="high" />)}
         <link rel="icon" type="image/png" href="/char/deco/explorer.png" />
-        <link rel="stylesheet" href="/styles.css?v=buyask-1121" />
-        <script src="/app.js?v=buyask-1121" defer></script>
+        <link rel="stylesheet" href="/styles.css?v=buyask2-1121" />
+        {/* 상점 구매 확인 창(app.js)이 준비되기 전에는 사는 폼을 보내지 않아요(느린 휴대폰에서 확인 없이 사지지 않게, Codex #339) */}
+        <script dangerouslySetInnerHTML={{ __html: BUY_GUARD }} />
+        <script src="/app.js?v=buyask2-1121" defer></script>
         {props.scripts?.map((script) => typeof script === 'string'
           ? <script src={script} defer></script>
           : <script src={script.src} type={script.type}></script>)}

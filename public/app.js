@@ -682,14 +682,16 @@ document.addEventListener('click', (e) => {
 // 상점에서 살 때 한 번 물어봐요(테마·꾸미기·칭호·잡다매점, 나리 2026-11-21).
 // 사는 폼에 data-buy(이름)·data-price(젤리)가 있어요. 「사기」를 누르면 그때 보내요.
 // 캡처 단계에서 막아서, 로딩 화면 등 다른 제출 리스너는 막힌 제출로 보고 아무것도 안 해요.
+// 이 스크립트가 아직 안 왔거나 못 불러오면 layout.tsx 머리의 작은 스크립트가 구매 제출을 막아요(Codex #339).
 (() => {
   let open = null;
-  const close = () => {
-    if (!open) return;
-    const { box, back, form } = open;
+  const close = (force) => {
+    if (!open || (open.sending && !force)) return;
+    const { box, keys, form, hidden } = open;
     open = null;
     box.remove();
-    removeEventListener('keydown', back, true);
+    hidden.forEach((el) => { el.inert = false; });
+    removeEventListener('keydown', keys, true);
     form.querySelector('button')?.focus();
   };
   document.addEventListener('submit', (e) => {
@@ -730,25 +732,46 @@ document.addEventListener('click', (e) => {
     row.append(no, yes);
     pop.append(h, name, cost, row);
     box.append(pop);
-    const back = (k) => {
-      if (k.key === 'Escape') close();
+    // 창이 떠 있는 동안 Tab은 두 버튼 사이만 돌고, 뒤 화면은 누를 수 없어요(Codex #339)
+    const keys = (k) => {
+      if (k.key === 'Escape') {
+        k.preventDefault();
+        close();
+      } else if (k.key === 'Tab') {
+        k.preventDefault();
+        if (!open?.sending) (document.activeElement === yes ? no : yes).focus();
+      }
     };
-    open = { box, back, form: f };
-    no.addEventListener('click', close);
+    const hidden = [...document.body.children].filter((el) => !el.inert);
+    hidden.forEach((el) => { el.inert = true; });
+    open = { box, keys, form: f, hidden, sending: false };
+    no.addEventListener('click', () => close());
     box.addEventListener('click', (c) => {
       if (c.target === box) close();
     });
     yes.addEventListener('click', () => {
+      if (!open || open.sending) return;
+      // 보낸 뒤에는 어떤 방법으로도 닫히지 않아요(취소된 것처럼 보이지 않게, Codex #339)
+      open.sending = true;
       yes.disabled = true;
       no.disabled = true;
-      f.dataset.buyOk = '1';
-      if (f.requestSubmit) f.requestSubmit();
-      else f.submit();
+      yes.textContent = '사는 중…';
+      if (f.requestSubmit) {
+        f.dataset.buyOk = '1';
+        f.requestSubmit();
+      } else {
+        // 예전 브라우저: submit()은 제출 이벤트가 없어서 표시를 남기지 않아요(Codex #339)
+        f.submit();
+      }
     });
-    addEventListener('keydown', back, true);
+    addEventListener('keydown', keys, true);
     document.body.append(box);
     yes.focus();
   }, true);
-  // 뒤로 가기로 돌아왔을 때 열린 창이 남아 있지 않게요
-  addEventListener('pageshow', close);
+  // 뒤로 가기로 돌아왔을 때 열린 창이나 남은 표시가 없게요
+  addEventListener('pageshow', () => {
+    close(true);
+    document.querySelectorAll('form[data-buy-ok]').forEach((f) => { delete f.dataset.buyOk; });
+  });
+  window.hariboBuyAsk = true;
 })();
