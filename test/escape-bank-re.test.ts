@@ -42,6 +42,8 @@ describe('다시 푸는 판 수수께끼', () => {
       expect.soft(!!r.choices, b.idea).toBe(!!b.choices);
       if (r.choices) expect.soft(r.choices, b.idea).toContain(r.a);
       else expect.soft(r.a!.replace(/\s/g, '').length, b.idea).toBeLessThanOrEqual(/^[0-9]+$/.test(r.a!) ? 8 : 12);
+      const digits = (r.ask ?? '').match(/(\d+)자리/);
+      if (digits) expect.soft(r.a!.length, `${b.idea} ${r.ask}`).toBe(Number(digits[1]));
     }
     expect.soft(changed).toBe(BANK.length - 5);
   });

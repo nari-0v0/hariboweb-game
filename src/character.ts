@@ -71,9 +71,11 @@ export function shouldRepick(characterId: string | null): boolean {
 }
 
 // DB에 정해진 캐릭터가 없을 때(떠난 멤버 등) ID로 늘 같은 캐릭터를 보여 줘요.
+// 처음 100명(소녀·소년 1~50) 안에서만 골라요. 새 그림을 넣어도 떠난 멤버 그림이 바뀌지 않게요(2026-11-21).
+const FALLBACK_BASES = 100;
 export function fallbackCharacter(userId: string): string {
   const h = hash(userId);
-  return key(h % CHARACTERS.length, Math.floor(h / CHARACTERS.length) % CHARACTER_VARIANTS);
+  return key(h % FALLBACK_BASES, Math.floor(h / FALLBACK_BASES) % CHARACTER_VARIANTS);
 }
 
 export const isDecoId = (id: string | null | undefined): id is string => !!id && DECO_CHARACTERS.some((d) => d.id === id);

@@ -94,9 +94,9 @@ function BetForm({ game, balance, keepBet, pick }: { game: Game; balance: number
         <span>걸 젤칩</span><output class="gb-bet-amount" aria-label="걸 젤칩">{chips(bet)}개</output>
       </div>
       <div class="gb-bet-steps" role="group" aria-label="걸 젤칩 고르기">
-        {BET_STEPS.map((step) => <button class="gb-button gb-amount-button" type="button" data-gb-bet={step} disabled={!balance}><span>+{step >= 1000 ? `${step / 1000}천`.replace('10천', '1만') : step}</span></button>)}
-        <button class="gb-button" type="button" data-gb-bet="all" disabled={!balance}>올인</button>
-        <button class="gb-button" type="button" data-gb-bet="clear" disabled={!balance}>지우기</button>
+        {BET_STEPS.map((step) => <button class="gb-button gb-amount-button" type="button" data-gb-bet={step} disabled={balance <= 0}><span>+{step >= 1000 ? `${step / 1000}천`.replace('10천', '1만') : step}</span></button>)}
+        <button class="gb-button" type="button" data-gb-bet="all" disabled={balance <= 0}>올인</button>
+        <button class="gb-button" type="button" data-gb-bet="clear" disabled={balance <= 0}>지우기</button>
       </div>
       {game === 'cards' && soonSix() && <p class="hint gb-six-warn">⏰ 곧 아침 6시예요. 6시가 되면 하던 판은 그때 카드로 자동으로 멈춰요.</p>}
       {/* 결과 뒤에도 금액은 0개부터라 "한 번 더" 대신 늘 같은 이름이에요(2026-11-21 점검: 눌러도 안 되는 "한 번 더") */}
@@ -350,7 +350,8 @@ export function GambleLobby(props: {
           <ChipBalance balance={balance} />
           {props.daily > 0 && <p role="status">{dailyText(props.daily, props.moved)}</p>}
           {notice && <p role="status">{notice}</p>}
-          {props.account && balance === 0 && !notice && <p>{emptyText(props.inProgress)}</p>}
+          {props.account && balance <= 0 && !notice && <p>{emptyText(props.inProgress)}</p>}
+          {balance < 0 && <p>마이너스는 지운 글에서 받았던 젤칩이에요. 다음에 들어오는 젤칩에서 먼저 갚아요.</p>}
           <p>젤칩은 겜블장 전용이에요. 젤리로 바꾸거나 상점에서 쓸 수 없고, 순위와 칭호에만 쓰여요.</p>
         </section>
         <nav class="gb-games" aria-label="게임 고르기">
@@ -426,7 +427,7 @@ export function GambleRoom(props: {
             <div data-gb-reveal>
               <BetForm game={game} balance={balance} keepBet={result ? undefined : props.keepBet}
                 pick={game === 'coinflip' ? (result ? (JSON.parse(result.state) as CoinFlip).pick : props.keepPick) : undefined} />
-              {balance === 0 && <p>{emptyText(!!props.hand)}</p>}
+              {balance <= 0 && <p>{emptyText(!!props.hand)}</p>}
               <noscript>걸 젤칩을 바꾸려면 자바스크립트를 켜 주세요.</noscript>
             </div>
           )}

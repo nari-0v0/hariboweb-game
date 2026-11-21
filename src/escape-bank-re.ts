@@ -71,7 +71,7 @@ export function flipUi(u: Ui, a: string, f: Flip, k = 0): { ui: Ui; a: string } 
   const wh = { w: W(g), h: H(g) };
   switch (u.t) {
     case 'lights':
-      return { ui: { ...u, ...wh, init: gstr(g, u.init), goal: gstr(g, u.goal), shape: u.shape.map((d) => dxy(g, d)) }, a: dot(g, a) };
+      return { ui: { ...u, ...wh, init: gstr(g, u.init), goal: gstr(g, u.goal), shape: u.shape.map((d) => dxy(g, d)) }, a: u.max ? dot(g, a) : dot(g, a).split('.').map(Number).sort((p, q) => p - q).join('.') }; // 화면은 누른 칸을 작은 번호부터 보내요
     case 'jump':
       return { ui: { ...u, ...wh, init: gstr(g, u.init), goal: gstr(g, u.goal), holes: cells(g, u.holes) }, a: a.split('.').map((m) => m.split('-').map((c) => cell(g, Number(c))).join('-')).join('.') };
     case 'rotate': {
