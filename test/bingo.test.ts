@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
-import { fallbackWeek, periodFor, splitCycle, todayPartners, boardFor, bingoView, emptyStats, FULL_JELLY, grantBingo, LINE_JELLY, LINE_XP, LINES, loadStats, markFlag, myBingo, weekOf, weekOfDay, type BingoStats } from '../src/bingo';
+import { fallbackWeek, periodFor, periodsOf, splitCycle, todayPartners, boardFor, bingoView, emptyStats, FULL_JELLY, grantBingo, LINE_JELLY, LINE_XP, LINES, loadStats, markFlag, myBingo, weekOf, weekOfDay, type BingoStats } from '../src/bingo';
 import { applySync, parseSync } from '../src/sync';
 
 const A = '111111111111111111';
@@ -356,6 +356,11 @@ describe('칭찬하기용 오늘 같이 통화한 사람', () => {
 });
 
 describe('빙고 기간 = 생명력 주기의 절반', () => {
+  it('봇이 1주 시즌을 보내면 그 주가 그대로 빙고 기간이고, 예전 2주 주기는 반으로 나눠요(같은 id)', () => {
+    const week = periodsOf('2026-11-20T21:00:00.000Z', '2026-11-27T21:00:00.000Z');
+    expect(week).toEqual([{ id: '2026-11-21', start: '2026-11-20T21:00:00.000Z', end: '2026-11-27T21:00:00.000Z' }]);
+    expect(periodsOf('2026-11-13T21:00:00.000Z', '2026-11-27T21:00:00.000Z')[1]).toEqual(week[0]);
+  });
   it('주기를 반으로 나누고, 동기화 기록은 그 절반에 쌓여요', async () => {
     const halves = splitCycle('2026-11-02T21:00:00.000Z', '2026-11-16T21:00:00.000Z');
     expect(halves).toEqual([

@@ -1,7 +1,7 @@
 import { dayStartMs } from './day';
 import { awardGambleSeason } from './gamble-db';
 // 시즌 모둠 퀘스트: 모둠 나누기, 봇 기록 모으기, 퀘스트 확인과 보상.
-// 시즌 = 커뮤니티 주기(2주). 봇이 동기화 때 시즌 시작·끝을 보내면 처음 한 번 모둠을 만들어요.
+// 시즌 = 1주(나리 2026-11-21, 커뮤니티 주기 2주를 봇이 7일씩 잘라 보내요). 봇이 동기화 때 시즌 시작·끝을 보내면 처음 한 번 모둠을 만들어요.
 import { levelFromXp } from './levels';
 import {
   type GroupCtx,
@@ -20,6 +20,9 @@ import { isTestMember } from './test-accounts';
 export const GROUP_SIZE = 10;
 // 시즌 시작 전 이 기간 안에 활동한 사람만 모둠에 넣어요
 export const ACTIVE_DAYS = 14;
+// 시즌 시작 전 이 기간에 통화를 1분도 안 하고 출석(통화방 들어오기)도 없는 사람(잠수)은 초록하리보라도 처음 팀에서 빼요(벙구 의견, 나리 2026-11-21).
+// 시즌 중에 통화하거나 출석하면 그때 제일 작은 팀에 들어가요.
+export const IDLE_DAYS = 7;
 const DAY_MS = 86_400_000;
 const KST_MS = 9 * 3_600_000;
 
@@ -158,15 +161,18 @@ export async function ensureSeason(db: D1Database, season: Season, nowMs: number
   const t = new Date(nowMs).toISOString();
   const cutoffIso = new Date(Date.parse(season.start) - ACTIVE_DAYS * DAY_MS).toISOString();
   const cutoffDay = kstParts(cutoffIso).day;
+  const idleDay = kstParts(new Date(Date.parse(season.start) - IDLE_DAYS * DAY_MS).toISOString()).day;
   const { results: rows } = await db
     .prepare(
       `SELECT m.user_id, m.games, m.last_login_at, p.updated_at AS profile_at, m.green,
          (SELECT COALESCE(SUM(minutes), 0) FROM member_voice_day v WHERE v.user_id = m.user_id AND v.day >= ?1) AS recent,
+         (SELECT COALESCE(SUM(minutes), 0) FROM member_voice_day v WHERE v.user_id = m.user_id AND v.day >= ?3)
+           + (SELECT COUNT(*) FROM gq_attend a WHERE a.user_id = m.user_id AND a.day >= ?3) AS week,
          (SELECT COALESCE(SUM(voice_seconds), 0) / 60 FROM cards c WHERE c.owner_id = m.user_id AND c.updated_at >= ?2) AS fallback
        FROM members m LEFT JOIN profiles p ON p.user_id = m.user_id WHERE m.active = 1`,
     )
-    .bind(cutoffDay, cutoffIso)
-    .all<{ user_id: string; games: string; last_login_at: string | null; profile_at: string | null; green: number | null; recent: number; fallback: number }>();
+    .bind(cutoffDay, cutoffIso, idleDay)
+    .all<{ user_id: string; games: string; last_login_at: string | null; profile_at: string | null; green: number | null; recent: number; week: number; fallback: number }>();
   // 처음 시즌에는 날마다 통화 기록이 아직 없어서 카드 통화 시간으로 대신 재요
   const useRecent = rows.some((r) => r.recent > 0);
   const prior: Prior = await loadPrior(db, season);
@@ -175,12 +181,16 @@ export async function ensureSeason(db: D1Database, season: Season, nowMs: number
   // 봇이 아직 초록하리보 여부를 안 보내면(모두 NULL) 예전처럼 지난 2주 활동으로 골라요.
   // 테스트 계정(src/test-accounts.ts)은 팀에 넣지 않고, 역할 정보가 있는지 판단할 때도 보지 않아요.
   const greenKnown = rows.some((r) => r.green !== null && !isTestMember(r.user_id));
+  // 잠수 빼기: 날마다 통화 기록이 있을 때만(기록이 하나도 없으면 다 0분이라 아무도 못 들어가요)
+  const skipIdle = rows.some((r) => r.week > 0);
   // 같은 묶음에서 나간 사람은 아직 active라도 빼요(넣으면 팀 인원이 한 명 모자란 채로 시작해요)
   const exclude = new Set(opts.exclude ?? []);
   for (const r of rows) {
     if (exclude.has(r.user_id) || isTestMember(r.user_id)) continue;
     const activity = useRecent ? r.recent : r.fallback;
-    const active = greenKnown ? r.green === 1 : activity > 0 || (r.profile_at ?? '') >= cutoffIso || (r.last_login_at ?? '') >= cutoffIso;
+    const active = greenKnown
+      ? r.green === 1 && (!skipIdle || r.week > 0)
+      : activity > 0 || (r.profile_at ?? '') >= cutoffIso || (r.last_login_at ?? '') >= cutoffIso;
     if (active) people.push({ id: r.user_id, games: parseGames(r.games), activity, slot: prior.slot.get(r.user_id) });
   }
   const rand = seededRandom(`season:${season.id}`);
@@ -192,6 +202,11 @@ export async function ensureSeason(db: D1Database, season: Season, nowMs: number
   if (!plan.size) return false;
 
   const stmts: D1PreparedStatement[] = [
+    // 앞 시즌이 새 시즌 시작보다 늦게 끝나기로 돼 있으면(2주 시즌을 1주로 바꾼 날) 새 시즌 시작에서 끝내요.
+    // 그러면 앞 시즌은 그 시각에 끝난 걸로 정산되고(팀·서버 퀘스트 보상, 겜블 우승), 기록이 두 시즌에 겹쳐 들어가지 않아요.
+    db
+      .prepare('UPDATE seasons SET ends_at = ?1 WHERE starts_at < ?1 AND ends_at > ?1')
+      .bind(season.start),
     db.prepare('INSERT INTO seasons (id, starts_at, ends_at, created_at) VALUES (?, ?, ?, ?)').bind(season.id, season.start, season.end, t),
   ];
   const addMember = db.prepare(
@@ -411,9 +426,19 @@ async function groupStatements(
   }
 
   // 시즌 중에 새로 들어온 사람 → 제일 작은 팀
-  // 초록하리보를 아는 사람: 역할이 생기면 활동과 상관없이 바로 들어가고, 인원이 같으면 아무 팀(랜덤)이에요(나리 2026-11-15).
+  // 초록하리보를 아는 사람: 역할이 새로 생기면 활동과 상관없이 바로 들어가고, 인원이 같으면 아무 팀(랜덤)이에요(나리 2026-11-15).
+  // 역할은 있었는데 잠수라 처음 팀에서 빠진 사람은 통화·출석 기록에 나올 때 들어가요(위 seen, 나리 2026-11-21).
   // 모르는 사람(예전 봇): 예전처럼 기록에 나오면 게임 역할이 겹치는 제일 작은 팀으로 가요.
-  for (const m of p.members) if (m.green === true) seen.add(m.id);
+  const greenNow = p.members.filter((m) => m.green === true && !group.has(m.id) && !seen.has(m.id)).map((m) => m.id);
+  if (join && greenNow.length) {
+    const { results: had } = await db
+      .prepare('SELECT user_id FROM members WHERE green = 1 AND active = 1 AND user_id IN (SELECT value FROM json_each(?))')
+      .bind(JSON.stringify(greenNow))
+      .all<{ user_id: string }>();
+    // 이미 역할이 있던 지금 멤버(잠수로 빠진 사람)만 기다려요. 이번 시즌 팀에 있다 빠졌던 사람·서버에 다시 들어온 사람은 바로예요.
+    const wasGreen = new Set(had.map((r) => r.user_id));
+    for (const id of greenNow) if (!wasGreen.has(id) || departed.has(id)) seen.add(id);
+  }
   const groupNos = new Set(rows.map((r) => r.group_no));
   const rand = seededRandom(`join:${season.id}:${t}`);
   const addLate = db.prepare(
