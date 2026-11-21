@@ -670,18 +670,18 @@ app.get('/api/bot/team/:id', async (c) => {
       ? {
           no: t.no + 1,
           // mates: 그 팀원이 TEAM_GOAL_MIN분 이상 함께한 팀원 수(need명이면 달성). 패널에서 팀원마다 진행을 보여 줘요.
-          members: t.members.filter((m) => !m.left).map((m) => ({ id: m.id, name: m.name, mates: matesOf(m.id, allIds, pairMinutes, t.resets) })),
+          members: t.members.filter((m) => !m.left).map((m) => ({ id: m.id, name: m.name, mates: matesOf(m.id, allIds, pairMinutes, t.resets, t.goalMin) })),
           target: t.target,
           achievers: t.achievers.map((a) => ({ id: a, name: names.get(a) ?? '알 수 없음' })),
           complete: t.complete,
           bonus: t.bonus,
           me: myTeamState(t, id),
           need: t.need,
-          my_mates: matesOf(id, allIds, pairMinutes, t.resets),
+          my_mates: matesOf(id, allIds, pairMinutes, t.resets, t.goalMin),
         }
       : null,
     server: x.server ? { target: x.server.target, kidnapped: x.server.kidnapped.length, met: x.server.met, joined: x.server.participants.includes(id) } : null,
-    rules: { goal_min: TEAM_GOAL_MIN, kidnap_min: KIDNAP_MIN, team_jelly: TEAM_JELLY, server_jelly: SERVER_JELLY },
+    rules: { goal_min: t?.goalMin ?? TEAM_GOAL_MIN, kidnap_min: KIDNAP_MIN, team_jelly: TEAM_JELLY, server_jelly: SERVER_JELLY },
     page_url: baseUrl(c) + '/bingo',
   });
 });

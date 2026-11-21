@@ -74,7 +74,7 @@ export function GuidePage(props: { viewer: Member | null }) {
             <p>
               팀원 누구와든 같은 통화방에 {TEAM_GOAL_MIN / 60}시간 이상 함께 있으면 개인 목표 달성! 누구와 몇 분 함께했는지는 빙고 팀 퀘스트 칸에서 볼 수 있어요.
             </p>
-            <p>팀에서 {TEAM_TARGET}명이 개인 목표를 달성하면 팀 퀘스트가 완료돼요.</p>
+            <p>팀에서 {TEAM_TARGET}명이 개인 목표를 달성하면 팀 퀘스트가 완료돼요. (남은 팀원이 {TEAM_TARGET}명보다 적으면 남은 팀원 모두)</p>
             <h3>같이 배정되지 않기</h3>
             <ul>
               <li>함께 배정되고 싶지 않은 멤버 최대 3명 등록</li>

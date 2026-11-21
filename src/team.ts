@@ -18,6 +18,18 @@ export const TEAM_TARGET = 4;
 export function matesNeeded(teamSize: number): number {
   return Math.max(0, Math.min(teamSize - 1, 1));
 }
+
+// 시즌마다 그 시즌이 시작할 때의 규칙으로 판정해요. 지난 시즌을 다시 볼 때(빙고 다시 확인, 늦은 정산) 새 규칙으로 바뀌지 않게요.
+// 2026-11-21 시즌 전: 팀 인원 절반과 각각 30분이면 나는 달성, 팀 절반(최소 2)이 달성하면 팀 완료.
+export const TEAM_RULE_FROM = '2026-11-21';
+export type TeamRule = { goalMin: number; need: (size: number) => number; target: (size: number) => number };
+export const TEAM_RULE: TeamRule = { goalMin: TEAM_GOAL_MIN, need: matesNeeded, target: (n) => Math.min(TEAM_TARGET, n) };
+export const OLD_TEAM_RULE: TeamRule = {
+  goalMin: 30,
+  need: (n) => Math.max(1, Math.min(n - 1, Math.round(n / 2))),
+  target: (n) => Math.min(Math.max(2, Math.round(n / 2)), n),
+};
+export const teamRuleFor = (seasonId: string): TeamRule => (seasonId < TEAM_RULE_FROM ? OLD_TEAM_RULE : TEAM_RULE);
 // 초록하리보와 같은 통화방에서 이만큼 함께하면 납치 성공
 export const KIDNAP_MIN = 30;
 
@@ -168,20 +180,26 @@ export const myMinutes = (userId: string, other: string, minutes: Map<string, nu
   Math.max(0, (minutes.get(pairKey(other, userId)) ?? 0) - (resets.get(resetKey(userId, other)) ?? 0));
 
 // TEAM_GOAL_MIN분 이상 함께한 팀원 수(떠난 팀원과 함께한 시간도 이미 함께한 거라 세요)
-export function matesOf(userId: string, members: string[], minutes: Map<string, number>, resets: PairResets = new Map()): number {
-  return members.filter((u) => u !== userId && myMinutes(userId, u, minutes, resets) >= TEAM_GOAL_MIN).length;
+export function matesOf(userId: string, members: string[], minutes: Map<string, number>, resets: PairResets = new Map(), goalMin = TEAM_GOAL_MIN): number {
+  return members.filter((u) => u !== userId && myMinutes(userId, u, minutes, resets) >= goalMin).length;
 }
 
 // members: 이 팀에 한 번이라도 있었던 사람(떠난 사람 포함).
 // 나는 달성 = TEAM_GOAL_MIN분 이상 함께한 팀원(떠난 팀원과 함께한 것도 세요)이 1명 이상.
 // 팀 완료 = TEAM_TARGET명(남은 팀원이 그보다 적으면 남은 팀원 모두)이 달성. 남은 팀원이 2명보다 적으면 보너스 칸.
-export function teamProgress(members: string[], minutes: Map<string, number>, left: Set<string>, resets: PairResets = new Map()): TeamProgress {
+export function teamProgress(
+  members: string[],
+  minutes: Map<string, number>,
+  left: Set<string>,
+  resets: PairResets = new Map(),
+  rule: TeamRule = TEAM_RULE,
+): TeamProgress {
   const all = [...new Set(members)];
   const candidates = all.filter((u) => !left.has(u)).sort();
-  const need = matesNeeded(candidates.length);
-  const achievers = candidates.filter((u) => matesOf(u, all, minutes, resets) >= need);
+  const need = rule.need(candidates.length);
+  const achievers = candidates.filter((u) => matesOf(u, all, minutes, resets, rule.goalMin) >= need);
   const bonus = candidates.length < 2;
-  const target = bonus ? 0 : Math.min(TEAM_TARGET, candidates.length);
+  const target = bonus ? 0 : rule.target(candidates.length);
   return { bonus, candidates, need, achievers, target, complete: !bonus && achievers.length >= target };
 }
 
@@ -191,6 +209,7 @@ export type TeamState = TeamProgress & {
   members: { id: string; name: string; left: boolean }[];
   pairs: { a: string; b: string; minutes: number }[];
   resets?: PairResets; // 같은 시즌 재가입자의 나가기 전 분(없으면 빼지 않아요)
+  goalMin?: number; // 이 시즌 규칙의 "함께한 분"(없으면 TEAM_GOAL_MIN)
 };
 
 // 시즌의 모든 팀 상태(팀이 10개 안팎이라 한 번에 읽어요)
@@ -219,6 +238,7 @@ export async function loadTeams(db: D1Database, seasonId: string): Promise<Map<n
   for (const r of pairs.results) minutes.set(pairKey(r.a, r.b), (minutes.get(pairKey(r.a, r.b)) ?? 0) + r.minutes);
   const left = new Set(members.results.filter((m) => m.left_at).map((m) => m.user_id));
   const nos = [...new Set(members.results.map((m) => m.group_no))].sort((a, b) => a - b);
+  const rule = teamRuleFor(seasonId);
   const out = new Map<number, TeamState>();
   for (const no of nos) {
     out.set(no, {
@@ -232,12 +252,14 @@ export async function loadTeams(db: D1Database, seasonId: string): Promise<Map<n
             .map((p) => ({ a: p.a, b: p.b, minutes: minutes.get(pairKey(p.a, p.b)) ?? 0 }))
         : [],
       resets,
+      goalMin: rule.goalMin,
       ...(ready
         ? teamProgress(
             members.results.filter((m) => m.group_no === no).map((m) => m.user_id),
             minutes,
             left,
             resets,
+            rule,
           )
         : { bonus: false, candidates: [], need: 0, achievers: [], target: 0, complete: false }),
     });
