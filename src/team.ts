@@ -9,14 +9,15 @@ const DAY_MS = 86_400_000;
 // 팀 짜기에서 "주로 노는 시간대"를 볼 때 시즌 시작 전 이만큼의 기록을 봐요
 export const TEAM_PRIOR_DAYS = 14;
 // 팀 퀘스트(나리 2026-11-21, 매주 팀): 이번 시즌 같은 통화방에서 합쳐서 TEAM_GOAL_MIN분 이상 함께한 팀원이
-// 한 명이라도 있으면 나는 달성, 팀에서 TEAM_TARGET명이 달성하면 팀 완료.
+// TEAM_MATES명 이상이면 나는 달성, 팀에서 TEAM_TARGET명이 달성하면 팀 완료.
 // (11/17~11/20 규칙 "팀 절반과 각각 30분, 절반 달성"은 한 팀도 못 깼어요.)
 export const TEAM_GOAL_MIN = 60;
+export const TEAM_MATES = 4;
 export const TEAM_TARGET = 4;
 
-// 달성에 필요한 "TEAM_GOAL_MIN분 함께한 팀원" 수: 1명(혼자 남은 팀은 0명이라 보너스 칸이에요)
+// 달성에 필요한 "TEAM_GOAL_MIN분 함께한 팀원" 수: TEAM_MATES명(나를 뺀 팀원이 그보다 적으면 모두)
 export function matesNeeded(teamSize: number): number {
-  return Math.max(0, Math.min(teamSize - 1, 1));
+  return Math.max(0, Math.min(teamSize - 1, TEAM_MATES));
 }
 
 // 시즌마다 그 시즌이 시작할 때의 규칙으로 판정해요. 지난 시즌을 다시 볼 때(빙고 다시 확인, 늦은 정산) 새 규칙으로 바뀌지 않게요.
@@ -185,7 +186,7 @@ export function matesOf(userId: string, members: string[], minutes: Map<string, 
 }
 
 // members: 이 팀에 한 번이라도 있었던 사람(떠난 사람 포함).
-// 나는 달성 = TEAM_GOAL_MIN분 이상 함께한 팀원(떠난 팀원과 함께한 것도 세요)이 1명 이상.
+// 나는 달성 = TEAM_GOAL_MIN분 이상 함께한 팀원(떠난 팀원과 함께한 것도 세요)이 TEAM_MATES명 이상.
 // 팀 완료 = TEAM_TARGET명(남은 팀원이 그보다 적으면 남은 팀원 모두)이 달성. 남은 팀원이 2명보다 적으면 보너스 칸.
 export function teamProgress(
   members: string[],
