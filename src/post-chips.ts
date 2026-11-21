@@ -59,7 +59,7 @@ export async function grantPostChips(db: D1Database, p: PostChip, nowMs: number)
 
 export type RevokeResult = { result: 'revoked' | 'already' | 'not_found'; taken: number };
 
-// 글이 지워졌어요: 준 젤칩을 다시 빼요(0개 밑으로는 안 내려가요). 같은 글 번호는 한 번만 빼요.
+// 글이 지워졌어요: 준 젤칩을 다 빼요. 모자라면 빚으로 남아 마이너스로 보여요(나리 2026-11-21). 같은 글 번호는 한 번만 빼요.
 export async function revokePostChips(db: D1Database, id: string, nowMs: number): Promise<RevokeResult> {
   const r = await db.prepare('UPDATE post_chips SET revoked_at = ?2 WHERE id = ?1 AND revoked_at IS NULL').bind(id, new Date(nowMs).toISOString()).run();
   const row = await db.prepare('SELECT taken FROM post_chips WHERE id = ?').bind(id).first<{ taken: number | null }>();

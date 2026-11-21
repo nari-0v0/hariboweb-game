@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { claimDaily } from '../src/gamble-db';
+import { claimDaily, gambleAccount } from '../src/gamble-db';
 import { grantPostChips, parsePostChip, revokePostChips } from '../src/post-chips';
 
 function fakeD1() {
@@ -95,8 +95,9 @@ describe('구인구직·디스타그램 글 젤칩', () => {
     expect(chips(B)).toBeUndefined();
   });
 
-  it('글이 지워지면 다시 빼요(0개 밑으로는 안 내려가요), 지운 글도 하루 4번에 세요', async () => {
+  it('글이 지워지면 다시 빼요. 모자라면 마이너스(빚)로 남고 다음 젤칩에서 먼저 갚아요', async () => {
     const { db, sql, chips } = setup();
+    const net = async () => (await gambleAccount(db, A))?.chips;
     await grantPostChips(db, post(ID(1)), NOW);
     await grantPostChips(db, post(ID(2)), NOW);
     expect(chips()).toBe(200);
@@ -105,13 +106,30 @@ describe('구인구직·디스타그램 글 젤칩', () => {
     expect(await revokePostChips(db, ID(1), NOW)).toEqual({ result: 'already', taken: 100 });
     expect(chips()).toBe(100);
     expect(await revokePostChips(db, ID(9), NOW)).toEqual({ result: 'not_found', taken: 0 });
-    // 이미 써 버렸으면 남은 만큼만
+    // 이미 30개만 남았으면 -70
     sql.prepare('UPDATE gamble_accounts SET chips = 30 WHERE user_id = ?').run(A);
-    expect(await revokePostChips(db, ID(2), NOW)).toEqual({ result: 'revoked', taken: 30 });
+    expect(await revokePostChips(db, ID(2), NOW)).toEqual({ result: 'revoked', taken: 100 });
     expect(chips()).toBe(0);
+    expect(await net()).toBe(-70);
+    // 마이너스면 걸 수 없어요(걸 수 있는 젤칩 0)
+    // 다음 글 젤칩 100개 → 빚 70 갚고 30
     await grantPostChips(db, post(ID(3)), NOW);
+    expect(await net()).toBe(30);
+    expect(chips()).toBe(30);
+    // 지운 글도 하루 4번에 세요
     expect(await grantPostChips(db, post(ID(4)), NOW)).toEqual({ result: 'applied', left: 0 });
     expect((await grantPostChips(db, post(ID(5)), NOW)).result).toBe('limit');
+  });
+
+  it('빚이 있으면 하루 충전·시작 젤칩에서도 먼저 갚아요', async () => {
+    const { db, sql, chips } = setup();
+    await grantPostChips(db, post(ID(1)), NOW);
+    sql.prepare('UPDATE gamble_accounts SET chips = 0 WHERE user_id = ?').run(A);
+    await revokePostChips(db, ID(1), NOW); // 0 - 100
+    expect((await gambleAccount(db, A))?.chips).toBe(-100);
+    expect(await claimDaily(db, A, new Date(NOW).toISOString())).toBe(1000);
+    expect(chips()).toBe(900);
+    expect((await gambleAccount(db, A))?.chips).toBe(900);
   });
 
   it('형식이 틀리면 거절', () => {
