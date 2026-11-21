@@ -55,11 +55,50 @@ function spread(total: number, groups: number): number[] {
 // 3) 많이 노는 사람부터 같은 게임 모둠 중 활동량 합이 제일 적은 곳에 넣어요(나눠 주기).
 // 모둠 인원 차이는 많아야 1명. 게임 역할이 없는 사람은 모둠마다 고르게 나눠요.
 // 시간대(slot)가 있으면 활동량 합이 적은 두 모둠 중 같은 시간대 사람이 더 많은 곳에 넣어요.
+// 활동이 적은 사람(지난 2주 함께 통화 LOW_ACTIVITY_MIN분 미만): 한 팀에 몰리지 않게 팀마다 같은 수(차이 1명까지)로 먼저 나눠요
+// (벙구 의견, 나리 2026-11-21). 나머지 사람은 아래 방식(게임 역할 → 활동량 고르게 → 시간대)으로 남은 자리에 넣어요.
+export const LOW_ACTIVITY_MIN = 60;
+
 export function planGroups(people: Person[], rand: () => number): Map<string, number> {
-  const out = new Map<string, number>();
   const g = groupCount(people.length);
-  if (!g) return out;
+  if (!g) return new Map();
   const cap = spread(people.length, g);
+  const low = people.filter((p) => p.activity < LOW_ACTIVITY_MIN);
+  const rest = people.filter((p) => p.activity >= LOW_ACTIVITY_MIN);
+  if (!low.length || !rest.length) return planCore(people, rand, g, cap);
+  // 팀 인원이 많은 팀이 활동 적은 사람도 먼저 하나 더 받아요(남는 자리 차이가 1명을 넘지 않게)
+  const order = [...Array(g).keys()].sort((a, b) => cap[b]! - cap[a]! || a - b);
+  const lowQuota = Array<number>(g).fill(0);
+  spread(low.length, g).forEach((n, k) => (lowQuota[order[k]!] = n));
+  const out = planCore(rest, rand, g, cap.map((c, i) => c - lowQuota[i]!));
+  const games = Array.from({ length: g }, () => new Set<string>());
+  const slots = Array.from({ length: g }, () => new Map<string, number>());
+  const act = Array<number>(g).fill(0);
+  for (const p of rest) {
+    const i = out.get(p.id)!;
+    for (const x of p.games) games[i]!.add(x);
+    if (p.slot) slots[i]!.set(p.slot, (slots[i]!.get(p.slot) ?? 0) + 1);
+    act[i]! += p.activity;
+  }
+  const lowCount = Array<number>(g).fill(0);
+  // 조금이라도 하는 사람부터: 게임 역할이 겹치는 팀 → 같은 시간대가 많은 팀 → 활동량 합이 적은 팀
+  for (const p of shuffle(low, rand).sort((a, b) => b.activity - a.activity)) {
+    const open = [...Array(g).keys()].filter((i) => lowCount[i]! < lowQuota[i]!);
+    const sharing = open.filter((i) => p.games.some((x) => games[i]!.has(x)));
+    const pool = shuffle(sharing.length ? sharing : open, rand).sort(
+      (a, b) => (p.slot ? (slots[b]!.get(p.slot) ?? 0) - (slots[a]!.get(p.slot) ?? 0) : 0) || act[a]! - act[b]!,
+    );
+    const i = pool[0]!;
+    out.set(p.id, i);
+    lowCount[i]!++;
+    act[i]! += p.activity;
+  }
+  return out;
+}
+
+function planCore(people: Person[], rand: () => number, g: number, cap: number[]): Map<string, number> {
+  const out = new Map<string, number>();
+  if (!people.length) return out;
   const byActivity = (list: Person[]) => shuffle(list, rand).sort((a, b) => b.activity - a.activity);
   const withGames = byActivity(people.filter((p) => p.games.length));
   const without = byActivity(people.filter((p) => !p.games.length));

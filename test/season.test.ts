@@ -89,8 +89,23 @@ describe('모둠 나누기', () => {
     expect(heavy.size).toBe(10);
   });
 
+  it('활동이 적은 사람(지난 2주 60분 미만)은 게임 역할과 상관없이 팀마다 같은 수로', () => {
+    // 롤 60명·발로 31명(게임별로 팀이 나뉘어도), 그중 29명은 통화 0분 → 9팀에 3~4명씩
+    const list = Array.from({ length: 91 }, (_, i): Person => ({
+      id: id(i + 1),
+      games: [i % 3 ? '롤' : '발로란트'],
+      activity: i < 29 ? 0 : 100 + i * 13,
+    }));
+    const plan = planGroups(list, seededRandom('low'));
+    expect(sizes(plan)).toEqual([11, 10, 10, 10, 10, 10, 10, 10, 10]);
+    const low = new Map<number, number>();
+    for (const p of list.slice(0, 29)) low.set(plan.get(p.id)!, (low.get(plan.get(p.id)!) ?? 0) + 1);
+    expect(low.size).toBe(9);
+    expect(Math.max(...low.values()) - Math.min(...low.values())).toBeLessThanOrEqual(1);
+  });
+
   it('게임 역할이 없는 사람은 모둠마다 고르게', () => {
-    const list = people(100, (i) => (i < 30 ? [] : ['롤']));
+    const list = people(100, (i) => (i < 30 ? [] : ['롤'])).map((p) => ({ ...p, activity: p.activity + 60 })); // 모두 활동 적지 않은 사람
     const plan = planGroups(list, seededRandom('e'));
     const none = new Map<number, number>();
     for (const p of list.slice(0, 30)) none.set(plan.get(p.id)!, (none.get(plan.get(p.id)!) ?? 0) + 1);
