@@ -1,5 +1,5 @@
 import type { Member } from '../env';
-import { KIDNAP_MIN, TEAM_GOAL_MIN, TEAM_TARGET } from '../team';
+import { KIDNAP_MIN, TEAM_GOAL_MIN, TEAM_MATES, TEAM_TARGET } from '../team';
 import { PRAISE_PER_DAY } from '../db';
 import { LEVEL_STEP } from '../sync';
 import { GAMBLE_LOCKED } from '../gamble';
@@ -72,7 +72,7 @@ export function GuidePage(props: { viewer: Member | null }) {
             <h3>🤝 팀 퀘스트</h3>
             <p>활동 게임과 시간대가 비슷한 멤버끼리 약 10명씩 매주 자동으로 팀이 구성돼요.</p>
             <p>
-              팀원 누구와든 같은 통화방에 {TEAM_GOAL_MIN / 60}시간 이상 함께 있으면 개인 목표 달성! 누구와 몇 분 함께했는지는 빙고 팀 퀘스트 칸에서 볼 수 있어요.
+              팀원 {TEAM_MATES}명과 각각 같은 통화방에 {TEAM_GOAL_MIN / 60}시간 이상 함께 있으면 개인 목표 달성! 누구와 몇 분 함께했는지는 빙고 팀 퀘스트 칸에서 볼 수 있어요.
             </p>
             <p>팀에서 {TEAM_TARGET}명이 개인 목표를 달성하면 팀 퀘스트가 완료돼요. (남은 팀원이 {TEAM_TARGET}명보다 적으면 남은 팀원 모두)</p>
             <h3>같이 배정되지 않기</h3>

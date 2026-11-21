@@ -248,10 +248,10 @@ it('시뮬: 시즌을 넘기며 팀·서버 퀘스트 분과 시즌 끝 보상�
         for (const g of new Set(s.group.values())) {
           const all = [...s.group].filter(([, x]) => x === g).map(([u]) => u);
           const cand = all.filter((u) => !s.left.has(u));
-          // 2026-11-21 전에 시작한 시즌: 팀 절반과 각각 30분, 절반 달성. 그 뒤: 팀원 누구와든 60분, 4명 달성(나리 2026-11-21)
+          // 2026-11-21 전에 시작한 시즌: 팀 절반과 각각 30분, 절반 달성. 그 뒤: 팀원 4명과 각각 60분, 4명 달성(나리 2026-11-21)
           const old = s.id < '2026-11-21';
           const goal = old ? 30 : 60;
-          const need = old ? Math.max(1, Math.min(cand.length - 1, Math.round(cand.length / 2))) : Math.min(cand.length - 1, 1);
+          const need = old ? Math.max(1, Math.min(cand.length - 1, Math.round(cand.length / 2))) : Math.min(cand.length - 1, 4);
           const ach = cand.filter((u) => all.filter((v) => v !== u && (minutes.get(pk(u, v)) ?? 0) - (s.reset.get(`team|${u}|${v}`) ?? 0) >= goal).length >= need);
           const target = old ? Math.min(Math.max(2, Math.round(cand.length / 2)), cand.length) : Math.min(4, cand.length);
           if (cand.length >= 2 && ach.length >= target) for (const u of ach) teamWin.add(u);
